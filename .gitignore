@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables / secrets — IMPORTANT
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Mobile-specific
+apps/mobile/ios/Pods/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+*.ipa
+*.apk
+*.aab
+
+# TV-specific (adjust based on platform)
+apps/tv/build/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager locks (optional — some teams DO commit these, see note below)
+# package-lock.json
+# yarn.lock
