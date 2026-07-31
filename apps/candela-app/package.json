@@ -1,5 +1,5 @@
 {
-  "name": "@candela/website-frontend",
+  "name": "@candela/app",
   "version": "0.1.0",
   "private": true,
   "scripts": {

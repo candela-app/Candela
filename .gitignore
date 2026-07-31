@@ -8,6 +8,7 @@ node_modules/
 .env.*.local
 **/.env
 **/.env.local
+!**/.env.example
 
 # Build outputs
 dist/
@@ -16,15 +17,18 @@ build/
 out/
 
 # Mobile-specific
-apps/mobile/ios/Pods/
-apps/mobile/android/.gradle/
-apps/mobile/android/app/build/
+apps/candela-mobile/ios/Pods/
+apps/candela-mobile/android/.gradle/
+apps/candela-mobile/android/app/build/
 *.ipa
 *.apk
 *.aab
 
 # TV-specific (adjust based on platform)
-apps/tv/build/
+apps/candela-tv/build/
+
+# Vercel
+.vercel
 
 # IDE / editor
 .vscode/
