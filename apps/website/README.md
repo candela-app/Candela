@@ -1,1 +1,0 @@
-This is the folder where we write the code that is related to the website

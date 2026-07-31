@@ -4,15 +4,14 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "apps/website/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:frontend",
-    "dev:frontend": "npm run dev --workspace=apps/website/frontend",
-    "dev:backend": "npm run start:dev --workspace=apps/website/backend",
-    "build:shared": "npm run build --workspace=packages/shared",
-    "build": "npm run build --workspace=packages/shared"
+    "dev": "npm run dev:app",
+    "dev:app": "npm run dev --workspace=@candela/app",
+    "dev:backend": "npm run start:dev --workspace=@candela/backend",
+    "build:shared": "npm run build --workspace=@candela/shared",
+    "build": "npm run build --workspace=@candela/shared"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

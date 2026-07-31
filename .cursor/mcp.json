@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "vercel": {
+      "url": "https://mcp.vercel.com"
+    },
+    "render": {
+      "url": "https://mcp.render.com/mcp",
+      "auth": {
+        "CLIENT_ID": "cursor"
+      }
+    }
+  }
+}
