@@ -1,20 +1,16 @@
-name: CI/CD
+name: Production Build and Deploy
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 concurrency:
-  group: ci-cd-${{ github.ref }}
+  group: ci-cd-main
   cancel-in-progress: true
 
 jobs:
-  # PR → main: build check only (no deploy)
   ci:
     name: CI Build
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,10 +34,9 @@ jobs:
       - name: Build backend
         run: npm run build --workspace=@candela/backend
 
-  # Merge/push → main: deploy only (CI already ran on the PR)
   deploy-vercel:
     name: Deploy Vercel
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ci
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -74,7 +69,7 @@ jobs:
 
   deploy-render:
     name: Deploy Render
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ci
     runs-on: ubuntu-latest
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
