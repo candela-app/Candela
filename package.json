@@ -2,18 +2,23 @@
   "name": "candela-monorepo",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.6.1",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:app",
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "start": "turbo start",
+    "start:dev": "turbo start:dev",
     "dev:app": "npm run dev --workspace=@candela/app",
     "dev:backend": "npm run start:dev --workspace=@candela/backend",
-    "build:shared": "npm run build --workspace=@candela/shared",
-    "build": "npm run build --workspace=@candela/shared"
+    "build:shared": "npm run build --workspace=@candela/shared"
   },
   "devDependencies": {
+    "turbo": "^2.0.0",
     "typescript": "^5.0.0"
   }
 }
