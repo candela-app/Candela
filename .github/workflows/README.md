@@ -7,7 +7,9 @@ Deploy jobs pull **all deploy credentials from GitHub Actions secrets** — noth
 | Event | CI build | Deploy Vercel | Deploy Render |
 |-------|----------|---------------|---------------|
 | Pull request → `main` | Yes | No | No |
-| Push / merge → `main` | Yes | Yes | Yes |
+| Push / merge → `main` | No | Yes | Yes |
+
+CI runs once on the PR. After merge, Actions only deploys (no second CI). Keep `main` PR-only so every release is CI-checked before merge.
 
 ## Where to put secrets / variables
 
@@ -54,20 +56,20 @@ Runtime app secrets for the **running** services stay on the host platforms (Act
 
 **Render (`candela-backend`):**
 - Branch: `main`
-- Root Directory: `apps/candela-backend`
 - Build Command: `cd apps/candela-backend && npm install && npm run build`
 - Start Command: `cd apps/candela-backend && node dist/main.js`
 - Env: `DATABASE_URL` (Neon pooler), `NODE_ENV=production`
-- **Auto-Deploy: Off** — Actions triggers the Deploy Hook after CI passes
+- **Auto-Deploy: Off** — Actions triggers the Deploy Hook on merge to `main`
 
 ## First-deploy checklist
 
 1. Add the four **Secrets** above under GitHub → Settings → Secrets and variables → Actions.
 2. Confirm Vercel root directory + Render build/start/env as listed.
 3. Turn off Vercel Git auto-deploy and Render Auto-Deploy.
-4. Merge a PR to `main` (or push to `main`).
+4. Open a PR to `main` (CI runs) → merge → deploy runs.
 5. Confirm:
-   - GitHub Actions run is green (`CI Build` → `Deploy Vercel` + `Deploy Render`)
+   - PR Actions: `CI Build` green
+   - Merge Actions: `Deploy Vercel` + `Deploy Render` green
    - Vercel shows a new **Production** deployment
    - Render shows a deploy started from the hook
    - `GET https://<your-render-host>/api/health` → `{ "status": "ok", "database": "connected", ... }`

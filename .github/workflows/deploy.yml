@@ -11,8 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # PR → main: build check only (no deploy)
   ci:
     name: CI Build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,12 +38,11 @@ jobs:
       - name: Build backend
         run: npm run build --workspace=@candela/backend
 
+  # Merge/push → main: deploy only (CI already ran on the PR)
   deploy-vercel:
     name: Deploy Vercel
-    needs: ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Reads deploy credentials from GitHub Actions secrets (repo Settings → Secrets and variables → Actions)
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -73,10 +74,8 @@ jobs:
 
   deploy-render:
     name: Deploy Render
-    needs: ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Deploy hook URL comes from GitHub Actions secrets
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
