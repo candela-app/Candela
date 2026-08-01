@@ -55,8 +55,8 @@ Runtime app secrets for the **running** services stay on the host platforms (Act
 **Render (`candela-backend`):**
 - Branch: `main`
 - Root Directory: `apps/candela-backend`
-- Build Command: `npm install && npm run build`
-- Start Command: `node dist/main.js`
+- Build Command: `cd apps/candela-backend && npm install && npm run build`
+- Start Command: `cd apps/candela-backend && node dist/main.js`
 - Env: `DATABASE_URL` (Neon pooler), `NODE_ENV=production`
 - **Auto-Deploy: Off** — Actions triggers the Deploy Hook after CI passes
 
