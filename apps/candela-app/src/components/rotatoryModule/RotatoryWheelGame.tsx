@@ -8,8 +8,12 @@ import {
   BubblePosition,
   BRIGHT_COLORS,
   SPEED_PRESETS,
+  BUBBLES_PER_ROUND,
   DEFAULT_BASE_ANIMATION_DURATION,
   checkOverlap,
+  getMinDistancePercent,
+  getDeviceTier,
+  getSlotFallbackPosition,
   getRandomSymbol,
   getContrastColor,
   exportSessionCSV,
@@ -277,11 +281,19 @@ export function RotatoryWheelGame({
     const newBubbles: BubbleItem[] = [];
     const positions: BubblePosition[] = [];
 
-    const containerSize = bubbleContainerRef.current
-      ? bubbleContainerRef.current.clientWidth
+    const rawContainer = bubbleContainerRef.current;
+    const containerSize = rawContainer
+      ? Math.min(rawContainer.clientWidth, rawContainer.clientHeight)
       : 500;
 
-    for (let i = 0; i < 10; i++) {
+    const minDistance = getMinDistancePercent(bubbleSize, containerSize, 2);
+    const deviceTier = getDeviceTier(
+      typeof window !== 'undefined' ? window.innerWidth : undefined,
+      typeof window !== 'undefined' ? window.innerHeight : undefined
+    );
+    const bubblesPerRound = BUBBLES_PER_ROUND[deviceTier];
+
+    for (let i = 0; i < bubblesPerRound; i++) {
       const symbol = getRandomSymbol(mode, variant);
       let pos: BubblePosition = { x: 50, y: 50 };
       let valid = false;
@@ -295,35 +307,38 @@ export function RotatoryWheelGame({
         const y = 50 + (radius * Math.sin(angle)) / (containerSize / 100);
 
         pos = { x, y };
-        if (!checkOverlap(pos, positions, 12)) {
+        if (!checkOverlap(pos, positions, minDistance)) {
           valid = true;
           break;
         }
       }
 
-      if (valid) {
-        positions.push(pos);
-        let bgColor = '';
-        let colorName = '';
-
-        if (mode === 'colors') {
-          const colorObj =
-            BRIGHT_COLORS.find((c) => c.name === symbol) || BRIGHT_COLORS[0];
-          bgColor = colorObj.code;
-          colorName = colorObj.name;
-        } else {
-          bgColor = customColors[i % customColors.length];
-        }
-
-        newBubbles.push({
-          id: `bubble-${i}-${Date.now()}-${Math.random()}`,
-          symbol,
-          color: bgColor,
-          colorName,
-          x: pos.x,
-          y: pos.y,
-        });
+      // Guaranteed Slot Fallback: if all 80 attempts fail, place deterministically
+      if (!valid) {
+        pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize);
       }
+
+      positions.push(pos);
+      let bgColor = '';
+      let colorName = '';
+
+      if (mode === 'colors') {
+        const colorObj =
+          BRIGHT_COLORS.find((c) => c.name === symbol) || BRIGHT_COLORS[0];
+        bgColor = colorObj.code;
+        colorName = colorObj.name;
+      } else {
+        bgColor = customColors[i % customColors.length];
+      }
+
+      newBubbles.push({
+        id: `bubble-${i}-${Date.now()}-${Math.random()}`,
+        symbol,
+        color: bgColor,
+        colorName,
+        x: pos.x,
+        y: pos.y,
+      });
     }
 
     setBubbles(newBubbles);

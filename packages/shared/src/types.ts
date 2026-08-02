@@ -1,4 +1,5 @@
 export type GameMode = 'alphabets' | 'numbers' | 'colors';
+export type DeviceTier = 'mobile' | 'tablet' | 'tv';
 
 export type AlphabetVariant = 'uppercase' | 'lowercase';
 export type SortingVariant = 'uppercase' | 'lowercase' | 'numbers';
