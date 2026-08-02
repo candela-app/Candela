@@ -54,8 +54,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
   const [wrongIds, setWrongIds] = useState<Set<string>>(new Set());
 
-  // Screen size state for responsive batching
-  const [isMobileTab, setIsMobileTab] = useState<boolean>(false);
+  // Screen & Device type state for responsive batching
+  const [deviceType, setDeviceType] = useState<'Mobile' | 'Tablet' | 'Desktop'>('Desktop');
 
   // Stats
   const [clicks, setClicks] = useState<number>(0);
@@ -67,18 +67,29 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [durationSec, setDurationSec] = useState<number>(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Voice selection helper for Indian English (en-IN)
   const indianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
-    const checkScreen = () => {
-      setIsMobileTab(window.innerWidth < 1024);
+    const detectDevice = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+
+      if (w < 768 || (w < 1024 && h < 500)) {
+        setDeviceType('Mobile');
+      } else if (w < 1024 || (isTouch && w <= 1366 && h <= 1024)) {
+        setDeviceType('Tablet');
+      } else {
+        setDeviceType('Desktop');
+      }
     };
-    checkScreen();
-    window.addEventListener('resize', checkScreen);
-    return () => window.removeEventListener('resize', checkScreen);
+
+    detectDevice();
+    window.addEventListener('resize', detectDevice);
+    return () => window.removeEventListener('resize', detectDevice);
   }, []);
+
+  const isMobileTab = deviceType === 'Mobile' || deviceType === 'Tablet';
 
   // Request Fullscreen on game entry and prevent double-tap zoom gestures
   useEffect(() => {
@@ -428,7 +439,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               Click the emoji to start sorting!
             </div>
             <div className="text-sm text-gray-400 font-medium">
-              Mode: {isMobileTab ? 'Mobile/Tab (4-item chunks)' : 'Desktop (5-item chunks)'}
+              Device: <span className="text-blue-400 font-bold">{deviceType}</span> ({deviceType === 'Desktop' ? '5-item chunks' : '4-item chunks'})
             </div>
           </div>
         ) : (
@@ -495,6 +506,17 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               }}
             >
               Reset Game
+            </button>
+
+            <button
+              className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2"
+              onClick={() => {
+                setIsMenuOpen(false);
+                requestFullScreenSafe();
+              }}
+            >
+              <span>Full Screen</span>
+              <span>⛶</span>
             </button>
 
             <button

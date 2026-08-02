@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RotatoryWheelGame } from '@/components/rotatoryModule/RotatoryWheelGame';
 import { SortingGame } from '@/components/sortingModule/SortingGame';
-import { GameMode, AlphabetVariant, SortingVariant } from '@candela/shared';
+import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe } from '@candela/shared';
 
 type ActiveView = 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting';
 
@@ -78,6 +78,7 @@ function MainContent() {
   };
 
   const handleLaunchRotatory = (mode: GameMode, variant: AlphabetVariant) => {
+    requestFullScreenSafe();
     updateQueryParams({
       therapy: 'vision',
       module: 'wheel',
@@ -88,6 +89,7 @@ function MainContent() {
   };
 
   const handleLaunchSorting = (variant: SortingVariant) => {
+    requestFullScreenSafe();
     updateQueryParams({
       therapy: 'vision',
       module: 'sorting',
