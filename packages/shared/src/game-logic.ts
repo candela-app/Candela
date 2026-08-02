@@ -1,5 +1,33 @@
-import { BubblePosition, GameMode, ColorItem, SessionResultData } from './types';
+import { BubblePosition, GameMode, ColorItem, SessionResultData, DeviceTier } from './types';
 import { ALPHABETS, NUMBERS, BRIGHT_COLORS } from './constants';
+
+/**
+ * Detects device tier from viewport dimensions.
+ * Mobile: < 600px width OR landscape mobile (< 1024px width & < 500px height).
+ * Tablet: 600-1200px.
+ * TV/Desktop: > 1200px.
+ */
+export function getDeviceTier(width?: number, height?: number): DeviceTier {
+  const w = width ?? (typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const h = height ?? (typeof window !== 'undefined' ? window.innerHeight : 768);
+
+  if (w < 600 || (w < 1024 && h < 500)) return 'mobile';
+  if (w <= 1200) return 'tablet';
+  return 'tv';
+}
+
+/**
+ * Calculates dynamic minimum distance (in %) required between bubble centers to prevent overlaps.
+ */
+export function getMinDistancePercent(
+  bubbleSizePx: number,
+  containerSizePx: number,
+  gapPercent: number = 2
+): number {
+  if (containerSizePx <= 0) return 12;
+  const bubbleDiameterPercent = (bubbleSizePx / containerSizePx) * 100;
+  return bubbleDiameterPercent + gapPercent;
+}
 
 export function checkOverlap(
   pos: BubblePosition,
@@ -15,6 +43,25 @@ export function checkOverlap(
     }
   }
   return false;
+}
+
+/**
+ * Deterministically places a bubble into one of N angular slots when 80 random retries fail.
+ */
+export function getSlotFallbackPosition(
+  slotIndex: number,
+  totalSlots: number,
+  containerSize: number,
+  bubbleSize: number
+): BubblePosition {
+  const maxR = containerSize / 2 - bubbleSize / 2 - 12;
+  const radius = maxR * 0.65; // Place on 65% radius ring to avoid center & outer edge
+  const angle = (2 * Math.PI * slotIndex) / Math.max(1, totalSlots);
+
+  const x = 50 + (radius * Math.cos(angle)) / (containerSize / 100);
+  const y = 50 + (radius * Math.sin(angle)) / (containerSize / 100);
+
+  return { x, y };
 }
 
 export function getRandomSymbol(mode: GameMode, variant: 'uppercase' | 'lowercase' = 'uppercase'): string {
