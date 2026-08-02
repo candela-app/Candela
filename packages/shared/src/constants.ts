@@ -1,4 +1,10 @@
-import { ColorItem } from './types';
+import { ColorItem, DeviceTier } from './types';
+
+export const BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
+  mobile: 4,
+  tablet: 5,
+  tv: 10,
+};
 
 // TODO: device-config — lift hardcoded colors to device configuration system in future refactor
 export const BRIGHT_COLORS: ColorItem[] = [
