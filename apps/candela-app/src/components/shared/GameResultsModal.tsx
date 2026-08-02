@@ -31,9 +31,12 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     if (!cardRef.current) return;
     try {
       setIsDownloading(true);
+      const fileName = `session_results_${data.sessionId || Date.now()}.png`;
+
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
         pixelRatio: 2,
+        backgroundColor: '#121212',
         filter: (node) => {
           if (
             node instanceof HTMLElement &&
@@ -44,15 +47,48 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           return true;
         },
       });
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // Mobile Web Share API support (iOS Safari / Android Chrome native share/save to photos)
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `${data.gameName} Results`,
+            text: `Session results for ${data.patientName || 'Demo Patient'}`,
+          });
+          setDownloadToast('Card saved!');
+          setTimeout(() => setDownloadToast(null), 2500);
+          return;
+        } catch (shareErr) {
+          if ((shareErr as Error)?.name === 'AbortError') return;
+        }
+      }
+
+      // Blob URL download for desktop & standard mobile browsers
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.download = `session_results_${data.sessionId || Date.now()}.png`;
-      link.href = dataUrl;
+      link.download = fileName;
+      link.href = blobUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       setDownloadToast('Card image downloaded!');
       setTimeout(() => setDownloadToast(null), 2500);
     } catch (err) {
       console.error('Failed to download card image:', err);
+      setDownloadToast('Download failed');
+      setTimeout(() => setDownloadToast(null), 2500);
     } finally {
       setIsDownloading(false);
     }
@@ -76,14 +112,14 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
         <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
-        {/* Top-Right Download Card Button */}
+        {/* Top-Right Download Card Button - No Border */}
         <button
           data-exclude-from-download="true"
           onClick={handleDownloadCardImage}
           disabled={isDownloading}
           title="Download Card Image"
           aria-label="Download Card Image"
-          className="absolute top-5 right-5 z-20 p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-all cursor-pointer group disabled:opacity-50"
+          className="absolute top-5 right-5 z-20 p-2 rounded-xl bg-transparent hover:bg-white/10 text-gray-400 hover:text-white transition-all cursor-pointer group disabled:opacity-50"
         >
           <svg
             className="w-5 h-5 transition-transform group-hover:scale-110"
