@@ -30,8 +30,10 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const handleDownloadCardImage = async () => {
     if (!cardRef.current) return;
     try {
-      setIsDownloading(true);
-      const fileName = `session_results_${data.sessionId || Date.now()}.png`;
+      const gameSlug = data.gameName
+        ? data.gameName.toLowerCase().replace(/\s+/g, '-')
+        : 'results';
+      const fileName = `game-session-completed-${gameSlug}.png`;
 
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
@@ -48,40 +50,47 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
         },
       });
 
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], fileName, { type: 'image/png' });
+      // Detect mobile phone screen width (< 768px with touch)
+      const isMobilePhone =
+        typeof window !== 'undefined' &&
+        window.innerWidth < 768 &&
+        ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
 
-      // Mobile Web Share API support (iOS Safari / Android Chrome native share/save to photos)
-      if (
-        typeof navigator !== 'undefined' &&
-        navigator.canShare &&
-        navigator.canShare({ files: [file] })
-      ) {
+      // On mobile phones, try Web Share API first so user can "Save to Photos"
+      if (isMobilePhone && typeof navigator !== 'undefined' && navigator.canShare) {
         try {
-          await navigator.share({
-            files: [file],
-            title: `${data.gameName} Results`,
-            text: `Session results for ${data.patientName || 'Demo Patient'}`,
-          });
-          setDownloadToast('Card saved!');
-          setTimeout(() => setDownloadToast(null), 2500);
-          return;
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `${data.gameName} Results`,
+              text: `Session results for ${data.patientName || 'Demo Patient'}`,
+            });
+            setDownloadToast('Card saved!');
+            setTimeout(() => setDownloadToast(null), 2500);
+            return;
+          }
         } catch (shareErr) {
           if ((shareErr as Error)?.name === 'AbortError') return;
         }
       }
 
-      // Blob URL download for desktop & standard mobile browsers
-      const blobUrl = URL.createObjectURL(blob);
+      // Universal Direct File Download for Desktop, Laptops, Tablets & Mobile
       const link = document.createElement('a');
       link.download = fileName;
-      link.href = blobUrl;
+      link.href = dataUrl;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
 
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 500);
 
       setDownloadToast('Card image downloaded!');
       setTimeout(() => setDownloadToast(null), 2500);
@@ -136,13 +145,13 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </svg>
         </button>
 
-        {/* Toast Notification */}
+        {/* Top-Right Toast Notification */}
         {downloadToast && (
           <div
             data-exclude-from-download="true"
-            className="absolute top-16 right-5 z-30 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold shadow-lg"
+            className="fixed top-6 right-6 z-[300] flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md text-white font-bold px-4 py-2.5 rounded-2xl shadow-2xl border border-emerald-400/30 text-sm animate-fade-in"
           >
-            {downloadToast}
+            <span>✓</span> {downloadToast}
           </div>
         )}
 
