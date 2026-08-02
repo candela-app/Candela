@@ -20,6 +20,7 @@ import {
   exitFullScreenSafe,
   ClinicalSettingsModal,
 } from '@candela/shared';
+import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 
 interface SortingGameProps {
   variant?: SortingVariant;
@@ -476,86 +477,23 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         )}
       </div>
 
-      {/* OFFCANVAS MENU */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex justify-end" onClick={() => setIsMenuOpen(false)}>
-          <div className="w-[320px] h-full bg-[#111111] text-white p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
-              <h3 className="text-xl font-bold">Menu</h3>
-              <button className="text-2xl text-white hover:text-gray-400" onClick={() => setIsMenuOpen(false)}>
-                ✕
-              </button>
-            </div>
-
-            <button
-              className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                exitFullScreenSafe();
-                if (onExit) onExit();
-              }}
-            >
-              Quit Game
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                setGameStarted(false);
-              }}
-            >
-              Reset Game
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2"
-              onClick={() => {
-                setIsMenuOpen(false);
-                requestFullScreenSafe();
-              }}
-            >
-              <span>Full Screen</span>
-              <span>⛶</span>
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                setIsSettingsOpen(true);
-              }}
-            >
-              Open Settings
-            </button>
-
-            {/* CURRENT CLINICAL SETTINGS AT BOTTOM OF MENU */}
-            <div className="mt-auto pt-4 border-t border-gray-800 flex flex-col gap-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Current Clinical Settings
-              </div>
-              <div className="bg-[#181818] p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300 flex flex-col gap-2 shadow-inner">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Patient:</span>
-                  <span className="font-semibold text-white">{patientName}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Letter Size:</span>
-                  <span className="font-bold text-blue-400">{letterSize} rem</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Bubble Size:</span>
-                  <span className="font-bold text-blue-400">{bubbleSize} px</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Variant:</span>
-                  <span className="font-semibold text-emerald-400 capitalize">{variant}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* SHARED OFFCANVAS MENU */}
+      <GameMenuDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onQuit={() => {
+          if (onExit) onExit();
+        }}
+        onReset={() => setGameStarted(false)}
+        resetButtonLabel="Reset Game"
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        settingsSummary={[
+          { label: 'Patient', value: patientName },
+          { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },
+          { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
+          { label: 'Variant', value: <span className="text-emerald-400 font-bold capitalize">{variant}</span> },
+        ]}
+      />
 
       {/* SHARED CLINICAL SETTINGS MODAL */}
       <ClinicalSettingsModal
