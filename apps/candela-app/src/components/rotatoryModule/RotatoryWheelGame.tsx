@@ -22,6 +22,7 @@ import {
   exitFullScreenSafe,
   ClinicalSettingsModal,
 } from '@candela/shared';
+import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -523,70 +524,33 @@ export function RotatoryWheelGame({
         </button>
       </div>
 
-      {/* OFFCANVAS MENU (Tailwind CSS) */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex justify-end" onClick={() => setIsMenuOpen(false)}>
-          <div className="w-[300px] h-full bg-[#111111] text-white p-6 flex flex-col gap-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
-              <h3 className="text-xl font-bold">Menu</h3>
-              <button className="text-2xl text-white hover:text-gray-400" onClick={() => setIsMenuOpen(false)}>
-                ✕
-              </button>
-            </div>
-
-            <button
-              className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                exitFullScreenSafe();
-                if (onExit) onExit();
-              }}
-            >
-              Quit Game
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                startLevel();
-              }}
-            >
-              Reset Level
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2"
-              onClick={() => {
-                setIsMenuOpen(false);
-                requestFullScreenSafe();
-              }}
-            >
-              <span>Full Screen</span>
-              <span>⛶</span>
-            </button>
-
-            <button
-              className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold"
-              onClick={() => {
-                setIsMenuOpen(false);
-                setIsPaused(true);
-                if (typeof window !== 'undefined' && window.speechSynthesis) {
-                  window.speechSynthesis.cancel();
-                }
-                setIsSettingsOpen(true);
-              }}
-            >
-              Open Settings
-            </button>
-
+      {/* SHARED OFFCANVAS MENU */}
+      <GameMenuDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onQuit={() => {
+          if (onExit) onExit();
+        }}
+        onReset={startLevel}
+        resetButtonLabel="Reset Level"
+        onOpenSettings={() => {
+          setIsPaused(true);
+          if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
+          setIsSettingsOpen(true);
+        }}
+        extraControls={
+          <div className="flex flex-col gap-2">
             <div className="text-sm font-semibold text-gray-400 mt-2">Speed</div>
             <div className="grid grid-cols-3 gap-2">
               {SPEED_PRESETS.map((s) => (
                 <button
                   key={s}
-                  className={`py-2 border rounded-lg font-semibold ${
-                    speed === s ? 'border-blue-500 text-blue-400 bg-blue-950/40' : 'border-gray-700 text-gray-300 bg-[#222222]'
+                  className={`py-2 border rounded-lg font-semibold cursor-pointer transition-colors ${
+                    speed === s
+                      ? 'border-blue-500 text-blue-400 bg-blue-950/40'
+                      : 'border-gray-700 text-gray-300 bg-[#222222] hover:bg-gray-800'
                   }`}
                   onClick={() => setSpeed(s)}
                 >
@@ -594,44 +558,27 @@ export function RotatoryWheelGame({
                 </button>
               ))}
             </div>
-
-            {/* CURRENT CLINICAL SETTINGS AT BOTTOM OF MENU */}
-            <div className="mt-auto pt-4 border-t border-gray-800 flex flex-col gap-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Current Clinical Settings
-              </div>
-              <div className="bg-[#181818] p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300 flex flex-col gap-2 shadow-inner">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Patient:</span>
-                  <span className="font-semibold text-white">{patientName}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Letter Size:</span>
-                  <span className="font-bold text-blue-400">{letterSize}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Bubble Size:</span>
-                  <span className="font-bold text-blue-400">{bubbleSize}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Wheel Color:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="w-4 h-4 rounded-full border border-gray-600 inline-block shadow-sm"
-                      style={{ backgroundColor: wheelColor }}
-                    />
-                    <span className="font-mono text-[11px] text-gray-300">{wheelColor}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Wheel Speed:</span>
-                  <span className="font-bold text-emerald-400">{speed}</span>
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        }
+        settingsSummary={[
+          { label: 'Patient', value: patientName },
+          { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },
+          { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
+          {
+            label: 'Wheel Color',
+            value: (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-4 h-4 rounded-full border border-gray-600 inline-block shadow-sm"
+                  style={{ backgroundColor: wheelColor }}
+                />
+                <span className="font-mono text-[11px] text-gray-300">{wheelColor}</span>
+              </div>
+            ),
+          },
+          { label: 'Wheel Speed', value: <span className="text-emerald-400 font-bold">{speed}</span> },
+        ]}
+      />
 
       {/* SHARED CLINICAL SETTINGS MODAL */}
       <ClinicalSettingsModal
