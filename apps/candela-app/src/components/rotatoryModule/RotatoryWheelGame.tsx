@@ -25,8 +25,10 @@ import {
   requestFullScreenSafe,
   exitFullScreenSafe,
   ClinicalSettingsModal,
+  SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { GameResultsModal } from '../shared/GameResultsModal';
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -54,9 +56,11 @@ export function RotatoryWheelGame({
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
 
-  // Settings Modal State (AUTO OPENS ON GAME LAUNCH)
+  // Settings & Results Modal State
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
+  const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
 
   // Temporary Settings state for Modal editing
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
@@ -262,13 +266,7 @@ export function RotatoryWheelGame({
     [speak, patientName, variant, letterSize, speed]
   );
 
-  // Generate Level
-  const startLevel = useCallback(() => {
-    setBubbles([]);
-    setPoppingIds(new Set());
-    setWrongIds(new Set());
-    setPoppingActive(false);
-
+  const resetStats = useCallback(() => {
     statsRef.current = {
       clicks: 0,
       correctCount: 0,
@@ -277,6 +275,14 @@ export function RotatoryWheelGame({
       reactionTimes: [],
       targetShownAt: null,
     };
+  }, []);
+
+  // Generate Level (Round)
+  const startLevel = useCallback(() => {
+    setBubbles([]);
+    setPoppingIds(new Set());
+    setWrongIds(new Set());
+    setPoppingActive(false);
 
     const newBubbles: BubbleItem[] = [];
     const positions: BubblePosition[] = [];
@@ -349,8 +355,9 @@ export function RotatoryWheelGame({
   }, [mode, variant, bubbleSize, customColors, chooseNextTarget]);
 
   useEffect(() => {
+    resetStats();
     startLevel();
-  }, [mode, variant]);
+  }, [mode, variant, resetStats, startLevel]);
 
   const handleBubbleClick = (clickedBubble: BubbleItem) => {
     if (!poppingActive) return;
@@ -378,6 +385,43 @@ export function RotatoryWheelGame({
           const updatedBubbles = prevBubbles.filter(
             (b) => b.id !== clickedBubble.id
           );
+
+          if (statsRef.current.correctCount >= 20) {
+            setPoppingActive(false);
+            playSuccessSoundAndHaptic();
+            const st = statsRef.current.startTime;
+            const totalTime = st ? (performance.now() - st) / 1000 : 0;
+            const rTimes = statsRef.current.reactionTimes;
+            const avgReact = rTimes.length
+              ? rTimes.reduce((a, b) => a + b, 0) / rTimes.length / 1000
+              : 0;
+
+            const finalData: SessionResultData = {
+              patientName,
+              sessionId: Math.floor(1000 + Math.random() * 9000),
+              date: new Date().toLocaleDateString('en-GB'),
+              gameName: `Rotatory Wheel (${mode} - ${variant})`,
+              stimuliCount: statsRef.current.correctCount,
+              letterSize,
+              speed: `${speed}x`,
+              durationSec: Math.round(totalTime),
+              clicksTotal: statsRef.current.clicks,
+              correct: statsRef.current.correctCount,
+              wrong: statsRef.current.wrongCount,
+              accuracy:
+                statsRef.current.clicks > 0
+                  ? Math.round(
+                      (statsRef.current.correctCount / statsRef.current.clicks) * 100
+                    )
+                  : 100,
+              avgReactionSec: parseFloat(avgReact.toFixed(2)),
+            };
+
+            setResultsData(finalData);
+            setIsResultsOpen(true);
+            setIsPaused(true);
+            return updatedBubbles;
+          }
 
           const stillLeft = updatedBubbles.some((b) =>
             mode === 'colors'
@@ -611,6 +655,8 @@ export function RotatoryWheelGame({
 
           setIsSettingsOpen(false);
           setIsPaused(false);
+          resetStats();
+          startLevel();
           requestFullScreenSafe();
           if (currentTargetRef.current) {
             const targetText = currentTargetRef.current;
@@ -628,6 +674,24 @@ export function RotatoryWheelGame({
         showWheelColorControl={true}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
       />
+
+      {/* GAME RESULTS MODAL */}
+      {resultsData && (
+        <GameResultsModal
+          isOpen={isResultsOpen}
+          onClose={() => {
+            setIsResultsOpen(false);
+            if (onExit) onExit();
+          }}
+          onReplay={() => {
+            setIsResultsOpen(false);
+            resetStats();
+            startLevel();
+            setIsPaused(false);
+          }}
+          data={resultsData}
+        />
+      )}
     </div>
   );
 }

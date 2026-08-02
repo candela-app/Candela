@@ -19,8 +19,10 @@ import {
   requestFullScreenSafe,
   exitFullScreenSafe,
   ClinicalSettingsModal,
+  SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { GameResultsModal } from '../shared/GameResultsModal';
 
 interface SortingGameProps {
   variant?: SortingVariant;
@@ -32,8 +34,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [isBlinking, setIsBlinking] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
-  // Settings Modal State (AUTO OPENS ON GAME LAUNCH)
+  // Settings & Results Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
+  const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
 
   // Active Settings
   const [patientName, setPatientName] = useState<string>('Demo Patient');
@@ -307,7 +311,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length / 1000
               : 0;
 
-            exportSessionCSV({
+            const finalData: SessionResultData = {
               patientName,
               sessionId: Math.floor(1000 + Math.random() * 9000),
               date: new Date().toLocaleDateString('en-GB'),
@@ -321,11 +325,14 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               wrong: wrongCount,
               accuracy: Math.round(((correctCount + 1) / (clicks + 1)) * 100),
               avgReactionSec: parseFloat(avgReact.toFixed(2)),
-            });
+            };
+
+            setResultsData(finalData);
+            setIsResultsOpen(true);
 
             setTimeout(() => {
               setGameStarted(false);
-            }, 800);
+            }, 500);
           }
         }
       }, 250);
@@ -531,6 +538,22 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           </div>
         }
       />
+
+      {/* GAME RESULTS MODAL */}
+      {resultsData && (
+        <GameResultsModal
+          isOpen={isResultsOpen}
+          onClose={() => {
+            setIsResultsOpen(false);
+            if (onExit) onExit();
+          }}
+          onReplay={() => {
+            setIsResultsOpen(false);
+            startGame();
+          }}
+          data={resultsData}
+        />
+      )}
     </div>
   );
 }
