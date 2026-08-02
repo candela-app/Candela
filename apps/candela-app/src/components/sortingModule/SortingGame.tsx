@@ -9,6 +9,7 @@ import {
   NUMBERS,
   THERAPY_COLORS,
   checkOverlap,
+  getMinDistancePercent,
   getContrastColor,
   exportSessionCSV,
   playCorrectSoundAndHaptic,
@@ -219,37 +220,65 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       const newBubbles: BubbleItem[] = [];
       const positions: BubblePosition[] = [];
 
+      const rawContainer = containerRef.current;
+      const containerWidth = rawContainer ? rawContainer.clientWidth : 800;
+      const containerHeight = rawContainer ? rawContainer.clientHeight : 600;
+      const containerSize = Math.min(containerWidth, containerHeight);
+
+      const minDistance = getMinDistancePercent(bubbleSize, containerSize, 2);
+
+      // Boundary padding in percentage based on actual rendered bubble size + 16px safety padding
+      const bubbleRadiusPercentX = Math.max(10, ((bubbleSize / 2 + 16) / containerWidth) * 100);
+      const bubbleRadiusPercentY = Math.max(10, ((bubbleSize / 2 + 16) / containerHeight) * 100);
+
+      const minX = bubbleRadiusPercentX;
+      const maxX = 100 - bubbleRadiusPercentX;
+      const minY = bubbleRadiusPercentY;
+      const maxY = 100 - bubbleRadiusPercentY;
+
       shuffled.forEach((symbol, i) => {
         let pos: BubblePosition = { x: 50, y: 50 };
         let valid = false;
 
         for (let attempt = 0; attempt < 80; attempt++) {
-          const paddingPercent = 12;
-          const x = paddingPercent + Math.random() * (100 - 2 * paddingPercent);
-          const y = paddingPercent + Math.random() * (100 - 2 * paddingPercent);
+          const x = minX + Math.random() * (maxX - minX);
+          const y = minY + Math.random() * (maxY - minY);
 
           pos = { x, y };
-          if (!checkOverlap(pos, positions, 12)) {
+          if (!checkOverlap(pos, positions, minDistance)) {
             valid = true;
             break;
           }
         }
 
-        if (valid) {
-          positions.push(pos);
-          newBubbles.push({
-            id: `sort-bubble-${symbol}-${batchIdx}-${i}-${Math.random()}`,
-            symbol,
-            color: THERAPY_COLORS[(startIdx + i) % THERAPY_COLORS.length],
-            x: pos.x,
-            y: pos.y,
-          });
+        // Guaranteed Grid/Slot Fallback if all 80 attempts fail
+        if (!valid) {
+          const cols = Math.ceil(Math.sqrt(count));
+          const rows = Math.ceil(count / cols);
+          const colIndex = i % cols;
+          const rowIndex = Math.floor(i / cols);
+
+          const cellWidth = (maxX - minX) / Math.max(1, cols);
+          const cellHeight = (maxY - minY) / Math.max(1, rows);
+
+          const x = minX + (colIndex + 0.5) * cellWidth;
+          const y = minY + (rowIndex + 0.5) * cellHeight;
+          pos = { x, y };
         }
+
+        positions.push(pos);
+        newBubbles.push({
+          id: `sort-bubble-${symbol}-${batchIdx}-${i}-${Math.random()}`,
+          symbol,
+          color: THERAPY_COLORS[(startIdx + i) % THERAPY_COLORS.length],
+          x: pos.x,
+          y: pos.y,
+        });
       });
 
       setBubbles(newBubbles);
     },
-    [getBatchPlan]
+    [getBatchPlan, bubbleSize]
   );
 
   const startGame = () => {
