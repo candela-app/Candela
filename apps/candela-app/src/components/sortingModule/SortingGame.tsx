@@ -414,9 +414,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
   return (
     <div className="relative w-screen h-screen bg-[#0A0A0A] flex flex-col justify-between overflow-hidden text-white">
-      {/* NOTIFICATION TOAST */}
+      {/* TOP-RIGHT NOTIFICATION TOAST */}
       {notification && (
-        <div className="fixed top-5 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white font-bold px-6 py-3 rounded-full shadow-2xl z-[300] animate-bounce">
+        <div className="fixed top-6 right-6 z-[300] flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md text-white font-bold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/30 text-sm animate-fade-in">
           ✓ {notification}
         </div>
       )}

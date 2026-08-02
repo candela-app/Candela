@@ -97,9 +97,12 @@ export function exportSessionCSV(data: SessionResultData): void {
   const values = Object.values(data).join(',');
   const csvContent = 'data:text/csv;charset=utf-8,' + headers + '\n' + values;
   const encodedUri = encodeURI(csvContent);
+  const gameSlug = data.gameName
+    ? data.gameName.toLowerCase().replace(/\s+/g, '-')
+    : 'results';
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `session_${data.sessionId}_results.csv`);
+  link.setAttribute('download', `game-session-completed-${gameSlug}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
