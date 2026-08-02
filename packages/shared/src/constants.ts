@@ -22,8 +22,8 @@ export const THERAPY_COLORS: string[] = [
 export const ALPHABETS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const NUMBERS = '0123456789';
 
-// Speed presets (0.5x, 1x, 1.25x, 1.75x, 2x)
-export const SPEED_PRESETS = [0.5, 1, 1.25, 1.75, 2];
+// Speed presets (0.5, 1, 1.25, 1.5, 2)
+export const SPEED_PRESETS = [0.5, 1, 1.25, 1.5, 2];
 
 export const DEFAULT_BUBBLE_COUNT = 12;
 export const DEFAULT_BASE_ANIMATION_DURATION = 25; // seconds for 1x speed

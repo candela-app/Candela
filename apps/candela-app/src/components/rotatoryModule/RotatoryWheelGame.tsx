@@ -287,7 +287,7 @@ export function RotatoryWheelGame({
 
       for (let attempt = 0; attempt < 80; attempt++) {
         const angle = Math.random() * 2 * Math.PI;
-        const maxR = containerSize / 2 - bubbleSize / 2;
+        const maxR = containerSize / 2 - bubbleSize / 2 - 12;
         const radius = Math.sqrt(Math.random()) * maxR;
 
         const x = 50 + (radius * Math.cos(angle)) / (containerSize / 100);
@@ -469,7 +469,7 @@ export function RotatoryWheelGame({
       {/* CENTER: ROTATING WHEEL (Tailwind CSS) */}
       <div
         ref={wheelRef}
-        className={`relative h-[95vh] w-[95vh] max-w-[90vw] rounded-full flex justify-center items-center shadow-2xl transition-transform cursor-pointer ${
+        className={`relative h-[98vh] w-[98vh] max-w-[calc(100vw-140px)] sm:max-w-[calc(100vw-200px)] aspect-square rounded-full flex justify-center items-center shadow-2xl transition-transform cursor-pointer shrink-0 ${
           isPaused ? 'paused' : 'animate-rotate-wheel'
         }`}
         style={{
@@ -556,6 +556,17 @@ export function RotatoryWheelGame({
             </button>
 
             <button
+              className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2"
+              onClick={() => {
+                setIsMenuOpen(false);
+                requestFullScreenSafe();
+              }}
+            >
+              <span>Full Screen</span>
+              <span>⛶</span>
+            </button>
+
+            <button
               className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold"
               onClick={() => {
                 setIsMenuOpen(false);
@@ -579,7 +590,7 @@ export function RotatoryWheelGame({
                   }`}
                   onClick={() => setSpeed(s)}
                 >
-                  {s}x
+                  {s}
                 </button>
               ))}
             </div>
@@ -596,11 +607,11 @@ export function RotatoryWheelGame({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Letter Size:</span>
-                  <span className="font-bold text-blue-400">{letterSize} rem</span>
+                  <span className="font-bold text-blue-400">{letterSize}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Bubble Size:</span>
-                  <span className="font-bold text-blue-400">{bubbleSize} px</span>
+                  <span className="font-bold text-blue-400">{bubbleSize}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Wheel Color:</span>
@@ -614,7 +625,7 @@ export function RotatoryWheelGame({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Wheel Speed:</span>
-                  <span className="font-bold text-emerald-400">{speed}x</span>
+                  <span className="font-bold text-emerald-400">{speed}</span>
                 </div>
               </div>
             </div>
