@@ -151,3 +151,77 @@ export function playSuccessSoundAndHaptic(): void {
     });
   } catch (_) {}
 }
+
+/**
+ * Play a gentle bee buzzing sound pulse (160 Hz sawtooth with soft lowpass filtering)
+ */
+export function playBeeBuzzSound(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const osc = ctx.createOscillator();
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    const masterGain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, ctx.currentTime);
+
+    // LFO to create buzzing frequency modulation
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(25, ctx.currentTime);
+    lfoGain.gain.setValueAtTime(15, ctx.currentTime);
+    lfo.connect(osc.frequency);
+
+    // Soft lowpass filter to make it pleasant, not harsh
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(600, ctx.currentTime);
+
+    masterGain.gain.setValueAtTime(0.08, ctx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+
+    osc.connect(filter);
+    filter.connect(masterGain);
+    masterGain.connect(ctx.destination);
+
+    lfo.start(ctx.currentTime);
+    osc.start(ctx.currentTime);
+    lfo.stop(ctx.currentTime + 0.12);
+    osc.stop(ctx.currentTime + 0.12);
+  } catch (_) {}
+}
+
+/**
+ * Play a soft gentle warning wobble hum (110 Hz pitch dip) when straying off path.
+ */
+export function playSoftOffPathSound(): void {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(40);
+    } catch (_) {}
+  }
+
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.18);
+
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (_) {}
+}
+
