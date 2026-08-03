@@ -20,8 +20,15 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const [activeRoundTab, setActiveRoundTab] = useState<number>(0);
 
   if (!isOpen) return null;
+
+  const beeData = data as any;
+  const isBeeTracing =
+    data.gameName?.toLowerCase().includes('bee') || 'roundResults' in beeData;
+  const currentRound =
+    beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
 
   const handleExportCSV = () => {
     exportSessionCSV(data);
@@ -30,6 +37,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const handleDownloadCardImage = async () => {
     if (!cardRef.current) return;
     try {
+      setIsDownloading(true);
       const gameSlug = data.gameName
         ? data.gameName.toLowerCase().replace(/\s+/g, '-')
         : 'results';
@@ -50,13 +58,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
         },
       });
 
-      // Detect mobile phone screen width (< 768px with touch)
       const isMobilePhone =
         typeof window !== 'undefined' &&
         window.innerWidth < 768 &&
         ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
 
-      // On mobile phones, try Web Share API first so user can "Save to Photos"
       if (isMobilePhone && typeof navigator !== 'undefined' && navigator.canShare) {
         try {
           const res = await fetch(dataUrl);
@@ -73,12 +79,9 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             setTimeout(() => setDownloadToast(null), 2500);
             return;
           }
-        } catch (shareErr) {
-          if ((shareErr as Error)?.name === 'AbortError') return;
-        }
+        } catch (_) {}
       }
 
-      // Universal Direct File Download for Desktop, Laptops, Tablets & Mobile
       const link = document.createElement('a');
       link.download = fileName;
       link.href = dataUrl;
@@ -98,7 +101,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
       console.error('Failed to download card image:', err);
       setDownloadToast('Download failed');
       setTimeout(() => setDownloadToast(null), 2500);
-    } finally {
+    } fontally: {
       setIsDownloading(false);
     }
   };
@@ -115,13 +118,13 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all animate-fade-in">
       <div
         ref={cardRef}
-        className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-emerald-500/30 bg-[#121212] p-6 sm:p-8 text-white shadow-2xl shadow-emerald-900/20"
+        className="relative w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20"
       >
         {/* Glow Background Accents */}
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
         <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
-        {/* Top-Right Download Card Button - No Border */}
+        {/* Top-Right Download Card Button */}
         <button
           data-exclude-from-download="true"
           onClick={handleDownloadCardImage}
@@ -171,6 +174,60 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         </div>
 
+        {/* VISUAL TRACED PATH OVERLAY (FOR BEE TRACING) */}
+        {isBeeTracing && currentRound && (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-3 mb-5 relative overflow-hidden flex flex-col items-center z-10">
+            <div className="w-full flex justify-between items-center text-xs text-gray-400 mb-2 font-medium">
+              <span>Target Path (Amber Dotted)</span>
+              <span>Traced Path (Cyan)</span>
+            </div>
+
+            {/* Round Tabs - Wrapped to prevent horizontal scrolling */}
+            {beeData.roundResults && beeData.roundResults.length > 1 && (
+              <div data-exclude-from-download="true" className="flex flex-wrap justify-center gap-1.5 mb-2.5 w-full">
+                {beeData.roundResults.map((rnd: any, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveRoundTab(idx)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      activeRoundTab === idx
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                        : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                    }`}
+                  >
+                    R{rnd.roundNumber} ({rnd.pathType})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="relative w-full h-36 bg-[#0B0D14] rounded-xl border border-white/10 flex items-center justify-center overflow-hidden">
+              <svg className="w-full h-full" viewBox="0 0 600 300">
+                {currentRound.idealSvgPathD && (
+                  <path
+                    d={currentRound.idealSvgPathD}
+                    fill="none"
+                    stroke="#F59E0B"
+                    strokeWidth="8"
+                    strokeDasharray="6 6"
+                    strokeOpacity="0.8"
+                  />
+                )}
+                {currentRound.tracedPoints && currentRound.tracedPoints.length > 1 && (
+                  <polyline
+                    points={currentRound.tracedPoints.map((p: any) => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke="#06B6D4"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+              </svg>
+            </div>
+          </div>
+        )}
+
         {/* Clinical Results Grid */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 relative z-10">
           {/* Time Taken */}
@@ -193,27 +250,49 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </span>
           </div>
 
-          {/* Avg Reaction Time */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Avg Reaction
-            </span>
-            <span className="text-2xl font-black text-amber-400">
-              {Math.round(data.avgReactionSec * 1000)}ms
-            </span>
-          </div>
+          {/* Deviations or Avg Reaction Time */}
+          {isBeeTracing ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Off-Path Deviations
+              </span>
+              <span className="text-2xl font-black text-rose-400">
+                {beeData.deviationCount ?? 0}
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Avg Reaction
+              </span>
+              <span className="text-2xl font-black text-amber-400">
+                {Math.round(data.avgReactionSec * 1000)}ms
+              </span>
+            </div>
+          )}
 
-          {/* Stimuli / Popped */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Bubbles Popped
-            </span>
-            <span className="text-2xl font-black text-purple-400">
-              {data.stimuliCount}
-            </span>
-          </div>
+          {/* Recovery Time or Stimuli Count */}
+          {isBeeTracing ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Avg Recovery
+              </span>
+              <span className="text-2xl font-black text-cyan-400">
+                {beeData.avgRecoveryTimeSec ?? 0}s
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Bubbles Popped
+              </span>
+              <span className="text-2xl font-black text-purple-400">
+                {data.stimuliCount}
+              </span>
+            </div>
+          )}
 
-          {/* Visual Focus Score (Dummy Metric) */}
+          {/* Visual Focus Score */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
             <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
               Visual Focus Score
@@ -221,7 +300,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             <span className="text-2xl font-black text-cyan-400">96 / 100</span>
           </div>
 
-          {/* Processing Speed Tier (Dummy Metric) */}
+          {/* Processing Speed Tier */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
             <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
               Processing Speed

@@ -4,9 +4,10 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RotatoryWheelGame } from '@/components/rotatoryModule/RotatoryWheelGame';
 import { SortingGame } from '@/components/sortingModule/SortingGame';
+import { BeeTracingGame } from '@/components/beeTrackingModule/BeeTracingGame';
 import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe } from '@candela/shared';
 
-type ActiveView = 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting';
+type ActiveView = 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing';
 
 function MainContent() {
   const router = useRouter();
@@ -43,6 +44,10 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('sorting');
       setView('play_sorting');
+    } else if (gameParam === 'bee_tracing') {
+      setSelectedTherapy('vision');
+      setSelectedModule('tracing');
+      setView('play_bee_tracing');
     } else if (moduleParam) {
       setSelectedTherapy('vision');
       setSelectedModule(moduleParam);
@@ -74,7 +79,12 @@ function MainContent() {
   };
 
   const handleSelectModule = (id: string) => {
-    updateQueryParams({ therapy: 'vision', module: id, game: null, mode: null, variant: null });
+    if (id === 'tracing') {
+      requestFullScreenSafe();
+      updateQueryParams({ therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null });
+    } else {
+      updateQueryParams({ therapy: 'vision', module: id, game: null, mode: null, variant: null });
+    }
   };
 
   const handleLaunchRotatory = (mode: GameMode, variant: AlphabetVariant) => {
@@ -102,7 +112,7 @@ function MainContent() {
   const handleExitGame = () => {
     updateQueryParams({
       therapy: 'vision',
-      module: selectedModule || 'wheel',
+      module: null,
       game: null,
       mode: null,
       variant: null,
@@ -112,7 +122,7 @@ function MainContent() {
   return (
     <div className="w-screen h-screen grid grid-rows-[auto_1fr] bg-[#EAF4FF] select-none touch-manipulation">
       {/* HEADER SECTION (Tailwind CSS) */}
-      {view !== 'play_rotatory' && view !== 'play_sorting' && (
+      {view !== 'play_rotatory' && view !== 'play_sorting' && view !== 'play_bee_tracing' && (
         <header className="flex flex-row items-center justify-between px-6 py-4 bg-white shadow-sm">
           <div className="flex items-center gap-3">
             <h2
@@ -146,7 +156,11 @@ function MainContent() {
                 <>
                   {' › '}
                   <span className="font-semibold text-gray-900">
-                    {selectedModule === 'wheel' ? 'Rotatory Module' : 'Sorting Module'}
+                    {selectedModule === 'wheel'
+                      ? 'Rotatory Module'
+                      : selectedModule === 'sorting'
+                      ? 'Sorting Module'
+                      : 'Bee Path Tracing'}
                   </span>
                 </>
               )}
@@ -175,13 +189,13 @@ function MainContent() {
 
       {/* MODULE SELECTION VIEW */}
       {view === 'module' && (
-        <main className="grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 gap-6 p-8 my-auto max-w-3xl mx-auto w-full">
+        <main className="grid items-center justify-items-center grid-cols-1 sm:grid-cols-3 gap-6 p-8 my-auto max-w-4xl mx-auto w-full">
           <div
             className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectModule('wheel')}
           >
             <div className="text-4xl mb-2">🎡</div>
-            <h3 className="m-0 text-[24px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
+            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
               Rotatory Module
             </h3>
             <p className="text-xs text-gray-500 mt-1 font-medium">
@@ -194,11 +208,24 @@ function MainContent() {
             onClick={() => handleSelectModule('sorting')}
           >
             <div className="text-4xl mb-2">🧩</div>
-            <h3 className="m-0 text-[24px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
+            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
               Sorting Module
             </h3>
             <p className="text-xs text-gray-500 mt-1 font-medium">
               Visual discrimination & sequential recognition
+            </p>
+          </div>
+
+          <div
+            className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            onClick={() => handleSelectModule('tracing')}
+          >
+            <div className="text-4xl mb-2">🐝</div>
+            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-amber-600 transition-colors">
+              Bee Path Tracing
+            </h3>
+            <p className="text-xs text-gray-500 mt-1 font-medium">
+              Smooth pursuit tracking & visual-motor path control
             </p>
           </div>
         </main>
@@ -269,6 +296,10 @@ function MainContent() {
       {view === 'play_sorting' && (
         <SortingGame variant={sortingVariant} onExit={handleExitGame} />
       )}
+
+      {view === 'play_bee_tracing' && (
+        <BeeTracingGame onExit={handleExitGame} />
+      )}
     </div>
   );
 }
@@ -280,3 +311,4 @@ export default function HomePage() {
     </Suspense>
   );
 }
+
