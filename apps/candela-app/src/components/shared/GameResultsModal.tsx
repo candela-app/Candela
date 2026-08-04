@@ -27,6 +27,9 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const beeData = data as any;
   const isBeeTracing =
     data.gameName?.toLowerCase().includes('bee') || 'roundResults' in beeData;
+  const isPursuit =
+    data.gameName?.toLowerCase().includes('pursuit') || 'avgTrackingErrorPx' in beeData;
+
   const currentRound =
     beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
 
@@ -281,6 +284,46 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </div>
           )}
 
+        {/* PURSUIT SPECIFIC METRICS & VECTOR ALIGNMENT */}
+        {isPursuit && beeData.anticipationVsLagScore && (
+          <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 mb-5 relative z-10">
+            <div className="flex justify-between items-center text-xs font-bold text-cyan-400 uppercase tracking-wider mb-1.5">
+              <span>Pursuit Vector Alignment</span>
+              <span className="text-white font-mono">{beeData.anticipationVsLagScore}</span>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Measures whether touch taps lead (anticipation) or trail (lag) the target velocity vector.
+            </p>
+          </div>
+        )}
+
+        {/* PURSUIT 4-BLOCK FATIGUE TREND */}
+        {isPursuit && beeData.blockMetrics && beeData.blockMetrics.length > 0 && (
+          <div className="mb-5 relative z-10">
+            <div className="text-xs font-extrabold text-gray-300 uppercase tracking-wider mb-2.5">
+              Block Trend (4 Blocks Fatigue Analysis)
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {beeData.blockMetrics.map((blk: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="bg-white/5 border border-white/10 p-2.5 rounded-xl flex flex-col items-center text-center"
+                >
+                  <span className="text-[10px] font-extrabold text-gray-400 uppercase">
+                    B{blk.blockIndex + 1}
+                  </span>
+                  <span className="text-base font-black text-cyan-400 mt-0.5">
+                    {blk.accuracyPercent}%
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-mono mt-0.5">
+                    {blk.avgTrackingErrorPx}px
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Clinical Results Grid */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 relative z-10">
           {/* Time Taken */}
@@ -303,7 +346,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </span>
           </div>
 
-          {/* Deviations or Avg Reaction Time */}
+          {/* Deviations / Tracking Error / Avg Reaction Time */}
           {isBeeTracing ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
@@ -311,6 +354,15 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
               </span>
               <span className="text-2xl font-black text-rose-400">
                 {beeData.deviationCount ?? 0}
+              </span>
+            </div>
+          ) : isPursuit ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Tracking Error
+              </span>
+              <span className="text-2xl font-black text-rose-400">
+                {beeData.avgTrackingErrorPx ?? 0}px
               </span>
             </div>
           ) : (
@@ -324,7 +376,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </div>
           )}
 
-          {/* Recovery Time or Stimuli Count */}
+          {/* Recovery Time / Pursuit Speed / Stimuli Count */}
           {isBeeTracing ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
@@ -332,6 +384,15 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
               </span>
               <span className="text-2xl font-black text-cyan-400">
                 {beeData.avgRecoveryTimeSec ?? 0}s
+              </span>
+            </div>
+          ) : isPursuit ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Pursuit Speed
+              </span>
+              <span className="text-2xl font-black text-cyan-400">
+                {beeData.speedPxPerSec ?? 180} px/s
               </span>
             </div>
           ) : (
