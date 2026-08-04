@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { requestFullScreenSafe } from './game-logic';
 import { SPEED_PRESETS } from './constants';
+import { DeviceOrientation } from './types';
 
 export interface AppliedClinicalSettings {
   patientName: string;
@@ -16,6 +17,7 @@ export interface AppliedClinicalSettings {
   roundsPerSet?: number;
   pathComplexity?: 'short' | 'medium' | 'long';
   beeSpeedSec?: number;
+  orientation?: DeviceOrientation;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -40,6 +42,7 @@ export interface ClinicalSettingsModalProps {
   roundsPerSet?: number;
   pathComplexity?: 'short' | 'medium' | 'long';
   beeSpeedSec?: number;
+  orientation?: DeviceOrientation;
 }
 
 /**
@@ -69,6 +72,7 @@ export function ClinicalSettingsModal({
   roundsPerSet = 7,
   pathComplexity = 'medium',
   beeSpeedSec = 4,
+  orientation = 'auto',
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -83,6 +87,7 @@ export function ClinicalSettingsModal({
   const [tempRoundsPerSet, setTempRoundsPerSet] = useState<number>(roundsPerSet);
   const [tempPathComplexity, setTempPathComplexity] = useState<'short' | 'medium' | 'long'>(pathComplexity);
   const [tempBeeSpeedSec, setTempBeeSpeedSec] = useState<number>(beeSpeedSec);
+  const [tempOrientation, setTempOrientation] = useState<DeviceOrientation>(orientation);
 
   useEffect(() => {
     if (isOpen) {
@@ -99,6 +104,7 @@ export function ClinicalSettingsModal({
       setTempRoundsPerSet(roundsPerSet);
       setTempPathComplexity(pathComplexity);
       setTempBeeSpeedSec(beeSpeedSec);
+      setTempOrientation(orientation);
       requestFullScreenSafe();
     }
   }, [
@@ -116,6 +122,7 @@ export function ClinicalSettingsModal({
     roundsPerSet,
     pathComplexity,
     beeSpeedSec,
+    orientation,
   ]);
 
   if (!isOpen) return null;
@@ -135,8 +142,10 @@ export function ClinicalSettingsModal({
       roundsPerSet: tempRoundsPerSet,
       pathComplexity: tempPathComplexity,
       beeSpeedSec: tempBeeSpeedSec,
+      orientation: tempOrientation,
     });
   };
+
 
 
   return (
@@ -363,7 +372,36 @@ export function ClinicalSettingsModal({
                   ))}
                 </div>
               </div>
+
+              {/* Device Orientation Mapping */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Device Orientation & Primary Motion Axis
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'auto', label: 'Auto (Container Match)' },
+                    { id: 'landscape', label: 'Landscape (Horizontal)' },
+                    { id: 'portrait', label: 'Portrait (Vertical)' },
+                  ].map((ori) => (
+                    <button
+                      key={ori.id}
+                      type="button"
+                      onClick={() => setTempOrientation(ori.id as any)}
+                      className={`py-2 px-2 text-center rounded-xl text-xs font-bold transition-all ${
+                        tempOrientation === ori.id
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {ori.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+
+
 
             {/* CONTAINER 4: VISUAL & CONTRAST THEME */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
