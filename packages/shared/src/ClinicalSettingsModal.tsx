@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { requestFullScreenSafe } from './game-logic';
 import { SPEED_PRESETS } from './constants';
-import { DeviceOrientation } from './types';
+import { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from './types';
 
 export interface AppliedClinicalSettings {
   patientName: string;
@@ -18,6 +18,11 @@ export interface AppliedClinicalSettings {
   pathComplexity?: 'short' | 'medium' | 'long';
   beeSpeedSec?: number;
   orientation?: DeviceOrientation;
+  pursuitMovementPattern?: PursuitMovementPattern;
+  pursuitTargetColor?: PursuitTargetColor;
+  pursuitDecoyCount?: number;
+  pursuitSpeedPxPerSec?: number;
+  pursuitTrialTimeoutSec?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -43,6 +48,12 @@ export interface ClinicalSettingsModalProps {
   pathComplexity?: 'short' | 'medium' | 'long';
   beeSpeedSec?: number;
   orientation?: DeviceOrientation;
+  showPursuitControls?: boolean;
+  pursuitMovementPattern?: PursuitMovementPattern;
+  pursuitTargetColor?: PursuitTargetColor;
+  pursuitDecoyCount?: number;
+  pursuitSpeedPxPerSec?: number;
+  pursuitTrialTimeoutSec?: number;
 }
 
 /**
@@ -73,6 +84,12 @@ export function ClinicalSettingsModal({
   pathComplexity = 'medium',
   beeSpeedSec = 4,
   orientation = 'auto',
+  showPursuitControls = false,
+  pursuitMovementPattern = 'linear_bounce',
+  pursuitTargetColor = '#00E5FF',
+  pursuitDecoyCount = 2,
+  pursuitSpeedPxPerSec = 180,
+  pursuitTrialTimeoutSec = 5,
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -88,6 +105,12 @@ export function ClinicalSettingsModal({
   const [tempPathComplexity, setTempPathComplexity] = useState<'short' | 'medium' | 'long'>(pathComplexity);
   const [tempBeeSpeedSec, setTempBeeSpeedSec] = useState<number>(beeSpeedSec);
   const [tempOrientation, setTempOrientation] = useState<DeviceOrientation>(orientation);
+
+  const [tempPursuitMovementPattern, setTempPursuitMovementPattern] = useState<PursuitMovementPattern>(pursuitMovementPattern);
+  const [tempPursuitTargetColor, setTempPursuitTargetColor] = useState<PursuitTargetColor>(pursuitTargetColor);
+  const [tempPursuitDecoyCount, setTempPursuitDecoyCount] = useState<number>(pursuitDecoyCount);
+  const [tempPursuitSpeedPxPerSec, setTempPursuitSpeedPxPerSec] = useState<number>(pursuitSpeedPxPerSec);
+  const [tempPursuitTrialTimeoutSec, setTempPursuitTrialTimeoutSec] = useState<number>(pursuitTrialTimeoutSec);
 
   useEffect(() => {
     if (isOpen) {
@@ -105,6 +128,11 @@ export function ClinicalSettingsModal({
       setTempPathComplexity(pathComplexity);
       setTempBeeSpeedSec(beeSpeedSec);
       setTempOrientation(orientation);
+      setTempPursuitMovementPattern(pursuitMovementPattern);
+      setTempPursuitTargetColor(pursuitTargetColor);
+      setTempPursuitDecoyCount(pursuitDecoyCount);
+      setTempPursuitSpeedPxPerSec(pursuitSpeedPxPerSec);
+      setTempPursuitTrialTimeoutSec(pursuitTrialTimeoutSec);
       requestFullScreenSafe();
     }
   }, [
@@ -123,6 +151,11 @@ export function ClinicalSettingsModal({
     pathComplexity,
     beeSpeedSec,
     orientation,
+    pursuitMovementPattern,
+    pursuitTargetColor,
+    pursuitDecoyCount,
+    pursuitSpeedPxPerSec,
+    pursuitTrialTimeoutSec,
   ]);
 
   if (!isOpen) return null;
@@ -143,6 +176,11 @@ export function ClinicalSettingsModal({
       pathComplexity: tempPathComplexity,
       beeSpeedSec: tempBeeSpeedSec,
       orientation: tempOrientation,
+      pursuitMovementPattern: tempPursuitMovementPattern,
+      pursuitTargetColor: tempPursuitTargetColor,
+      pursuitDecoyCount: tempPursuitDecoyCount,
+      pursuitSpeedPxPerSec: tempPursuitSpeedPxPerSec,
+      pursuitTrialTimeoutSec: tempPursuitTrialTimeoutSec,
     });
   };
 
@@ -150,11 +188,11 @@ export function ClinicalSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto backdrop-blur-md"
+      className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto backdrop-blur-md touch-pan-y custom-scrollbar"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
     >
       <div
-        className="bg-[#1A1A1A] text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1300px] h-auto my-auto flex flex-col justify-between gap-6 sm:gap-8 p-6 sm:p-8 md:p-10 border border-gray-700/80 shadow-2xl opacity-100"
+        className="bg-[#1A1A1A] text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1300px] h-auto my-auto flex flex-col justify-between gap-6 sm:gap-8 p-6 sm:p-8 md:p-10 border border-gray-700/80 shadow-2xl opacity-100 mb-12 sm:mb-8"
         style={{ backgroundColor: '#1A1A1A' }}
       >
         {/* HEADER BAR */}
@@ -183,7 +221,185 @@ export function ClinicalSettingsModal({
         </div>
 
         {/* CLINICAL CONTROL GRID */}
-        {showBeeTracingControls ? (
+        {showPursuitControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            {/* CONTAINER 1: PATIENT & STIMULUS PROFILES */}
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-cyan-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Pursuit Stimulus & Target Profile</span>
+              </div>
+
+              {/* Patient Name Input */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-500 font-medium text-sm transition-all shadow-inner"
+                  style={{ backgroundColor: '#141414' }}
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+
+              {/* Movement Pattern Selection */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Movement Pattern (Trajectory Math)
+                </label>
+                <select
+                  value={tempPursuitMovementPattern}
+                  onChange={(e) => setTempPursuitMovementPattern(e.target.value as PursuitMovementPattern)}
+                  className="w-full rounded-xl bg-[#141414] border border-gray-700 p-3 text-xs text-white font-bold focus:border-cyan-400 focus:outline-none"
+                  style={{ backgroundColor: '#141414' }}
+                >
+                  <option value="linear_bounce">1. Linear Bounce (Straight Wall Bounces - Easiest)</option>
+                  <option value="circular_orbit">2. Circular / Elliptical Orbit (Smooth Angular Pursuit)</option>
+                  <option value="figure_eight">3. Figure-8 Wave (Continuous Direction Changes)</option>
+                  <option value="random_walk">4. Random Walk with Momentum (Smooth Steering Math)</option>
+                  <option value="freeze_drift">5. Freeze & Drift (Slow Motion + Brief Random Freezes)</option>
+                </select>
+              </div>
+
+              {/* Target Bubble Color */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Target Luminance Color (High Salience)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Cyan (#00E5FF)', val: '#00E5FF', bg: '#00E5FF', text: '#000000' },
+                    { label: 'Yellow (#FFD600)', val: '#FFD600', bg: '#FFD600', text: '#000000' },
+                    { label: 'Bright White', val: '#FFFFFF', bg: '#FFFFFF', text: '#000000' },
+                  ].map((clr) => (
+                    <button
+                      key={clr.val}
+                      type="button"
+                      onClick={() => setTempPursuitTargetColor(clr.val as PursuitTargetColor)}
+                      className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-all border flex items-center justify-center gap-1.5 ${
+                        tempPursuitTargetColor === clr.val
+                          ? 'border-white shadow-lg ring-2 ring-cyan-400/50'
+                          : 'border-gray-700 opacity-70 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: clr.bg, color: clr.text }}
+                    >
+                      <span>●</span>
+                      <span>{clr.label.split(' ')[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* CONTAINER 2: DYNAMICS & DECOY DENSITY */}
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-blue-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Dynamics & Selective Attention Controls</span>
+              </div>
+
+              {/* Simultaneous Decoy Count */}
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Decoy Element Count (Selective Attention)</span>
+                  <span className="text-cyan-400 font-mono font-extrabold">{tempPursuitDecoyCount + 1} Total (1 Target + {tempPursuitDecoyCount} Decoys)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: '1 Decoy (2 Total)', val: 1 },
+                    { label: '2 Decoys (3 Total)', val: 2 },
+                    { label: '3 Decoys (4 Max)', val: 3 },
+                  ].map((dc) => (
+                    <button
+                      key={dc.val}
+                      type="button"
+                      onClick={() => setTempPursuitDecoyCount(dc.val)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempPursuitDecoyCount === dc.val
+                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {dc.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bubble Diameter */}
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Bubble Size</span>
+                  <span className="text-cyan-400 font-mono font-extrabold">{tempBubbleSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="130"
+                  step="10"
+                  className="w-full accent-cyan-500 cursor-pointer h-2.5 my-2"
+                  value={tempBubbleSize}
+                  onChange={(e) => setTempBubbleSize(parseInt(e.target.value, 10))}
+                />
+              </div>
+
+              {/* Travel Speed */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Pursuit Speed (px/sec)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Slow (110 px/s)', val: 110 },
+                    { label: 'Normal (180 px/s)', val: 180 },
+                    { label: 'Fast (260 px/s)', val: 260 },
+                  ].map((spd) => (
+                    <button
+                      key={spd.val}
+                      type="button"
+                      onClick={() => setTempPursuitSpeedPxPerSec(spd.val)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempPursuitSpeedPxPerSec === spd.val
+                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {spd.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trial Timeout */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Trial Timeout (Seconds per Trial)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: '4 Seconds', val: 4 },
+                    { label: '5 Seconds', val: 5 },
+                    { label: '6 Seconds', val: 6 },
+                  ].map((to) => (
+                    <button
+                      key={to.val}
+                      type="button"
+                      onClick={() => setTempPursuitTrialTimeoutSec(to.val)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempPursuitTrialTimeoutSec === to.val
+                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {to.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : showBeeTracingControls ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
             {/* CONTAINER 1: PATIENT & SESSION CONFIGURATION */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
