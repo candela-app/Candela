@@ -72,6 +72,8 @@ export type BeePathType = 'straight' | 'curve' | 'zigzag' | 'wave' | 'spiral' | 
 export type ColorTheme = 'standard' | 'high_contrast' | 'dark';
 export type InputSensitivity = 'touch' | 'mouse' | 'auto';
 export type PathComplexity = 'short' | 'medium' | 'long';
+export type DeviceOrientation = 'landscape' | 'portrait' | 'auto';
+export type ScreenOrientation = 'landscape' | 'portrait';
 
 export interface PathPoint {
   x: number;
@@ -89,6 +91,7 @@ export interface BeeTracingSettings {
   audioEnabled: boolean;
   inputSensitivity: InputSensitivity;
   roundsPerSet: number; // session length: 3, 5, 7 rounds
+  orientation?: DeviceOrientation;
 }
 
 export interface RoundResultData {
@@ -103,6 +106,7 @@ export interface RoundResultData {
   tracedPoints: PathPoint[];
   targetPoints: PathPoint[];
   idealSvgPathD: string;
+  orientation?: ScreenOrientation;
 }
 
 export interface BeeSessionResultData extends SessionResultData {
@@ -114,5 +118,8 @@ export interface BeeSessionResultData extends SessionResultData {
   avgRecoveryTimeSec: number;
   roundsCompleted: number;
   roundResults: RoundResultData[];
+  horizontalAccuracyPercent?: number;
+  verticalAccuracyPercent?: number;
 }
+
 

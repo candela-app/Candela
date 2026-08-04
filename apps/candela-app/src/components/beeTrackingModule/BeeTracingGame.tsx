@@ -14,6 +14,7 @@ import {
   ClinicalSettingsModal,
   exitFullScreenSafe,
   requestFullScreenSafe,
+  resolveOrientation,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -39,7 +40,9 @@ const DEFAULT_SETTINGS: BeeTracingSettings = {
   audioEnabled: true,
   inputSensitivity: 'auto',
   roundsPerSet: 7, // Auto progress defaults to playing through ALL 7 path types!
+  orientation: 'auto',
 };
+
 
 const PATH_PROGRESSION: BeePathType[] = [
   'straight',
@@ -137,12 +140,16 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
         targetPathType = settings.pathType;
       }
 
+      // Resolve orientation dynamically per round
+      const resolvedOrientation = resolveOrientation(settings.orientation || 'auto', w, h);
+
       const generated = generateBeePath(
         targetPathType,
         w,
         h,
         tier,
-        settings.pathComplexity
+        settings.pathComplexity,
+        resolvedOrientation
       );
       setCurrentPath(generated);
       setBeePos(generated.startPoint);
@@ -159,8 +166,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
         runGuidedDemo(generated);
       }
     },
-    [settings.pathType, settings.tracingMode, settings.pathComplexity]
+    [settings.pathType, settings.tracingMode, settings.pathComplexity, settings.orientation]
   );
+
 
   // Guided demo auto-movement
   const runGuidedDemo = (generated: GeneratedPath) => {
@@ -212,31 +220,35 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
     }
   };
 
-  // Start Tracing Pointer Handler - Supports grabbing/resuming bee control at ANY point
+  // Start Tracing Pointer Handler - Requires direct click/touch on the Bee to start moving
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isGuidedDemoRunning || roundSuccessCelebration || !currentPath || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const currentPt = { x, y };
-    const distToStart = Math.hypot(x - currentPath.startPoint.x, y - currentPath.startPoint.y);
     const distToBee = Math.hypot(x - beePos.x, y - beePos.y);
-    const { nearestPoint, distance: distToPath, index } = findNearestPathPoint(currentPt, currentPath.points);
+    const distToStart = Math.hypot(x - currentPath.startPoint.x, y - currentPath.startPoint.y);
 
-    // Allow resuming/grabbing bee control at start hive, near bee position, or anywhere near the path corridor!
-    const canGrabBee =
-      distToStart <= 120 ||
-      distToBee <= 140 ||
-      distToPath <= settings.toleranceBandPx * 3 ||
-      userTracePoints.length <= 1;
+    // Direct touch hit radius around Bee sprite (~60px around center)
+    const BEE_GRAB_RADIUS = 60;
+    const isStartOfRound = currentPathIndexRef.current === 0 || userTracePoints.length <= 1;
+
+    let canGrabBee = false;
+    if (isStartOfRound) {
+      // At start of round, must touch Bee or Start dot
+      canGrabBee = distToBee <= BEE_GRAB_RADIUS || distToStart <= BEE_GRAB_RADIUS;
+    } else {
+      // Mid-round: must touch Bee directly to resume move - clicking ahead on path does NOT move bee!
+      canGrabBee = distToBee <= BEE_GRAB_RADIUS;
+    }
 
     if (canGrabBee) {
       setIsTracing(true);
-      currentPathIndexRef.current = index; // Lock to current path index on grab
-      const targetPos = distToPath <= settings.toleranceBandPx ? currentPt : nearestPoint;
-      setBeePos(targetPos);
-      setUserTracePoints((prev) => (prev.length <= 1 ? [targetPos] : [...prev, targetPos]));
+      if (isStartOfRound) {
+        currentPathIndexRef.current = 0;
+      }
+      setUserTracePoints((prev) => (prev.length <= 1 ? [beePos] : prev));
       setUserTimestamps((prev) => [...prev, Date.now()]);
       triggerAudioBuzz();
     }
@@ -250,22 +262,16 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
     const y = e.clientY - rect.top;
     const currentPt = { x, y };
 
-    // If lost tracking but user is actively dragging/touching near the bee or path, seamlessly resume control
+    // If lost tracking but user is actively dragging/touching directly over the active bee sprite, seamlessly resume
     if (!isTracing && (e.buttons === 1 || e.pointerType === 'touch')) {
       const distToBee = Math.hypot(x - beePos.x, y - beePos.y);
-      const { distance: distToPath, index } = findNearestPathPointInWindow(
-        currentPt,
-        currentPath.points,
-        currentPathIndexRef.current,
-        35
-      );
-      if (distToBee <= 140 || distToPath <= settings.toleranceBandPx * 2) {
+      if (distToBee <= 60) {
         setIsTracing(true);
-        currentPathIndexRef.current = Math.max(currentPathIndexRef.current, index);
       }
     }
 
     if (!isTracing) return;
+
 
     // Strict windowed path check (prevents shortcutting across spiral loops or intersecting paths)
     const { nearestPoint, distance, index } = findNearestPathPointInWindow(
@@ -296,9 +302,6 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
       currentPathIndexRef.current = Math.max(currentPathIndexRef.current, index);
 
       // Smooth pursuit move wired directly to bee speed settings
-      // beeSpeedSec: 10s (Slow - lerp factor 0.18 for extra slow & smooth pursuit)
-      // beeSpeedSec: 5s (Normal - lerp factor 0.50)
-      // beeSpeedSec: 2.5s (Fast - lerp factor 1.00 instant tracking)
       const lerpFactor = settings.beeSpeedSec >= 10 ? 0.18 : settings.beeSpeedSec >= 5 ? 0.5 : 1.0;
       const lerpX = beePos.x + (currentPt.x - beePos.x) * lerpFactor;
       const lerpY = beePos.y + (currentPt.y - beePos.y) * lerpFactor;
@@ -309,12 +312,16 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
       setUserTimestamps((prev) => [...prev, Date.now()]);
     }
 
-    // Check if reached destination flower
+    // Check if reached destination flower ONLY after traversing at least 85% of the total path length!
     const distToFlower = Math.hypot(x - currentPath.endPoint.x, y - currentPath.endPoint.y);
-    if (distToFlower <= 40) {
+    const minRequiredIndex = Math.floor(currentPath.points.length * 0.85);
+    const hasTraversedPath = currentPathIndexRef.current >= minRequiredIndex;
+
+    if (distToFlower <= 45 && hasTraversedPath) {
       handleRoundCompletion();
     }
   };
+
 
   // Pointer End Handler
   const handlePointerUp = () => {
@@ -356,6 +363,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
       tracedPoints: userTracePoints,
       targetPoints: currentPath.points,
       idealSvgPathD: currentPath.svgPathD,
+      orientation: currentPath.orientation,
     };
 
     const updatedResults = [...roundResults, roundData];
@@ -381,6 +389,20 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
     const totalRecovery = roundResults.reduce((a, r) => a + r.avgRecoveryTimeSec, 0);
     const avgRecovery = roundResults.length > 0 ? Math.round((totalRecovery / roundResults.length) * 10) / 10 : 0;
 
+    // Horizontal vs Vertical Accuracy calculation
+    const horizontalRounds = roundResults.filter((r) => r.orientation === 'landscape');
+    const verticalRounds = roundResults.filter((r) => r.orientation === 'portrait');
+
+    const horizontalAccuracyPercent =
+      horizontalRounds.length > 0
+        ? Math.round(horizontalRounds.reduce((a, r) => a + r.accuracyPercent, 0) / horizontalRounds.length)
+        : undefined;
+
+    const verticalAccuracyPercent =
+      verticalRounds.length > 0
+        ? Math.round(verticalRounds.reduce((a, r) => a + r.accuracyPercent, 0) / verticalRounds.length)
+        : undefined;
+
     return {
       patientName: settings.patientName,
       sessionId: Date.now(),
@@ -403,8 +425,11 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
       avgRecoveryTimeSec: avgRecovery,
       roundsCompleted: roundResults.length,
       roundResults,
+      horizontalAccuracyPercent,
+      verticalAccuracyPercent,
     };
   };
+
 
   // Color theme class bindings & Vibrant Neon Colors
   const themeBgClass =
@@ -437,84 +462,75 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
 
   return (
     <div className={`w-screen h-screen ${themeBgClass} flex flex-col justify-between select-none touch-none overflow-hidden relative transition-colors duration-300`}>
-      {/* Header Bar */}
-      <header className="flex items-center justify-between px-6 py-4 bg-slate-900/40 backdrop-blur-md border-b border-white/10 z-30">
-        <div className="flex items-center gap-3">
+      {/* Header Bar - Sleek & Minimal */}
+      <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 bg-slate-900/60 backdrop-blur-md border-b border-white/10 z-30">
+        {/* Left: Exit button & Title */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             onClick={() => {
               exitFullScreenSafe();
               onExit();
             }}
-            className="py-2 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition-all cursor-pointer"
+            className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-all cursor-pointer"
           >
             ← Exit
           </button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-amber-400 flex items-center gap-2">
-              <img src="/bee.png" alt="Bee" className="w-6 h-6 sm:w-8 sm:h-8 object-contain inline-block filter drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-              <span>Bee Path Tracing</span>
+          <div className="flex items-center gap-1.5">
+            <img src="/bee.png" alt="Bee" className="w-5 h-5 sm:w-7 sm:h-7 object-contain inline-block filter drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+            <h1 className="text-sm sm:text-base font-extrabold text-amber-400 whitespace-nowrap">
+              Bee Tracing
             </h1>
-            <span className="text-xs text-gray-400 font-medium">
-              Mode: <strong className="text-white capitalize">{settings.tracingMode}</strong> • Speed:{' '}
-              <strong className="text-amber-300 capitalize">
-                {settings.beeSpeedSec >= 10 ? 'Slow' : settings.beeSpeedSec >= 5 ? 'Normal' : 'Fast'} ({settings.beeSpeedSec}s)
-              </strong> • Length:{' '}
-              <strong className="text-emerald-300 capitalize">{settings.pathComplexity}</strong>
-            </span>
           </div>
         </div>
 
-        {/* Progress & Demo indicator */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          {/* Play / Replay Demo Button */}
+        {/* Right: Demo button, Set Progress, Settings & Fullscreen */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {currentPath && (
             <button
               onClick={() => runGuidedDemo(currentPath)}
               disabled={isGuidedDemoRunning}
-              className="py-2 px-3.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-1.5 shadow-lg disabled:opacity-50 active:scale-95"
+              className="py-1.5 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-md disabled:opacity-50 active:scale-95"
               title={hasDemoPlayed ? 'Replay Demo Path' : 'Play Demo Path'}
             >
               <span>{isGuidedDemoRunning ? '▶' : hasDemoPlayed ? '↺' : '▶'}</span>
-              {isGuidedDemoRunning ? 'Playing Demo...' : hasDemoPlayed ? 'Replay Demo' : 'Play Demo'}
+              <span className="hidden sm:inline">{isGuidedDemoRunning ? 'Playing...' : hasDemoPlayed ? 'Replay' : 'Demo'}</span>
             </button>
           )}
 
-          <div className="text-right">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 block">
-              Set Progress
+          <div className="text-right shrink-0">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 block leading-tight">
+              Set
             </span>
-            <span className="text-sm sm:text-base font-black text-white">
-              Round {currentRoundNumber} / {settings.roundsPerSet}
+            <span className="text-xs sm:text-sm font-black text-white leading-none">
+              {currentRoundNumber}/{settings.roundsPerSet}
             </span>
           </div>
 
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 transition-all cursor-pointer text-lg"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 transition-all cursor-pointer text-base shrink-0"
             title="Clinical Settings"
           >
             ⚙️
           </button>
 
-          {/* Fullscreen Toggle Button */}
           <button
             onClick={toggleFullscreen}
-            className={`py-2 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 ${
+            className={`p-2 rounded-xl font-bold text-xs transition-all cursor-pointer shrink-0 shadow-md active:scale-95 ${
               isFullscreen
                 ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/30'
                 : 'bg-white/10 border border-white/20 text-gray-200 hover:bg-white/20'
             }`}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen Mode'}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             <span>{isFullscreen ? '↙' : '⛶'}</span>
-            <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
           </button>
         </div>
       </header>
 
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-slate-950 font-black px-5 py-2.5 rounded-2xl shadow-xl text-sm animate-bounce">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-xl text-xs animate-bounce">
           {toastMessage}
         </div>
       )}
@@ -604,18 +620,17 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
               )}
             </svg>
 
-            {/* Hive (Start Target) */}
+            {/* Start Target Indicator - Clean Glowing Start Dot */}
             <div
               className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center"
               style={{ left: currentPath.startPoint.x, top: currentPath.startPoint.y }}
             >
-              <div className="w-14 h-14 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-2xl shadow-lg animate-pulse">
-                🏠
-              </div>
-              <span className="text-[11px] font-bold text-amber-300 mt-1 bg-slate-900/80 px-2 py-0.5 rounded-full">
-                Hive (Start)
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.9)] animate-pulse border-2 border-amber-200" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 mt-1 bg-slate-900/90 px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                Start
               </span>
             </div>
+
 
             {/* Target Flower (Destination) */}
             <div
@@ -624,11 +639,11 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
               }`}
               style={{ left: currentPath.endPoint.x, top: currentPath.endPoint.y }}
             >
-              <div className="w-16 h-16 rounded-full bg-pink-500/20 border-2 border-pink-400 flex items-center justify-center text-3xl shadow-xl">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-pink-500/20 border-2 border-pink-400 flex items-center justify-center text-2xl sm:text-3xl shadow-xl">
                 🌸
               </div>
-              <span className="text-[11px] font-bold text-pink-300 mt-1 bg-slate-900/80 px-2 py-0.5 rounded-full">
-                Target Flower
+              <span className="text-[10px] sm:text-[11px] font-bold text-pink-300 mt-1 bg-slate-900/90 px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                Flower
               </span>
             </div>
 
@@ -638,13 +653,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
                 className="absolute z-20 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none flex flex-col items-center"
                 style={{ left: currentPath.distractorPoint.x, top: currentPath.distractorPoint.y }}
               >
-                <div className="w-12 h-12 rounded-full bg-gray-500/20 border border-gray-400 flex items-center justify-center text-2xl">
+                <div className="w-10 h-10 rounded-full bg-gray-500/20 border border-gray-400 flex items-center justify-center text-xl">
                   🌼
                 </div>
               </div>
             )}
 
-            {/* Interactive Bee Sprite - Fully Responsive for Mobile, Tablet & Desktop */}
+            {/* Interactive Bee Sprite - Increased Size for Touch Ergonomics */}
             <div
               className={`absolute z-30 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 pointer-events-none ${
                 isOffPathWobble ? 'animate-bounce scale-125' : ''
@@ -655,37 +670,41 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
                 {/* Glowing Aura Filter */}
                 <div className="absolute inset-0 bg-amber-400/25 blur-md rounded-full pointer-events-none" />
 
-                {/* High-Resolution Realistic Bee Image */}
+                {/* High-Resolution Realistic Bee Image - Increased Size */}
                 <img
                   src="/bee.png"
                   alt="Bee Sprite"
-                  className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain filter drop-shadow-[0_0_12px_rgba(245,158,11,0.8)] transition-transform transform hover:scale-110 relative z-10"
+                  className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain filter drop-shadow-[0_0_14px_rgba(245,158,11,0.9)] transition-transform transform hover:scale-110 relative z-10"
                 />
 
                 {/* Subtle Wing Flutter Pulse Indicator */}
-                <div className="absolute -top-1 w-6 h-3 bg-amber-200/40 rounded-full animate-ping pointer-events-none" />
+                <div className="absolute -top-1 w-7 h-3.5 bg-amber-200/40 rounded-full animate-ping pointer-events-none" />
               </div>
             </div>
+
           </>
         )}
       </main>
 
       {/* Footer Info Bar */}
-      <footer className="px-6 py-3 bg-slate-900/40 backdrop-blur-md border-t border-white/10 z-30 flex justify-between items-center text-xs text-gray-300 font-medium">
-        <div>
-          Path Type:{' '}
+      <footer className="px-4 py-2 bg-slate-900/60 backdrop-blur-md border-t border-white/10 z-30 flex justify-between items-center text-xs text-gray-300 font-medium">
+        <div className="truncate">
           <strong className="text-amber-400 capitalize">
-            {currentPath?.pathType} (Tier {currentPath?.difficultyTier})
+            {currentPath?.pathType}
           </strong>
+          <span className="text-gray-400 text-[11px] ml-1">
+            (T{currentPath?.difficultyTier}, {currentPath?.orientation === 'portrait' ? 'Vertical ↕' : 'Horizontal ↔'})
+          </span>
         </div>
-        <div>
+        <div className="text-[11px] text-right truncate text-gray-400 ml-2">
           {isTracing ? (
-            <span className="text-emerald-400 font-bold">● Tracing in progress... Keep going!</span>
+            <span className="text-emerald-400 font-bold">● Tracing...</span>
           ) : (
-            <span>Touch or click anywhere near the bee or path to start/resume tracing!</span>
+            <span>Trace to flower!</span>
           )}
         </div>
       </footer>
+
 
       {/* Shared Clinical Settings Modal */}
       <ClinicalSettingsModal
@@ -703,6 +722,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
             roundsPerSet: applied.roundsPerSet || prev.roundsPerSet,
             pathComplexity: (applied.pathComplexity as any) || prev.pathComplexity,
             beeSpeedSec: applied.beeSpeedSec || prev.beeSpeedSec,
+            orientation: applied.orientation || prev.orientation,
           }));
           setCurrentRoundNumber(1);
           setRoundResults([]);
@@ -720,7 +740,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
         roundsPerSet={settings.roundsPerSet}
         pathComplexity={settings.pathComplexity}
         beeSpeedSec={settings.beeSpeedSec}
+        orientation={settings.orientation}
       />
+
 
       {/* Shared Game Results Modal */}
       <GameResultsModal
