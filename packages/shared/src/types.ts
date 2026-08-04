@@ -122,4 +122,67 @@ export interface BeeSessionResultData extends SessionResultData {
   verticalAccuracyPercent?: number;
 }
 
+// --- Shared Game Catalog / Registry Types ---
+export interface GameRegistryEntry {
+  id: string;
+  name: string;
+  description: string;
+  supportedDevices: DeviceTier[];
+  recommendedDevices: DeviceTier[];
+}
+
+// --- Pursuit Module Types ---
+export type PursuitMovementPattern =
+  | 'linear_bounce'
+  | 'circular_orbit'
+  | 'figure_eight'
+  | 'random_walk'
+  | 'freeze_drift';
+
+export type PursuitTargetColor = '#FFFFFF' | '#FFD600' | '#00E5FF';
+
+export interface PursuitSettings {
+  patientName: string;
+  movementPattern: PursuitMovementPattern;
+  bubbleSizePx: number; // e.g. 60-120px
+  targetColor: PursuitTargetColor;
+  decoyCount: number; // 1 to 3 decoys (max 4 total elements on screen)
+  decoySalience: number; // 0.2 to 0.6 opacity/saturation fraction
+  speedPxPerSec: number; // e.g. 100-300 px/s
+  trialTimeoutSec: number; // 4 to 6 seconds per trial
+  totalTrials: number; // 20 trials total
+  blocksCount: number; // 4 blocks of 5
+  orientation?: DeviceOrientation;
+}
+
+export interface PursuitTrialMetric {
+  trialIndex: number; // 0..19
+  blockIndex: number; // 0..3
+  outcome: 'correct' | 'incorrect' | 'timeout'; // timeout = miss
+  reactionTimeMs: number; // ms to tap
+  trackingErrorPx: number; // distance in px between tap and target center
+  anticipationRatio: number; // >0 anticipation (leading), <0 lag (trailing)
+  targetPositionAtTap: { x: number; y: number };
+  tapPosition: { x: number; y: number };
+}
+
+export interface PursuitBlockMetric {
+  blockIndex: number;
+  accuracyPercent: number;
+  avgTrackingErrorPx: number;
+  avgReactionTimeMs: number;
+  trials: PursuitTrialMetric[];
+}
+
+export interface PursuitSessionResultData extends SessionResultData {
+  movementPattern: PursuitMovementPattern;
+  decoyCount: number;
+  speedPxPerSec: number;
+  avgTrackingErrorPx: number;
+  anticipationVsLagScore: string; // e.g. "Optimal Leading (65% Anticipation)" or "Trailing Lag"
+  blockMetrics: PursuitBlockMetric[];
+  starRating: number; // 1 to 5 stars for child card
+}
+
+
 

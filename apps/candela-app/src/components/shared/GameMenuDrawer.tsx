@@ -33,18 +33,18 @@ export function GameMenuDrawer({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-[100] flex justify-end"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-end"
       onClick={onClose}
     >
       <div
-        className="w-[300px] sm:w-[320px] max-w-[85vw] h-full max-h-screen bg-[#111111] text-white p-5 sm:p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto"
+        className="w-[300px] sm:w-[340px] max-w-[88vw] h-full h-[100dvh] max-h-[100dvh] bg-[#111111] text-white p-5 sm:p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto custom-scrollbar touch-pan-y"
         onClick={(e) => e.stopPropagation()}
       >
         {/* DRAWER HEADER */}
-        <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+        <div className="flex justify-between items-center border-b border-gray-800 pb-3 shrink-0">
           <h3 className="text-xl font-bold">Menu</h3>
           <button
-            className="text-2xl text-white hover:text-gray-400 cursor-pointer"
+            className="text-2xl text-white hover:text-gray-400 cursor-pointer p-1"
             onClick={onClose}
           >
             ✕
@@ -53,7 +53,7 @@ export function GameMenuDrawer({
 
         {/* SHARED CORE ACTIONS */}
         <button
-          className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors"
+          className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
             onClose();
             exitFullScreenSafe();
@@ -64,7 +64,7 @@ export function GameMenuDrawer({
         </button>
 
         <button
-          className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors"
+          className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
             onClose();
             onReset();
@@ -74,7 +74,7 @@ export function GameMenuDrawer({
         </button>
 
         <button
-          className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          className="w-full py-3 px-4 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 hover:bg-blue-600/30 font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors shrink-0"
           onClick={() => {
             onClose();
             requestFullScreenSafe();
@@ -85,7 +85,7 @@ export function GameMenuDrawer({
         </button>
 
         <button
-          className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold cursor-pointer transition-colors"
+          className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
             onClose();
             onOpenSettings();
@@ -99,11 +99,11 @@ export function GameMenuDrawer({
 
         {/* GAME-SPECIFIC CLINICAL SETTINGS SUMMARY */}
         {settingsSummary.length > 0 && (
-          <div className="mt-auto pt-4 border-t border-gray-800 flex flex-col gap-2">
+          <div className="pt-4 mt-2 border-t border-gray-800 flex flex-col gap-2 shrink-0 pb-10 mb-6">
             <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
               Current Clinical Settings
             </div>
-            <div className="bg-[#181818] p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300 flex flex-col gap-2 shadow-inner">
+            <div className="bg-[#181818] p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300 flex flex-col gap-2.5 shadow-inner">
               {settingsSummary.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center">
                   <span className="text-gray-400">{item.label}:</span>
