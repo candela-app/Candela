@@ -36,6 +36,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
   const handleDownloadCardImage = async () => {
     if (!cardRef.current) return;
+    const elem = cardRef.current;
+    const originalMaxHeight = elem.style.maxHeight;
+    const originalOverflow = elem.style.overflow;
+    const originalHeight = elem.style.height;
+
     try {
       setIsDownloading(true);
       const gameSlug = data.gameName
@@ -43,9 +48,16 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
         : 'results';
       const fileName = `game-session-completed-${gameSlug}.png`;
 
-      const dataUrl = await toPng(cardRef.current, {
+      // Temporarily expand element so html-to-image captures full scroll height without clipping
+      elem.style.maxHeight = 'none';
+      elem.style.overflow = 'visible';
+      elem.style.height = `${elem.scrollHeight}px`;
+
+      const dataUrl = await toPng(elem, {
         cacheBust: true,
         pixelRatio: 2,
+        height: elem.scrollHeight,
+        width: elem.scrollWidth,
         backgroundColor: '#121212',
         filter: (node) => {
           if (
@@ -57,6 +69,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           return true;
         },
       });
+
+      // Restore original container scroll styles
+      elem.style.maxHeight = originalMaxHeight;
+      elem.style.overflow = originalOverflow;
+      elem.style.height = originalHeight;
 
       const isMobilePhone =
         typeof window !== 'undefined' &&
@@ -101,10 +118,14 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
       console.error('Failed to download card image:', err);
       setDownloadToast('Download failed');
       setTimeout(() => setDownloadToast(null), 2500);
-    } fontally: {
+    } finally {
+      elem.style.maxHeight = originalMaxHeight;
+      elem.style.overflow = originalOverflow;
+      elem.style.height = originalHeight;
       setIsDownloading(false);
     }
   };
+
 
   const formattedDate =
     data.date ||
@@ -227,6 +248,38 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Horizontal vs Vertical Pursuit Accuracy Breakdown */}
+        {isBeeTracing &&
+          (beeData.horizontalAccuracyPercent !== undefined || beeData.verticalAccuracyPercent !== undefined) && (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-950/20 p-3.5 mb-5 relative z-10">
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 mb-2 text-center">
+                Clinical Axis Pursuit Metrics
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Horizontal (↔) Acc
+                  </span>
+                  <span className="text-xl font-black text-amber-400">
+                    {beeData.horizontalAccuracyPercent !== undefined
+                      ? `${beeData.horizontalAccuracyPercent}%`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Vertical (↕) Acc
+                  </span>
+                  <span className="text-xl font-black text-emerald-400">
+                    {beeData.verticalAccuracyPercent !== undefined
+                      ? `${beeData.verticalAccuracyPercent}%`
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Clinical Results Grid */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 relative z-10">

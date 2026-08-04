@@ -1,4 +1,4 @@
-import { BeePathType, PathComplexity, PathPoint } from './types';
+import { BeePathType, PathComplexity, PathPoint, ScreenOrientation } from './types';
 
 export interface GeneratedPath {
   pathType: BeePathType;
@@ -12,14 +12,55 @@ export interface GeneratedPath {
   dashArray?: string;
   totalLength: number;
   baselineTimeSec: number;
+  orientation: ScreenOrientation;
 }
+
+/**
+ * Maps normalized coordinates (u along primary axis [0, 1], v along cross axis [-0.5, 0.5])
+ * to physical pixel coordinates based on orientation.
+ */
+export function mapNormalizedPoint(
+  u: number,
+  v: number,
+  width: number,
+  height: number,
+  marginX: number,
+  marginY: number,
+  orientation: ScreenOrientation
+): PathPoint {
+  const effMarginY = orientation === 'portrait' ? Math.max(85, marginY) : marginY;
+  const effMarginX = orientation === 'landscape' ? Math.max(85, marginX) : marginX;
+
+  const usableWidth = width - effMarginX * 2;
+  const usableHeight = height - effMarginY * 2;
+
+  if (orientation === 'portrait') {
+    // Primary axis = Vertical Y (travels bottom to top: Hive at bottom, Flower at top)
+    // u = 0 -> Y = height - effMarginY
+    // u = 1 -> Y = effMarginY
+    // Secondary axis = Horizontal X (centered around width / 2)
+    const x = width / 2 + v * usableWidth;
+    const y = (height - effMarginY) - u * usableHeight;
+    return { x, y };
+  } else {
+    // Primary axis = Horizontal X (travels left to right: Hive at left, Flower at right)
+    // u = 0 -> X = effMarginX
+    // u = 1 -> X = width - effMarginX
+    // Secondary axis = Vertical Y (centered around height / 2)
+    const x = effMarginX + u * usableWidth;
+    const y = height / 2 + v * usableHeight;
+    return { x, y };
+  }
+}
+
 
 export function generateBeePath(
   type: BeePathType,
   width: number,
   height: number,
   tier: number = 1,
-  complexity: PathComplexity = 'medium'
+  complexity: PathComplexity = 'medium',
+  orientation: ScreenOrientation = 'landscape'
 ): GeneratedPath {
   const complexityMult = complexity === 'short' ? 0.75 : complexity === 'long' ? 1.35 : 1.0;
   const marginX = Math.max(45, (width * 0.12) / complexityMult);
@@ -29,8 +70,8 @@ export function generateBeePath(
 
   let points: PathPoint[] = [];
   let svgPathD = '';
-  let startPoint: PathPoint = { x: marginX, y: height / 2 };
-  let endPoint: PathPoint = { x: width - marginX, y: height / 2 };
+  let startPoint: PathPoint = mapNormalizedPoint(0, 0, width, height, marginX, marginY, orientation);
+  let endPoint: PathPoint = mapNormalizedPoint(1, 0, width, height, marginX, marginY, orientation);
   let distractorPoint: PathPoint | undefined = undefined;
   let distractorSvgPathD: string | undefined = undefined;
   let dashArray: string | undefined = undefined;
@@ -45,20 +86,18 @@ export function generateBeePath(
 
   switch (effectiveType) {
     case 'straight': {
-      // Horizontal or slightly diagonal line based on tier
       const isDiagonal = tier > 2;
-      const startY = isDiagonal ? marginY + 40 : height / 2;
-      const endY = isDiagonal ? height - marginY - 40 : height / 2;
+      const vStart = isDiagonal ? -0.2 : 0;
+      const vEnd = isDiagonal ? 0.2 : 0;
 
-      startPoint = { x: marginX, y: startY };
-      endPoint = { x: width - marginX, y: endY };
+      startPoint = mapNormalizedPoint(0, vStart, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1, vEnd, width, height, marginX, marginY, orientation);
 
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
-        points.push({
-          x: startPoint.x + t * (endPoint.x - startPoint.x),
-          y: startPoint.y + t * (endPoint.y - startPoint.y),
-        });
+        const u = t;
+        const v = vStart + t * (vEnd - vStart);
+        points.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
       }
       svgPathD = `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`;
       break;
@@ -66,38 +105,35 @@ export function generateBeePath(
 
     case 'curve': {
       // Arc / quadratic curve
-      startPoint = { x: marginX, y: height * 0.65 };
-      endPoint = { x: width - marginX, y: height * 0.65 };
-      const controlY = height * 0.15 - tier * 15;
-      const controlX = width / 2;
+      startPoint = mapNormalizedPoint(0, 0.15, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1, 0.15, width, height, marginX, marginY, orientation);
+      const controlV = -0.35 - tier * 0.03;
+      const controlPt = mapNormalizedPoint(0.5, controlV, width, height, marginX, marginY, orientation);
 
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
         const invT = 1 - t;
-        const x = invT * invT * startPoint.x + 2 * invT * t * controlX + t * t * endPoint.x;
-        const y = invT * invT * startPoint.y + 2 * invT * t * controlY + t * t * endPoint.y;
+        const x = invT * invT * startPoint.x + 2 * invT * t * controlPt.x + t * t * endPoint.x;
+        const y = invT * invT * startPoint.y + 2 * invT * t * controlPt.y + t * t * endPoint.y;
         points.push({ x, y });
       }
-      svgPathD = `M ${startPoint.x} ${startPoint.y} Q ${controlX} ${controlY} ${endPoint.x} ${endPoint.y}`;
+      svgPathD = `M ${startPoint.x} ${startPoint.y} Q ${controlPt.x} ${controlPt.y} ${endPoint.x} ${endPoint.y}`;
       break;
     }
 
     case 'zigzag': {
-      // Sharp direction changes
-      startPoint = { x: marginX, y: height / 2 };
-      endPoint = { x: width - marginX, y: height / 2 };
+      startPoint = mapNormalizedPoint(0, 0, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1, 0, width, height, marginX, marginY, orientation);
 
       const numPeaks = 3 + Math.min(4, tier);
       const keyPoints: PathPoint[] = [startPoint];
-      const segmentWidth = (endPoint.x - startPoint.x) / numPeaks;
-      const amplitude = Math.min(usableHeight * 0.38, 120 + tier * 20);
+      const amplitudeV = Math.min(0.38, 0.22 + tier * 0.03);
 
       for (let k = 1; k < numPeaks; k++) {
         const dir = k % 2 === 1 ? -1 : 1;
-        keyPoints.push({
-          x: startPoint.x + k * segmentWidth,
-          y: height / 2 + dir * amplitude,
-        });
+        const u = k / numPeaks;
+        const v = dir * amplitudeV;
+        keyPoints.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
       }
       keyPoints.push(endPoint);
 
@@ -106,7 +142,6 @@ export function generateBeePath(
         svgPathD += ` L ${keyPoints[k].x} ${keyPoints[k].y}`;
       }
 
-      // Sample along zigzag segments
       const samplesPerSeg = Math.floor(samples / (keyPoints.length - 1));
       for (let k = 0; k < keyPoints.length - 1; k++) {
         const pA = keyPoints[k];
@@ -124,18 +159,17 @@ export function generateBeePath(
     }
 
     case 'wave': {
-      // S-curve / sine wave smooth pursuit
-      startPoint = { x: marginX, y: height / 2 };
-      endPoint = { x: width - marginX, y: height / 2 };
+      startPoint = mapNormalizedPoint(0, 0, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1, 0, width, height, marginX, marginY, orientation);
 
-      const frequency = 1.5 + tier * 0.5; // Sine cycles
-      const amplitude = Math.min(usableHeight * 0.35, 100 + tier * 15);
+      const frequency = 1.5 + tier * 0.5;
+      const amplitudeV = Math.min(0.35, 0.2 + tier * 0.03);
 
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
-        const x = startPoint.x + t * (endPoint.x - startPoint.x);
-        const y = height / 2 + Math.sin(t * Math.PI * 2 * frequency) * amplitude;
-        points.push({ x, y });
+        const u = t;
+        const v = Math.sin(t * Math.PI * 2 * frequency) * amplitudeV;
+        points.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
       }
 
       svgPathD = `M ${points[0].x} ${points[0].y}`;
@@ -147,7 +181,7 @@ export function generateBeePath(
 
     case 'spiral': {
       // Archimedean spiral starting center-left and spiraling towards end target
-      const centerX = width * 0.48;
+      const centerX = width / 2;
       const centerY = height / 2;
       const maxRadius = Math.min(usableWidth, usableHeight) * 0.38;
       const turns = 1.8 + tier * 0.3;
@@ -172,53 +206,47 @@ export function generateBeePath(
     }
 
     case 'branching': {
-      // Path splits into main target and distractor flower
-      startPoint = { x: marginX, y: height / 2 };
-      const splitX = startPoint.x + usableWidth * 0.45;
-      const splitY = height / 2;
+      startPoint = mapNormalizedPoint(0, 0, width, height, marginX, marginY, orientation);
+      const splitPt = mapNormalizedPoint(0.45, 0, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1.0, -0.25, width, height, marginX, marginY, orientation);
+      distractorPoint = mapNormalizedPoint(1.0, 0.25, width, height, marginX, marginY, orientation);
 
-      endPoint = { x: width - marginX, y: height * 0.3 };
-      distractorPoint = { x: width - marginX, y: height * 0.7 };
-
-      // Generate points for main path
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
         if (t <= 0.45) {
           const tSub = t / 0.45;
           points.push({
-            x: startPoint.x + tSub * (splitX - startPoint.x),
-            y: startPoint.y,
+            x: startPoint.x + tSub * (splitPt.x - startPoint.x),
+            y: startPoint.y + tSub * (splitPt.y - startPoint.y),
           });
         } else {
           const tSub = (t - 0.45) / 0.55;
-          // Smooth curve to upper flower
-          const x = splitX + tSub * (endPoint.x - splitX);
-          const y = splitY + (endPoint.y - splitY) * Math.sin((tSub * Math.PI) / 2);
-          points.push({ x, y });
+          const u = 0.45 + tSub * 0.55;
+          const v = -0.25 * Math.sin((tSub * Math.PI) / 2);
+          points.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
         }
       }
 
-      // True path SVG
-      svgPathD = `M ${startPoint.x} ${startPoint.y} L ${splitX} ${splitY} Q ${splitX + 60} ${splitY} ${endPoint.x} ${endPoint.y}`;
+      const mainControl = mapNormalizedPoint(0.65, 0, width, height, marginX, marginY, orientation);
+      const distControl = mapNormalizedPoint(0.65, 0, width, height, marginX, marginY, orientation);
 
-      // Distractor path SVG (fades or branches down)
-      distractorSvgPathD = `M ${splitX} ${splitY} Q ${splitX + 60} ${splitY} ${distractorPoint.x} ${distractorPoint.y}`;
+      svgPathD = `M ${startPoint.x} ${startPoint.y} L ${splitPt.x} ${splitPt.y} Q ${mainControl.x} ${mainControl.y} ${endPoint.x} ${endPoint.y}`;
+      distractorSvgPathD = `M ${splitPt.x} ${splitPt.y} Q ${distControl.x} ${distControl.y} ${distractorPoint.x} ${distractorPoint.y}`;
       break;
     }
 
     case 'dotted': {
-      // Dotted/Intermittent path (gap filling predictive tracking)
-      startPoint = { x: marginX, y: height * 0.55 };
-      endPoint = { x: width - marginX, y: height * 0.55 };
+      startPoint = mapNormalizedPoint(0, 0.05, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1, 0.05, width, height, marginX, marginY, orientation);
 
       const frequency = 2;
-      const amplitude = Math.min(usableHeight * 0.3, 90);
+      const amplitudeV = Math.min(0.3, 0.18 + tier * 0.02);
 
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
-        const x = startPoint.x + t * (endPoint.x - startPoint.x);
-        const y = startPoint.y + Math.sin(t * Math.PI * 2 * frequency) * amplitude;
-        points.push({ x, y });
+        const u = t;
+        const v = 0.05 + Math.sin(t * Math.PI * 2 * frequency) * amplitudeV;
+        points.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
       }
 
       svgPathD = `M ${points[0].x} ${points[0].y}`;
@@ -231,53 +259,26 @@ export function generateBeePath(
     }
 
     case 'procedural_random': {
-      // 1. Pick random start Hive position anywhere on screen (with safe margin)
-      const startX = marginX + Math.random() * (usableWidth * 0.35);
-      const startY = marginY + Math.random() * usableHeight;
-      startPoint = { x: startX, y: startY };
+      const startU = Math.random() * 0.2;
+      const startV = (Math.random() - 0.5) * 0.6;
+      startPoint = mapNormalizedPoint(startU, startV, width, height, marginX, marginY, orientation);
 
-      // 2. Pick random end Flower position at least 45% of screen size away
-      let endX = marginX + (0.5 + Math.random() * 0.5) * usableWidth;
-      let endY = marginY + Math.random() * usableHeight;
-      const minDistance = Math.hypot(width, height) * 0.45;
+      const endU = 0.8 + Math.random() * 0.2;
+      const endV = (Math.random() - 0.5) * 0.6;
+      endPoint = mapNormalizedPoint(endU, endV, width, height, marginX, marginY, orientation);
 
-      let retries = 0;
-      while (Math.hypot(endX - startX, endY - startY) < minDistance && retries < 20) {
-        endX = marginX + Math.random() * usableWidth;
-        endY = marginY + Math.random() * usableHeight;
-        retries++;
-      }
-      endPoint = { x: endX, y: endY };
-
-      // 3. Generate 2-4 random control waypoints between start and end
       const numControls = 2 + Math.floor(Math.random() * 3);
       const waypoints: PathPoint[] = [startPoint];
 
-      const dx = endPoint.x - startPoint.x;
-      const dy = endPoint.y - startPoint.y;
-      const totalDist = Math.hypot(dx, dy);
-      const mainAngle = Math.atan2(dy, dx);
-
       for (let k = 1; k <= numControls; k++) {
         const frac = k / (numControls + 1);
-        const basePointX = startPoint.x + dx * frac;
-        const basePointY = startPoint.y + dy * frac;
-
-        // Offset perpendicular to main vector direction
+        const u = startU + (endU - startU) * frac;
         const side = k % 2 === 0 ? 1 : -1;
-        const perpAngle = mainAngle + (side * Math.PI) / 2;
-        const offsetDist = (0.2 + Math.random() * 0.35) * (totalDist / 2);
-
-        const rawWpX = basePointX + Math.cos(perpAngle) * offsetDist;
-        const rawWpY = basePointY + Math.sin(perpAngle) * offsetDist;
-
-        const wpX = Math.max(marginX, Math.min(width - marginX, rawWpX));
-        const wpY = Math.max(marginY, Math.min(height - marginY, rawWpY));
-        waypoints.push({ x: wpX, y: wpY });
+        const v = (Math.random() * 0.35) * side;
+        waypoints.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
       }
       waypoints.push(endPoint);
 
-      // 4. Sample smooth Catmull-Rom spline curve points
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
         const pt = sampleCatmullRomChain(waypoints, t);
@@ -316,8 +317,10 @@ export function generateBeePath(
     dashArray,
     totalLength,
     baselineTimeSec,
+    orientation,
   };
 }
+
 
 /**
  * Helper to sample Catmull-Rom spline chain connecting random control waypoints.
