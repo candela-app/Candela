@@ -1,13 +1,21 @@
 import type { Metadata, Viewport } from 'next';
+import { Poppins } from 'next/font/google';
 import './globals.css';
 
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-poppins',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
-  title: 'Candela',
-  description: 'Candela Vision Therapy & Rehabilitation Modules',
+  title: 'Kandela',
+  description: 'Kandela Vision Therapy & Rehabilitation Modules',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Candela Therapy',
+    title: 'Kandela Therapy',
   },
 };
 
@@ -25,8 +33,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={poppins.variable}>
+      <body className={`${poppins.className} font-sans`}>{children}</body>
     </html>
   );
 }
