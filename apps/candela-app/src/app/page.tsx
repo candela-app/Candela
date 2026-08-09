@@ -6,15 +6,26 @@ import { RotatoryWheelGame } from '@/components/rotatoryModule/RotatoryWheelGame
 import { SortingGame } from '@/components/sortingModule/SortingGame';
 import { BeeTracingGame } from '@/components/beeTrackingModule/BeeTracingGame';
 import { PursuitGame } from '@/components/pursuitModule/PursuitGame';
+import { HomePageContent } from '@/components/home/HomePageContent';
+import {
+  EyeIcon,
+  RotatoryIcon,
+  PuzzleIcon,
+  BeePathIcon,
+  TargetIcon,
+  HomeIcon,
+  LayoutDashboardIcon,
+  ArrowLeftIcon,
+} from '@/components/icons/VectorIcons';
 import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe } from '@candela/shared';
 
-type ActiveView = 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit';
+type ActiveView = 'home' | 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit';
 
 function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [view, setView] = useState<ActiveView>('dashboard');
+  const [view, setView] = useState<ActiveView>('home');
   const [selectedTherapy, setSelectedTherapy] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
 
@@ -26,6 +37,7 @@ function MainContent() {
 
   // Sync state from URL Query Params
   useEffect(() => {
+    const pageParam = searchParams.get('page');
     const therapy = searchParams.get('therapy');
     const moduleParam = searchParams.get('module');
     const gameParam = searchParams.get('game');
@@ -60,10 +72,14 @@ function MainContent() {
     } else if (therapy) {
       setSelectedTherapy(therapy);
       setView('module');
-    } else {
+    } else if (pageParam === 'dashboard') {
       setSelectedTherapy(null);
       setSelectedModule(null);
       setView('dashboard');
+    } else {
+      setSelectedTherapy(null);
+      setSelectedModule(null);
+      setView('home');
     }
   }, [searchParams]);
 
@@ -76,28 +92,50 @@ function MainContent() {
         newParams.set(key, value);
       }
     });
-    router.push(`/?${newParams.toString()}`);
+    const queryString = newParams.toString();
+    router.push(queryString ? `/?${queryString}` : '/');
+  };
+
+  const navigateToHome = () => {
+    updateQueryParams({ page: null, therapy: null, module: null, game: null, mode: null, variant: null });
+  };
+
+  const navigateToDashboard = () => {
+    updateQueryParams({ page: 'dashboard', therapy: null, module: null, game: null, mode: null, variant: null });
+  };
+
+  const handleGoBack = () => {
+    if (view === 'game') {
+      updateQueryParams({ page: 'dashboard', therapy: 'vision', module: null, game: null, mode: null, variant: null });
+    } else if (view === 'module') {
+      updateQueryParams({ page: 'dashboard', therapy: null, module: null, game: null, mode: null, variant: null });
+    } else if (view === 'dashboard') {
+      navigateToHome();
+    } else {
+      navigateToHome();
+    }
   };
 
   const handleSelectTherapy = (id: string) => {
-    updateQueryParams({ therapy: id, module: null, game: null, mode: null, variant: null });
+    updateQueryParams({ page: 'dashboard', therapy: id, module: null, game: null, mode: null, variant: null });
   };
 
   const handleSelectModule = (id: string) => {
     if (id === 'tracing') {
       requestFullScreenSafe();
-      updateQueryParams({ therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null });
+      updateQueryParams({ page: 'dashboard', therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null });
     } else if (id === 'pursuit') {
       requestFullScreenSafe();
-      updateQueryParams({ therapy: 'vision', module: 'pursuit', game: 'pursuit', mode: null, variant: null });
+      updateQueryParams({ page: 'dashboard', therapy: 'vision', module: 'pursuit', game: 'pursuit', mode: null, variant: null });
     } else {
-      updateQueryParams({ therapy: 'vision', module: id, game: null, mode: null, variant: null });
+      updateQueryParams({ page: 'dashboard', therapy: 'vision', module: id, game: null, mode: null, variant: null });
     }
   };
 
   const handleLaunchRotatory = (mode: GameMode, variant: AlphabetVariant) => {
     requestFullScreenSafe();
     updateQueryParams({
+      page: 'dashboard',
       therapy: 'vision',
       module: 'wheel',
       game: 'rotatory',
@@ -109,6 +147,7 @@ function MainContent() {
   const handleLaunchSorting = (variant: SortingVariant) => {
     requestFullScreenSafe();
     updateQueryParams({
+      page: 'dashboard',
       therapy: 'vision',
       module: 'sorting',
       game: 'sorting',
@@ -119,6 +158,7 @@ function MainContent() {
 
   const handleExitGame = () => {
     updateQueryParams({
+      page: 'dashboard',
       therapy: 'vision',
       module: null,
       game: null,
@@ -127,71 +167,73 @@ function MainContent() {
     });
   };
 
-  return (
-    <div className="w-screen h-screen grid grid-rows-[auto_1fr] bg-[#EAF4FF] select-none touch-manipulation">
-      {/* HEADER SECTION (Tailwind CSS) */}
-      {view !== 'play_rotatory' && view !== 'play_sorting' && view !== 'play_bee_tracing' && view !== 'play_pursuit' && (
-        <header className="flex flex-row items-center justify-between px-6 py-4 bg-white shadow-sm">
-          <div className="flex items-center gap-3">
-            <h2
-              className="text-[40px] md:text-[50px] font-bold text-[#1A1A1A] cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => updateQueryParams({ therapy: null, module: null, game: null, mode: null, variant: null })}
-            >
-              Candela
-            </h2>
-          </div>
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit';
 
-          <div className="flex flex-row items-center justify-around text-center text-sm font-medium text-gray-600">
-            <div className="text-sm text-gray-700 select-none">
-              <span
-                className="cursor-pointer hover:underline text-gray-700"
-                onClick={() => updateQueryParams({ therapy: null, module: null, game: null, mode: null, variant: null })}
+  return (
+    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-[#EAF4FF] select-none touch-manipulation`}>
+      {/* HEADER NAVBAR SECTION */}
+      {!isPlayingGame && (
+        <header className="sticky top-0 z-50 flex flex-row items-center justify-between px-6 py-4 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 gap-4">
+          {/* LEFT: BRAND LOGO */}
+          <h2
+            className="text-2xl md:text-3xl font-extrabold text-[#1A1A1A] tracking-tight cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={navigateToHome}
+          >
+            Kandela
+          </h2>
+
+          {/* RIGHT: BACK BUTTON & DASHBOARD BUTTON */}
+          <div className="flex items-center gap-3">
+            {/* Back button (only shown when inside dashboard / sub-views) */}
+            {view !== 'home' && (
+              <button
+                onClick={handleGoBack}
+                className="px-3.5 py-1.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 text-gray-700 text-sm font-semibold transition-all flex items-center gap-1.5 border border-gray-200/60 shadow-xs active:scale-95"
               >
-                Dashboard
-              </span>
-              {selectedTherapy && (
-                <>
-                  {' › '}
-                  <span
-                    className="cursor-pointer hover:underline text-gray-700"
-                    onClick={() => updateQueryParams({ therapy: 'vision', module: null, game: null, mode: null, variant: null })}
-                  >
-                    Vision Therapy
-                  </span>
-                </>
-              )}
-              {selectedModule && (
-                <>
-                  {' › '}
-                  <span className="font-semibold text-gray-900">
-                    {selectedModule === 'wheel'
-                      ? 'Rotatory Module'
-                      : selectedModule === 'sorting'
-                      ? 'Sorting Module'
-                      : selectedModule === 'tracing'
-                      ? 'Bee Path Tracing'
-                      : 'Pursuit Module'}
-                  </span>
-                </>
-              )}
-            </div>
+                <ArrowLeftIcon className="w-4 h-4 text-gray-600" />
+                <span>Back</span>
+              </button>
+            )}
+
+            {/* Dashboard button */}
+            <button
+              onClick={navigateToDashboard}
+              className={`px-4 py-1.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 border ${
+                view !== 'home'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-blue-600 border-gray-200 shadow-sm hover:bg-blue-50'
+              }`}
+            >
+              <LayoutDashboardIcon className="w-4 h-4" />
+              <span>Dashboard</span>
+            </button>
           </div>
         </header>
       )}
 
-      {/* DASHBOARD VIEW - ONLY VISION THERAPY CARD */}
+      {/* HOME PAGE VIEW */}
+      {view === 'home' && (
+        <HomePageContent
+          onOpenDashboard={navigateToDashboard}
+          onSelectModule={handleSelectModule}
+        />
+      )}
+
+      {/* DASHBOARD VIEW - THERAPY SELECTION */}
       {view === 'dashboard' && (
-        <main className="grid items-center justify-items-center grid-cols-1 gap-6 p-8 my-auto">
+        <main className="flex-1 grid items-center justify-items-center grid-cols-1 gap-6 p-8 my-auto max-w-5xl mx-auto w-full">
           <div
-            className="h-[180px] w-full max-w-[360px] rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[200px] w-full max-w-[400px] rounded-[24px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-8 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectTherapy('vision')}
           >
-            <div className="text-4xl mb-2">👁️</div>
-            <h3 className="m-0 text-[26px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <EyeIcon className="w-10 h-10" />
+            </div>
+            <h3 className="m-0 text-[28px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
               Vision Therapy
             </h3>
-            <p className="text-xs text-gray-500 mt-2 font-medium">
-              Click to open Vision Therapy Modules
+            <p className="text-sm text-gray-500 mt-2 font-medium">
+              Click to open Vision Therapy Games & Modules
             </p>
           </div>
         </main>
@@ -199,110 +241,138 @@ function MainContent() {
 
       {/* MODULE SELECTION VIEW */}
       {view === 'module' && (
-        <main className="grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 p-8 my-auto max-w-6xl mx-auto w-full">
+        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 p-8 my-auto max-w-6xl mx-auto w-full">
           <div
-            className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectModule('wheel')}
           >
-            <div className="text-4xl mb-2">🎡</div>
-            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
-              Rotatory Module
-            </h3>
-            <p className="text-xs text-gray-500 mt-1 font-medium">
-              Dynamic wheel tracking & visual pursuit exercises
-            </p>
+            <div className="w-14 h-14 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <RotatoryIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
+                Rotatory Module
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">
+                Dynamic wheel tracking & visual pursuit exercises
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 shadow-2xs">
+              For Tabs
+            </span>
           </div>
 
           <div
-            className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectModule('sorting')}
           >
-            <div className="text-4xl mb-2">🧩</div>
-            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
-              Sorting Module
-            </h3>
-            <p className="text-xs text-gray-500 mt-1 font-medium">
-              Visual discrimination & sequential recognition
-            </p>
+            <div className="w-14 h-14 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <PuzzleIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-purple-600 transition-colors">
+                Sorting Module
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">
+                Visual discrimination & sequential recognition
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60 shadow-2xs">
+              For Tabs & Mobile
+            </span>
           </div>
 
           <div
-            className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectModule('tracing')}
           >
-            <div className="text-4xl mb-2">🐝</div>
-            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-amber-600 transition-colors">
-              Bee Path Tracing
-            </h3>
-            <p className="text-xs text-gray-500 mt-1 font-medium">
-              Smooth pursuit tracking & visual-motor path control
-            </p>
+            <div className="w-14 h-14 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <BeePathIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-amber-600 transition-colors">
+                Bee Path Tracing
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">
+                Smooth pursuit tracking & visual-motor path control
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 shadow-2xs">
+              For Touch & Stylus
+            </span>
           </div>
 
           <div
-            className="h-[180px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-6 border-2 border-transparent hover:border-cyan-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-cyan-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectModule('pursuit')}
           >
-            <div className="text-4xl mb-2">🎯</div>
-            <h3 className="m-0 text-[22px] font-bold text-[#1A1A1A] group-hover:text-cyan-600 transition-colors">
-              Pursuit Module
-            </h3>
-            <p className="text-xs text-gray-500 mt-1 font-medium">
-              Continuous visual pursuit & selective attention tracking
-            </p>
+            <div className="w-14 h-14 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <TargetIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-cyan-600 transition-colors">
+                Pursuit Module
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">
+                Continuous visual pursuit & selective attention tracking
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/60 shadow-2xs">
+              For All Devices
+            </span>
           </div>
         </main>
       )}
 
-      {/* GAME VARIANTS VIEW (Tailwind CSS) */}
+      {/* GAME VARIANTS VIEW */}
       {view === 'game' && selectedModule === 'wheel' && (
-        <main className="grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
+        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Uppercase Rotatory</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Rotatory</p>
           </div>
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Lowercase Rotatory</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Rotatory</p>
           </div>
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchRotatory('numbers', 'uppercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Numeric Rotatory</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Rotatory</p>
           </div>
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchRotatory('colors', 'uppercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Color Discriminant</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant</p>
           </div>
         </main>
       )}
 
       {view === 'game' && selectedModule === 'sorting' && (
-        <main className="grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
+        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchSorting('uppercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Uppercase Alphabet Sorting</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Alphabet Sorting</p>
           </div>
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchSorting('lowercase')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Lowercase Alphabet Sorting</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Alphabet Sorting</p>
           </div>
           <div
-            className="h-[160px] w-full max-w-[320px] rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-black cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchSorting('numbers')}
           >
-            <p className="m-0 text-[24px] font-semibold text-[#1A1A1A]">Numeric Sorting</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Sorting</p>
           </div>
         </main>
       )}
@@ -333,9 +403,8 @@ function MainContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-lg font-semibold">Loading Candela...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-lg font-semibold">Loading Kandela...</div>}>
       <MainContent />
     </Suspense>
   );
 }
-
