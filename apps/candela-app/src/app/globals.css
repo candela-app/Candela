@@ -8,7 +8,7 @@
   --bg-main: #EAF4FF;
   --bg-card: #FFFFFF;
   --bg-wheel: #000000;
-  --font-main: 'Open Sans', system-ui, sans-serif;
+  --font-main: 'Poppins', system-ui, sans-serif;
   --font-display: 'Poppins', system-ui, sans-serif;
   --heading: 50px;
 }
@@ -18,7 +18,7 @@ html, body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-main);
-  font-family: var(--font-main);
+  font-family: 'Poppins', var(--font-main), system-ui, sans-serif;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
