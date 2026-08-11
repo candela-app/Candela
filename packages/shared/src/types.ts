@@ -184,5 +184,40 @@ export interface PursuitSessionResultData extends SessionResultData {
   starRating: number; // 1 to 5 stars for child card
 }
 
+// --- Mobile Bouncing 2-Target Pursuit Module Types ---
+export interface MobileTargetSettings {
+  patientName: string;
+  gameMode: GameMode;
+  alphabetVariant?: AlphabetVariant;
+  speedPxPerSec: number;
+  setDurationSec: number;
+  totalSets: number;
+  bubbleSize?: number; // bubble size in px (e.g. 60-130px)
+  letterSize?: number; // font size in px (e.g. 18-48px)
+  movementAxis?: 'horizontal' | 'vertical' | 'random';
+}
+
+export interface MobileTargetSetMetric {
+  setIndex: number;
+  targetValue: string;
+  targetColor?: string;
+  distractorValue: string;
+  distractorColor?: string;
+  outcome: 'correct' | 'incorrect' | 'timeout';
+  reactionTimeMs: number;
+  wrongClicksCount: number;
+}
+
+export interface MobileTargetSessionResultData extends SessionResultData {
+  gameMode: GameMode;
+  speedPxPerSec: number;
+  setDurationSec: number;
+  totalSets: number;
+  timeoutCount: number;
+  setMetrics: MobileTargetSetMetric[];
+  starRating: number;
+}
+
+
 
 
