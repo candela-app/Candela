@@ -83,6 +83,8 @@ export function playWrongSoundAndHaptic(): void {
 }
 
 export const playWrongBubbleSoundAndHaptic = playWrongSoundAndHaptic;
+export const playSuccessTone = playCorrectSoundAndHaptic;
+export const playErrorTone = playWrongSoundAndHaptic;
 
 /**
  * Play a low dull thud sound (150 Hz -> 65 Hz)

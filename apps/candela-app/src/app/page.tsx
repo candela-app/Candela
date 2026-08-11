@@ -6,6 +6,7 @@ import { RotatoryWheelGame } from '@/components/rotatoryModule/RotatoryWheelGame
 import { SortingGame } from '@/components/sortingModule/SortingGame';
 import { BeeTracingGame } from '@/components/beeTrackingModule/BeeTracingGame';
 import { PursuitGame } from '@/components/pursuitModule/PursuitGame';
+import { MobileTargetGame } from '@/components/mobileTargetModule/MobileTargetGame';
 import { HomePageContent } from '@/components/home/HomePageContent';
 import {
   EyeIcon,
@@ -13,13 +14,14 @@ import {
   PuzzleIcon,
   BeePathIcon,
   TargetIcon,
+  MobileTargetIcon,
   HomeIcon,
   LayoutDashboardIcon,
   ArrowLeftIcon,
 } from '@/components/icons/VectorIcons';
 import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe } from '@candela/shared';
 
-type ActiveView = 'home' | 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit';
+type ActiveView = 'home' | 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target';
 
 function MainContent() {
   const router = useRouter();
@@ -30,6 +32,10 @@ function MainContent() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
 
   const [rotatoryConfig, setRotatoryConfig] = useState<{ mode: GameMode; variant: AlphabetVariant }>({
+    mode: 'alphabets',
+    variant: 'uppercase',
+  });
+  const [mobileTargetConfig, setMobileTargetConfig] = useState<{ mode: GameMode; variant: AlphabetVariant }>({
     mode: 'alphabets',
     variant: 'uppercase',
   });
@@ -65,6 +71,14 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('pursuit');
       setView('play_pursuit');
+    } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
+      setMobileTargetConfig({
+        mode: modeParam || 'alphabets',
+        variant: (variantParam as AlphabetVariant) || 'uppercase',
+      });
+      setSelectedTherapy('vision');
+      setSelectedModule('mobile_target');
+      setView('play_mobile_target');
     } else if (moduleParam) {
       setSelectedTherapy('vision');
       setSelectedModule(moduleParam);
@@ -156,18 +170,41 @@ function MainContent() {
     });
   };
 
-  const handleExitGame = () => {
+  const handleLaunchMobileTarget = (mode: GameMode, variant: AlphabetVariant) => {
+    requestFullScreenSafe();
     updateQueryParams({
       page: 'dashboard',
       therapy: 'vision',
-      module: null,
-      game: null,
-      mode: null,
-      variant: null,
+      module: 'mobile_target',
+      game: 'mobile_target',
+      mode,
+      variant,
     });
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit';
+  const handleExitGame = () => {
+    if (selectedModule) {
+      updateQueryParams({
+        page: 'dashboard',
+        therapy: 'vision',
+        module: selectedModule,
+        game: null,
+        mode: null,
+        variant: null,
+      });
+    } else {
+      updateQueryParams({
+        page: 'dashboard',
+        therapy: 'vision',
+        module: null,
+        game: null,
+        mode: null,
+        variant: null,
+      });
+    }
+  };
+
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target';
 
   return (
     <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-[#EAF4FF] select-none touch-manipulation`}>
@@ -321,6 +358,26 @@ function MainContent() {
               For All Devices
             </span>
           </div>
+
+          <div
+            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            onClick={() => handleSelectModule('mobile_target')}
+          >
+            <div className="w-14 h-14 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <MobileTargetIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-emerald-600 transition-colors">
+                Mobile Target Pursuit
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">
+                2-target bouncing pursuit with set timers & high contrast dark field
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-2xs">
+              For Mobile & Tabs
+            </span>
+          </div>
         </main>
       )}
 
@@ -377,6 +434,35 @@ function MainContent() {
         </main>
       )}
 
+      {view === 'game' && selectedModule === 'mobile_target' && (
+        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
+          <div
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}
+          >
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Mobile Pursuit</p>
+          </div>
+          <div
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}
+          >
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Mobile Pursuit</p>
+          </div>
+          <div
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}
+          >
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Mobile Pursuit</p>
+          </div>
+          <div
+            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+            onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}
+          >
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Pursuit</p>
+          </div>
+        </main>
+      )}
+
       {/* GAME LAUNCHERS */}
       {view === 'play_rotatory' && (
         <RotatoryWheelGame
@@ -396,6 +482,14 @@ function MainContent() {
 
       {view === 'play_pursuit' && (
         <PursuitGame onExit={handleExitGame} />
+      )}
+
+      {view === 'play_mobile_target' && (
+        <MobileTargetGame
+          initialMode={mobileTargetConfig.mode}
+          initialVariant={mobileTargetConfig.variant}
+          onExit={handleExitGame}
+        />
       )}
     </div>
   );

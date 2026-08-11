@@ -374,3 +374,26 @@ export function LayoutDashboardIcon({ className = 'w-6 h-6', size, ...props }: I
     </svg>
   );
 }
+
+export function MobileTargetIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <rect width="14" height="20" x="5" y="2" rx="3" />
+      <circle cx="9" cy="8" r="2" />
+      <circle cx="15" cy="14" r="2" />
+      <path d="m11 10 2 2" />
+    </svg>
+  );
+}

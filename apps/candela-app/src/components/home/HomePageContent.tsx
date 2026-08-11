@@ -5,6 +5,7 @@ import {
   PuzzleIcon,
   BeePathIcon,
   TargetIcon,
+  MobileTargetIcon,
   SlidersIcon,
   AnalyticsIcon,
   MonitorIcon,
@@ -29,34 +30,34 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="max-w-6xl mx-auto flex flex-col items-center text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-blue-200 border border-white/15 text-xs md:text-sm font-medium mb-6">
-            <SparklesIcon className="w-4 h-4 text-blue-300" />
-            A Measure of Light, A Measure of Progress
+        <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
+            <SparklesIcon className="w-4 h-4 text-blue-400" />
+            <span>Next-Gen Vision Therapy Platform</span>
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl leading-tight mb-6">
-            Empowering Visual Recovery & Cognitive Rehabilitation
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight text-white">
+            Precision Visual & Cognitive Therapy Tools
           </h1>
 
-          <p className="text-lg md:text-xl text-blue-100/80 max-w-2xl font-normal leading-relaxed mb-10">
-            Welcome to Kandela. A comprehensive suite of interactive vision therapy modules designed for clinical ocular motility, smooth pursuit, visual sorting, and perceptual coordination.
+          <p className="text-base sm:text-lg text-gray-300 max-w-2xl mx-auto font-medium leading-relaxed">
+            Scientifically formulated visual pursuit, ocular motor tracking, and visual discrimination modules designed for clinical accuracy and patient engagement.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <button
               onClick={onOpenDashboard}
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg shadow-lg shadow-blue-600/30 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-3"
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-base rounded-2xl shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-200 flex items-center justify-center gap-3 border border-blue-400/30 active:scale-95"
             >
-              <span>Open Games Dashboard</span>
               <RocketIcon className="w-5 h-5" />
+              <span>Explore Dashboard</span>
             </button>
 
             <a
               href="#features"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-lg border border-white/20 backdrop-blur-md transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-4 bg-white/10 hover:bg-white/15 text-white font-semibold text-base rounded-2xl border border-white/20 transition-all duration-200 flex items-center justify-center gap-2"
             >
-              <span>Explore Modules</span>
+              <span>Learn Capabilities</span>
               <ArrowDownIcon className="w-4 h-4" />
             </a>
           </div>
@@ -65,16 +66,16 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
 
       {/* QUICK LAUNCH MODULE PREVIEWS */}
       <section className="max-w-6xl mx-auto px-6 -mt-10 relative z-20 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div
             onClick={() => onSelectModule ? onSelectModule('wheel') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-blue-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-blue-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <RotatoryIcon className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <RotatoryIcon className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                 Rotatory Module
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
@@ -82,7 +83,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
                 For Tabs
               </span>
               <div className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all">
@@ -94,13 +95,13 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
 
           <div
             onClick={() => onSelectModule ? onSelectModule('sorting') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-purple-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-purple-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <PuzzleIcon className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <PuzzleIcon className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
                 Sorting Module
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
@@ -108,7 +109,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
                 For Tabs & Mobile
               </span>
               <div className="text-xs font-bold text-purple-600 flex items-center gap-1 group-hover:gap-2 transition-all">
@@ -120,13 +121,13 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
 
           <div
             onClick={() => onSelectModule ? onSelectModule('tracing') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-amber-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-amber-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BeePathIcon className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <BeePathIcon className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
                 Bee Path Tracing
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
@@ -134,7 +135,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
                 For Touch & Stylus
               </span>
               <div className="text-xs font-bold text-amber-600 flex items-center gap-1 group-hover:gap-2 transition-all">
@@ -146,13 +147,13 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
 
           <div
             onClick={() => onSelectModule ? onSelectModule('pursuit') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-cyan-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-cyan-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <TargetIcon className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <TargetIcon className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 group-hover:text-cyan-600 transition-colors">
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-cyan-600 transition-colors">
                 Pursuit Module
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
@@ -160,10 +161,36 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/60">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/60">
                 For All Devices
               </span>
               <div className="text-xs font-bold text-cyan-600 flex items-center gap-1 group-hover:gap-2 transition-all">
+                <span>Launch</span>
+                <ArrowRightIcon className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            onClick={() => onSelectModule ? onSelectModule('mobile_target') : onOpenDashboard()}
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-emerald-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <MobileTargetIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                Mobile Target
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
+                2-target bouncing pursuit with set timers & high contrast dark field.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                For Mobile & Tabs
+              </span>
+              <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 group-hover:gap-2 transition-all">
                 <span>Launch</span>
                 <ArrowRightIcon className="w-3.5 h-3.5" />
               </div>

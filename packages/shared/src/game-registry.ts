@@ -32,6 +32,13 @@ export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile'],
   },
+  mobile_target: {
+    id: 'mobile_target',
+    name: 'Mobile Target Bouncing Pursuit',
+    description: 'Standalone mobile-optimized 2-target bouncing pursuit with high contrast dark backdrop and set timers.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['mobile', 'tablet'],
+  },
 };
 
 /**
