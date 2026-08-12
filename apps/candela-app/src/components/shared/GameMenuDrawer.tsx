@@ -13,7 +13,7 @@ export interface GameMenuDrawerProps {
   onClose: () => void;
   onQuit: () => void;
   onReset: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   resetButtonLabel?: string;
   extraControls?: React.ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
@@ -33,11 +33,11 @@ export function GameMenuDrawer({
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-end"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-end animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-[300px] sm:w-[340px] max-w-[88vw] h-full h-[100dvh] max-h-[100dvh] bg-[#111111] text-white p-5 sm:p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto custom-scrollbar touch-pan-y"
+        className="w-[300px] sm:w-[340px] max-w-[88vw] h-full h-[100dvh] max-h-[100dvh] bg-[#111111] text-white p-5 sm:p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto custom-scrollbar touch-pan-y animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* DRAWER HEADER */}
@@ -84,15 +84,17 @@ export function GameMenuDrawer({
           <span>⛶</span>
         </button>
 
-        <button
-          className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold cursor-pointer transition-colors shrink-0"
-          onClick={() => {
-            onClose();
-            onOpenSettings();
-          }}
-        >
-          Open Settings
-        </button>
+        {onOpenSettings && (
+          <button
+            className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold cursor-pointer transition-colors shrink-0"
+            onClick={() => {
+              onClose();
+              onOpenSettings();
+            }}
+          >
+            Open Settings
+          </button>
+        )}
 
         {/* GAME-SPECIFIC EXTRA CONTROLS (e.g. Speed buttons) */}
         {extraControls}

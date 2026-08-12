@@ -29,6 +29,7 @@ import {
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { SlidersIcon } from '../icons/VectorIcons';
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -56,9 +57,10 @@ export function RotatoryWheelGame({
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
 
-  // Settings & Results Modal State
+  // Settings, Click to Start & Results Modal State
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
 
@@ -68,8 +70,31 @@ export function RotatoryWheelGame({
   const [tempBubbleSize, setTempBubbleSize] = useState<number>(bubbleSize);
   const [tempWheelColor, setTempWheelColor] = useState<string>(wheelColor);
 
-  // Notification Toast State
+  // Notification Toast, Controls Floating & Fullscreen State
   const [notification, setNotification] = useState<string | null>(null);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState<boolean>(false);
+  const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
 
   // Gameplay state
   const [poppingActive, setPoppingActive] = useState<boolean>(false);
@@ -91,23 +116,31 @@ export function RotatoryWheelGame({
   const isSettingsOpenRef = useRef<boolean>(isSettingsOpen);
   const currentTargetRef = useRef<string>('');
 
-  // Voice selection helper for Indian English (en-IN)
-  const indianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  // Voice selection helper for Native Telugu / Child voice (te-IN)
+  const teluguVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
     const updateVoices = () => {
       const voices = window.speechSynthesis.getVoices();
-      const inVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().includes('en-in') ||
-          v.lang.toLowerCase().includes('en_in') ||
-          v.name.toLowerCase().includes('india') ||
-          v.name.toLowerCase().includes('indian')
-      );
-      if (inVoice) {
-        indianVoiceRef.current = inVoice;
+      const teVoice =
+        voices.find(
+          (v) =>
+            v.lang.toLowerCase().includes('te-in') ||
+            v.lang.toLowerCase().includes('te_in') ||
+            v.name.toLowerCase().includes('telugu')
+        ) ||
+        voices.find(
+          (v) =>
+            v.lang.toLowerCase().includes('en-in') ||
+            v.lang.toLowerCase().includes('en_in') ||
+            v.name.toLowerCase().includes('india') ||
+            v.name.toLowerCase().includes('indian')
+        );
+
+      if (teVoice) {
+        teluguVoiceRef.current = teVoice;
       }
     };
 
@@ -165,20 +198,22 @@ export function RotatoryWheelGame({
     };
   }, []);
 
-  // Speech helper with Indian English accent priority
+  // Native Telugu/Indian accent pediatric child voice helper (te-IN / en-IN accent, pitch=1.4, rate=0.82)
   const speak = useCallback((text: string, currentMode: GameMode) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance();
-    utter.text = currentMode !== 'colors' ? text.toLowerCase() : text;
-    utter.rate = 0.85; // Clear, natural rate for Indian learners / speech therapy
-    utter.pitch = 1.0;
 
-    if (indianVoiceRef.current) {
-      utter.voice = indianVoiceRef.current;
-      utter.lang = indianVoiceRef.current.lang;
+    // Standard English text for clear pediatric reading mechanism
+    utter.text = currentMode !== 'colors' ? text.toLowerCase() : text;
+    utter.rate = 0.82; // Clear pediatric speech pacing
+    utter.pitch = 1.4; // Elevated pitch for natural pediatric child voice timbre
+
+    if (teluguVoiceRef.current) {
+      utter.voice = teluguVoiceRef.current;
+      utter.lang = teluguVoiceRef.current.lang;
     } else {
-      utter.lang = 'en-IN';
+      utter.lang = 'te-IN';
     }
 
     window.speechSynthesis.speak(utter);
@@ -465,6 +500,18 @@ export function RotatoryWheelGame({
     }
   };
 
+  const handleStartGame = () => {
+    setIsGameStarted(true);
+    setIsPaused(false);
+    resetStats();
+    if (currentTargetRef.current) {
+      const targetText = currentTargetRef.current;
+      setTimeout(() => {
+        speak(mode === 'colors' ? targetText : `target ${targetText}`, mode);
+      }, 200);
+    }
+  };
+
   const handleApplySettings = () => {
     setPatientName(tempPatientName);
     setLetterSize(tempLetterSize);
@@ -475,32 +522,25 @@ export function RotatoryWheelGame({
     setNotification('Settings Applied Successfully!');
     setTimeout(() => setNotification(null), 2500);
 
-    // Close Modal and start game + audio speech
+    // Transition to Click to Start Screen
     setIsSettingsOpen(false);
-    setIsPaused(false);
-    if (currentTargetRef.current) {
-      const targetText = currentTargetRef.current;
-      setTimeout(() => {
-        speak(mode === 'colors' ? targetText : `target ${targetText}`, mode);
-      }, 200);
-    }
+    setIsGameStarted(false);
+    setIsPaused(true);
   };
 
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
-    setIsPaused(false);
-    if (currentTargetRef.current) {
-      const targetText = currentTargetRef.current;
-      setTimeout(() => {
-        speak(mode === 'colors' ? targetText : `target ${targetText}`, mode);
-      }, 200);
+    if (!isGameStarted) {
+      setIsPaused(true);
+    } else {
+      setIsPaused(false);
     }
   };
 
   const animationDurationSeconds = DEFAULT_BASE_ANIMATION_DURATION / speed;
 
   return (
-    <div className="relative w-screen h-screen flex justify-between items-center px-4 md:px-8 overflow-hidden bg-gradient-to-b from-[#D7ECFF] to-[#BFDFFF]">
+    <div className="w-screen h-screen bg-[#0A0A12] text-white flex items-center justify-center select-none overflow-hidden touch-none relative font-sans">
       {/* TOP-RIGHT NOTIFICATION TOAST */}
       {notification && (
         <div className="fixed top-6 right-6 z-[300] flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md text-white font-bold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/30 text-sm animate-fade-in">
@@ -508,82 +548,375 @@ export function RotatoryWheelGame({
         </div>
       )}
 
-      {/* LEFT: CONTROLS (Tailwind CSS) */}
-      <div className="flex flex-col items-center gap-4 z-10">
-        <button
-          className="w-[70px] md:w-[100px] h-[70px] md:h-[100px] rounded-2xl bg-white border-2 border-gray-300 text-3xl md:text-4xl text-gray-500 hover:text-black flex justify-center items-center shadow-lg active:scale-95 transition-all"
-          onClick={() => setIsPaused((prev) => !prev)}
-          title={isPaused ? 'Play' : 'Pause'}
-        >
-          {isPaused ? '▶' : '⏸'}
-        </button>
+      {/* CLICK TO START OVERLAY (High-Contrast Pediatric Low-Vision Design) */}
+      {!isGameStarted && !isSettingsOpen && !isResultsOpen && (
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 backdrop-blur-2xl flex flex-col justify-center items-center gap-7 p-6 text-center animate-fade-in select-none">
+          {/* Ambient Glow Orbs */}
+          <div className="absolute w-[500px] h-[500px] rounded-full bg-blue-500/15 blur-[120px] pointer-events-none" />
+          <div className="absolute w-[400px] h-[400px] rounded-full bg-amber-500/10 blur-[100px] pointer-events-none" />
 
-        <div className="mt-4 text-xl md:text-2xl font-bold text-gray-800 text-center">
-          Target:{' '}
-          <span className="text-3xl md:text-4xl font-extrabold" style={{ color: targetColor }}>
-            {currentTarget}
-          </span>
-        </div>
-      </div>
+          {/* High-Contrast Pediatric Header Tag */}
+          <div className="flex flex-col items-center gap-3 max-w-lg z-10">
+            <span className="text-xs sm:text-sm font-black px-4 py-1.5 rounded-full bg-amber-400 text-black shadow-[0_0_25px_rgba(251,191,36,0.6)] uppercase tracking-widest border-2 border-amber-300">
+              ✨ Vision Therapy Game Ready
+            </span>
 
-      {/* CENTER: ROTATING WHEEL (Tailwind CSS) */}
-      <div
-        ref={wheelRef}
-        className={`relative h-[98vh] w-[98vh] max-w-[calc(100vw-140px)] sm:max-w-[calc(100vw-200px)] aspect-square rounded-full flex justify-center items-center shadow-2xl transition-transform cursor-pointer shrink-0 ${
-          isPaused ? 'paused' : 'animate-rotate-wheel'
-        }`}
-        style={{
-          animationDuration: `${animationDurationSeconds}s`,
-          backgroundColor: wheelColor,
-        }}
-        onClick={handleWheelClick}
-      >
-        <div ref={bubbleContainerRef} className="absolute inset-0 w-full h-full">
-          {bubbles.map((bubble) => {
-            const isPopping = poppingIds.has(bubble.id);
-            const isWrong = wrongIds.has(bubble.id);
-            const textColor = getContrastColor(bubble.color || '#FFFFFF');
-            return (
-              <div
-                key={bubble.id}
-                className={`absolute rounded-full flex justify-center items-center font-bold cursor-pointer select-none border-2 border-white/40 shadow-md active:scale-110 transition-transform -translate-x-1/2 -translate-y-1/2 ${
-                  isPopping ? 'animate-pop' : ''
-                } ${isWrong ? 'animate-shake' : ''}`}
-                style={{
-                  left: `${bubble.x}%`,
-                  top: `${bubble.y}%`,
-                  width: `${bubbleSize}px`,
-                  height: `${bubbleSize}px`,
-                  fontSize: `${letterSize}rem`,
-                  backgroundColor: bubble.color,
-                  color: textColor,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBubbleClick(bubble);
-                }}
-              >
-                <span className="bubble-text inline-flex items-center justify-center pointer-events-none select-none">
-                  {mode === 'colors' ? '' : bubble.symbol}
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
+              {mode === 'colors' ? (
+                <span className="bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">
+                  Color Discriminant Wheel
                 </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              ) : (
+                <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-300 bg-clip-text text-transparent">
+                  {variant === 'lowercase' ? 'Lowercase Alphabets' : 'Uppercase Alphabets'}
+                </span>
+              )}
+            </h2>
 
-      {/* RIGHT: HAMBURGER MENU */}
-      <div className="z-10 flex items-center">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121626]/90 border border-gray-700/80 shadow-xl text-xs sm:text-sm font-bold text-gray-200 mt-1">
+              <span className="text-cyan-400">👤 Patient:</span>
+              <span className="text-white font-extrabold">{patientName}</span>
+              <span className="text-gray-500">|</span>
+              <span className="text-amber-400">⚡ Speed:</span>
+              <span className="text-white font-extrabold">{speed}x</span>
+            </div>
+          </div>
+
+          {/* Big High-Contrast Pediatric Start Button */}
+          <button
+            onClick={handleStartGame}
+            className="group relative flex items-center justify-center gap-4 px-10 py-5 sm:px-14 sm:py-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 font-black text-xl sm:text-2xl md:text-3xl rounded-full shadow-[0_0_50px_rgba(16,185,129,0.6)] hover:shadow-[0_0_70px_rgba(6,182,212,0.9)] border-4 border-white transition-all cursor-pointer active:scale-95 z-10 tracking-wide"
+            title="Click to Start Therapy Session"
+          >
+            <span className="text-3xl sm:text-4xl group-hover:scale-125 transition-transform drop-shadow-md">
+              🎯
+            </span>
+            <span className="uppercase tracking-wider font-black text-slate-950">
+              Click to Start
+            </span>
+          </button>
+
+          {/* Sub-action: Edit Settings */}
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
+          >
+            <span>⚙️ Edit Clinical Settings</span>
+          </button>
+        </div>
+      )}
+
+      {/* BOTTOM RIGHT FLOATING CONTROLS GROUP (ULTRA-COMPACT & UNMUTED IDLE OPACITY) */}
+      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
+        {/* DIRECT FULLSCREEN TOGGLE BUTTON */}
         <button
-          className="bg-transparent border-none text-4xl text-gray-600 hover:text-black cursor-pointer"
-          onClick={() => setIsMenuOpen(true)}
-          title="Menu"
+          onClick={toggleFullscreen}
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white flex items-center justify-center shadow-md transition-all cursor-pointer backdrop-blur-md active:scale-95"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
         >
-          ☰
+          {isFullscreen ? (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+          )}
+        </button>
+        {/* TARGET DISPLAY ASSISTIVETOUCH FLOATING ORB BUTTON */}
+        <button
+          onClick={() => {
+            speak(mode === 'colors' ? currentTarget : `target ${currentTarget}`, mode);
+            setIsAssistiveTouchOpen((prev) => !prev);
+          }}
+          className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 shadow-md flex items-center justify-center transition-all cursor-pointer backdrop-blur-md active:scale-95 group ${
+            isAssistiveTouchOpen
+              ? 'bg-[#1A2035] border-blue-400 text-white shadow-blue-500/30 ring-2 ring-blue-500/40'
+              : 'bg-[#121626]/90 hover:bg-[#1A2035] border-blue-500/70 hover:border-blue-400 text-white'
+          }`}
+          title="Current Target - Tap to hear sound & open menu"
+        >
+          {/* JUST THE TARGET SYMBOL / COLOR */}
+          {mode === 'colors' ? (
+            <div
+              className="w-3.5 h-3.5 rounded-full border border-white shadow-sm shrink-0"
+              style={{ backgroundColor: targetColor }}
+            />
+          ) : (
+            <span
+              className="text-xs sm:text-sm font-black tracking-tight drop-shadow-md select-none"
+              style={{ color: targetColor }}
+            >
+              {currentTarget}
+            </span>
+          )}
+
+          {/* UP ARROW INDICATOR TO SHOW EXPANDABLE MENU */}
+          <span
+            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-600 text-[7px] font-extrabold text-white flex items-center justify-center border border-blue-400 shadow-sm group-hover:scale-110 transition-transform"
+            title="Expand Menu"
+          >
+            ▲
+          </span>
+        </button>
+
+        {/* BOTTOM RIGHT INFO TOGGLE BUTTON */}
+        <button
+          onClick={() => setIsHeaderExpanded((prev) => !prev)}
+          className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white text-[10px] sm:text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-md active:scale-95"
+          title={isHeaderExpanded ? 'Hide Info' : 'View Info'}
+        >
+          <span className="text-blue-400 font-extrabold text-[9px] sm:text-[10px]">
+            {isHeaderExpanded ? '▼' : '▲'}
+          </span>
+          <span>{isHeaderExpanded ? 'Hide Info' : 'View Info'}</span>
         </button>
       </div>
 
-      {/* SHARED OFFCANVAS MENU */}
+      {/* ASSISTIVETOUCH FLOATING MENU POPUP (iPhone-inspired) */}
+      {isAssistiveTouchOpen && (
+        <div className="fixed bottom-16 right-16 sm:bottom-20 sm:right-24 z-50 bg-[#121626]/95 border border-gray-800/90 p-4 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col gap-3 min-w-[210px] animate-slide-in-up">
+          <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
+            <span className="text-xs font-extrabold text-gray-300 uppercase tracking-wider">
+              Controls
+            </span>
+            <button
+              onClick={() => setIsAssistiveTouchOpen(false)}
+              className="text-gray-400 hover:text-white text-sm font-bold cursor-pointer p-0.5"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* TARGET CARD DISPLAY & SPEAKER REPLAY BUTTON */}
+          <button
+            onClick={() => speak(mode === 'colors' ? currentTarget : `target ${currentTarget}`, mode)}
+            title="Click to hear target sound"
+            className="flex items-center justify-between bg-[#1A2035] hover:bg-[#222942] border border-blue-500/40 hover:border-blue-400 px-3 py-2 rounded-2xl shadow-inner cursor-pointer transition-all active:scale-95 group w-full"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider group-hover:text-blue-300">
+                Target:
+              </span>
+              {mode === 'colors' ? (
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-5 h-5 rounded-full border border-white shadow-sm"
+                    style={{ backgroundColor: targetColor }}
+                  />
+                  <span className="font-extrabold text-xs text-white">{currentTarget}</span>
+                </div>
+              ) : (
+                <span
+                  className="text-xl font-black tracking-widest drop-shadow-md"
+                  style={{ color: targetColor }}
+                >
+                  {currentTarget}
+                </span>
+              )}
+            </div>
+            <span className="text-blue-400 group-hover:scale-110 transition-transform text-xs font-bold flex items-center gap-1">
+              🔊 Replay
+            </span>
+          </button>
+
+          {/* PLAY / PAUSE BUTTON */}
+          <button
+            onClick={() => setIsPaused((prev) => !prev)}
+            className={`w-full py-2.5 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 border ${
+              isPaused
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md'
+                : 'bg-gray-800/90 hover:bg-gray-700 text-gray-200 border-gray-700'
+            }`}
+            title={isPaused ? 'Resume Game' : 'Pause Game'}
+          >
+            <span className="text-sm">{isPaused ? '▶' : '⏸'}</span>
+            <span>{isPaused ? 'Play' : 'Pause'}</span>
+          </button>
+
+          {/* CLINICAL SETTINGS BUTTON */}
+          <button
+            onClick={() => {
+              setIsAssistiveTouchOpen(false);
+              setIsPaused(true);
+              if (typeof window !== 'undefined' && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+              }
+              setIsSettingsOpen(true);
+            }}
+            className="w-full py-2.5 px-3 rounded-2xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700/80 flex items-center justify-center gap-2 text-xs font-bold"
+            title="Clinical Settings"
+          >
+            <SlidersIcon className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
+
+          {/* MENU DRAWER BUTTON */}
+          <button
+            onClick={() => {
+              setIsAssistiveTouchOpen(false);
+              setIsMenuOpen(true);
+            }}
+            className="w-full py-2 rounded-2xl bg-blue-600/90 hover:bg-blue-500 text-xs font-bold text-white transition-colors shadow-md text-center"
+          >
+            Menu
+          </button>
+        </div>
+      )}
+
+      {/* BOTTOM RIGHT CLINICAL & PERFORMANCE INFO OVERLAY CARD */}
+      {isHeaderExpanded && (
+        <div className="fixed bottom-16 right-4 sm:bottom-20 sm:right-6 z-40 bg-[#121626]/95 border border-gray-800/90 p-4 sm:p-5 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col gap-3 text-xs animate-slide-in-up min-w-[270px]">
+          <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+            <div>
+              <h1 className="text-sm font-extrabold text-white tracking-tight">
+                Session & Clinical Info
+              </h1>
+              <span className="text-[11px] text-gray-400 font-medium">
+                {mode === 'colors'
+                  ? 'Color Discriminant Rotatory'
+                  : `${variant === 'lowercase' ? 'Lowercase' : 'Uppercase'} Rotatory`}
+              </span>
+            </div>
+            <button
+              onClick={() => setIsHeaderExpanded(false)}
+              className="text-gray-400 hover:text-white text-base font-bold ml-3 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* CLINICAL SETTINGS PARAMETERS */}
+          <div className="flex flex-col gap-1.5 text-xs font-medium text-gray-300">
+            <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+              Clinical Parameters
+            </span>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Patient:</span>
+              <span className="text-white font-bold">{patientName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Letter Size:</span>
+              <span className="text-blue-400 font-bold">{letterSize} rem</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Bubble Size:</span>
+              <span className="text-blue-400 font-bold">{bubbleSize} px</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Wheel Color:</span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-3.5 h-3.5 rounded-full border border-gray-600 inline-block shadow-sm"
+                  style={{ backgroundColor: wheelColor }}
+                />
+                <span className="font-mono text-[11px] text-gray-200">{wheelColor}</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Wheel Speed:</span>
+              <span className="text-blue-400 font-bold">{speed}x</span>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-800/80 my-0.5" />
+
+          {/* LIVE PERFORMANCE METRICS */}
+          <div className="flex flex-col gap-1.5 text-xs font-medium text-gray-300">
+            <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+              Live Metrics
+            </span>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Correct Hits:</span>
+              <span className="text-emerald-400 font-bold">{statsRef.current.correctCount} / 20</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Wrong Clicks:</span>
+              <span className="text-rose-400 font-bold">{statsRef.current.wrongCount}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CENTER: ROTATING WHEEL (MAXIMIZED FULL SCREEN DIAMETER EDGE-TO-EDGE) */}
+      <main className="relative w-full h-full min-h-screen flex items-center justify-center p-0 overflow-hidden">
+        {/* Ambient background glow behind wheel */}
+        <div className="absolute w-[98vh] h-[98vh] max-w-[98vw] max-h-[98vw] rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+
+        {/* ROTATING WHEEL */}
+        <div
+          ref={wheelRef}
+          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center shadow-[0_0_60px_rgba(0,0,0,0.85)] cursor-pointer shrink-0 border-4 border-gray-800/80 animate-rotate-wheel"
+          style={{
+            animationDuration: `${animationDurationSeconds}s`,
+            animationPlayState: isPaused ? 'paused' : 'running',
+            backgroundColor: wheelColor,
+          }}
+          onClick={handleWheelClick}
+        >
+          <div ref={bubbleContainerRef} className="absolute inset-0 w-full h-full">
+            {bubbles.map((bubble) => {
+              const isPopping = poppingIds.has(bubble.id);
+              const isWrong = wrongIds.has(bubble.id);
+              const textColor = getContrastColor(bubble.color || '#FFFFFF');
+              return (
+                <div
+                  key={bubble.id}
+                  className={`absolute rounded-full flex justify-center items-center font-bold cursor-pointer select-none border-2 border-white/60 shadow-lg active:scale-110 transition-transform -translate-x-1/2 -translate-y-1/2 ${
+                    isPopping ? 'animate-pop' : ''
+                  } ${isWrong ? 'animate-shake' : ''}`}
+                  style={{
+                    left: `${bubble.x}%`,
+                    top: `${bubble.y}%`,
+                    width: `${bubbleSize}px`,
+                    height: `${bubbleSize}px`,
+                    fontSize: `${letterSize}rem`,
+                    backgroundColor: bubble.color,
+                    color: textColor,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBubbleClick(bubble);
+                  }}
+                >
+                  <span className="bubble-text inline-flex items-center justify-center pointer-events-none select-none">
+                    {mode === 'colors' ? '' : bubble.symbol}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </main>
+
+      {/* SHARED OFFCANVAS MENU (WITHOUT DUPLICATE OPEN SETTINGS BUTTON) */}
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
@@ -592,13 +925,6 @@ export function RotatoryWheelGame({
         }}
         onReset={startLevel}
         resetButtonLabel="Reset Level"
-        onOpenSettings={() => {
-          setIsPaused(true);
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-          }
-          setIsSettingsOpen(true);
-        }}
         extraControls={
           <div className="flex flex-col gap-2">
             <div className="text-sm font-semibold text-gray-400 mt-2">Speed</div>
