@@ -8,7 +8,7 @@ import {
   playSuccessTone,
   playErrorTone,
 } from '@candela/shared';
-import { MobileTargetSettingsModal } from './MobileTargetSettingsModal';
+import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { ArrowLeftIcon, SlidersIcon } from '../icons/VectorIcons';
@@ -30,14 +30,15 @@ interface MovingBubble {
   vx: number;
   vy: number;
   radius: number;
+  scatterTimer?: number; // duration of 2D scatter deflection after collision
 }
 
-const ELECTRIC_COLORS = [
-  { name: 'Cyan', code: '#00F0FF' },
-  { name: 'Magenta', code: '#FF007A' },
-  { name: 'Lime', code: '#39FF14' },
-  { name: 'Yellow', code: '#FFE600' },
-  { name: 'Orange', code: '#FF6D00' },
+const GENERIC_COLORS = [
+  { name: 'Red', code: '#FF3344' },
+  { name: 'Blue', code: '#0070FF' },
+  { name: 'Green', code: '#00E640' },
+  { name: 'Yellow', code: '#FFDD00' },
+  { name: 'Orange', code: '#FF6600' },
   { name: 'Purple', code: '#B000FF' },
 ];
 
@@ -56,7 +57,22 @@ export function MobileTargetGame({
     totalSets: 10,
     bubbleSize: 96,
     letterSize: 32,
+    hasBackground: false,
   });
+
+  // Speech Synthesis for Target Announcement
+  const speakTarget = useCallback((textToSpeak: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(textToSpeak);
+      utter.rate = 0.9;
+      utter.pitch = 1.0;
+      window.speechSynthesis.speak(utter);
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+  }, []);
 
   // Sync settings when initial props change
   useEffect(() => {
@@ -86,6 +102,7 @@ export function MobileTargetGame({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(true);
+  const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const [shakeError, setShakeError] = useState<boolean>(false);
@@ -123,7 +140,7 @@ export function MobileTargetGame({
     } else if (mode === 'numbers') {
       items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     } else if (mode === 'colors') {
-      items = ELECTRIC_COLORS.map((c) => c.name);
+      items = GENERIC_COLORS.map((c) => c.name);
     }
 
     // Fisher-Yates shuffle
@@ -138,7 +155,13 @@ export function MobileTargetGame({
 
   // Generate Pair of Target & Distractor Bubbles
   const generateSetPair = useCallback(
-    (setIdx: number, mode: GameMode, variant?: AlphabetVariant) => {
+    (
+      setIdx: number,
+      mode: GameMode,
+      variant?: AlphabetVariant,
+      customSettings?: MobileTargetSettings,
+      shouldSpeak: boolean = false
+    ) => {
       // Ensure pool exists
       if (shuffledPoolRef.current.length === 0 || setIdx === 0) {
         generateShuffledPool(mode, variant);
@@ -156,66 +179,91 @@ export function MobileTargetGame({
 
       // Pick distractorVal from remaining pool items
       const availableDistractors = pool.filter((val) => val !== targetVal);
-      const distractorVal = availableDistractors[Math.floor(Math.random() * availableDistractors.length)];
+      const distractorVal =
+        availableDistractors[Math.floor(Math.random() * availableDistractors.length)];
 
-      let targetCol = ELECTRIC_COLORS[0].code;
-      let distractorCol = ELECTRIC_COLORS[1].code;
+      let targetCol = GENERIC_COLORS[0].code;
+      let distractorCol = GENERIC_COLORS[1].code;
       let targetName: string | undefined = undefined;
 
       if (mode === 'colors') {
-        const tColorObj = ELECTRIC_COLORS.find((c) => c.name === targetVal) || ELECTRIC_COLORS[0];
-        const dColorObj = ELECTRIC_COLORS.find((c) => c.name === distractorVal) || ELECTRIC_COLORS[1];
+        const tColorObj = GENERIC_COLORS.find((c) => c.name === targetVal) || GENERIC_COLORS[0];
+        const dColorObj = GENERIC_COLORS.find((c) => c.name === distractorVal) || GENERIC_COLORS[1];
         targetCol = tColorObj.code;
         distractorCol = dColorObj.code;
         targetName = tColorObj.name;
       } else {
-        const c1 = Math.floor(Math.random() * ELECTRIC_COLORS.length);
-        let c2 = Math.floor(Math.random() * ELECTRIC_COLORS.length);
-        while (c2 === c1) c2 = Math.floor(Math.random() * ELECTRIC_COLORS.length);
-        targetCol = ELECTRIC_COLORS[c1].code;
-        distractorCol = ELECTRIC_COLORS[c2].code;
+        const c1 = Math.floor(Math.random() * GENERIC_COLORS.length);
+        let c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
+        while (c2 === c1) c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
+        targetCol = GENERIC_COLORS[c1].code;
+        distractorCol = GENERIC_COLORS[c2].code;
       }
 
       setTargetItem({ value: targetVal, color: targetCol, name: targetName });
 
-      const speed = settings.speedPxPerSec;
-      const radius = (settings.bubbleSize || 96) / 2;
-      const axis = settings.movementAxis || 'random';
+      // Announce target via sound/speech synthesis ONLY when requested
+      if (shouldSpeak) {
+        speakTarget(targetName || targetVal);
+      }
 
-      const existingB0 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[0] : null;
-      const existingB1 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[1] : null;
+      const effSettings = customSettings || settings;
+      const speed = effSettings.speedPxPerSec;
+      const radius = (effSettings.bubbleSize || 96) / 2;
+      const axis = effSettings.movementAxis || 'random';
 
-      // Calculate initial velocities & positions based on movementAxis
-      let angle1 = Math.PI / 4 + (Math.random() * Math.PI) / 4;
-      let angle2 = (5 * Math.PI) / 4 + (Math.random() * Math.PI) / 4;
+      // Detect canvas bounds & screen orientation
+      let boundsW = 360;
+      let boundsH = 640;
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          boundsW = rect.width;
+          boundsH = rect.height;
+        }
+      }
 
-      let initVx0 = Math.cos(angle1) * speed;
-      let initVy0 = Math.sin(angle1) * speed;
-      let initVx1 = Math.cos(angle2) * speed;
-      let initVy1 = Math.sin(angle2) * speed;
+      const halfW = boundsW / 2;
+      const halfH = boundsH / 2;
 
-      let initX0 = -120 - Math.random() * 60;
-      let initY0 = -150 - Math.random() * 60;
-      let initX1 = 120 + Math.random() * 60;
-      let initY1 = 150 + Math.random() * 60;
+      // Full screen initial scattering
+      let initX0 = -halfW * 0.4;
+      let initY0 = -Math.max(50, halfH * 0.45);
+      let initX1 = halfW * 0.4;
+      let initY1 = Math.max(50, halfH * 0.45);
+
+      let initVx0 = speed;
+      let initVy0 = 0;
+      let initVx1 = -speed;
+      let initVy1 = 0;
 
       if (axis === 'horizontal') {
+        // Scatter across top vs bottom screen space
+        initY0 = -Math.max(60, halfH * 0.45);
+        initY1 = Math.max(60, halfH * 0.45);
         initVx0 = speed;
         initVy0 = 0;
         initVx1 = -speed;
         initVy1 = 0;
-
-        initY0 = -60;
-        initY1 = 60;
       } else if (axis === 'vertical') {
+        // Scatter across left vs right screen space
+        initX0 = -Math.max(60, halfW * 0.45);
+        initX1 = Math.max(60, halfW * 0.45);
         initVx0 = 0;
         initVy0 = speed;
         initVx1 = 0;
         initVy1 = -speed;
-
-        initX0 = -80;
-        initX1 = 80;
+      } else {
+        let angle1 = Math.PI / 4 + (Math.random() * Math.PI) / 4;
+        let angle2 = (5 * Math.PI) / 4 + (Math.random() * Math.PI) / 4;
+        initVx0 = Math.cos(angle1) * speed;
+        initVy0 = Math.sin(angle1) * speed;
+        initVx1 = Math.cos(angle2) * speed;
+        initVy1 = Math.sin(angle2) * speed;
       }
+
+      const existingB0 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[0] : null;
+      const existingB1 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[1] : null;
 
       // Randomly assign which moving bubble slot becomes the target (50/50 probability)
       const targetSlot = Math.random() < 0.5 ? 0 : 1;
@@ -232,21 +280,9 @@ export function MobileTargetGame({
               : distractorVal
             : undefined,
         x: existingB0 ? existingB0.x : initX0,
-        y: existingB0 ? (axis === 'horizontal' ? initY0 : existingB0.y) : initY0,
-        vx: existingB0
-          ? axis === 'horizontal'
-            ? (existingB0.vx >= 0 ? speed : -speed)
-            : axis === 'vertical'
-            ? 0
-            : (existingB0.vx / (Math.hypot(existingB0.vx, existingB0.vy) || 1)) * speed
-          : initVx0,
-        vy: existingB0
-          ? axis === 'vertical'
-            ? (existingB0.vy >= 0 ? speed : -speed)
-            : axis === 'horizontal'
-            ? 0
-            : (existingB0.vy / (Math.hypot(existingB0.vx, existingB0.vy) || 1)) * speed
-          : initVy0,
+        y: existingB0 ? existingB0.y : initY0,
+        vx: existingB0 ? (axis === 'horizontal' ? (existingB0.vx >= 0 ? speed : -speed) : existingB0.vx) : initVx0,
+        vy: existingB0 ? (axis === 'vertical' ? (existingB0.vy >= 0 ? speed : -speed) : existingB0.vy) : initVy0,
         radius,
       };
 
@@ -262,21 +298,9 @@ export function MobileTargetGame({
               : distractorVal
             : undefined,
         x: existingB1 ? existingB1.x : initX1,
-        y: existingB1 ? (axis === 'horizontal' ? initY1 : existingB1.y) : initY1,
-        vx: existingB1
-          ? axis === 'horizontal'
-            ? (existingB1.vx >= 0 ? speed : -speed)
-            : axis === 'vertical'
-            ? 0
-            : (existingB1.vx / (Math.hypot(existingB1.vx, existingB1.vy) || 1)) * speed
-          : initVx1,
-        vy: existingB1
-          ? axis === 'vertical'
-            ? (existingB1.vy >= 0 ? speed : -speed)
-            : axis === 'horizontal'
-            ? 0
-            : (existingB1.vy / (Math.hypot(existingB1.vx, existingB1.vy) || 1)) * speed
-          : initVy1,
+        y: existingB1 ? existingB1.y : initY1,
+        vx: existingB1 ? (axis === 'horizontal' ? (existingB1.vx >= 0 ? speed : -speed) : existingB1.vx) : initVx1,
+        vy: existingB1 ? (axis === 'vertical' ? (existingB1.vy >= 0 ? speed : -speed) : existingB1.vy) : initVy1,
         radius,
       };
 
@@ -300,9 +324,10 @@ export function MobileTargetGame({
     setIsPaused(true);
     setShowSettings(true);
     setShowResults(false);
-    generateShuffledPool(settings.gameMode, settings.alphabetVariant);
-    generateSetPair(0, settings.gameMode, settings.alphabetVariant);
-  }, [settings.gameMode, settings.alphabetVariant, generateShuffledPool, generateSetPair]);
+    generateShuffledPool(initialMode, initialVariant);
+    generateSetPair(0, initialMode, initialVariant);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMode, initialVariant]);
 
   // Advance Set or Finish Session
   const advanceToNextSet = useCallback(
@@ -366,7 +391,7 @@ export function MobileTargetGame({
         setShowResults(true);
       } else {
         setCurrentSetIndex(nextSet);
-        generateSetPair(nextSet, settings.gameMode, settings.alphabetVariant);
+        generateSetPair(nextSet, settings.gameMode, settings.alphabetVariant, undefined, true);
       }
     },
     [currentSetIndex, generateSetPair, setMetrics, settings, gameTitle]
@@ -431,35 +456,47 @@ export function MobileTargetGame({
               const targetSpeed = settings.speedPxPerSec;
               const axis = settings.movementAxis || 'random';
 
-              if (axis === 'horizontal') {
-                b1.vy = 0;
-                b2.vy = 0;
-                b1.vx = b1.vx >= 0 ? targetSpeed : -targetSpeed;
-                b2.vx = b2.vx >= 0 ? targetSpeed : -targetSpeed;
-              } else if (axis === 'vertical') {
-                b1.vx = 0;
-                b2.vx = 0;
-                b1.vy = b1.vy >= 0 ? targetSpeed : -targetSpeed;
-                b2.vy = b2.vy >= 0 ? targetSpeed : -targetSpeed;
-              } else {
-                const spd1 = Math.hypot(b1.vx, b1.vy) || 1;
-                b1.vx = (b1.vx / spd1) * targetSpeed;
-                b1.vy = (b1.vy / spd1) * targetSpeed;
-
-                const spd2 = Math.hypot(b2.vx, b2.vy) || 1;
-                b2.vx = (b2.vx / spd2) * targetSpeed;
-                b2.vy = (b2.vy / spd2) * targetSpeed;
+              if (axis === 'horizontal' || axis === 'vertical') {
+                // Scatter deflection: enable 2D bounce for 1.4s so bubbles scatter apart into open space
+                b1.scatterTimer = 1.4;
+                b2.scatterTimer = 1.4;
               }
+
+              const spd1 = Math.hypot(b1.vx, b1.vy) || 1;
+              b1.vx = (b1.vx / spd1) * targetSpeed;
+              b1.vy = (b1.vy / spd1) * targetSpeed;
+
+              const spd2 = Math.hypot(b2.vx, b2.vy) || 1;
+              b2.vx = (b2.vx / spd2) * targetSpeed;
+              b2.vy = (b2.vy / spd2) * targetSpeed;
             }
           }
         }
 
-        // 2. Wall Bouncing & Bounds Clamping
+        // 2. Wall Bouncing, Bounds Clamping & Scatter Decay
         const updated = list.map((bubble) => {
           let nx = bubble.x;
           let ny = bubble.y;
           let nvx = bubble.vx;
           let nvy = bubble.vy;
+          let timer = bubble.scatterTimer !== undefined ? bubble.scatterTimer - dt : 0;
+          if (timer < 0) timer = 0;
+
+          const targetSpeed = settings.speedPxPerSec;
+          const axis = settings.movementAxis || 'random';
+
+          // When scatter deflection timer expires, smoothly damp secondary velocity back to zero
+          if (timer <= 0) {
+            if (axis === 'horizontal') {
+              nvy = nvy * Math.pow(0.01, dt);
+              if (Math.abs(nvy) < 2) nvy = 0;
+              nvx = (nvx >= 0 ? 1 : -1) * targetSpeed;
+            } else if (axis === 'vertical') {
+              nvx = nvx * Math.pow(0.01, dt);
+              if (Math.abs(nvx) < 2) nvx = 0;
+              nvy = (nvy >= 0 ? 1 : -1) * targetSpeed;
+            }
+          }
 
           const minX = -halfW + bubble.radius + 8;
           const maxX = halfW - bubble.radius - 8;
@@ -482,7 +519,7 @@ export function MobileTargetGame({
             nvy = -Math.abs(nvy);
           }
 
-          return { ...bubble, x: nx, y: ny, vx: nvx, vy: nvy };
+          return { ...bubble, x: nx, y: ny, vx: nvx, vy: nvy, scatterTimer: timer };
         });
 
         bubblesRef.current = updated;
@@ -519,6 +556,14 @@ export function MobileTargetGame({
     }
   };
 
+  const handleStartGameFromOverlay = () => {
+    setShowClickToStart(false);
+    setIsPlaying(true);
+    setIsPaused(false);
+    setStartTimeRef.current = Date.now();
+    speakTarget(targetItem.name || targetItem.value);
+  };
+
   const handleRestartSession = () => {
     setCurrentSetIndex(0);
     setCorrectCount(0);
@@ -527,6 +572,7 @@ export function MobileTargetGame({
     setSessionResult(null);
     setShowResults(false);
     setShowSettings(true);
+    setShowClickToStart(false);
     setIsPlaying(false);
     setIsPaused(true);
     generateShuffledPool(settings.gameMode, settings.alphabetVariant);
@@ -538,12 +584,6 @@ export function MobileTargetGame({
       {/* FIXED TOP HEADER & TARGET CONTAINER */}
       <header className="w-full bg-[#121626]/90 border-b border-gray-800/80 px-4 py-3 flex items-center justify-between z-30 shadow-lg backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onExit}
-            className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-          </button>
           <div>
             <h1 className="text-base font-extrabold text-white tracking-tight leading-none">
               {gameTitle}
@@ -554,9 +594,13 @@ export function MobileTargetGame({
           </div>
         </div>
 
-        {/* TARGET CARD DISPLAY */}
-        <div className="flex items-center gap-3 bg-[#1A2035] border-2 border-blue-500/40 px-5 py-1.5 rounded-2xl shadow-inner">
-          <span className="text-xs text-gray-400 font-bold uppercase tracking-wider hidden sm:inline">
+        {/* TARGET CARD DISPLAY WITH SPEAKER BUTTON */}
+        <button
+          onClick={() => speakTarget(targetItem.name || targetItem.value)}
+          title="Click to hear target sound"
+          className="flex items-center gap-3 bg-[#1A2035] hover:bg-[#222942] border-2 border-blue-500/40 hover:border-blue-400 px-4 py-1.5 rounded-2xl shadow-inner cursor-pointer transition-all active:scale-95 group"
+        >
+          <span className="text-xs text-gray-400 font-bold uppercase tracking-wider hidden sm:inline group-hover:text-blue-300">
             Target:
           </span>
           {settings.gameMode === 'colors' ? (
@@ -575,7 +619,13 @@ export function MobileTargetGame({
               {targetItem.value}
             </span>
           )}
-        </div>
+          <span
+            className="text-blue-400 group-hover:scale-110 transition-transform text-base ml-1"
+            title="Play target sound"
+          >
+            🔊
+          </span>
+        </button>
 
         {/* ACTIONS & SETTINGS */}
         <div className="flex items-center gap-2">
@@ -605,43 +655,61 @@ export function MobileTargetGame({
         <div className="absolute inset-0 bg-[radial-gradient(#1E2640_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />
 
         {/* Moving Bubbles (2 Bubbles) */}
-        {bubbles.map((bubble) => (
-          <div
-            key={bubble.id}
-            onClick={() => handleBubbleTap(bubble)}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              handleBubbleTap(bubble);
-            }}
-            className="absolute rounded-full flex items-center justify-center cursor-pointer shadow-2xl transition-transform active:scale-90 select-none"
-            style={{
-              transform: `translate(${bubble.x}px, ${bubble.y}px)`,
-              width: `${bubble.radius * 2}px`,
-              height: `${bubble.radius * 2}px`,
-              backgroundColor: '#121626',
-              border: `4px solid ${bubble.color}`,
-              boxShadow: `0 0 20px ${bubble.color}60, inset 0 0 10px ${bubble.color}30`,
-            }}
-          >
-            {settings.gameMode === 'colors' ? (
-              <div
-                className="rounded-full border-2 border-white/80 shadow-inner"
-                style={{
-                  width: `${bubble.radius * 0.9}px`,
-                  height: `${bubble.radius * 0.9}px`,
-                  backgroundColor: bubble.color,
-                }}
-              />
-            ) : (
-              <span
-                className="font-black tracking-tight"
-                style={{ color: bubble.color, fontSize: `${settings.letterSize || 24}px` }}
-              >
-                {bubble.value}
-              </span>
-            )}
-          </div>
-        ))}
+        {bubbles.map((bubble) => {
+          const hasBg = settings.hasBackground ?? false;
+          const contrastTextColor = getContrastTextColor(bubble.color);
+          const textColor = hasBg ? contrastTextColor : bubble.color;
+
+          const radius = bubble.radius || (settings.bubbleSize || 96) / 2;
+          const diameter = radius * 2;
+          const fontSize = settings.letterSize || Math.round(diameter * 0.38);
+
+          return (
+            <div
+              key={bubble.id}
+              onClick={() => handleBubbleTap(bubble)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleBubbleTap(bubble);
+              }}
+              className="absolute rounded-full flex items-center justify-center cursor-pointer shadow-2xl select-none"
+              style={{
+                left: '50%',
+                top: '50%',
+                transform: `translate3d(${bubble.x - radius}px, ${bubble.y - radius}px, 0)`,
+                width: `${diameter}px`,
+                height: `${diameter}px`,
+                backgroundColor: hasBg ? bubble.color : '#121626',
+                border: hasBg ? '3px solid #FFFFFF' : `4px solid ${bubble.color}`,
+                boxShadow: hasBg
+                  ? `0 0 20px ${bubble.color}90`
+                  : `0 0 20px ${bubble.color}60, inset 0 0 10px ${bubble.color}30`,
+                touchAction: 'none',
+                willChange: 'transform',
+              }}
+            >
+              {settings.gameMode === 'colors' ? (
+                <div
+                  className="rounded-full shadow-md"
+                  style={{
+                    width: `${radius * 0.8}px`,
+                    height: `${radius * 0.8}px`,
+                    backgroundColor: hasBg ? contrastTextColor : bubble.color,
+                    border: hasBg ? '2px solid rgba(0,0,0,0.3)' : '2px solid #FFFFFF',
+                  }}
+                />
+              ) : (
+                <span
+                  className="font-black tracking-tight"
+                  style={{ color: textColor, fontSize: `${fontSize}px` }}
+                >
+                  {bubble.value}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </main>
 
       {/* FOOTER STATS STRIP */}
@@ -654,22 +722,67 @@ export function MobileTargetGame({
         </div>
       </footer>
 
+      {/* PEDIATRIC LOW-VISION PLAY BUTTON (NO MODAL CARD) */}
+      {showClickToStart && !showSettings && !showResults && (
+        <div
+          onClick={handleStartGameFromOverlay}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            handleStartGameFromOverlay();
+          }}
+          className="fixed inset-0 z-40 bg-[#06060C]/90 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer select-none px-4 animate-fadeIn"
+        >
+          <div className="flex flex-col items-center gap-8 transform transition-transform hover:scale-105 active:scale-95">
+            {/* GIANT HIGH-CONTRAST NEON PLAY BUTTON */}
+            <div className="relative flex items-center justify-center">
+              {/* Pulsing Outer Neon Ring for Visual Guidance */}
+              <div className="absolute w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-emerald-400/30 animate-ping" />
+              <div className="absolute w-44 h-44 sm:w-52 sm:h-52 rounded-full bg-emerald-500/20 blur-xl" />
+
+              {/* Main Circular High-Contrast Button */}
+              <button
+                type="button"
+                className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-emerald-500 via-green-400 to-lime-300 border-4 border-white shadow-[0_0_60px_rgba(57,255,20,0.85)] flex items-center justify-center cursor-pointer"
+                title="Tap to Play"
+              >
+                {/* Giant High-Contrast Black Triangle Play Icon */}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="#000000"
+                  className="w-24 h-24 sm:w-28 sm:h-28 translate-x-2 drop-shadow-lg"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* HUGE CHILD-FRIENDLY HIGH-CONTRAST TEXT */}
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="text-3xl sm:text-5xl font-black text-white tracking-wider drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+                TAP TO PLAY
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODALS */}
       <MobileTargetSettingsModal
         isOpen={showSettings}
         onClose={() => {
           setShowSettings(false);
-          setIsPlaying(true);
-          setIsPaused(false);
-          setStartTimeRef.current = Date.now();
+          setIsPlaying(false);
+          setIsPaused(true);
+          setShowClickToStart(true);
         }}
         settings={settings}
         onUpdateSettings={(newSettings) => {
           setSettings(newSettings);
           setShowSettings(false);
-          setIsPlaying(true);
-          setIsPaused(false);
-          setStartTimeRef.current = Date.now();
+          setIsPlaying(false);
+          setIsPaused(true);
+          setShowClickToStart(true);
+          generateSetPair(currentSetIndex, newSettings.gameMode, newSettings.alphabetVariant, newSettings);
         }}
         isInitialLaunch={!isPlaying && currentSetIndex === 0}
       />

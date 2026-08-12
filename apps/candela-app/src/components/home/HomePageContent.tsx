@@ -33,7 +33,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
         <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
             <SparklesIcon className="w-4 h-4 text-blue-400" />
-            <span>Next-Gen Vision Therapy Platform</span>
+            <span>A Measure of Light, A Measure of Progress</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight text-white">

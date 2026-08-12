@@ -195,6 +195,7 @@ export interface MobileTargetSettings {
   bubbleSize?: number; // bubble size in px (e.g. 60-130px)
   letterSize?: number; // font size in px (e.g. 18-48px)
   movementAxis?: 'horizontal' | 'vertical' | 'random';
+  hasBackground?: boolean; // true = filled bubble background, false = outline / no background
 }
 
 export interface MobileTargetSetMetric {

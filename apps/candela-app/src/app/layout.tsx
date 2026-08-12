@@ -11,7 +11,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: 'Kandela',
-  description: 'Kandela Vision Therapy & Rehabilitation Modules',
+  description: 'Kandela — A Measure of Light, A Measure of Progress',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
