@@ -99,12 +99,8 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
-  transition: transform 0.05s ease-out;
   z-index: 20;
-}
-
-.targetBubble:active {
-  transform: translate(-50%, -50%) scale(0.92);
+  will-change: left, top;
 }
 
 .decoyBubble {
@@ -115,12 +111,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.05s ease-out;
   z-index: 10;
-}
-
-.decoyBubble:active {
-  transform: translate(-50%, -50%) scale(0.92);
+  will-change: left, top;
 }
 
 @keyframes fadeIn {

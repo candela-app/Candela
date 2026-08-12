@@ -67,7 +67,7 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('tracing');
       setView('play_bee_tracing');
-    } else if (gameParam === 'pursuit' || moduleParam === 'pursuit') {
+    } else if (gameParam === 'pursuit') {
       setSelectedTherapy('vision');
       setSelectedModule('pursuit');
       setView('play_pursuit');
@@ -183,7 +183,7 @@ function MainContent() {
   };
 
   const handleExitGame = () => {
-    if (selectedModule) {
+    if (selectedModule && selectedModule !== 'pursuit' && selectedModule !== 'tracing') {
       updateQueryParams({
         page: 'dashboard',
         therapy: 'vision',
