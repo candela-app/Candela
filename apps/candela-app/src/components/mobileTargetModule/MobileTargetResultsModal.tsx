@@ -42,7 +42,7 @@ export function MobileTargetResultsModal({
             Session Completed
           </div>
           <h2 className="text-2xl font-extrabold tracking-tight">
-            Mobile Bouncing Pursuit Results
+            Bubble Chase Results
           </h2>
           <div className="flex justify-center gap-1">{renderStars(resultData.starRating)}</div>
           <p className="text-xs text-gray-400">

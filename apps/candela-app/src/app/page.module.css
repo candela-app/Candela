@@ -6,7 +6,7 @@
   grid-template-areas:
     "header"
     "main";
-  background-color: var(--bg-main, #EAF4FF);
+  background-color: var(--bg-main, #F4F7FC);
 }
 
 .headerContainer {
