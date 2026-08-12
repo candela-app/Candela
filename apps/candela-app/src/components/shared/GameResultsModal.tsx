@@ -142,7 +142,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all animate-fade-in">
       <div
         ref={cardRef}
-        className="relative w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20"
+        className="relative w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"
       >
         {/* Glow Background Accents */}
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
