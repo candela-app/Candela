@@ -102,7 +102,7 @@ export function MobileTargetSettingsModal({
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-wide flex items-center gap-3 flex-wrap">
               Clinical Configuration
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest">
-                Mobile Pursuit
+                Bubble Chase
               </span>
             </h3>
             <p className="text-sm text-gray-400 mt-1">

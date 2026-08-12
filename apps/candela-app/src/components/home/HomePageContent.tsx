@@ -23,7 +23,7 @@ interface HomePageContentProps {
 
 export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageContentProps) {
   return (
-    <div className="w-full flex-1 flex flex-col bg-[#EAF4FF]">
+    <div className="w-full flex-1 flex flex-col bg-[#F4F7FC]">
       {/* HERO SECTION */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blue-900 via-indigo-900 to-slate-900 text-white py-16 md:py-24 px-6">
         {/* Background Decorative Elements */}
@@ -180,10 +180,10 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
                 <MobileTargetIcon className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                Mobile Target
+                Bubble Chase
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                2-target bouncing pursuit with set timers & high contrast dark field.
+                2-target bouncing pursuit & dark field tracking.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">

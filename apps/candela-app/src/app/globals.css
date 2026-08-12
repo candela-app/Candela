@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-  --bg-main: #EAF4FF;
+  --bg-main: #F4F7FC;
   --bg-card: #FFFFFF;
   --bg-wheel: #000000;
   --font-main: 'Poppins', system-ui, sans-serif;
