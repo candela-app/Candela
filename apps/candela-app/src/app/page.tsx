@@ -18,10 +18,11 @@ import {
   HomeIcon,
   LayoutDashboardIcon,
   ArrowLeftIcon,
+  AnalyticsIcon,
 } from '@/components/icons/VectorIcons';
 import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe } from '@candela/shared';
 
-type ActiveView = 'home' | 'dashboard' | 'module' | 'game' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target';
+type ActiveView = 'home' | 'dashboard' | 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target';
 
 function MainContent() {
   const router = useRouter();
@@ -83,6 +84,9 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule(moduleParam);
       setView('game');
+    } else if (pageParam === 'analytics') {
+      setSelectedTherapy('vision');
+      setView('analytics');
     } else if (therapy) {
       setSelectedTherapy(therapy);
       setView('module');
@@ -121,6 +125,8 @@ function MainContent() {
   const handleGoBack = () => {
     if (view === 'game') {
       updateQueryParams({ page: 'dashboard', therapy: 'vision', module: null, game: null, mode: null, variant: null });
+    } else if (view === 'analytics') {
+      updateQueryParams({ page: 'dashboard', therapy: 'vision', module: null, game: null, mode: null, variant: null });
     } else if (view === 'module') {
       updateQueryParams({ page: 'dashboard', therapy: null, module: null, game: null, mode: null, variant: null });
     } else if (view === 'dashboard') {
@@ -128,6 +134,10 @@ function MainContent() {
     } else {
       navigateToHome();
     }
+  };
+
+  const navigateToAnalytics = () => {
+    updateQueryParams({ page: 'analytics', therapy: 'vision', module: null, game: null, mode: null, variant: null });
   };
 
   const handleSelectTherapy = (id: string) => {
@@ -207,7 +217,14 @@ function MainContent() {
   const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target';
 
   return (
-    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-[#EAF4FF] select-none touch-manipulation`}>
+    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-[#F4F7FC] relative select-none touch-manipulation`}>
+      {/* AMBIENT BACKGROUND GLOW ACCENTS */}
+      {!isPlayingGame && (
+        <>
+          <div className="fixed top-[-10vw] left-1/4 w-[500px] h-[500px] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
+          <div className="fixed bottom-[-10vw] right-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
+        </>
+      )}
       {/* HEADER NAVBAR SECTION */}
       {!isPlayingGame && (
         <header className="sticky top-0 z-50 flex flex-row items-center justify-between px-6 py-4 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 gap-4">
@@ -219,31 +236,37 @@ function MainContent() {
             Kandela
           </h2>
 
-          {/* RIGHT: BACK BUTTON & DASHBOARD BUTTON */}
+          {/* RIGHT: BACK BUTTON & HOME / DASHBOARD CONTEXT BUTTON */}
           <div className="flex items-center gap-3">
             {/* Back button (only shown when inside dashboard / sub-views) */}
             {view !== 'home' && (
               <button
                 onClick={handleGoBack}
-                className="px-3.5 py-1.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 text-gray-700 text-sm font-semibold transition-all flex items-center gap-1.5 border border-gray-200/60 shadow-xs active:scale-95"
+                className="px-3.5 py-1.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 text-gray-700 text-sm font-semibold transition-all flex items-center gap-1.5 border border-gray-200/60 shadow-2xs active:scale-95"
               >
                 <ArrowLeftIcon className="w-4 h-4 text-gray-600" />
                 <span>Back</span>
               </button>
             )}
 
-            {/* Dashboard button */}
-            <button
-              onClick={navigateToDashboard}
-              className={`px-4 py-1.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 border ${
-                view !== 'home'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-blue-600 border-gray-200 shadow-sm hover:bg-blue-50'
-              }`}
-            >
-              <LayoutDashboardIcon className="w-4 h-4" />
-              <span>Dashboard</span>
-            </button>
+            {/* Context-aware Home / Dashboard button */}
+            {view === 'home' ? (
+              <button
+                onClick={navigateToDashboard}
+                className="px-4 py-1.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-2 border border-blue-600 shadow-sm active:scale-95"
+              >
+                <LayoutDashboardIcon className="w-4 h-4" />
+                <span>Dashboard</span>
+              </button>
+            ) : (
+              <button
+                onClick={navigateToHome}
+                className="p-2.5 rounded-xl bg-blue-50/90 hover:bg-blue-100/90 text-blue-600 hover:text-blue-700 transition-all border border-blue-200/80 shadow-xs hover:shadow-sm active:scale-95 flex items-center justify-center"
+                title="Return to Landing Page"
+              >
+                <HomeIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </header>
       )}
@@ -260,12 +283,9 @@ function MainContent() {
       {view === 'dashboard' && (
         <main className="flex-1 grid items-center justify-items-center grid-cols-1 gap-6 p-8 my-auto max-w-5xl mx-auto w-full">
           <div
-            className="h-[200px] w-full max-w-[400px] rounded-[24px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-8 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="h-[160px] w-full max-w-[400px] rounded-[24px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-center items-center p-8 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
             onClick={() => handleSelectTherapy('vision')}
           >
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <EyeIcon className="w-10 h-10" />
-            </div>
             <h3 className="m-0 text-[28px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
               Vision Therapy
             </h3>
@@ -278,105 +298,157 @@ function MainContent() {
 
       {/* MODULE SELECTION VIEW */}
       {view === 'module' && (
-        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 p-8 my-auto max-w-6xl mx-auto w-full">
+        <>
+        {/* MODULE HEADER WITH ANALYTICS ICON */}
+        <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-2 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Vision Therapy</h2>
+            <p className="text-sm text-gray-500 font-medium mt-0.5">Select a therapy module to begin</p>
+          </div>
+          <button
+            onClick={navigateToAnalytics}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-400 text-gray-700 hover:text-blue-600 font-semibold text-sm transition-all active:scale-95 group"
+            title="View Session Analytics"
+          >
+            <AnalyticsIcon className="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform" />
+            <span className="hidden sm:inline">Analytics</span>
+          </button>
+        </div>
+        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+          {/* Rotatory Module */}
           <div
-            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-blue-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-blue-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
             onClick={() => handleSelectModule('wheel')}
           >
-            <div className="w-14 h-14 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <RotatoryIcon className="w-8 h-8" />
-            </div>
-            <div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
                 Rotatory Module
               </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
                 Dynamic wheel tracking & visual pursuit exercises
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 shadow-2xs">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-colors shadow-2xs">
               For Tabs
             </span>
           </div>
 
+          {/* Sorting Module */}
           <div
-            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-purple-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-purple-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
             onClick={() => handleSelectModule('sorting')}
           >
-            <div className="w-14 h-14 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <PuzzleIcon className="w-8 h-8" />
-            </div>
-            <div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-purple-600 transition-colors">
                 Sorting Module
               </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
                 Visual discrimination & sequential recognition
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60 shadow-2xs">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-colors shadow-2xs">
               For Tabs & Mobile
             </span>
           </div>
 
+          {/* Bee Path Tracing */}
           <div
-            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-amber-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-amber-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
             onClick={() => handleSelectModule('tracing')}
           >
-            <div className="w-14 h-14 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <BeePathIcon className="w-8 h-8" />
-            </div>
-            <div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-orange-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-amber-600 transition-colors">
                 Bee Path Tracing
               </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
                 Smooth pursuit tracking & visual-motor path control
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60 shadow-2xs">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600 transition-colors shadow-2xs">
               For Touch & Stylus
             </span>
           </div>
 
+          {/* Pursuit Module */}
           <div
-            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-cyan-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-cyan-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-cyan-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
             onClick={() => handleSelectModule('pursuit')}
           >
-            <div className="w-14 h-14 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <TargetIcon className="w-8 h-8" />
-            </div>
-            <div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-cyan-600 transition-colors">
                 Pursuit Module
               </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
                 Continuous visual pursuit & selective attention tracking
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/60 shadow-2xs">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/80 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition-colors shadow-2xs">
               For All Devices
             </span>
           </div>
 
+          {/* Bubble Chase */}
           <div
-            className="h-[210px] w-full rounded-[20px] bg-white shadow-md hover:shadow-2xl text-center flex flex-col justify-between items-center p-6 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200 group"
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-emerald-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-emerald-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
             onClick={() => handleSelectModule('mobile_target')}
           >
-            <div className="w-14 h-14 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <MobileTargetIcon className="w-8 h-8" />
-            </div>
-            <div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-emerald-600 transition-colors">
-                Mobile Target Pursuit
+                Bubble Chase
               </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
-                2-target bouncing pursuit with set timers & high contrast dark field
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
+                2-target bouncing pursuit & dark field tracking
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-2xs">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-colors shadow-2xs">
               For Mobile & Tabs
             </span>
+          </div>
+        </main>
+        </>
+      )}
+
+      {/* ANALYTICS PLACEHOLDER VIEW */}
+      {view === 'analytics' && (
+        <main className="flex-1 flex flex-col items-center px-6 py-10 max-w-6xl mx-auto w-full">
+          {/* Analytics Header */}
+          <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <AnalyticsIcon className="w-6 h-6" />
+                </div>
+                Session Analytics
+              </h2>
+              <p className="text-sm text-gray-500 font-medium mt-1 ml-[52px]">
+                Review past session performance across all therapy modules
+              </p>
+            </div>
+          </div>
+
+          {/* Placeholder Empty State */}
+          <div className="w-full flex-1 flex flex-col items-center justify-center text-center py-20">
+            <div className="w-24 h-24 rounded-3xl bg-blue-50 text-blue-400 flex items-center justify-center mb-6">
+              <AnalyticsIcon className="w-14 h-14" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              No Session Data Yet
+            </h3>
+            <p className="text-gray-500 text-sm max-w-md leading-relaxed mb-8">
+              Complete therapy sessions to see your performance analytics here. Session results including accuracy, reaction times, and progress tracking will appear on this page.
+            </p>
+            <button
+              onClick={() => updateQueryParams({ page: 'dashboard', therapy: 'vision', module: null, game: null, mode: null, variant: null })}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <EyeIcon className="w-5 h-5" />
+              <span>Start a Therapy Session</span>
+            </button>
           </div>
         </main>
       )}
@@ -440,25 +512,25 @@ function MainContent() {
             className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}
           >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Mobile Pursuit</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Bubble Chase</p>
           </div>
           <div
             className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}
           >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Mobile Pursuit</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Bubble Chase</p>
           </div>
           <div
             className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}
           >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Mobile Pursuit</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Bubble Chase</p>
           </div>
           <div
             className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
             onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}
           >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Pursuit</p>
+            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Bubble Chase</p>
           </div>
         </main>
       )}

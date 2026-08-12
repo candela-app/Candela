@@ -85,12 +85,12 @@ export function MobileTargetGame({
 
   const gameTitle =
     settings.gameMode === 'colors'
-      ? 'Color Discriminant Pursuit'
+      ? 'Color Discriminant Bubble Chase'
       : settings.gameMode === 'numbers'
-      ? 'Numeric Mobile Pursuit'
+      ? 'Numeric Bubble Chase'
       : settings.alphabetVariant === 'lowercase'
-      ? 'Lowercase Mobile Pursuit'
-      : 'Uppercase Mobile Pursuit';
+      ? 'Lowercase Bubble Chase'
+      : 'Uppercase Bubble Chase';
 
   // State
   const [currentSetIndex, setCurrentSetIndex] = useState<number>(0);
