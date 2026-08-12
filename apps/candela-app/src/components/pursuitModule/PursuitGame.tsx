@@ -8,6 +8,7 @@ import {
   calculateAnticipationVsLag,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
+  exitFullScreenSafe,
   PursuitSettings,
   PursuitTrialMetric,
   PursuitBlockMetric,
@@ -19,6 +20,7 @@ import {
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { ArrowLeftIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
 
 interface PursuitGameProps {
@@ -392,6 +394,17 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
       {/* HUD HEADER */}
       <div className={styles.hudHeader}>
         <div className="flex items-center gap-3">
+          <button
+            className={styles.hudButton}
+            onClick={() => {
+              exitFullScreenSafe();
+              onExit();
+            }}
+            title="Exit Game"
+          >
+            <ArrowLeftIcon className="w-4 h-4 text-cyan-400 inline-block mr-1" />
+            <span>Exit</span>
+          </button>
           <div className={styles.hudPill}>
             <span>Block {Math.min(TOTAL_BLOCKS, currentBlockIndex + 1)} of {TOTAL_BLOCKS}</span>
           </div>
@@ -442,6 +455,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
               backgroundColor: settings.targetColor,
               border: '3px solid #FFFFFF',
               boxShadow: `0 0 24px ${settings.targetColor}`,
+              touchAction: 'none',
             }}
             onClick={(e) => {
               const rect = containerRef.current?.getBoundingClientRect();
@@ -449,9 +463,18 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
               const tapY = rect ? e.clientY - rect.top : e.clientY;
               handleTrialEnd('correct', { x: tapX, y: tapY });
             }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const touch = e.touches[0] || e.changedTouches[0];
+              const rect = containerRef.current?.getBoundingClientRect();
+              const tapX = rect && touch ? touch.clientX - rect.left : targetState.x;
+              const tapY = rect && touch ? touch.clientY - rect.top : targetState.y;
+              handleTrialEnd('correct', { x: tapX, y: tapY });
+            }}
           >
             <div
-              className="w-3.5 h-3.5 rounded-full bg-black/40 border border-white/60"
+              className="w-3.5 h-3.5 rounded-full bg-black/40 border border-white/60 pointer-events-none"
             />
           </div>
         )}
@@ -471,11 +494,21 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
                 backgroundColor: settings.targetColor,
                 opacity: settings.decoySalience, // Dim salience
                 border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                touchAction: 'none',
               }}
               onClick={(e) => {
                 const rect = containerRef.current?.getBoundingClientRect();
                 const tapX = rect ? e.clientX - rect.left : e.clientX;
                 const tapY = rect ? e.clientY - rect.top : e.clientY;
+                handleTrialEnd('incorrect', { x: tapX, y: tapY });
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const touch = e.touches[0] || e.changedTouches[0];
+                const rect = containerRef.current?.getBoundingClientRect();
+                const tapX = rect && touch ? touch.clientX - rect.left : decoy.x;
+                const tapY = rect && touch ? touch.clientY - rect.top : decoy.y;
                 handleTrialEnd('incorrect', { x: tapX, y: tapY });
               }}
             />

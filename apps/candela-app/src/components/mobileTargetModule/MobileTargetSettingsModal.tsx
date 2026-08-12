@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MobileTargetSettings, GameMode, AlphabetVariant } from '@candela/shared';
+import { MobileTargetSettings } from '@candela/shared';
 
 interface MobileTargetSettingsModalProps {
   isOpen: boolean;
@@ -7,6 +7,17 @@ interface MobileTargetSettingsModalProps {
   settings: MobileTargetSettings;
   onUpdateSettings: (newSettings: MobileTargetSettings) => void;
   isInitialLaunch?: boolean;
+}
+
+export function getContrastTextColor(hexColor: string): '#000000' | '#FFFFFF' {
+  if (!hexColor) return '#FFFFFF';
+  const hex = hexColor.replace('#', '');
+  if (hex.length !== 6) return '#FFFFFF';
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 140 ? '#000000' : '#FFFFFF';
 }
 
 export function MobileTargetSettingsModal({
@@ -26,6 +37,9 @@ export function MobileTargetSettingsModal({
   const [tempMovementAxis, setTempMovementAxis] = useState<'horizontal' | 'vertical' | 'random'>(
     settings.movementAxis || 'random'
   );
+  const [tempHasBackground, setTempHasBackground] = useState<boolean>(
+    settings.hasBackground ?? false
+  );
 
   // Sync state on open
   useEffect(() => {
@@ -37,6 +51,7 @@ export function MobileTargetSettingsModal({
       setTempBubbleSize(settings.bubbleSize || 96);
       setTempLetterSize(settings.letterSize || 32);
       setTempMovementAxis(settings.movementAxis || 'random');
+      setTempHasBackground(settings.hasBackground ?? false);
     }
   }, [isOpen, settings]);
 
@@ -53,6 +68,7 @@ export function MobileTargetSettingsModal({
       bubbleSize: tempBubbleSize,
       letterSize: tempLetterSize,
       movementAxis: tempMovementAxis,
+      hasBackground: tempHasBackground,
     });
     onClose();
   };
@@ -60,12 +76,16 @@ export function MobileTargetSettingsModal({
   // Sample Symbol Preview Text
   const sampleSymbol =
     settings.gameMode === 'colors'
-      ? 'CYAN'
+      ? 'RED'
       : settings.gameMode === 'numbers'
       ? '7'
       : settings.alphabetVariant === 'lowercase'
       ? 'a'
       : 'A';
+
+  const previewBg = tempHasBackground ? '#00F0FF' : '#121626';
+  const previewTextColor = tempHasBackground ? getContrastTextColor('#00F0FF') : '#00F0FF';
+  const previewBorder = tempHasBackground ? '3px solid #FFFFFF' : '4px solid #00F0FF';
 
   return (
     <div
@@ -86,7 +106,7 @@ export function MobileTargetSettingsModal({
               </span>
             </h3>
             <p className="text-sm text-gray-400 mt-1">
-              Configure patient parameters, stimulus diameter, velocity & target parameters.
+              Configure patient parameters, stimulus diameter, velocity & background style.
             </p>
           </div>
 
@@ -116,22 +136,36 @@ export function MobileTargetSettingsModal({
               </div>
 
               {/* LIVE TARGET BUBBLE DISPLAY */}
-              <div className="flex-1 flex justify-center items-center py-4 relative w-full h-[180px] overflow-hidden">
+              <div className="flex-1 flex justify-center items-center py-4 relative w-full min-h-[180px] overflow-hidden">
                 <div
-                  className="rounded-full flex items-center justify-center font-black border-4 border-[#00F0FF] shadow-2xl transition-all duration-200 select-none max-w-full max-h-full"
+                  className="rounded-full flex items-center justify-center font-black transition-all duration-200 select-none shrink-0"
                   style={{
                     width: `${tempBubbleSize}px`,
                     height: `${tempBubbleSize}px`,
-                    backgroundColor: '#121626',
-                    boxShadow: '0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.3)',
+                    backgroundColor: previewBg,
+                    border: previewBorder,
+                    boxShadow: tempHasBackground
+                      ? '0 0 25px rgba(0, 240, 255, 0.6)'
+                      : '0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.3)',
                   }}
                 >
                   {settings.gameMode === 'colors' ? (
-                    <div className="w-8 h-8 rounded-full bg-[#00F0FF] border-2 border-white shadow-md" />
+                    <div
+                      className="rounded-full shadow-md"
+                      style={{
+                        width: `${tempBubbleSize * 0.4}px`,
+                        height: `${tempBubbleSize * 0.4}px`,
+                        backgroundColor: tempHasBackground ? '#FFFFFF' : '#00F0FF',
+                        border: tempHasBackground ? '2px solid #000000' : '2px solid #FFFFFF',
+                      }}
+                    />
                   ) : (
                     <span
-                      className="font-black text-[#00F0FF]"
-                      style={{ fontSize: `${tempLetterSize}px` }}
+                      className="font-black"
+                      style={{
+                        fontSize: `${tempLetterSize}px`,
+                        color: previewTextColor,
+                      }}
                     >
                       {sampleSymbol}
                     </span>
@@ -172,7 +206,7 @@ export function MobileTargetSettingsModal({
                 type="range"
                 min="60"
                 max="130"
-                step="10"
+                step="5"
                 className="w-full accent-emerald-500 cursor-pointer h-2.5 my-1"
                 value={tempBubbleSize}
                 onChange={(e) => setTempBubbleSize(parseInt(e.target.value, 10))}
@@ -279,8 +313,61 @@ export function MobileTargetSettingsModal({
             </div>
           </div>
 
-          {/* COLUMN 3: SPEED & PATIENT PROFILE */}
+          {/* COLUMN 3: BACKGROUND STYLE, SPEED & PATIENT PROFILE */}
           <div className="flex flex-col gap-5 justify-between">
+            {/* BUBBLE BACKGROUND STYLE RADIO BUTTONS */}
+            <div
+              className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
+              style={{ backgroundColor: '#242424' }}
+            >
+              <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                <span className="text-xs font-extrabold text-gray-200 uppercase tracking-wider">
+                  Bubble Fill / Background
+                </span>
+                <span className="font-black text-emerald-400 font-mono text-xs uppercase">
+                  {tempHasBackground ? 'With Background' : 'No Background'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <label
+                  onClick={() => setTempHasBackground(false)}
+                  className={`flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    !tempHasBackground
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bubbleBackgroundOption"
+                    checked={!tempHasBackground}
+                    onChange={() => setTempHasBackground(false)}
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>⭕ No Background</span>
+                </label>
+
+                <label
+                  onClick={() => setTempHasBackground(true)}
+                  className={`flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    tempHasBackground
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bubbleBackgroundOption"
+                    checked={tempHasBackground}
+                    onChange={() => setTempHasBackground(true)}
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>🟢 With Background</span>
+                </label>
+              </div>
+            </div>
+
             {/* PATIENT PROFILE */}
             <div
               className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
