@@ -29,6 +29,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     data.gameName?.toLowerCase().includes('bee') || 'roundResults' in beeData;
   const isPursuit =
     data.gameName?.toLowerCase().includes('pursuit') || 'avgTrackingErrorPx' in beeData;
+  const isGeoboard = 'boardId' in beeData && 'leftHalfAccuracy' in beeData;
 
   const currentRound =
     beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
@@ -324,6 +325,72 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         )}
 
+        {/* GEOBOARD: STARS, HEMIFIELD BALANCE & ERROR PROFILE */}
+        {isGeoboard && (
+          <div className="rounded-2xl border border-teal-500/25 bg-teal-950/20 p-4 mb-5 relative z-10 flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-teal-400">
+                  {beeData.boardName}
+                </div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  {beeData.correct} of {data.stimuliCount} patterns reproduced
+                  {beeData.alphabetVariant ? ` · ${beeData.alphabetVariant}` : ''}
+                </div>
+              </div>
+              <div className="text-lg tracking-[0.15em] text-amber-400 shrink-0">
+                {'★'.repeat(beeData.starRating ?? 0)}
+                <span className="text-white/15">{'★'.repeat(5 - (beeData.starRating ?? 0))}</span>
+              </div>
+            </div>
+
+            {/* Hemifield balance — a persistent gap on one side is clinically meaningful */}
+            <div>
+              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                <span>Left Field {beeData.leftHalfAccuracy}%</span>
+                <span>Right Field {beeData.rightHalfAccuracy}%</span>
+              </div>
+              <div className="flex gap-1.5">
+                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden flex justify-end">
+                  <div className="h-full bg-sky-400 rounded-full" style={{ width: `${beeData.leftHalfAccuracy}%` }} />
+                </div>
+                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${beeData.rightHalfAccuracy}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[
+                { label: 'Wrong Dot', value: beeData.errorBreakdown?.wrongDot ?? 0, tone: 'text-rose-400' },
+                { label: 'Wrong Shape', value: beeData.errorBreakdown?.wrongShape ?? 0, tone: 'text-amber-400' },
+                { label: 'Incomplete', value: beeData.errorBreakdown?.incomplete ?? 0, tone: 'text-sky-400' },
+              ].map((item) => (
+                <div key={item.label} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    {item.label}
+                  </span>
+                  <span className={`text-xl font-black ${item.tone}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Pen the patient drew with — recorded so a later session can be
+                repeated under the same visual conditions. */}
+            {beeData.penColor && (
+              <div className="flex items-center gap-2 text-[11px] font-bold text-gray-400">
+                <span className="uppercase tracking-wider">Pen</span>
+                <span
+                  className="w-4 h-4 rounded-full border border-white/30 shrink-0"
+                  style={{ backgroundColor: beeData.penColor }}
+                />
+                <span className="text-gray-300">{beeData.penColorName}</span>
+                <span className="font-mono text-gray-500">{beeData.penColor.toUpperCase()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Clinical Results Grid */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 relative z-10">
           {/* Time Taken */}
@@ -398,7 +465,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Bubbles Popped
+                {isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped'}
               </span>
               <span className="text-2xl font-black text-purple-400">
                 {data.stimuliCount}
@@ -406,21 +473,46 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </div>
           )}
 
-          {/* Visual Focus Score */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Visual Focus Score
-            </span>
-            <span className="text-2xl font-black text-cyan-400">96 / 100</span>
-          </div>
+          {isGeoboard ? (
+            <>
+              {/* Time before the first connection — a proxy for spatial planning */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Planning Time
+                </span>
+                <span className="text-2xl font-black text-cyan-400">
+                  {beeData.avgFirstDotLatencySec}s
+                </span>
+              </div>
 
-          {/* Processing Speed Tier */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Processing Speed
-            </span>
-            <span className="text-2xl font-black text-green-400">Optimal</span>
-          </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Corrections
+                </span>
+                <span className="text-2xl font-black text-green-400">
+                  {beeData.totalCorrections}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Visual Focus Score */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Visual Focus Score
+                </span>
+                <span className="text-2xl font-black text-cyan-400">96 / 100</span>
+              </div>
+
+              {/* Processing Speed Tier */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Processing Speed
+                </span>
+                <span className="text-2xl font-black text-green-400">Optimal</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}

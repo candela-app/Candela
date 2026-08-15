@@ -7,4 +7,6 @@ export * from './bee-path-logic';
 export * from './device-config';
 export * from './game-registry';
 export * from './pursuit-motion-logic';
+export * from './geoboard-logic';
+
 

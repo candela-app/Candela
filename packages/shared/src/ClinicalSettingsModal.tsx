@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { requestFullScreenSafe } from './game-logic';
+import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS } from './geoboard-logic';
 import { SPEED_PRESETS } from './constants';
-import { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from './types';
+import {
+  AlphabetVariant,
+  DeviceOrientation,
+  GeoboardBoardId,
+  GeoboardMatrixTier,
+  GeoboardTransform,
+  PursuitMovementPattern,
+  PursuitTargetColor,
+} from './types';
 
 export interface AppliedClinicalSettings {
   patientName: string;
@@ -23,6 +32,19 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  alphabetVariant?: AlphabetVariant;
+  bpm?: number;
+  metronomeEnabled?: boolean;
+  matrixTier?: GeoboardMatrixTier;
+  memoryMode?: boolean;
+  memorizeSec?: number;
+  transform?: GeoboardTransform;
+  ocularity?: 'R' | 'L' | 'Both';
+  timeLimitSec?: number;
+  contrastSensitivity?: number;
+  bgColor?: string;
+  shapeColor?: string;
+  penColor?: string;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -54,6 +76,24 @@ export interface ClinicalSettingsModalProps {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  showGeoboardControls?: boolean;
+  geoboardBoardId?: GeoboardBoardId;
+  geoboardBoardName?: string;
+  geoboardSupportsLetterCase?: boolean;
+  geoboardPatternCount?: number;
+  alphabetVariant?: AlphabetVariant;
+  bpm?: number;
+  metronomeEnabled?: boolean;
+  matrixTier?: GeoboardMatrixTier;
+  memoryMode?: boolean;
+  memorizeSec?: number;
+  transform?: GeoboardTransform;
+  ocularity?: 'R' | 'L' | 'Both';
+  timeLimitSec?: number;
+  contrastSensitivity?: number;
+  bgColor?: string;
+  shapeColor?: string;
+  penColor?: string;
 }
 
 /**
@@ -90,6 +130,24 @@ export function ClinicalSettingsModal({
   pursuitDecoyCount = 2,
   pursuitSpeedPxPerSec = 180,
   pursuitTrialTimeoutSec = 5,
+  showGeoboardControls = false,
+  geoboardBoardId = 1,
+  geoboardBoardName = 'Geoboard',
+  geoboardSupportsLetterCase = false,
+  geoboardPatternCount = 0,
+  alphabetVariant = 'uppercase',
+  bpm = 60,
+  metronomeEnabled = false,
+  matrixTier = 1,
+  memoryMode = false,
+  memorizeSec = 5,
+  transform = 'duplicate',
+  ocularity = 'Both',
+  timeLimitSec = 0,
+  contrastSensitivity = 1,
+  bgColor = '#FFFFFF',
+  shapeColor = '#000000',
+  penColor = '#FBBF24',
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -112,6 +170,20 @@ export function ClinicalSettingsModal({
   const [tempPursuitSpeedPxPerSec, setTempPursuitSpeedPxPerSec] = useState<number>(pursuitSpeedPxPerSec);
   const [tempPursuitTrialTimeoutSec, setTempPursuitTrialTimeoutSec] = useState<number>(pursuitTrialTimeoutSec);
 
+  const [tempAlphabetVariant, setTempAlphabetVariant] = useState<AlphabetVariant>(alphabetVariant);
+  const [tempBpm, setTempBpm] = useState<number>(bpm);
+  const [tempMetronomeEnabled, setTempMetronomeEnabled] = useState<boolean>(metronomeEnabled);
+  const [tempMatrixTier, setTempMatrixTier] = useState<GeoboardMatrixTier>(matrixTier);
+  const [tempMemoryMode, setTempMemoryMode] = useState<boolean>(memoryMode);
+  const [tempMemorizeSec, setTempMemorizeSec] = useState<number>(memorizeSec);
+  const [tempTransform, setTempTransform] = useState<GeoboardTransform>(transform);
+  const [tempOcularity, setTempOcularity] = useState<'R' | 'L' | 'Both'>(ocularity);
+  const [tempTimeLimitSec, setTempTimeLimitSec] = useState<number>(timeLimitSec);
+  const [tempContrastSensitivity, setTempContrastSensitivity] = useState<number>(contrastSensitivity);
+  const [tempBgColor, setTempBgColor] = useState<string>(bgColor);
+  const [tempShapeColor, setTempShapeColor] = useState<string>(shapeColor);
+  const [tempPenColor, setTempPenColor] = useState<string>(penColor);
+
   useEffect(() => {
     if (isOpen) {
       setTempPatientName(patientName);
@@ -133,6 +205,19 @@ export function ClinicalSettingsModal({
       setTempPursuitDecoyCount(pursuitDecoyCount);
       setTempPursuitSpeedPxPerSec(pursuitSpeedPxPerSec);
       setTempPursuitTrialTimeoutSec(pursuitTrialTimeoutSec);
+      setTempAlphabetVariant(alphabetVariant);
+      setTempBpm(bpm);
+      setTempMetronomeEnabled(metronomeEnabled);
+      setTempMatrixTier(matrixTier);
+      setTempMemoryMode(memoryMode);
+      setTempMemorizeSec(memorizeSec);
+      setTempTransform(transform);
+      setTempOcularity(ocularity);
+      setTempTimeLimitSec(timeLimitSec);
+      setTempContrastSensitivity(contrastSensitivity);
+      setTempBgColor(bgColor);
+      setTempShapeColor(shapeColor);
+      setTempPenColor(penColor);
       requestFullScreenSafe();
     }
   }, [
@@ -156,6 +241,19 @@ export function ClinicalSettingsModal({
     pursuitDecoyCount,
     pursuitSpeedPxPerSec,
     pursuitTrialTimeoutSec,
+    alphabetVariant,
+    bpm,
+    metronomeEnabled,
+    matrixTier,
+    memoryMode,
+    memorizeSec,
+    transform,
+    ocularity,
+    timeLimitSec,
+    contrastSensitivity,
+    bgColor,
+    shapeColor,
+    penColor,
   ]);
 
   if (!isOpen) return null;
@@ -181,6 +279,19 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount: tempPursuitDecoyCount,
       pursuitSpeedPxPerSec: tempPursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec: tempPursuitTrialTimeoutSec,
+      alphabetVariant: tempAlphabetVariant,
+      bpm: tempBpm,
+      metronomeEnabled: tempMetronomeEnabled,
+      matrixTier: tempMatrixTier,
+      memoryMode: tempMemoryMode,
+      memorizeSec: tempMemorizeSec,
+      transform: tempTransform,
+      ocularity: tempOcularity,
+      timeLimitSec: tempTimeLimitSec,
+      contrastSensitivity: tempContrastSensitivity,
+      bgColor: tempBgColor,
+      shapeColor: tempShapeColor,
+      penColor: tempPenColor,
     });
   };
 
@@ -206,7 +317,9 @@ export function ClinicalSettingsModal({
                 </span>
               </h3>
               <p className="text-sm text-gray-400 mt-1.5">
-                Configure patient parameters, stimulus diameter & optical symbol scaling.
+                {showGeoboardControls
+                  ? `Configure ${geoboardBoardName} before the session starts. Every pattern in this board runs in order.`
+                  : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
               </p>
             </div>
           </div>
@@ -221,7 +334,383 @@ export function ClinicalSettingsModal({
         </div>
 
         {/* CLINICAL CONTROL GRID */}
-        {showPursuitControls ? (
+        {showGeoboardControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            {/* CONTAINER 1: SESSION & STIMULUS */}
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-teal-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Session & Stimulus</span>
+                <span className="text-[11px] text-gray-500 normal-case font-bold tracking-normal">
+                  Board {String(geoboardBoardId).padStart(2, '0')}
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-[#141414] border border-gray-800 px-4 py-3">
+                <div className="text-sm font-bold text-gray-100">{geoboardBoardName}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  {geoboardSupportsLetterCase && tempAlphabetVariant === 'lowercase'
+                    ? `${geoboardPatternCount} patterns · lowercase set`
+                    : `${geoboardPatternCount} patterns in this playlist`}
+                </div>
+              </div>
+
+              {/* Patient Name Input */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-teal-500 font-medium text-sm transition-all shadow-inner"
+                  style={{ backgroundColor: '#141414' }}
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+
+              {/* Letter Case — Board 02 only */}
+              {geoboardSupportsLetterCase && (
+                <div>
+                  <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                    Letter Case
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { label: 'Uppercase  A B C', val: 'uppercase' as AlphabetVariant },
+                      { label: 'Lowercase  a b c', val: 'lowercase' as AlphabetVariant },
+                    ]).map((opt) => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => setTempAlphabetVariant(opt.val)}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                          tempAlphabetVariant === opt.val
+                            ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    The lowercase set omits a, e, s and g — their curves are not legible on a 5&times;5 dot grid.
+                  </p>
+                </div>
+              )}
+
+              {/* Matrix Density */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Matrix Density (Dot Support)
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {([
+                    { label: '25', val: 1 as GeoboardMatrixTier },
+                    { label: '17', val: 2 as GeoboardMatrixTier },
+                    { label: '13', val: 3 as GeoboardMatrixTier },
+                    { label: '9', val: 4 as GeoboardMatrixTier },
+                    { label: '5', val: 5 as GeoboardMatrixTier },
+                  ]).map((tier) => (
+                    <button
+                      key={tier.val}
+                      type="button"
+                      onClick={() => setTempMatrixTier(tier.val)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all ${
+                        tempMatrixTier === tier.val
+                          ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {tier.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Visible dots on the answer grid. Fewer dots removes scaffolding and loads spatial memory.
+                </p>
+              </div>
+
+              {/* Transform */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Response Transform
+                </label>
+                <select
+                  value={tempTransform}
+                  onChange={(e) => setTempTransform(e.target.value as GeoboardTransform)}
+                  className="w-full rounded-xl bg-[#141414] border border-gray-700 p-3 text-xs text-white font-bold focus:border-teal-400 focus:outline-none"
+                  style={{ backgroundColor: '#141414' }}
+                >
+                  <option value="duplicate">Duplicate — copy exactly as shown</option>
+                  <option value="flip_h">Mirror Horizontally — left/right reversal</option>
+                  <option value="flip_v">Mirror Vertically — top/bottom reversal</option>
+                  <option value="rotate_90_r">Rotate 90&deg; Clockwise</option>
+                  <option value="rotate_90_l">Rotate 90&deg; Counter-clockwise</option>
+                </select>
+              </div>
+            </div>
+
+            {/* CONTAINER 2: DIFFICULTY & PRESENTATION */}
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Difficulty & Presentation</span>
+              </div>
+
+              {/* Memory Mode */}
+              <div className="flex justify-between items-center gap-4">
+                <div>
+                  <span className="text-xs font-bold text-gray-200 block">Memory Mode</span>
+                  <span className="text-[11px] text-gray-400">Hide the model after a preview interval</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTempMemoryMode(!tempMemoryMode)}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 ${
+                    tempMemoryMode ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {tempMemoryMode ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {tempMemoryMode && (
+                <div>
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                    <span>Preview Duration</span>
+                    <span className="text-amber-400 font-mono font-extrabold">{tempMemorizeSec}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={15}
+                    step={1}
+                    className="w-full accent-amber-500 cursor-pointer h-2.5 my-2"
+                    value={tempMemorizeSec}
+                    onChange={(e) => setTempMemorizeSec(parseInt(e.target.value, 10))}
+                  />
+                </div>
+              )}
+
+              {/* Time Limit */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Time Limit per Pattern
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { label: 'Off', val: 0 },
+                    { label: '15s', val: 15 },
+                    { label: '30s', val: 30 },
+                    { label: '45s', val: 45 },
+                    { label: '60s', val: 60 },
+                  ].map((tl) => (
+                    <button
+                      key={tl.val}
+                      type="button"
+                      onClick={() => setTempTimeLimitSec(tl.val)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all ${
+                        tempTimeLimitSec === tl.val
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {tl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Metronome */}
+              <div className="flex justify-between items-center gap-4 border-t border-gray-800/80 pt-4">
+                <div>
+                  <span className="text-xs font-bold text-gray-200 block">Metronome Pacing</span>
+                  <span className="text-[11px] text-gray-400">Audible beat to time each connection</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTempMetronomeEnabled(!tempMetronomeEnabled)}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 ${
+                    tempMetronomeEnabled ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {tempMetronomeEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {tempMetronomeEnabled && (
+                <div>
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                    <span>Tempo</span>
+                    <span className="text-emerald-400 font-mono font-extrabold">{tempBpm} BPM</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={40}
+                    max={140}
+                    step={5}
+                    className="w-full accent-emerald-500 cursor-pointer h-2.5 my-2"
+                    value={tempBpm}
+                    onChange={(e) => setTempBpm(parseInt(e.target.value, 10))}
+                  />
+                </div>
+              )}
+
+              {/* Ocularity */}
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Ocularity (Occlusion Protocol)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { label: 'Right Eye', val: 'R' as const },
+                    { label: 'Left Eye', val: 'L' as const },
+                    { label: 'Binocular', val: 'Both' as const },
+                  ]).map((oc) => (
+                    <button
+                      key={oc.val}
+                      type="button"
+                      onClick={() => setTempOcularity(oc.val)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all ${
+                        tempOcularity === oc.val
+                          ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {oc.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Contrast Sensitivity */}
+              <div className="border-t border-gray-800/80 pt-4">
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Stimulus Contrast</span>
+                  <span className="text-blue-400 font-mono font-extrabold">
+                    {Math.round(tempContrastSensitivity * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.15}
+                  max={1}
+                  step={0.05}
+                  className="w-full accent-blue-500 cursor-pointer h-2.5 my-2"
+                  value={tempContrastSensitivity}
+                  onChange={(e) => setTempContrastSensitivity(parseFloat(e.target.value))}
+                />
+                <div
+                  className="mt-2 rounded-xl border border-gray-700 h-12 flex items-center justify-center"
+                  style={{ backgroundColor: tempBgColor }}
+                >
+                  <span
+                    className="text-sm font-black tracking-widest"
+                    style={{ color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity) }}
+                  >
+                    PREVIEW
+                  </span>
+                </div>
+              </div>
+
+              {/* Pen colour — presets for speed, free picker for anything else.
+                  Recorded with the session so a report shows what was drawn with. */}
+              <div className="border-t border-gray-800/80 pt-4">
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                  <span>Pen Colour</span>
+                  <span className="text-teal-400 font-mono font-extrabold normal-case tracking-normal">
+                    {getPenColorName(tempPenColor)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-6 gap-2 mb-3">
+                  {GEOBOARD_PEN_COLORS.map((preset) => (
+                    <button
+                      key={preset.hex}
+                      type="button"
+                      onClick={() => setTempPenColor(preset.hex)}
+                      title={preset.name}
+                      aria-label={`Pen colour ${preset.name}`}
+                      aria-pressed={tempPenColor.toLowerCase() === preset.hex.toLowerCase()}
+                      className={`h-9 rounded-xl border-2 transition-all ${
+                        tempPenColor.toLowerCase() === preset.hex.toLowerCase()
+                          ? 'border-white scale-105 shadow-lg'
+                          : 'border-transparent hover:border-gray-500'
+                      }`}
+                      style={{ backgroundColor: preset.hex }}
+                    />
+                  ))}
+                </div>
+
+                <label
+                  className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-700 shadow-inner cursor-pointer"
+                  style={{ backgroundColor: '#141414' }}
+                >
+                  <input
+                    type="color"
+                    className="w-9 h-9 bg-transparent border-none cursor-pointer rounded shrink-0"
+                    value={tempPenColor}
+                    onChange={(e) => setTempPenColor(e.target.value)}
+                  />
+                  <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                    Custom colour
+                  </span>
+                  <span className="text-[11px] font-mono text-gray-400 font-bold ml-auto">
+                    {tempPenColor.toUpperCase()}
+                  </span>
+                </label>
+
+                <div
+                  className="mt-3 rounded-xl border border-gray-700 h-14 flex items-center justify-center gap-4 px-4"
+                  style={{ backgroundColor: tempBgColor }}
+                >
+                  <svg width="120" height="28" viewBox="0 0 120 28" aria-hidden="true">
+                    <path
+                      d="M6 22 Q 30 2 58 14 T 114 8"
+                      fill="none"
+                      stroke={tempPenColor}
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Pen preview
+                  </span>
+                </div>
+              </div>
+
+              {/* Board & model palette */}
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { label: 'Board', value: tempBgColor, set: setTempBgColor },
+                  { label: 'Model', value: tempShapeColor, set: setTempShapeColor },
+                ]).map((swatch) => (
+                  <div key={swatch.label}>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                      {swatch.label}
+                    </label>
+                    <div
+                      className="flex items-center gap-2 p-2 rounded-xl border border-gray-700 shadow-inner"
+                      style={{ backgroundColor: '#141414' }}
+                    >
+                      <input
+                        type="color"
+                        className="w-7 h-7 bg-transparent border-none cursor-pointer rounded shrink-0"
+                        value={swatch.value}
+                        onChange={(e) => swatch.set(e.target.value)}
+                      />
+                      <span className="text-[10px] font-mono text-gray-300 font-bold truncate">{swatch.value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* EXTRA STATS INTEGRATION */}
+              {extraStats}
+            </div>
+          </div>
+        ) : showPursuitControls ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
             {/* CONTAINER 1: PATIENT & STIMULUS PROFILES */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
