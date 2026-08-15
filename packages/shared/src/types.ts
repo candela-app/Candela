@@ -219,6 +219,86 @@ export interface MobileTargetSessionResultData extends SessionResultData {
   starRating: number;
 }
 
+// --- Geoboard Module Types ---
+export type GeoboardStimulusType = 'patterns' | 'alphabets' | 'numbers' | 'random';
+export type GeoboardMatrixTier = 1 | 2 | 3 | 4 | 5; // 1 = Full, 2 = 8 missing, 3 = 12 missing, 4 = 16 missing, 5 = 20 missing
+export type GeoboardComplexityTier = 1 | 2 | 3 | 4; // 1 = simple lines, 2 = closed shapes, 3 = diagonals, 4 = compound polygons
+export type GeoboardTransform = 'duplicate' | 'flip_h' | 'flip_v' | 'rotate_90_l' | 'rotate_90_r';
+
+/** Board 01 lines, 02 alphabets, 03 shapes, 04 numbers, 05 compound figures. */
+export type GeoboardBoardId = 1 | 2 | 3 | 4 | 5;
+
+export interface GeoboardProtocol {
+  patientName: string;
+  boardId: GeoboardBoardId;
+  alphabetVariant: AlphabetVariant; // only meaningful on board 02
+  bpm: number;
+  metronomeEnabled: boolean;
+  patternId: string | null; // specific pattern from library (null for auto)
+  matrixTier: GeoboardMatrixTier;
+  complexityTier: GeoboardComplexityTier;
+  memoryMode: boolean;
+  memorizeSec: number;
+  transform: GeoboardTransform;
+  ocularity: 'R' | 'L' | 'Both';
+  timeLimitSec: number;
+  contrastSensitivity: number;
+  bgColor: string;
+  shapeColor: string;
+  penColor: string;
+}
+
+/** Segment-match tally for one screen half, used to surface hemifield asymmetry. */
+export interface GeoboardHalfFieldScore {
+  leftMatched: number;
+  leftTotal: number;
+  rightMatched: number;
+  rightTotal: number;
+}
+
+export interface GeoboardTrialMetric {
+  trialIndex: number;
+  patternId: string;
+  patternName: string;
+  complexityTier: GeoboardComplexityTier;
+  matrixTier: GeoboardMatrixTier;
+  transform: GeoboardTransform | 'none';
+  dotTapSequence: Array<{ dotIndex: number; timestamp: number }>;
+  correct: boolean;
+  errorType: 'none' | 'wrong-dot' | 'wrong-shape' | 'incomplete';
+  reactionTimeMs: number;
+  firstDotLatencyMs: number; // planning time before the first connection
+  corrections: number; // undo / erase actions, a proxy for spatial uncertainty
+  segmentsDrawn: number;
+  segmentsTarget: number;
+  halfField: GeoboardHalfFieldScore;
+  timedOut: boolean;
+  completed: boolean;
+}
+
+export interface GeoboardSessionResultData extends SessionResultData {
+  stimulusType: GeoboardStimulusType;
+  boardId: GeoboardBoardId;
+  boardName: string;
+  alphabetVariant?: AlphabetVariant;
+  protocolSnapshot: GeoboardProtocol;
+  trials: GeoboardTrialMetric[];
+  maxComplexityReached: GeoboardComplexityTier;
+  maxMatrixReached: GeoboardMatrixTier;
+  avgFirstDotLatencySec: number;
+  totalCorrections: number;
+  timeoutCount: number;
+  leftHalfAccuracy: number;
+  rightHalfAccuracy: number;
+  errorBreakdown: { wrongDot: number; wrongShape: number; incomplete: number };
+  /** Colour the patient drew in, kept on the result so a report can reproduce it. */
+  penColor: string;
+  penColorName: string;
+  starRating: number;
+  status: 'completed' | 'incomplete';
+}
+
+
 
 
 

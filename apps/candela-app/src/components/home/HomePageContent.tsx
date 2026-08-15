@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  EyeIcon,
   RotatoryIcon,
   PuzzleIcon,
   BeePathIcon,
   TargetIcon,
   MobileTargetIcon,
+  GeoboardIcon,
   SlidersIcon,
   AnalyticsIcon,
   MonitorIcon,
@@ -13,7 +13,6 @@ import {
   RocketIcon,
   ArrowRightIcon,
   ArrowDownIcon,
-  ZapIcon,
 } from '@/components/icons/VectorIcons';
 
 interface HomePageContentProps {
@@ -66,7 +65,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
 
       {/* QUICK LAUNCH MODULE PREVIEWS */}
       <section className="max-w-6xl mx-auto px-6 -mt-10 relative z-20 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div
             onClick={() => onSelectModule ? onSelectModule('wheel') : onOpenDashboard()}
             className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-blue-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
@@ -196,6 +195,32 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </div>
             </div>
           </div>
+
+          <div
+            onClick={() => onSelectModule ? onSelectModule('geoboard') : onOpenDashboard()}
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-teal-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <GeoboardIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
+                Geoboard Module
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
+                Five pattern boards for visual-motor integration & spatial recall.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/60">
+                For All Devices
+              </span>
+              <div className="text-xs font-bold text-teal-600 flex items-center gap-1 group-hover:gap-2 transition-all">
+                <span>Launch</span>
+                <ArrowRightIcon className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -275,9 +300,12 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
           </div>
 
           <div className="w-full md:w-80 h-72 bg-gradient-to-br from-blue-600 via-indigo-600 to-slate-800 rounded-2xl shadow-xl flex flex-col items-center justify-center text-white p-6 text-center">
-            <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md mb-3 flex items-center justify-center gap-2">
-              <EyeIcon className="w-10 h-10 text-blue-200" />
-              <ZapIcon className="w-6 h-6 text-amber-300" />
+            <div className="mb-3 flex items-center justify-center">
+              <img
+                src="/updated_Web%20logo.png"
+                alt="Kandela"
+                className="h-10 w-auto"
+              />
             </div>
             <h4 className="font-bold text-xl">Kandela Therapy</h4>
             <p className="text-xs text-blue-100 mt-1">Interactive Vision Exercises</p>
@@ -316,9 +344,17 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
       {/* FOOTER */}
       <footer className="mt-auto bg-gray-900 text-gray-400 py-8 px-6 text-xs text-center border-t border-gray-800">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <span className="font-bold text-white text-sm">Kandela</span>
-            <span className="text-gray-400 text-xs">— A Measure of Light, A Measure of Progress</span>
+          <div className="flex flex-row items-center gap-3">
+            <div className="shrink-0 rounded-md bg-white p-0.5">
+              <img
+                src="/updated_Web%20logo.png"
+                alt="Kandela"
+                className="h-8 w-auto block"
+              />
+            </div>
+            <span className="text-gray-400 text-xs leading-none mt-1">
+              — A Measure of Light, A Measure of Progress
+            </span>
           </div>
           <div>
             © {new Date().getFullYear()} Kandela Platform. All rights reserved.
