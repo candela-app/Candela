@@ -39,6 +39,13 @@ export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile', 'tablet'],
   },
+  geoboard: {
+    id: 'geoboard',
+    name: 'Geoboard Module',
+    description: 'Digitized Bernell/OEPF geoboard pattern reproduction exercise to train hand-eye coordination and spatial memory.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['mobile', 'tablet'],
+  },
 };
 
 /**
