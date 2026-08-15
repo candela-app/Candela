@@ -123,8 +123,15 @@ export interface BeeSessionResultData extends SessionResultData {
 }
 
 // --- Shared Game Catalog / Registry Types ---
+export type TherapyModuleId =
+  | 'rotatory'
+  | 'sorting'
+  | 'bee_tracing'
+  | 'pursuit'
+  | 'mobile_target';
+
 export interface GameRegistryEntry {
-  id: string;
+  id: TherapyModuleId;
   name: string;
   description: string;
   supportedDevices: DeviceTier[];

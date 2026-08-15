@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Poppins } from 'next/font/google';
+import { Providers } from './providers';
 import './globals.css';
 
 const poppins = Poppins({
@@ -34,7 +35,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={poppins.variable}>
-      <body className={`${poppins.className} font-sans`}>{children}</body>
+      <body className={`${poppins.className} font-sans`}>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

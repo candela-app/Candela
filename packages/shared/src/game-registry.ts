@@ -1,9 +1,9 @@
-import { GameRegistryEntry } from './types';
+import { GameRegistryEntry, TherapyModuleId } from './types';
 
 /**
  * Shared central registry/catalog of games in the Candela vision therapy platform.
  */
-export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
+export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   rotatory: {
     id: 'rotatory',
     name: 'Rotatory Wheel',
@@ -41,9 +41,15 @@ export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
   },
 };
 
+export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
+
 /**
  * Helper to get catalog entry for a specific game id.
  */
 export function getGameCatalogEntry(id: string): GameRegistryEntry | undefined {
-  return GAME_CATALOG[id];
+  return GAME_CATALOG[id as TherapyModuleId];
+}
+
+export function isTherapyModuleId(id: string): id is TherapyModuleId {
+  return id in GAME_CATALOG;
 }
