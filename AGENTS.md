@@ -44,6 +44,17 @@ Candela/
 - No changes to `apps/candela-mobile` or `apps/candela-tv`
 - No new game logic or rule changes — pure conversion, same behavior in a new stack
 
+## Secrets and credentials (always)
+
+Never put real secrets in source, docs, commits, PR descriptions, logs, or comments. This includes passwords, JWT secrets, database URLs, API keys, and cookie/session tokens.
+
+- Admin accounts are seeded **only** from environment variables (`ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` / `ADMIN_1_NAME`, plus `ADMIN_2_*` …). Do not hardcode emails or passwords in `auth.service.ts`, `seed-admins.ts`, walkthroughs, or examples.
+- `.env.example` may contain obvious placeholders only (`change-me-…`, `admin@localhost`). Never copy production or personal credentials into it.
+- Real values belong in local `.env` (gitignored) or the host dashboard (Render / Vercel). Tell the human to set them there; do not paste the values into the repo.
+- Do not log emails, passwords, tokens, or connection strings. Seed logs may report counts only (`created` / `updated` / `skipped`).
+- `ADMIN_SEED_OVERWRITE` updates existing admin hashes. Leave it off unless the human is rotating passwords; never commit a real password next to it.
+- If you find a hardcoded secret, remove it and switch that path to env vars. Do not reintroduce secrets that were deleted.
+
 ## Package Manager
 - npm workspaces (root `package.json`)
 
