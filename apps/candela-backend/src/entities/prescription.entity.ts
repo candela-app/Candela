@@ -27,6 +27,9 @@ export class Prescription {
   @Column({ name: 'module_id', type: 'varchar', length: 64 })
   moduleId: string;
 
+  @Column({ name: 'levels', type: 'jsonb', default: [] })
+  levels: string[];
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { ApiError, api } from '@/lib/api';
 import type { DoctorSummary, PatientSummary } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -18,14 +19,19 @@ export default function AdminPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [nextDoctors, nextPatients] = await Promise.all([
-      api<DoctorSummary[]>('/api/admin/doctors'),
-      api<PatientSummary[]>('/api/admin/patients'),
-    ]);
-    setDoctors(nextDoctors);
-    setPatients(nextPatients);
+    try {
+      const [nextDoctors, nextPatients] = await Promise.all([
+        api<DoctorSummary[]>('/api/admin/doctors'),
+        api<PatientSummary[]>('/api/admin/patients'),
+      ]);
+      setDoctors(nextDoctors);
+      setPatients(nextPatients);
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -33,7 +39,7 @@ export default function AdminPage() {
       return;
     }
     if (!session || session.user.role !== 'admin') {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
     load().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load'));
@@ -82,8 +88,13 @@ export default function AdminPage() {
     }
   }
 
-  if (loading || !session || session.user.role !== 'admin') {
-    return <div className="p-8 text-center text-gray-600">Loading…</div>;
+  if (loading || dataLoading || !session || session.user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-[#F4F7FC]">
+        <AppHeader />
+        <AdminDashboardSkeleton />
+      </div>
+    );
   }
 
   return (

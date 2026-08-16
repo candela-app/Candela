@@ -190,7 +190,7 @@ export class AuthService implements OnModuleInit {
     return this.patientToSummary(patient);
   }
 
-  async addPrescription(doctorUserId: string, patientId: string, moduleId: string) {
+  async addPrescription(doctorUserId: string, patientId: string, moduleId: string, levels: string[] = []) {
     const patient = await this.patients.findOne({
       where: { userId: patientId, doctorId: doctorUserId },
     });
@@ -201,7 +201,10 @@ export class AuthService implements OnModuleInit {
       where: { patientId, moduleId },
     });
     if (!existing) {
-      await this.prescriptions.save(this.prescriptions.create({ patientId, moduleId }));
+      await this.prescriptions.save(this.prescriptions.create({ patientId, moduleId, levels }));
+    } else {
+      existing.levels = levels;
+      await this.prescriptions.save(existing);
     }
     return this.getOwnedPatient(doctorUserId, patientId);
   }
@@ -292,6 +295,10 @@ export class AuthService implements OnModuleInit {
         relations: ['doctor', 'prescriptions'],
       });
       const prescribed = patient?.prescriptions.map((p) => p.moduleId) ?? [];
+      const prescribedLevels = patient?.prescriptions.reduce((acc, p) => {
+        acc[p.moduleId] = p.levels || [];
+        return acc;
+      }, {} as Record<string, string[]>) ?? {};
       const allowedModuleIds =
         patient?.origin === 'self_signup' || !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
       return {
@@ -303,6 +310,7 @@ export class AuthService implements OnModuleInit {
               doctorId: patient.doctorId,
               referralCode: patient.doctor?.referralCode ?? null,
               prescribedModuleIds: prescribed,
+              prescribedLevels,
             }
           : null,
         allowedModuleIds,
@@ -338,6 +346,11 @@ export class AuthService implements OnModuleInit {
   }
 
   private patientToSummary(patient: PatientProfile) {
+    const prescribedLevels = patient.prescriptions?.reduce((acc, p) => {
+      acc[p.moduleId] = p.levels || [];
+      return acc;
+    }, {} as Record<string, string[]>) ?? {};
+
     return {
       ...this.toPublicUser(patient.user),
       origin: patient.origin,
@@ -345,6 +358,7 @@ export class AuthService implements OnModuleInit {
       doctorName: patient.doctor?.user?.name ?? null,
       referralCode: patient.doctor?.referralCode ?? null,
       prescribedModuleIds: patient.prescriptions?.map((p) => p.moduleId) ?? [],
+      prescribedLevels,
     };
   }
 }

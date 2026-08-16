@@ -68,7 +68,7 @@ export class DoctorController {
     if (!body?.moduleId || !isTherapyModuleId(body.moduleId)) {
       throw new NotFoundException('Unknown therapy module');
     }
-    const patient = await this.auth.addPrescription(user.id, patientId, body.moduleId);
+    const patient = await this.auth.addPrescription(user.id, patientId, body.moduleId, body.levels);
     if (!patient) {
       throw new NotFoundException('Patient not found');
     }

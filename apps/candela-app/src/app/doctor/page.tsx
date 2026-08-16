@@ -2,8 +2,9 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { ApiError, api } from '@/lib/api';
-import { GAME_CATALOG, type PatientSummary, type TherapyModuleId } from '@candela/shared';
+import { GAME_CATALOG, MODULE_LEVELS, type PatientSummary, type TherapyModuleId } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
@@ -20,13 +21,18 @@ export default function DoctorPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const selected = patients.find((p) => p.id === selectedId) ?? null;
 
   const load = useCallback(async () => {
-    const next = await api<PatientSummary[]>('/api/doctors/me/patients');
-    setPatients(next);
-    setSelectedId((current) => current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null);
+    try {
+      const next = await api<PatientSummary[]>('/api/doctors/me/patients');
+      setPatients(next);
+      setSelectedId((current) => current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null);
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -34,7 +40,7 @@ export default function DoctorPage() {
       return;
     }
     if (!session || session.user.role !== 'doctor') {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
     load().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load'));
@@ -67,8 +73,13 @@ export default function DoctorPage() {
       return;
     }
     const patientId = selected.id;
-    const previous = selected.prescribedModuleIds;
+    const previousIds = selected.prescribedModuleIds;
+    const previousLevels = { ...selected.prescribedLevels };
     setError('');
+    
+    // Default to selecting all levels when enabling a module
+    const defaultLevels = enabled ? (MODULE_LEVELS[moduleId]?.map(l => l.id) || []) : [];
+
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id !== patientId) {
@@ -77,14 +88,22 @@ export default function DoctorPage() {
         const prescribedModuleIds = enabled
           ? Array.from(new Set([...p.prescribedModuleIds, moduleId]))
           : p.prescribedModuleIds.filter((id) => id !== moduleId);
-        return { ...p, prescribedModuleIds };
+        
+        const prescribedLevels = { ...p.prescribedLevels };
+        if (enabled) {
+          prescribedLevels[moduleId] = defaultLevels;
+        } else {
+          delete prescribedLevels[moduleId];
+        }
+
+        return { ...p, prescribedModuleIds, prescribedLevels };
       }),
     );
     try {
       const updated = enabled
         ? await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
             method: 'POST',
-            body: JSON.stringify({ moduleId }),
+            body: JSON.stringify({ moduleId, levels: defaultLevels }),
           })
         : await api<PatientSummary>(
             `/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`,
@@ -93,14 +112,59 @@ export default function DoctorPage() {
       setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     } catch (err) {
       setPatients((prev) =>
-        prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previous } : p)),
+        prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previousIds, prescribedLevels: previousLevels } : p)),
       );
       setError(err instanceof ApiError ? err.message : 'Could not update prescription');
     }
   }
 
-  if (loading || !session || session.user.role !== 'doctor') {
-    return <div className="p-8 text-center text-gray-600">Loading…</div>;
+  async function toggleLevel(moduleId: TherapyModuleId, levelId: string, enabled: boolean) {
+    if (!selected) {
+      return;
+    }
+    const patientId = selected.id;
+    const currentLevels = selected.prescribedLevels?.[moduleId] || [];
+    const newLevels = enabled
+      ? Array.from(new Set([...currentLevels, levelId]))
+      : currentLevels.filter((id) => id !== levelId);
+
+    const previousLevels = { ...selected.prescribedLevels };
+    setError('');
+
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id !== patientId) return p;
+        return {
+          ...p,
+          prescribedLevels: {
+            ...p.prescribedLevels,
+            [moduleId]: newLevels,
+          },
+        };
+      })
+    );
+
+    try {
+      const updated = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+        method: 'POST',
+        body: JSON.stringify({ moduleId, levels: newLevels }),
+      });
+      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch (err) {
+      setPatients((prev) =>
+        prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)),
+      );
+      setError(err instanceof ApiError ? err.message : 'Could not update level');
+    }
+  }
+
+  if (loading || dataLoading || !session || session.user.role !== 'doctor') {
+    return (
+      <div className="min-h-screen bg-[#F4F7FC]">
+        <AppHeader />
+        <DoctorDashboardSkeleton />
+      </div>
+    );
   }
 
   return (
@@ -174,19 +238,43 @@ export default function DoctorPage() {
                 <div className="space-y-3">
                   {MODULES.map((mod) => {
                     const on = selected.prescribedModuleIds.includes(mod.id);
+                    const levels = MODULE_LEVELS[mod.id] || [];
+                    const selectedLevels = selected.prescribedLevels?.[mod.id] || [];
+
                     return (
-                      <label key={mod.id} className="flex items-start gap-3 rounded-2xl border border-gray-100 p-4">
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={(e) => void toggleModule(mod.id, e.target.checked)}
-                          className="mt-1 h-4 w-4"
-                        />
-                        <span>
-                          <span className="block font-bold text-gray-900">{mod.name}</span>
-                          <span className="block text-xs text-gray-500">{mod.description}</span>
-                        </span>
-                      </label>
+                      <div key={mod.id} className="rounded-2xl border border-gray-100 p-4">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={(e) => void toggleModule(mod.id, e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>
+                            <span className="block font-bold text-gray-900">{mod.name}</span>
+                            <span className="block text-xs text-gray-500">{mod.description}</span>
+                          </span>
+                        </label>
+                        
+                        {on && levels.length > 0 && (
+                          <div className="mt-3 ml-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {levels.map(level => {
+                              const levelOn = selectedLevels.includes(level.id);
+                              return (
+                                <label key={level.id} className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={levelOn}
+                                    onChange={(e) => void toggleLevel(mod.id, level.id, e.target.checked)}
+                                    className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">{level.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
