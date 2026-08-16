@@ -27,6 +27,27 @@ export class SignupDto {
 
 export class CreateAccountDto extends SignupDto {}
 
+export class UpdateDoctorDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
+}
+
 export class AddPrescriptionDto {
   @IsString()
   moduleId: string;

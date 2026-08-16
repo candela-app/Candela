@@ -14,6 +14,9 @@ import {
   ArrowRightIcon,
   ArrowDownIcon,
 } from '@/components/icons/VectorIcons';
+import logoPng from '@candela/shared/assets/updated_Web logo.png';
+
+const logoSrc = typeof logoPng === 'string' ? logoPng : logoPng.src;
 
 interface HomePageContentProps {
   onOpenDashboard: () => void;
@@ -302,9 +305,9 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
           <div className="w-full md:w-80 h-72 bg-gradient-to-br from-blue-600 via-indigo-600 to-slate-800 rounded-2xl shadow-xl flex flex-col items-center justify-center text-white p-6 text-center">
             <div className="mb-3 flex items-center justify-center">
               <img
-                src="/updated_Web%20logo.png"
+                src={logoSrc}
                 alt="Kandela"
-                className="h-10 w-auto"
+                className="h-10 w-auto object-contain"
               />
             </div>
             <h4 className="font-bold text-xl">Kandela Therapy</h4>
@@ -347,9 +350,9 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
           <div className="flex flex-row items-center gap-3">
             <div className="shrink-0 rounded-md bg-white p-0.5">
               <img
-                src="/updated_Web%20logo.png"
+                src={logoSrc}
                 alt="Kandela"
-                className="h-8 w-auto block"
+                className="h-8 w-auto block object-contain"
               />
             </div>
             <span className="text-gray-400 text-xs leading-none mt-1">

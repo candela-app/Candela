@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth, roleHomePath } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import { AuthShell, Field, PrimaryButton } from '@/components/auth/AuthForm';
 import type { SessionUser } from '@candela/shared';
@@ -11,6 +12,7 @@ import { FormEvent, useEffect, useState } from 'react';
 export default function SignupPage() {
   const router = useRouter();
   const { session, loading, applySession } = useAuth();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -37,10 +39,13 @@ export default function SignupPage() {
       });
       setRedirecting(true);
       applySession(next);
+      toast.success('Account created successfully! Welcome to Kandela.');
       router.replace(roleHomePath(next.user.role));
     } catch (err) {
       setSubmitting(false);
-      setError(err instanceof ApiError ? err.message : 'Could not create account');
+      const msg = err instanceof ApiError ? err.message : 'Could not create account';
+      setError(msg);
+      toast.error(msg);
     }
   }
 
