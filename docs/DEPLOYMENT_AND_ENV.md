@@ -24,9 +24,10 @@ graph LR
 | `NODE_ENV` | Yes | Environment mode | `production` or `development` |
 | `DATABASE_URL` | Yes | Pooled connection string for runtime queries | `postgresql://user:pass@ep-xyz-pooler.region.neon.tech/candela?sslmode=require` |
 | `DATABASE_URL_DIRECT` | Yes | Direct connection string for TypeORM migrations | `postgresql://user:pass@ep-xyz.region.neon.tech/candela?sslmode=require` |
-| `JWT_SECRET` | Yes | Secret key for signing Access Tokens | `min-32-character-cryptographic-secret` |
-| `CORS_ORIGINS` | Optional | Comma-separated allowed frontend origins | `https://candela-app.vercel.app,http://localhost:3000` |
-| `FRONTEND_URL` | Optional | Primary frontend URL | `https://candela-app.vercel.app` |
+| `JWT_ACCESS_SECRET` | Yes | Secret key for signing access tokens | long random string (never commit the real value) |
+| `FRONTEND_URL` | Yes | Website origin for CORS | `https://candela-app-eta.vercel.app` |
+| `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | Seed | First admin; add `ADMIN_2_*` for more | set on Render / local `.env` only |
+| `ADMIN_SEED_OVERWRITE` | No | `true` updates existing admin passwords from env | `false` |
 
 ### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
 
