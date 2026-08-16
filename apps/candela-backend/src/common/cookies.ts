@@ -7,10 +7,11 @@ export const ACCESS_MAX_AGE_SEC = 60 * 60 * 24;
 export const REFRESH_MAX_AGE_SEC = 60 * 60 * 24 * 14;
 
 function baseCookieOptions(maxAgeSec: number): CookieOptions {
+  const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
     maxAge: maxAgeSec * 1000,
   };
@@ -22,10 +23,11 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
 }
 
 export function clearAuthCookies(res: Response): void {
+  const isProd = process.env.NODE_ENV === 'production';
   const clear: CookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
   };
   res.clearCookie(ACCESS_COOKIE, clear);

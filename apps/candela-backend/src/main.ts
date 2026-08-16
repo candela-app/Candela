@@ -15,10 +15,31 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const allowedOrigins = rawFrontendUrl
+    .split(',')
+    .map((u) => u.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const normalized = origin.replace(/\/+$/, '');
+      if (
+        allowedOrigins.includes(normalized) ||
+        normalized.endsWith('.vercel.app') ||
+        normalized === 'http://localhost:3000'
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   });
+
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');
   console.log(`Backend server running on http://0.0.0.0:${port}`);
