@@ -33,11 +33,13 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
   if (!refreshInFlight) {
-    refreshInFlight = fetch('/api/auth/refresh', {
+    refreshInFlight = fetch(`${API_BASE}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     })
@@ -54,7 +56,8 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const res = await fetch(path, {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const res = await fetch(url, {
     ...init,
     headers,
     credentials: 'include',
