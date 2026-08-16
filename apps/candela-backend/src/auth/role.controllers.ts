@@ -5,10 +5,11 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
-import { CreateAccountDto, AddPrescriptionDto } from '../auth/dto';
+import { CreateAccountDto, AddPrescriptionDto, UpdateDoctorDto } from '../auth/dto';
 import { isTherapyModuleId } from '../common/catalog';
 import { CurrentUser } from '../common/current-user.decorator';
 import { Roles } from '../common/decorators';
@@ -27,6 +28,16 @@ export class AdminController {
   @Get('doctors')
   listDoctors() {
     return this.auth.listDoctors();
+  }
+
+  @Patch('doctors/:id')
+  updateDoctor(@Param('id') id: string, @Body() dto: UpdateDoctorDto) {
+    return this.auth.updateDoctor(id, dto);
+  }
+
+  @Delete('doctors/:id')
+  deleteDoctor(@Param('id') id: string) {
+    return this.auth.deleteDoctor(id);
   }
 
   @Get('patients')

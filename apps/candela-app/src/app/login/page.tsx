@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth, roleHomePath } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import { AuthShell, Field, PasswordField, PrimaryButton } from '@/components/auth/AuthForm';
 import type { SessionUser } from '@candela/shared';
@@ -11,6 +12,7 @@ import { FormEvent, useEffect, useState } from 'react';
 export default function LoginPage() {
   const router = useRouter();
   const { session, loading, applySession } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -35,10 +37,13 @@ export default function LoginPage() {
       });
       setRedirecting(true);
       applySession(next);
+      toast.success(`Welcome back, ${next.user.name}!`);
       router.replace(roleHomePath(next.user.role));
     } catch (err) {
       setSubmitting(false);
-      setError(err instanceof ApiError ? err.message : 'Could not sign in');
+      const msg = err instanceof ApiError ? err.message : 'Could not sign in';
+      setError(msg);
+      toast.error(msg);
     }
   }
 
