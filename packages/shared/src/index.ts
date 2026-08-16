@@ -9,4 +9,4 @@ export * from './game-registry';
 export * from './pursuit-motion-logic';
 export * from './auth-types';
 export * from './referral-code';
-
+export * from './geoboard-logic';

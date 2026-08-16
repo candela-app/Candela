@@ -4,6 +4,7 @@ export const ALL_MODULE_IDS = [
   'bee_tracing',
   'pursuit',
   'mobile_target',
+  'geoboard',
 ] as const;
 
 export type TherapyModuleId = (typeof ALL_MODULE_IDS)[number];

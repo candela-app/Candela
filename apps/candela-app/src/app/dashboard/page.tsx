@@ -7,15 +7,26 @@ import { SortingGame } from '@/components/sortingModule/SortingGame';
 import { BeeTracingGame } from '@/components/beeTrackingModule/BeeTracingGame';
 import { PursuitGame } from '@/components/pursuitModule/PursuitGame';
 import { MobileTargetGame } from '@/components/mobileTargetModule/MobileTargetGame';
+import { GeoboardGame } from '@/components/geoboardModule/GeoboardGame';
 import {
   EyeIcon,
   AnalyticsIcon,
 } from '@/components/icons/VectorIcons';
-import { GameMode, AlphabetVariant, SortingVariant, requestFullScreenSafe, UI_MODULE_TO_CATALOG } from '@candela/shared';
+import {
+  GameMode,
+  AlphabetVariant,
+  SortingVariant,
+  GeoboardBoardId,
+  GEOBOARD_BOARDS,
+  GEOBOARD_BOARD_IDS,
+  getBoardPatterns,
+  requestFullScreenSafe,
+  UI_MODULE_TO_CATALOG,
+} from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target';
+type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard';
 
 function MainContent() {
   const router = useRouter();
@@ -40,6 +51,7 @@ function MainContent() {
     variant: 'uppercase',
   });
   const [sortingVariant, setSortingVariant] = useState<SortingVariant>('uppercase');
+  const [geoboardBoardId, setGeoboardBoardId] = useState<GeoboardBoardId>(1);
 
   // Sync state from URL Query Params
   useEffect(() => {
@@ -48,6 +60,7 @@ function MainContent() {
     const gameParam = searchParams.get('game');
     const modeParam = searchParams.get('mode') as GameMode | null;
     const variantParam = searchParams.get('variant') as AlphabetVariant | SortingVariant | null;
+    const boardParam = searchParams.get('board');
 
     if (gameParam === 'rotatory' || (moduleParam === 'wheel' && modeParam)) {
       setRotatoryConfig({
@@ -70,6 +83,15 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('pursuit');
       setView('play_pursuit');
+    } else if (gameParam === 'geoboard') {
+      const parsed = Number(boardParam);
+      const resolved = (GEOBOARD_BOARD_IDS as number[]).includes(parsed)
+        ? (parsed as GeoboardBoardId)
+        : 1;
+      setGeoboardBoardId(resolved);
+      setSelectedTherapy('vision');
+      setSelectedModule('geoboard');
+      setView('play_geoboard');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -123,7 +145,7 @@ function MainContent() {
   };
 
   const navigateToAnalytics = () => {
-    updateQueryParams({ page: 'analytics', therapy: 'vision', module: null, game: null, mode: null, variant: null });
+    updateQueryParams({ page: 'analytics', therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null });
   };
 
   const handleSelectModule = (id: string) => {
@@ -132,12 +154,12 @@ function MainContent() {
     }
     if (id === 'tracing') {
       requestFullScreenSafe();
-      updateQueryParams({ page: null, therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null });
+      updateQueryParams({ page: null, therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null, board: null });
     } else if (id === 'pursuit') {
       requestFullScreenSafe();
-      updateQueryParams({ page: null, therapy: 'vision', module: 'pursuit', game: 'pursuit', mode: null, variant: null });
+      updateQueryParams({ page: null, therapy: 'vision', module: 'pursuit', game: 'pursuit', mode: null, variant: null, board: null });
     } else {
-      updateQueryParams({ page: null, therapy: 'vision', module: id, game: null, mode: null, variant: null });
+      updateQueryParams({ page: null, therapy: 'vision', module: id, game: null, mode: null, variant: null, board: null });
     }
   };
 
@@ -174,6 +196,20 @@ function MainContent() {
       game: 'mobile_target',
       mode,
       variant,
+      board: null,
+    });
+  };
+
+  const handleLaunchGeoboard = (boardId: GeoboardBoardId) => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'geoboard',
+      game: 'geoboard',
+      mode: null,
+      variant: null,
+      board: String(boardId),
     });
   };
 
@@ -186,6 +222,7 @@ function MainContent() {
         game: null,
         mode: null,
         variant: null,
+        board: null,
       });
     } else {
       updateQueryParams({
@@ -195,11 +232,12 @@ function MainContent() {
         game: null,
         mode: null,
         variant: null,
+        board: null,
       });
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard';
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
@@ -351,6 +389,26 @@ function MainContent() {
             </span>
           </div>
           )}
+
+          {canPlayUiModule('geoboard') && (
+          <div
+            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
+            onClick={() => handleSelectModule('geoboard')}
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+            <div className="pt-1">
+              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
+                Geoboard Module
+              </h3>
+              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
+                Hand-eye coordination & visual spatial recall patterns
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
+              For All Devices
+            </span>
+          </div>
+          )}
         </main>
         </>
       )}
@@ -385,7 +443,7 @@ function MainContent() {
               Complete therapy sessions to see your performance analytics here. Session results including accuracy, reaction times, and progress tracking will appear on this page.
             </p>
             <button
-              onClick={() => updateQueryParams({ page: null, therapy: 'vision', module: null, game: null, mode: null, variant: null })}
+              onClick={() => updateQueryParams({ page: null, therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null })}
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95 flex items-center gap-2"
             >
               <EyeIcon className="w-5 h-5" />
@@ -477,6 +535,59 @@ function MainContent() {
         </main>
       )}
 
+      {view === 'game' && selectedModule === 'geoboard' && canPlayUiModule('geoboard') && (
+        <>
+          <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-2">
+            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Geoboard Module</h2>
+            <p className="text-sm text-gray-500 font-medium mt-0.5">
+              Select a board. Every pattern in the board runs in order, then the session report opens.
+            </p>
+          </div>
+          <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            {GEOBOARD_BOARD_IDS.map((id) => {
+              const board = GEOBOARD_BOARDS[id];
+              const patternCount = getBoardPatterns(id).length;
+
+              return (
+                <div
+                  key={id}
+                  className="relative overflow-hidden min-h-[190px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 flex flex-col justify-between p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
+                  onClick={() => handleLaunchGeoboard(id)}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+                  <div className="pt-1">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center font-black text-sm shrink-0 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors">
+                        {String(id).padStart(2, '0')}
+                      </span>
+                      <h3 className="m-0 text-[19px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
+                        {board.shortLabel}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                      {board.description}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                      {board.focus}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
+                      {patternCount} patterns
+                    </span>
+                    {board.supportsLetterCase && (
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        Aa toggle
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </main>
+        </>
+      )}
+
       {/* GAME LAUNCHERS */}
       {view === 'play_rotatory' && canPlayUiModule('wheel') && (
         <RotatoryWheelGame
@@ -504,6 +615,10 @@ function MainContent() {
           initialVariant={mobileTargetConfig.variant}
           onExit={handleExitGame}
         />
+      )}
+
+      {view === 'play_geoboard' && canPlayUiModule('geoboard') && (
+        <GeoboardGame boardId={geoboardBoardId} onExit={handleExitGame} />
       )}
     </div>
   );

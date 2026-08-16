@@ -44,6 +44,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   tracing: 'bee_tracing',
   pursuit: 'pursuit',
   mobile_target: 'mobile_target',
+  geoboard: 'geoboard',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -52,4 +53,5 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   bee_tracing: 'tracing',
   pursuit: 'pursuit',
   mobile_target: 'mobile_target',
+  geoboard: 'geoboard',
 };

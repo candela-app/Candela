@@ -420,3 +420,58 @@ export function MobileTargetIcon({ className = 'w-6 h-6', size, ...props }: Icon
     </svg>
   );
 }
+
+export function GeoboardIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" />
+      <circle cx="12" cy="8" r="1" fill="currentColor" />
+      <circle cx="16" cy="8" r="1" fill="currentColor" />
+      <circle cx="8" cy="12" r="1" fill="currentColor" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+      <circle cx="16" cy="12" r="1" fill="currentColor" />
+      <circle cx="8" cy="16" r="1" fill="currentColor" />
+      <circle cx="12" cy="16" r="1" fill="currentColor" />
+      <circle cx="16" cy="16" r="1" fill="currentColor" />
+      <path d="M8 8l4 4 4-4" />
+    </svg>
+  );
+}
+
+export function AccessibilityIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <circle cx="12" cy="4.5" r="2" fill="currentColor" stroke="none" />
+      <path d="M4.5 8.5h15" />
+      <path d="M12 8.5v6" />
+      <path d="M12 14.5l-3 6" />
+      <path d="M12 14.5l3 6" />
+    </svg>
+  );
+}
+
