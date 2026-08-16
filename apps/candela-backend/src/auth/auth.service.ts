@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Response } from 'express';
 import { Repository } from 'typeorm';
+import { seedAdminUsers } from '../common/admin-seed';
 import { ALL_MODULE_IDS } from '../common/catalog';
 import { ACCESS_MAX_AGE_SEC, clearAuthCookies, REFRESH_COOKIE, REFRESH_MAX_AGE_SEC, setAuthCookies } from '../common/cookies';
 import { generateReferralCode } from '../common/referral-code';
@@ -35,32 +36,7 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.seedAdmin();
-  }
-
-  private async seedAdmin(): Promise<void> {
-    const admins = [
-      { email: 'sai@candela.com', password: 'sai123$', name: 'Sai' },
-      { email: 'satvik@candela.com', password: 'satvik123$', name: 'Satvik' },
-    ];
-    for (const admin of admins) {
-      const email = admin.email.trim().toLowerCase();
-      const existing = await this.users.findOne({ where: { email } });
-      if (existing) {
-        continue;
-      }
-      const passwordHash = await bcrypt.hash(admin.password, BCRYPT_ROUNDS);
-      await this.users.save(
-        this.users.create({
-          email,
-          passwordHash,
-          name: admin.name,
-          phone: '0000000000',
-          role: 'admin',
-        }),
-      );
-      console.log(`Seeded admin account for ${email}`);
-    }
+    await seedAdminUsers(this.users);
   }
 
   async signup(dto: SignupDto, res: Response) {

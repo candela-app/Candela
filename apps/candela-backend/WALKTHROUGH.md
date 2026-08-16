@@ -59,12 +59,7 @@ The website proxies `/api/*` to this server so cookies stay first-party on the N
 
 Admins are **not** a separate table. They are `users` rows with `role = 'admin'`.
 
-`npm run seed:admins` (and startup `seedAdmin()` in `AuthService`) inserts these if missing:
-
-- `sai@candela.com`
-- `satvik@candela.com`
-
-Passwords are defined only in `src/seed-admins.ts` / `AuthService.seedAdmin` — do not copy them into other docs.
+Credentials come from environment variables (`ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD`, plus optional `ADMIN_2_*` …). `npm run seed:admins` and startup `seedAdminUsers()` insert those accounts if they are missing. Set `ADMIN_SEED_OVERWRITE=true` only while rotating passwords, then turn it off. Never commit real admin passwords.
 
 ### Explicit non-goals (this pass)
 
@@ -155,6 +150,6 @@ Cross-doctor access returns 404/403. Unknown `moduleId` returns 404.
 - **Module catalog**: `apps/candela-backend/src/common/catalog.ts`
 - **Entities**: `apps/candela-backend/src/entities/`
 - **Migration**: `apps/candela-backend/src/migrations/1740000000000-InitAuth.ts`
-- **Admin seed**: `apps/candela-backend/src/seed-admins.ts`
+- **Admin seed**: `apps/candela-backend/src/common/admin-seed.ts`, `src/seed-admins.ts`
 - **Website types**: `packages/shared/src/auth-types.ts`
 - **Website UI**: `/login`, `/signup`, `/admin`, `/doctor`, `/dashboard` in `apps/candela-app`
