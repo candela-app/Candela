@@ -4,7 +4,7 @@ import { Public } from '../common/decorators';
 import { CurrentUser } from '../common/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AuthService, readRefreshCookie } from './auth.service';
-import { LoginDto, SignupDto } from './dto';
+import { LoginDto, SignupDto, RefreshDto } from './dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -24,14 +24,22 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.auth.refresh(readRefreshCookie(req.cookies), res);
+  refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: RefreshDto,
+  ) {
+    return this.auth.refresh(readRefreshCookie(req.cookies) || body?.refreshToken, res);
   }
 
   @Public()
   @Post('logout')
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.auth.logout(readRefreshCookie(req.cookies), res);
+  logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: RefreshDto,
+  ) {
+    return this.auth.logout(readRefreshCookie(req.cookies) || body?.refreshToken, res);
   }
 
   @Get('me')

@@ -48,12 +48,12 @@ GitHub-like web session, not GitHub OAuth:
 
 | Token | Lifetime | Storage |
 |-------|----------|---------|
-| Access JWT | **1 day** | httpOnly cookie `candela_access` |
-| Refresh (opaque, SHA-256 stored) | **14 days** | httpOnly cookie `candela_refresh` |
+| Access JWT | **1 day** | httpOnly cookie `candela_access` **and** JSON `accessToken` (mobile) |
+| Refresh (opaque, SHA-256 stored) | **14 days** | httpOnly cookie `candela_refresh` **and** JSON `refreshToken` (mobile) |
 
-Refresh rotates: old token is revoked, a new pair is issued. Logout revokes the current refresh token and clears cookies. `SameSite=Lax`; `Secure` only when `NODE_ENV=production`.
+Refresh rotates: old token is revoked, a new pair is issued. Logout revokes the current refresh token and clears cookies. `POST /api/auth/refresh` and `POST /api/auth/logout` also accept `{ refreshToken }` in the body for native clients. `SameSite=Lax`; `Secure` only when `NODE_ENV=production`. `JwtAuthGuard` accepts the cookie **or** `Authorization: Bearer`.
 
-The website proxies `/api/*` to this server so cookies stay first-party on the Next.js origin.
+The website proxies `/api/*` to this server so cookies stay first-party on the Next.js origin. The mobile app talks to this server directly.
 
 ### Seeded admins
 

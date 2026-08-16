@@ -33,6 +33,8 @@ export interface SessionUser {
     prescribedModuleIds: string[];
   } | null;
   allowedModuleIds: string[];
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 /** UI picker ids in candela-app mapped to catalog module ids. */

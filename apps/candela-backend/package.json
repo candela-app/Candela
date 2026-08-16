@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "start": "node dist/main.js",
-    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "start": "node ../../scripts/kill-port.js 3001 && node dist/main.js",
+    "start:dev": "node ../../scripts/kill-port.js 3001 && ts-node-dev --respawn --transpile-only src/main.ts",
+    "dev": "node ../../scripts/kill-port.js 3001 && ts-node-dev --respawn --transpile-only src/main.ts",
     "migration:run": "ts-node --transpile-only src/migrate.ts",
     "seed:admins": "ts-node --transpile-only src/seed-admins.ts"
   },

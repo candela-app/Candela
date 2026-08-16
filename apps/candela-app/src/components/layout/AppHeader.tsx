@@ -3,6 +3,9 @@
 import { useAuth, roleHomePath } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import logoJpeg from '@candela/shared/assets/logo.jpeg';
+
+const logoSrc = typeof logoJpeg === 'string' ? logoJpeg : logoJpeg.src;
 
 export function AppHeader({ extra }: { extra?: React.ReactNode }) {
   const { session, loading, logout } = useAuth();
@@ -13,8 +16,9 @@ export function AppHeader({ extra }: { extra?: React.ReactNode }) {
     <header className="sticky top-0 z-50 flex flex-row items-center justify-between px-6 py-4 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100 gap-4">
       <Link
         href={logoHref}
-        className="text-2xl md:text-3xl font-extrabold text-[#1A1A1A] tracking-tight hover:opacity-80 transition-opacity"
+        className="flex items-center gap-2.5 text-2xl md:text-3xl font-extrabold text-[#1A1A1A] tracking-tight hover:opacity-80 transition-opacity"
       >
+        <img src={logoSrc} alt="" className="h-9 w-9 md:h-10 md:w-10 object-contain" />
         Kandela
       </Link>
       <div className="flex items-center gap-3">

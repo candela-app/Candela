@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Poppins } from 'next/font/google';
+import logoJpeg from '@candela/shared/assets/logo.jpeg';
 import { Providers } from './providers';
 import './globals.css';
+
+const logoSrc = typeof logoJpeg === 'string' ? logoJpeg : logoJpeg.src;
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -13,6 +16,7 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'Kandela',
   description: 'Kandela — A Measure of Light, A Measure of Progress',
+  icons: { icon: logoSrc },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

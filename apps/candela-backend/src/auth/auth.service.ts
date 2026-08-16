@@ -268,7 +268,11 @@ export class AuthService implements OnModuleInit {
       }),
     );
     setAuthCookies(res, accessToken, refreshToken);
-    return this.toSession(user);
+    return {
+      ...(await this.toSession(user)),
+      accessToken,
+      refreshToken,
+    };
   }
 
   async toSession(user: User) {

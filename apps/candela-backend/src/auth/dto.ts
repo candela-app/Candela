@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -31,4 +31,10 @@ export class CreateAccountDto extends SignupDto {}
 export class AddPrescriptionDto {
   @IsString()
   moduleId: string;
+}
+
+export class RefreshDto {
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
 }
