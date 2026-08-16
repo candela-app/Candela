@@ -24,6 +24,9 @@ import {
   evaluateTracingMetrics,
 } from './BeePathGenerator';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import beePng from '@candela/shared/assets/bee.png';
+
+const beeSrc = typeof beePng === 'string' ? beePng : beePng.src;
 
 interface BeeTracingGameProps {
   onExit: () => void;
@@ -476,7 +479,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
             ← Exit
           </button>
           <div className="flex items-center gap-1.5">
-            <img src="/bee.png" alt="Bee" className="w-5 h-5 sm:w-7 sm:h-7 object-contain inline-block filter drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+            <img src={beeSrc} alt="Bee" className="w-5 h-5 sm:w-7 sm:h-7 object-contain inline-block filter drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
             <h1 className="text-sm sm:text-base font-extrabold text-amber-400 whitespace-nowrap">
               Bee Tracing
             </h1>
@@ -672,7 +675,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
 
                 {/* High-Resolution Realistic Bee Image - Increased Size */}
                 <img
-                  src="/bee.png"
+                  src={beeSrc}
                   alt="Bee Sprite"
                   className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain filter drop-shadow-[0_0_14px_rgba(245,158,11,0.9)] transition-transform transform hover:scale-110 relative z-10"
                 />

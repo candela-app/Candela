@@ -19,6 +19,8 @@ build/
 out/
 
 # Mobile-specific
+.expo/
+apps/candela-mobile/.expo/
 apps/candela-mobile/ios/Pods/
 apps/candela-mobile/android/.gradle/
 apps/candela-mobile/android/app/build/

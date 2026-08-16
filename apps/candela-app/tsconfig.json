@@ -20,7 +20,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@candela/shared": ["../../packages/shared/src/index.ts"]
+      "@candela/shared": ["../../packages/shared/src/index.ts"],
+      "@candela/shared/assets/*": ["../../packages/shared/assets/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

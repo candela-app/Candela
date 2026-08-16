@@ -13,7 +13,7 @@ The Bee Path Tracing Therapy Module is designed for oculomotor tracking, smooth 
 ## 2. Comprehensive Feature Breakdown
 
 ### 🐝 Realistic High-Resolution Bee Sprite
-- **Asset Location**: `apps/candela-app/public/bee.png`
+- **Asset Location**: `packages/shared/assets/bee.png`
 - **Native RGBA Transparency**: Crisp, high-DPI rendering with an ambient amber glow (`bg-amber-400/25 blur-md`) and drop shadow filter.
 - **Cross-Device Responsiveness**:
   - **Mobile (`<600px`)**: `40px × 40px` (`w-10 h-10`)
@@ -82,5 +82,5 @@ All core mathematical models, path algorithms, and metrics evaluation are export
 - **Clinical Settings Modal**: `packages/shared/src/ClinicalSettingsModal.tsx`
 - **Bee Tracing Game View**: `apps/candela-app/src/components/beeTrackingModule/BeeTracingGame.tsx`
 - **Local Re-exporter**: `apps/candela-app/src/components/beeTrackingModule/BeePathGenerator.ts`
-- **Bee Image Asset**: `apps/candela-app/public/bee.png`
+- **Bee Image Asset**: `packages/shared/assets/bee.png`
 - **Global CSS**: `apps/candela-app/src/app/globals.css`
