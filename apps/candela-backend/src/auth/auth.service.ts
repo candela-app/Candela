@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,7 +19,7 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
-import { CreateAccountDto, LoginDto, SignupDto } from './dto';
+import { CreateAccountDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -161,6 +162,56 @@ export class AuthService implements OnModuleInit {
       ...this.toPublicUser(d.user),
       referralCode: d.referralCode,
     }));
+  }
+
+  async updateDoctor(doctorUserId: string, dto: UpdateDoctorDto) {
+    const user = await this.users.findOne({ where: { id: doctorUserId } });
+    if (!user || user.role !== 'doctor') {
+      throw new NotFoundException('Doctor not found');
+    }
+    const doctorProfile = await this.doctors.findOne({ where: { userId: doctorUserId } });
+    if (!doctorProfile) {
+      throw new NotFoundException('Doctor profile not found');
+    }
+
+    if (dto.email) {
+      const email = dto.email.trim().toLowerCase();
+      if (email !== user.email) {
+        const existing = await this.users.findOne({ where: { email } });
+        if (existing) {
+          throw new ConflictException('Email already in use');
+        }
+        user.email = email;
+      }
+    }
+    if (dto.name !== undefined) {
+      user.name = dto.name.trim();
+    }
+    if (dto.phone !== undefined) {
+      user.phone = dto.phone.trim();
+    }
+    if (dto.password && dto.password.length >= 8) {
+      user.passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    }
+    await this.users.save(user);
+
+    return {
+      ...this.toPublicUser(user),
+      referralCode: doctorProfile.referralCode,
+    };
+  }
+
+  async deleteDoctor(doctorUserId: string) {
+    const user = await this.users.findOne({ where: { id: doctorUserId } });
+    if (!user || user.role !== 'doctor') {
+      throw new NotFoundException('Doctor not found');
+    }
+    await this.refreshTokens.delete({ userId: doctorUserId });
+    await this.patients.update({ doctorId: doctorUserId }, { doctorId: null });
+    await this.doctors.delete({ userId: doctorUserId });
+    await this.users.delete({ id: doctorUserId });
+
+    return { success: true, id: doctorUserId };
   }
 
   async listAllPatients() {
