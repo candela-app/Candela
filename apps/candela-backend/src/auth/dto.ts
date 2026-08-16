@@ -5,7 +5,6 @@ export class LoginDto {
   email: string;
 
   @IsString()
-  @MinLength(8)
   password: string;
 }
 
@@ -31,6 +30,10 @@ export class CreateAccountDto extends SignupDto {}
 export class AddPrescriptionDto {
   @IsString()
   moduleId: string;
+
+  @IsOptional()
+  @IsString({ each: true })
+  levels?: string[];
 }
 
 export class RefreshDto {

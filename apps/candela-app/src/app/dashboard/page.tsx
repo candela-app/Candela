@@ -11,6 +11,7 @@ import { GeoboardGame } from '@/components/geoboardModule/GeoboardGame';
 import {
   EyeIcon,
   AnalyticsIcon,
+  ArrowLeftIcon,
 } from '@/components/icons/VectorIcons';
 import {
   GameMode,
@@ -25,6 +26,7 @@ import {
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
 
 type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard';
 
@@ -36,6 +38,27 @@ function MainContent() {
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
     return Boolean(catalogId && allowedModuleIds.has(catalogId));
+  };
+
+  const isLevelAllowed = (uiId: string, levelId: string | number) => {
+    if (!session || session.user.role !== 'patient') {
+      return true;
+    }
+    if (session.patient?.origin === 'self_signup' || !session.patient?.doctorId) {
+      return true;
+    }
+    const catalogId = UI_MODULE_TO_CATALOG[uiId];
+    if (!catalogId) {
+      return false;
+    }
+    if (!allowedModuleIds.has(catalogId)) {
+      return false;
+    }
+    const prescribedLevels = session.patient?.prescribedLevels?.[catalogId];
+    if (prescribedLevels === undefined) {
+      return true;
+    }
+    return prescribedLevels.includes(String(levelId));
   };
 
   const [view, setView] = useState<ActiveView>('module');
@@ -119,7 +142,7 @@ function MainContent() {
       return;
     }
     if (!session) {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
     if (session.user.role === 'admin') {
@@ -146,6 +169,18 @@ function MainContent() {
 
   const navigateToAnalytics = () => {
     updateQueryParams({ page: 'analytics', therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null });
+  };
+
+  const handleBackToModules = () => {
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
   };
 
   const handleSelectModule = (id: string) => {
@@ -243,7 +278,7 @@ function MainContent() {
     return (
       <div className="min-h-screen bg-[#F4F7FC] flex flex-col">
         <AppHeader />
-        <p className="p-8 text-center text-sm font-semibold text-gray-500">Loading…</p>
+        <PatientDashboardSkeleton />
       </div>
     );
   }
@@ -256,7 +291,11 @@ function MainContent() {
           <div className="fixed bottom-[-10vw] right-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
         </>
       )}
-      {!isPlayingGame && <AppHeader />}
+      {!isPlayingGame && (
+        <AppHeader
+          onBack={view === 'game' || view === 'analytics' ? handleBackToModules : undefined}
+        />
+      )}
 
       {/* MODULE SELECTION VIEW */}
       {view === 'module' && (
@@ -398,7 +437,7 @@ function MainContent() {
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
             <div className="pt-1">
               <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
-                Geoboard Module
+                Draw a Pattern
               </h3>
               <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
                 Hand-eye coordination & visual spatial recall patterns
@@ -454,142 +493,216 @@ function MainContent() {
       )}
 
       {/* GAME VARIANTS VIEW */}
-      {view === 'game' && selectedModule === 'wheel' && canPlayUiModule('wheel') && (
-        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Rotatory</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Rotatory</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchRotatory('numbers', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Rotatory</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchRotatory('colors', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant</p>
-          </div>
-        </main>
-      )}
-
-      {view === 'game' && selectedModule === 'sorting' && canPlayUiModule('sorting') && (
-        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchSorting('uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Alphabet Sorting</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchSorting('lowercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Alphabet Sorting</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchSorting('numbers')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Sorting</p>
-          </div>
-        </main>
-      )}
-
-      {view === 'game' && selectedModule === 'mobile_target' && canPlayUiModule('mobile_target') && (
-        <main className="flex-1 grid items-center justify-items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 my-auto max-w-6xl mx-auto w-full">
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Bubble Chase</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Bubble Chase</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Bubble Chase</p>
-          </div>
-          <div
-            className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-            onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}
-          >
-            <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Bubble Chase</p>
-          </div>
-        </main>
-      )}
-
-      {view === 'game' && selectedModule === 'geoboard' && canPlayUiModule('geoboard') && (
+      {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
         <>
           <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-2">
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Geoboard Module</h2>
-            <p className="text-sm text-gray-500 font-medium mt-0.5">
-              Select a board. Every pattern in the board runs in order, then the session report opens.
+            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+              {selectedModule === 'wheel' && 'Rotatory Module'}
+              {selectedModule === 'sorting' && 'Sorting Module'}
+              {selectedModule === 'mobile_target' && 'Bubble Chase'}
+              {selectedModule === 'geoboard' && 'Draw a Pattern'}
+            </h2>
+            <p className="text-sm text-gray-500 font-medium mt-1">
+              {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
+              {selectedModule === 'sorting' && 'Select a sorting category to begin'}
+              {selectedModule === 'mobile_target' && 'Select an exercise mode to begin'}
+              {selectedModule === 'geoboard' && 'Select a board. Every pattern in the board runs in order, then the session report opens.'}
             </p>
           </div>
-          <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
-            {GEOBOARD_BOARD_IDS.map((id) => {
-              const board = GEOBOARD_BOARDS[id];
-              const patternCount = getBoardPatterns(id).length;
 
-              return (
+          {selectedModule === 'wheel' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {isLevelAllowed('wheel', 'uppercase') && (
                 <div
-                  key={id}
-                  className="relative overflow-hidden min-h-[190px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 flex flex-col justify-between p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-                  onClick={() => handleLaunchGeoboard(id)}
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}
                 >
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-                  <div className="pt-1">
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <span className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center font-black text-sm shrink-0 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors">
-                        {String(id).padStart(2, '0')}
-                      </span>
-                      <h3 className="m-0 text-[19px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
-                        {board.shortLabel}
-                      </h3>
-                    </div>
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                      {board.description}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                      {board.focus}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
-                      {patternCount} patterns
-                    </span>
-                    {board.supportsLetterCase && (
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        Aa toggle
-                      </span>
-                    )}
-                  </div>
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Rotatory</p>
                 </div>
-              );
-            })}
-          </main>
+              )}
+              {isLevelAllowed('wheel', 'lowercase') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Rotatory</p>
+                </div>
+              )}
+              {isLevelAllowed('wheel', 'numbers') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchRotatory('numbers', 'uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Rotatory</p>
+                </div>
+              )}
+              {isLevelAllowed('wheel', 'colors') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchRotatory('colors', 'uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant</p>
+                </div>
+              )}
+              {!isLevelAllowed('wheel', 'uppercase') &&
+                !isLevelAllowed('wheel', 'lowercase') &&
+                !isLevelAllowed('wheel', 'numbers') &&
+                !isLevelAllowed('wheel', 'colors') && (
+                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Your doctor has not enabled any specific levels for this module.
+                    </p>
+                  </div>
+                )}
+            </main>
+          )}
+
+          {selectedModule === 'sorting' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {isLevelAllowed('sorting', 'uppercase') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchSorting('uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Alphabet Sorting</p>
+                </div>
+              )}
+              {isLevelAllowed('sorting', 'lowercase') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchSorting('lowercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Alphabet Sorting</p>
+                </div>
+              )}
+              {isLevelAllowed('sorting', 'numbers') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchSorting('numbers')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Sorting</p>
+                </div>
+              )}
+              {!isLevelAllowed('sorting', 'uppercase') &&
+                !isLevelAllowed('sorting', 'lowercase') &&
+                !isLevelAllowed('sorting', 'numbers') && (
+                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Your doctor has not enabled any specific levels for this module.
+                    </p>
+                  </div>
+                )}
+            </main>
+          )}
+
+          {selectedModule === 'mobile_target' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {isLevelAllowed('mobile_target', 'uppercase') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Bubble Chase</p>
+                </div>
+              )}
+              {isLevelAllowed('mobile_target', 'lowercase') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Bubble Chase</p>
+                </div>
+              )}
+              {isLevelAllowed('mobile_target', 'numbers') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Bubble Chase</p>
+                </div>
+              )}
+              {isLevelAllowed('mobile_target', 'colors') && (
+                <div
+                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                  onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}
+                >
+                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Bubble Chase</p>
+                </div>
+              )}
+              {!isLevelAllowed('mobile_target', 'uppercase') &&
+                !isLevelAllowed('mobile_target', 'lowercase') &&
+                !isLevelAllowed('mobile_target', 'numbers') &&
+                !isLevelAllowed('mobile_target', 'colors') && (
+                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Your doctor has not enabled any specific levels for this module.
+                    </p>
+                  </div>
+                )}
+            </main>
+          )}
+
+          {selectedModule === 'geoboard' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).length === 0 ? (
+                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                  <h3 className="text-xl font-bold text-gray-800">No boards assigned yet</h3>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Your doctor has not enabled any specific boards for this module.
+                  </p>
+                </div>
+              ) : (
+                GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) => {
+                  const board = GEOBOARD_BOARDS[id];
+                  const patternCount = getBoardPatterns(id).length;
+
+                  return (
+                    <div
+                      key={id}
+                      className="relative overflow-hidden min-h-[190px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 flex flex-col justify-between p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
+                      onClick={() => handleLaunchGeoboard(id)}
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
+                      <div className="pt-1">
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <span className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center font-black text-sm shrink-0 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors">
+                            {String(id).padStart(2, '0')}
+                          </span>
+                          <h3 className="m-0 text-[19px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
+                            {board.shortLabel}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                          {board.description}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                          {board.focus}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
+                          {patternCount} patterns
+                        </span>
+                        {board.supportsLetterCase && (
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                            Aa toggle
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </main>
+          )}
         </>
       )}
 
       {/* GAME LAUNCHERS */}
-      {view === 'play_rotatory' && canPlayUiModule('wheel') && (
+      {view === 'play_rotatory' && canPlayUiModule('wheel') && isLevelAllowed('wheel', rotatoryConfig.mode === 'alphabets' ? rotatoryConfig.variant : rotatoryConfig.mode) && (
         <RotatoryWheelGame
           initialMode={rotatoryConfig.mode}
           initialVariant={rotatoryConfig.variant}
@@ -597,7 +710,7 @@ function MainContent() {
         />
       )}
 
-      {view === 'play_sorting' && canPlayUiModule('sorting') && (
+      {view === 'play_sorting' && canPlayUiModule('sorting') && isLevelAllowed('sorting', sortingVariant) && (
         <SortingGame variant={sortingVariant} onExit={handleExitGame} />
       )}
 
@@ -609,7 +722,7 @@ function MainContent() {
         <PursuitGame onExit={handleExitGame} />
       )}
 
-      {view === 'play_mobile_target' && canPlayUiModule('mobile_target') && (
+      {view === 'play_mobile_target' && canPlayUiModule('mobile_target') && isLevelAllowed('mobile_target', mobileTargetConfig.mode === 'alphabets' ? mobileTargetConfig.variant : mobileTargetConfig.mode) && (
         <MobileTargetGame
           initialMode={mobileTargetConfig.mode}
           initialVariant={mobileTargetConfig.variant}
@@ -617,7 +730,7 @@ function MainContent() {
         />
       )}
 
-      {view === 'play_geoboard' && canPlayUiModule('geoboard') && (
+      {view === 'play_geoboard' && canPlayUiModule('geoboard') && isLevelAllowed('geoboard', geoboardBoardId) && (
         <GeoboardGame boardId={geoboardBoardId} onExit={handleExitGame} />
       )}
     </div>

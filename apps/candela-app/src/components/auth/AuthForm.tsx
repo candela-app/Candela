@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from '@/components/icons/VectorIcons';
+import logoPng from '@candela/shared/assets/updated_Web logo.png';
+
+const logoSrc = typeof logoPng === 'string' ? logoPng : (logoPng as any).src;
 
 export function AuthShell({
   title,
@@ -15,9 +18,9 @@ export function AuthShell({
 }) {
   return (
     <div className="min-h-screen bg-[#F4F7FC] flex flex-col">
-      <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100">
-        <Link href="/" className="text-2xl font-extrabold text-[#1A1A1A] tracking-tight hover:opacity-80">
-          Kandela
+      <header className="sticky top-0 z-50 h-[72px] flex items-center justify-between px-6 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100">
+        <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
+          <img src={logoSrc} alt="Kandela" className="h-10 w-auto object-contain" />
         </Link>
       </header>
       <main className="flex-1 flex items-center justify-center px-4 py-12">

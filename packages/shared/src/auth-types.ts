@@ -21,6 +21,7 @@ export interface PatientSummary extends PublicUser {
   doctorName: string | null;
   referralCode: string | null;
   prescribedModuleIds: string[];
+  prescribedLevels: Record<string, string[]>;
 }
 
 export interface SessionUser {
@@ -31,6 +32,7 @@ export interface SessionUser {
     doctorId: string | null;
     referralCode: string | null;
     prescribedModuleIds: string[];
+    prescribedLevels: Record<string, string[]>;
   } | null;
   allowedModuleIds: string[];
   accessToken?: string;

@@ -20,7 +20,7 @@
     "build:shared": "npm run build --workspace=@candela/shared"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
+    "turbo": "^2.10.10",
     "typescript": "^5.0.0"
   }
 }

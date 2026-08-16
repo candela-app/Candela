@@ -205,7 +205,7 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
                 <GeoboardIcon className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
-                Geoboard Module
+                Draw a Pattern
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
                 Five pattern boards for visual-motor integration & spatial recall.
