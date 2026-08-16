@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Kandela",
+    "slug": "candela",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "../../packages/shared/assets/logo.png",
+    "scheme": "candela",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "../../packages/shared/assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F7FC"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.candela.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Kandela does not record audio. Speech is used only to announce therapy targets."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "../../packages/shared/assets/logo.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.candela.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

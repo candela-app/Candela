@@ -1,9 +1,9 @@
-import { GameRegistryEntry } from './types';
+import { GameRegistryEntry, TherapyModuleId } from './types';
 
 /**
  * Shared central registry/catalog of games in the Candela vision therapy platform.
  */
-export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
+export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   rotatory: {
     id: 'rotatory',
     name: 'Rotatory Wheel',
@@ -41,16 +41,62 @@ export const GAME_CATALOG: Record<string, GameRegistryEntry> = {
   },
   geoboard: {
     id: 'geoboard',
-    name: 'Geoboard Module',
-    description: 'Digitized Bernell/OEPF geoboard pattern reproduction exercise to train hand-eye coordination and spatial memory.',
+    name: 'Draw a Pattern',
+    description: 'Digitized Bernell/OEPF pattern reproduction exercise to train hand-eye coordination and spatial memory.',
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile', 'tablet'],
   },
 };
 
-/**
- * Helper to get catalog entry for a specific game id.
- */
+export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
+
 export function getGameCatalogEntry(id: string): GameRegistryEntry | undefined {
-  return GAME_CATALOG[id];
+  return GAME_CATALOG[id as TherapyModuleId];
 }
+
+export function isTherapyModuleId(id: string): id is TherapyModuleId {
+  return id in GAME_CATALOG;
+}
+
+export interface GameLevelDef {
+  id: string;
+  name: string;
+}
+
+export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
+  rotatory: [
+    { id: 'uppercase', name: 'Uppercase Rotatory' },
+    { id: 'lowercase', name: 'Lowercase Rotatory' },
+    { id: 'numbers', name: 'Numeric Rotatory' },
+    { id: 'colors', name: 'Color Discriminant' },
+  ],
+  sorting: [
+    { id: 'uppercase', name: 'Uppercase Alphabet Sorting' },
+    { id: 'lowercase', name: 'Lowercase Alphabet Sorting' },
+    { id: 'numbers', name: 'Numeric Sorting' },
+  ],
+  bee_tracing: [
+    { id: 'active', name: 'Active Tracing' },
+    { id: 'guided', name: 'Guided Tracing' },
+  ],
+  pursuit: [
+    { id: 'linear_bounce', name: 'Linear Bounce' },
+    { id: 'circular_orbit', name: 'Circular Orbit' },
+    { id: 'figure_eight', name: 'Figure Eight' },
+    { id: 'random_walk', name: 'Random Walk' },
+    { id: 'freeze_drift', name: 'Freeze & Drift' },
+  ],
+  mobile_target: [
+    { id: 'uppercase', name: 'Uppercase Bubble Chase' },
+    { id: 'lowercase', name: 'Lowercase Bubble Chase' },
+    { id: 'numbers', name: 'Numeric Bubble Chase' },
+    { id: 'colors', name: 'Color Discriminant Bubble Chase' },
+  ],
+  geoboard: [
+    { id: '1', name: 'Board 01 — Simple Lines' },
+    { id: '2', name: 'Board 02 — Alphabets' },
+    { id: '3', name: 'Board 03 — Geometric Shapes' },
+    { id: '4', name: 'Board 04 — Numbers' },
+    { id: '5', name: 'Board 05 — Compound Figures' },
+  ],
+};

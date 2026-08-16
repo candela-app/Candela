@@ -1,0 +1,106 @@
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ReactNode } from 'react';
+import { useLayout } from '../lib/layout';
+
+export interface ClinicalSettingSummaryItem {
+  label: string;
+  value: ReactNode;
+}
+
+export function GameMenuDrawer({
+  isOpen,
+  onClose,
+  onQuit,
+  onReset,
+  onOpenSettings,
+  resetButtonLabel = 'Reset Game',
+  settingsSummary,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onQuit: () => void;
+  onReset: () => void;
+  onOpenSettings?: () => void;
+  resetButtonLabel?: string;
+  settingsSummary: ClinicalSettingSummaryItem[];
+}) {
+  const insets = useSafeAreaInsets();
+  const { fs, s, width } = useLayout();
+  const drawerWidth = Math.min(340, width * 0.88);
+
+  return (
+    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View
+          style={{
+            width: drawerWidth,
+            backgroundColor: '#111111',
+            paddingTop: insets.top + s(12),
+            paddingBottom: insets.bottom + s(16),
+            paddingHorizontal: s(18),
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s(16) }}>
+            <Text style={{ color: '#fff', fontSize: fs(20), fontWeight: '700' }}>Menu</Text>
+            <Pressable onPress={onClose}>
+              <Text style={{ color: '#fff', fontSize: fs(22) }}>✕</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            onPress={() => {
+              onClose();
+              onQuit();
+            }}
+            style={menuBtn}
+          >
+            <Text style={menuBtnText}>Quit Game</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              onClose();
+              onReset();
+            }}
+            style={menuBtn}
+          >
+            <Text style={menuBtnText}>{resetButtonLabel}</Text>
+          </Pressable>
+          {onOpenSettings ? (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onOpenSettings();
+              }}
+              style={[menuBtn, { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(59,130,246,0.4)' }]}
+            >
+              <Text style={[menuBtnText, { color: '#60A5FA' }]}>Clinical Settings</Text>
+            </Pressable>
+          ) : null}
+          <ScrollView style={{ marginTop: s(16) }}>
+            <Text style={{ color: '#9CA3AF', fontSize: fs(12), fontWeight: '700', marginBottom: s(8) }}>SESSION</Text>
+            {settingsSummary.map((item) => (
+              <View key={item.label} style={{ marginBottom: s(10) }}>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>{item.label}</Text>
+                <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '600' }}>{item.value}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const menuBtn = {
+  width: '100%' as const,
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+  backgroundColor: '#222222',
+  borderWidth: 1,
+  borderColor: '#374151',
+  borderRadius: 12,
+  marginBottom: 10,
+};
+
+const menuBtnText = { color: '#E5E7EB', fontWeight: '600' as const, textAlign: 'center' as const };

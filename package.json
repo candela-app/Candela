@@ -16,10 +16,11 @@
     "start:dev": "turbo start:dev",
     "dev:app": "npm run dev --workspace=@candela/app",
     "dev:backend": "npm run start:dev --workspace=@candela/backend",
+    "dev:mobile": "npm run start --workspace=@candela/mobile",
     "build:shared": "npm run build --workspace=@candela/shared"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
+    "turbo": "^2.10.10",
     "typescript": "^5.0.0"
   }
 }
