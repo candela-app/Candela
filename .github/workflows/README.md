@@ -12,7 +12,7 @@ One pipeline, one place — runs only when code is merged (pushed) to `main`.
 
 If CI fails, deploys and mobile APK build are skipped.
 
-**Slack:** `#web-app` gets frontend + backend deploy notifications. `#mobile-app` gets APK build notifications (only when `apps/candela-mobile/**` or `packages/shared/**` changed).
+**Mobile channel:** APK build runs only when `apps/candela-mobile/**` or `packages/shared/**` change in **this push** (commit range `before…after`, not develop vs main).
 
 Deploy credentials come from **GitHub → Settings → Secrets and variables → Actions** (nothing sensitive in the repo).
 
