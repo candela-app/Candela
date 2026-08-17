@@ -44,7 +44,7 @@ function MainContent() {
     if (!session || session.user.role !== 'patient') {
       return true;
     }
-    if (session.patient?.origin === 'self_signup' || !session.patient?.doctorId) {
+    if (!session.patient?.doctorId) {
       return true;
     }
     const catalogId = UI_MODULE_TO_CATALOG[uiId];

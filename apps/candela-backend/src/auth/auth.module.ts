@@ -10,6 +10,7 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { DocIdModule } from '../docid/docid.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AdminController, DoctorController, MeController } from './role.controllers';
@@ -17,6 +18,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, DoctorProfile, PatientProfile, Prescription, RefreshToken]),
+    DocIdModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

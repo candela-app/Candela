@@ -8,7 +8,7 @@ graph TD
     Patient --> PrescribedFilter{"Is patient linked to Doctor?"}
 
     PrescribedFilter -->|Yes (Doctor-Managed)| PrescribedView["Displays Doctor's Prescribed Modules & Levels"]
-    PrescribedFilter -->|No (Self-Signup)| FullCatalogView["Displays All 5 Platform Therapy Modules"]
+    PrescribedFilter -->|No (unlinked)| FullCatalogView["Displays All Platform Therapy Modules"]
 
     PrescribedView --> LaunchGame["Launch Interactive Exercise"]
     FullCatalogView --> LaunchGame
@@ -17,6 +17,8 @@ graph TD
     ClinicalSettings --> PlaySession["Play Therapy Exercise"]
     PlaySession --> ResultsReport["Clinical Results Modal\n(Accuracy, Reaction Time, Completion Rate)"]
 ```
+
+Unlinked patients (self-signup, or unlinked after a doctor is deleted) see the full catalog. They attach or switch from **`/docid`** (header **DocID** on the dashboard), not from the module grid. Attach and reassignment are confirmed by the **requested doctor**. Admin transfers are confirmed by the **patient**. After a successful attach, only prescribed modules remain. Details: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 
 ---
 

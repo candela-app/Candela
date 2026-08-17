@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
-import { GAME_CATALOG, MODULE_LEVELS, type PatientSummary, type TherapyModuleId } from '@candela/shared';
+import { GAME_CATALOG, MODULE_LEVELS, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import { SearchIcon, XIcon } from '@/components/icons/VectorIcons';
@@ -26,6 +26,8 @@ export default function DoctorPage() {
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
+  const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
 
   const filteredPatients = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -45,8 +47,12 @@ export default function DoctorPage() {
 
   const load = useCallback(async () => {
     try {
-      const next = await api<PatientSummary[]>('/api/doctors/me/patients');
+      const [next, nextIncoming] = await Promise.all([
+        api<PatientSummary[]>('/api/doctors/me/patients'),
+        api<IncomingDocIdRequest[]>('/api/docid/incoming'),
+      ]);
       setPatients(next);
+      setIncoming(nextIncoming);
       setSelectedId((current) => current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null);
     } finally {
       setDataLoading(false);
@@ -87,6 +93,19 @@ export default function DoctorPage() {
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function settleIncoming(id: string, accept: boolean) {
+    setIncomingBusy(id);
+    try {
+      await api(`/api/docid/requests/${id}/${accept ? 'accept' : 'reject'}`, { method: 'POST' });
+      await load();
+      toast.success(accept ? 'Patient attached to your DocID.' : 'Attach request rejected.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not update request');
+    } finally {
+      setIncomingBusy(null);
     }
   }
 
@@ -218,6 +237,51 @@ export default function DoctorPage() {
         </div>
 
         {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+
+        {incoming.length > 0 && (
+          <section className="bg-white rounded-3xl border border-blue-100 shadow-sm p-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Incoming attach requests</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Patients asked to join or switch to your DocID. Confirm or reject here if the email is delayed.
+              </p>
+            </div>
+            <ul className="space-y-3">
+              {incoming.map((request) => (
+                <li
+                  key={request.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-gray-100 p-4"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{request.patientName}</p>
+                    <p className="text-xs text-gray-500">
+                      {request.patientEmail}
+                      {request.source === 'change' ? ' · reassignment' : ' · new attach'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={incomingBusy === request.id}
+                      onClick={() => void settleIncoming(request.id, true)}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-60"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      disabled={incomingBusy === request.id}
+                      onClick={() => void settleIncoming(request.id, false)}
+                      className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold disabled:opacity-60"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Create patient</h2>

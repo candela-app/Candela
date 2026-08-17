@@ -65,6 +65,15 @@ const MODULES = [
     bg: '#ECFDF5',
     Icon: MobileTargetIcon,
   },
+  {
+    id: 'geoboard',
+    title: 'Draw a Pattern',
+    body: 'Hand-eye coordination & visual spatial recall patterns.',
+    badge: 'For All Devices',
+    accent: '#0D9488',
+    bg: '#F0FDFA',
+    Icon: SlidersIcon,
+  },
 ] as const;
 
 export function HomePageContent({
