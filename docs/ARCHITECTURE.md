@@ -12,7 +12,7 @@ graph TD
 
     SharedPkg["Shared Library (@candela/shared)\n• Game Engine & Math\n• Catalog & Levels\n• DTOs & Types\n• Brand Assets"]
 
-    Backend["NestJS Backend (apps/candela-backend)\n• JWT & Cookie Auth\n• Role Controllers\n• Database Entities & Migrations"]
+    Backend["NestJS Backend (apps/candela-backend)\n• JWT & Cookie Auth\n• Role Controllers\n• DocID requests & SMTP mail\n• Database Entities & Migrations"]
 
     Database[(PostgreSQL Database)]
 
@@ -34,13 +34,15 @@ graph TD
 Candela/
 ├── apps/
 │   ├── candela-app/         ← Next.js 14+ (App Router) Frontend
-│   │   ├── src/app/         ← Routes: /, /login, /signup, /dashboard, /doctor, /admin
+│   │   ├── src/app/         ← Routes: /, /login, /signup, /dashboard, /doctor, /admin, /docid/*
 │   │   ├── src/components/  ← UI components, game modules, headers, toasts, skeletons
 │   │   ├── src/lib/         ← Auth context, Toast context, API client
 │   │   └── public/          ← Static assets & favicons
 │   │
 │   ├── candela-backend/     ← NestJS API Server
 │   │   ├── src/auth/        ← AuthController, AdminController, DoctorController, AuthService
+│   │   ├── src/docid/       ← Attach / change / transfer requests
+│   │   ├── src/mail/        ← SMTP mailer (SendGrid later)
 │   │   ├── src/entities/    ← TypeORM Entities: User, DoctorProfile, PatientProfile, etc.
 │   │   ├── src/migrations/  ← Database schema migrations
 │   │   └── src/common/      ← Cookies, Guards, DocID generator, Catalog
@@ -57,6 +59,8 @@ Candela/
 │
 └── docs/                    ← System documentation and operational guides
 ```
+
+DocID attach/change/transfer and SMTP: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 
 ---
 

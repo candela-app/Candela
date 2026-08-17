@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
-import type { DoctorSummary, PatientSummary } from '@candela/shared';
+import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
 import { EditIcon, TrashIcon, XIcon } from '@/components/icons/VectorIcons';
@@ -37,6 +37,10 @@ export default function AdminPage() {
   const [deleteDoctor, setDeleteDoctor] = useState<DoctorSummary | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [docIdFilter, setDocIdFilter] = useState('');
+  const [transferPatientId, setTransferPatientId] = useState('');
+  const [transferCode, setTransferCode] = useState('');
+  const [transferSaving, setTransferSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -62,10 +66,22 @@ export default function AdminPage() {
     load().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load'));
   }, [loading, session, router, load]);
 
+  const visiblePatients = useMemo(() => {
+    const q = docIdFilter.trim().toUpperCase();
+    if (!q) {
+      return patients;
+    }
+    return patients.filter(
+      (patient) =>
+        (patient.referralCode || '').toUpperCase().includes(q) ||
+        (patient.previousReferralCodes || []).some((code) => code.toUpperCase().includes(q)),
+    );
+  }, [patients, docIdFilter]);
+
   const grouped = useMemo(() => {
     const byDoctor = new Map<string, { doctorName: string; code: string; patients: PatientSummary[] }>();
     const unlinked: PatientSummary[] = [];
-    for (const patient of patients) {
+    for (const patient of visiblePatients) {
       if (!patient.doctorId) {
         unlinked.push(patient);
         continue;
@@ -82,7 +98,7 @@ export default function AdminPage() {
       }
     }
     return { byDoctor, unlinked };
-  }, [patients]);
+  }, [visiblePatients]);
 
   async function onCreateDoctor(e: FormEvent) {
     e.preventDefault();
@@ -184,6 +200,34 @@ export default function AdminPage() {
     }
   }
 
+  async function onTransfer(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setTransferSaving(true);
+    try {
+      const result = await api<DocIdRequestResult>('/api/docid/transfers', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: transferPatientId,
+          referralCode: transferCode.trim().toUpperCase(),
+        }),
+      });
+      setTransferCode('');
+      await load();
+      toast.success(
+        result.emailSent
+          ? `Transfer requested. The patient must confirm DocID ${result.targetReferralCode} by email.`
+          : `Transfer requested for DocID ${result.targetReferralCode}. The patient can confirm in their dashboard if the email is delayed.`,
+      );
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not request transfer';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setTransferSaving(false);
+    }
+  }
+
   if (loading || dataLoading || !session || session.user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-[#F4F7FC]">
@@ -214,6 +258,44 @@ export default function AdminPage() {
             <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Password (min 8)" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
             <button type="submit" disabled={saving} className="sm:col-span-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-60 cursor-pointer">
               {saving ? 'Creating…' : 'Create doctor'}
+            </button>
+          </form>
+        </section>
+
+        <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Internal DocID transfer</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Sends a confirmation email to the patient. The current DocID is kept in history after they confirm.
+          </p>
+          <form onSubmit={onTransfer} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <select
+              className="rounded-xl border border-gray-200 px-4 py-3 text-sm bg-white"
+              value={transferPatientId}
+              onChange={(e) => setTransferPatientId(e.target.value)}
+              required
+            >
+              <option value="">Select patient</option>
+              {patients.map((patient) => (
+                <option key={patient.id} value={patient.id}>
+                  {patient.name} {patient.referralCode ? `(${patient.referralCode})` : '(unlinked)'}
+                </option>
+              ))}
+            </select>
+            <input
+              className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-mono font-bold tracking-widest uppercase"
+              placeholder="Target DocID"
+              value={transferCode}
+              onChange={(e) => setTransferCode(e.target.value.toUpperCase())}
+              minLength={6}
+              maxLength={6}
+              required
+            />
+            <button
+              type="submit"
+              disabled={transferSaving || !transferPatientId || transferCode.trim().length !== 6}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors disabled:opacity-60 cursor-pointer"
+            >
+              {transferSaving ? 'Sending…' : 'Request transfer'}
             </button>
           </form>
         </section>
@@ -265,7 +347,15 @@ export default function AdminPage() {
         </section>
 
         <section className="space-y-6">
-          <h2 className="text-lg font-bold text-gray-900">Patients managed by doctors</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="text-lg font-bold text-gray-900">Patients managed by doctors</h2>
+            <input
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-mono uppercase"
+              placeholder="Filter by DocID (current or previous)"
+              value={docIdFilter}
+              onChange={(e) => setDocIdFilter(e.target.value.toUpperCase())}
+            />
+          </div>
           {[...Array.from(grouped.byDoctor.entries())].map(([id, group]) => (
             <div key={id} className="bg-white rounded-2xl border border-gray-100 p-5">
               <p className="font-bold text-gray-900">
@@ -276,6 +366,12 @@ export default function AdminPage() {
                 {group.patients.map((patient: PatientSummary) => (
                   <li key={patient.id} className="text-sm text-gray-700">
                     {patient.name} · {patient.email} · {patient.phone}
+                    {patient.previousReferralCodes?.length > 0 && (
+                      <span className="text-xs text-gray-400">
+                        {' '}
+                        · previous {patient.previousReferralCodes.join(', ')}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -292,6 +388,12 @@ export default function AdminPage() {
               {grouped.unlinked.map((patient) => (
                 <li key={patient.id} className="text-sm text-gray-700">
                   {patient.name} · {patient.email} · {patient.phone}
+                  {patient.previousReferralCodes?.length > 0 && (
+                    <span className="text-xs text-gray-400">
+                      {' '}
+                      · previous {patient.previousReferralCodes.join(', ')}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

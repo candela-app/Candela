@@ -28,6 +28,11 @@ graph LR
 | `FRONTEND_URL` | Yes | Website origin for CORS | `https://candela-app-eta.vercel.app` |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | Seed | First admin; add `ADMIN_2_*` for more | set on Render / local `.env` only |
 | `ADMIN_SEED_OVERWRITE` | No | `true` updates existing admin passwords from env | `false` |
+| `MAIL_TRANSPORT` | No | `smtp` (default for sending), `log` (print links, no send) | `smtp` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | If `smtp` | SMTP mailbox. Use an app password. Never commit real values | `smtp.gmail.com` / `587` |
+| `SMTP_SECURE` | No | `true` for port 465 | `false` |
+| `MAIL_FROM` | No | From header; defaults to `SMTP_USER` | same as SMTP user |
+| `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
 
 ### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
 
@@ -49,7 +54,7 @@ graph LR
 ### Database Migrations
 Run schema migrations against direct database connection:
 ```bash
-npm run typeorm:migration:run -w @candela/backend
+npm run migration:run -w @candela/backend
 ```
 
 ### Initial Admin Seeding
@@ -57,3 +62,23 @@ Seed initial system administrators on first startup or via script:
 ```bash
 npm run seed:admins -w @candela/backend
 ```
+
+---
+
+## 4. GitHub Actions & Slack
+
+Production deploys run on every push to `main` (`.github/workflows/deploy.yml`).
+
+| Secret | Purpose |
+|---|---|
+| `SLACK_WEBHOOK_URL_WEB` | `#web-app` — frontend (Vercel) and backend (Render) deploy notifications |
+| `SLACK_WEBHOOK_URL_MOBILE` | `#mobile-app` — EAS Android APK build notifications |
+| `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel CLI deploy |
+| `RENDER_DEPLOY_HOOK_URL` | Render backend deploy hook |
+| `EXPO_TOKEN` | EAS Build for mobile APK (only when mobile/shared paths change) |
+
+**Web channel:** started / succeeded / failed for Vercel frontend; started / triggered / failed for Render backend hook.
+
+**Mobile channel:** APK build runs only when `apps/candela-mobile/**` or `packages/shared/**` change. Success message includes the expo.dev build page and direct APK URL.
+
+Never commit webhook URLs or tokens to the repo.

@@ -3,9 +3,9 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import logoPng from '@candela/shared/assets/updated_Web logo.png';
-import { ArrowLeftIcon } from '@/components/icons/VectorIcons';
+import { ArrowLeftIcon, HomeIcon } from '@/components/icons/VectorIcons';
 
 const logoSrc = typeof logoPng === 'string' ? logoPng : logoPng.src;
 
@@ -19,6 +19,8 @@ export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
   const { session, loading, logout } = useAuth();
   const toast = useToast();
   const router = useRouter();
+  const pathname = usePathname();
+  const onDocIdPage = pathname === '/docid';
 
   const handleBack = () => {
     if (onBack) {
@@ -56,6 +58,29 @@ export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
       <div className="flex items-center gap-3 mt-1">
         {session && (
           <span className="hidden sm:inline text-sm font-semibold text-gray-600">{session.user.name}</span>
+        )}
+        {session?.user.role === 'patient' && (
+          onDocIdPage ? (
+            <Link
+              href="/dashboard"
+              className="flex items-center justify-center p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 transition-all active:scale-95"
+              title="Go to dashboard"
+              aria-label="Home"
+            >
+              <HomeIcon className="w-5 h-5" />
+            </Link>
+          ) : (
+            <Link
+              href="/docid"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 text-sm font-semibold transition-all active:scale-95"
+              title="Attach or change DocID"
+            >
+              DocID
+              {session.patient?.pendingDocIdRequest ? (
+                <span className="w-2 h-2 rounded-full bg-blue-600" aria-label="Pending request" />
+              ) : null}
+            </Link>
+          )
         )}
         {extra}
         {(onBack || backHref) && (

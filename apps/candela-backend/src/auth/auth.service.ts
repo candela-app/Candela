@@ -15,6 +15,7 @@ import { seedAdminUsers } from '../common/admin-seed';
 import { ALL_MODULE_IDS } from '../common/catalog';
 import { ACCESS_MAX_AGE_SEC, clearAuthCookies, REFRESH_COOKIE, REFRESH_MAX_AGE_SEC, setAuthCookies } from '../common/cookies';
 import { generateReferralCode } from '../common/referral-code';
+import { DocIdService } from '../docid/docid.service';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
@@ -33,6 +34,7 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
     private readonly jwtService: JwtService,
+    private readonly docid: DocIdService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -182,6 +184,7 @@ export class AuthService implements OnModuleInit {
     if (!user || user.role !== 'doctor') {
       throw new NotFoundException('Doctor not found');
     }
+    await this.docid.cancelPendingForDoctor(doctorUserId);
     await this.refreshTokens.delete({ userId: doctorUserId });
     await this.patients.update({ doctorId: doctorUserId }, { doctorId: null });
     await this.doctors.delete({ userId: doctorUserId });
@@ -195,7 +198,7 @@ export class AuthService implements OnModuleInit {
       relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
       order: { origin: 'ASC' },
     });
-    return patients.map((p) => this.patientToSummary(p));
+    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
   }
 
   async listDoctorPatients(doctorUserId: string) {
@@ -203,7 +206,7 @@ export class AuthService implements OnModuleInit {
       where: { doctorId: doctorUserId },
       relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
     });
-    return patients.map((p) => this.patientToSummary(p));
+    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
   }
 
   async getOwnedPatient(doctorUserId: string, patientId: string) {
@@ -214,7 +217,8 @@ export class AuthService implements OnModuleInit {
     if (!patient) {
       return null;
     }
-    return this.patientToSummary(patient);
+    const [summary] = await this.attachDocIdMeta([this.patientToSummary(patient)]);
+    return summary;
   }
 
   async addPrescription(doctorUserId: string, patientId: string, moduleId: string, levels: string[] = []) {
@@ -326,8 +330,13 @@ export class AuthService implements OnModuleInit {
         acc[p.moduleId] = p.levels || [];
         return acc;
       }, {} as Record<string, string[]>) ?? {};
-      const allowedModuleIds =
-        patient?.origin === 'self_signup' || !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
+      const allowedModuleIds = !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
+      const pendingDocIdRequest = patient
+        ? await this.docid.getPendingForPatient(patient.userId)
+        : null;
+      const previousReferralCodes = patient
+        ? await this.docid.listHistoryCodes(patient.userId)
+        : [];
       return {
         user: publicUser,
         doctor: null,
@@ -338,6 +347,8 @@ export class AuthService implements OnModuleInit {
               referralCode: patient.doctor?.referralCode ?? null,
               prescribedModuleIds: prescribed,
               prescribedLevels,
+              pendingDocIdRequest,
+              previousReferralCodes,
             }
           : null,
         allowedModuleIds,
@@ -369,7 +380,8 @@ export class AuthService implements OnModuleInit {
     if (!patient) {
       return null;
     }
-    return this.patientToSummary(patient);
+    const [summary] = await this.attachDocIdMeta([this.patientToSummary(patient)]);
+    return summary;
   }
 
   private patientToSummary(patient: PatientProfile) {
@@ -386,7 +398,18 @@ export class AuthService implements OnModuleInit {
       referralCode: patient.doctor?.referralCode ?? null,
       prescribedModuleIds: patient.prescriptions?.map((p) => p.moduleId) ?? [],
       prescribedLevels,
+      previousReferralCodes: [] as string[],
     };
+  }
+
+  private async attachDocIdMeta<T extends { id: string; previousReferralCodes: string[] }>(
+    summaries: T[],
+  ): Promise<T[]> {
+    const history = await this.docid.listHistoryCodesByPatientIds(summaries.map((s) => s.id));
+    return summaries.map((summary) => ({
+      ...summary,
+      previousReferralCodes: history.get(summary.id) ?? [],
+    }));
   }
 }
 

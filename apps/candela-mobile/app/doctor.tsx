@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { GAME_CATALOG, MODULE_LEVELS, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { AppHeader } from '../src/components/AppHeader';
 import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
@@ -16,18 +16,39 @@ export default function DoctorScreen() {
   const { fs, s, pad, isTablet } = useLayout();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
-  const selected = patients.find((p) => p.id === selectedId) ?? null;
+  const [dataLoading, setDataLoading] = useState(true);
+  const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
+  const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
+
+  const filteredPatients = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return patients;
+    return patients.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || p.phone.toLowerCase().includes(q),
+    );
+  }, [patients, searchQuery]);
+
+  const selected = useMemo(() => patients.find((p) => p.id === selectedId) ?? null, [patients, selectedId]);
 
   const load = useCallback(async () => {
-    const next = await api<PatientSummary[]>('/api/doctors/me/patients');
-    setPatients(next);
-    setSelectedId((current) => (current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null));
+    try {
+      const [next, nextIncoming] = await Promise.all([
+        api<PatientSummary[]>('/api/doctors/me/patients'),
+        api<IncomingDocIdRequest[]>('/api/docid/incoming'),
+      ]);
+      setPatients(next);
+      setIncoming(nextIncoming);
+      setSelectedId((current) => (current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null));
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -42,6 +63,7 @@ export default function DoctorScreen() {
   async function onCreatePatient() {
     setError('');
     setSaving(true);
+    const patientName = name.trim();
     try {
       const created = await api<PatientSummary>('/api/doctors/me/patients', {
         method: 'POST',
@@ -53,40 +75,98 @@ export default function DoctorScreen() {
       setPassword('');
       await load();
       setSelectedId(created.id);
+      Alert.alert('Success', `Patient ${patientName} created successfully!`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create patient');
+      const msg = err instanceof ApiError ? err.message : 'Could not create patient';
+      setError(msg);
+      Alert.alert('Error', msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function settleIncoming(id: string, accept: boolean) {
+    setIncomingBusy(id);
+    try {
+      await api(`/api/docid/requests/${id}/${accept ? 'accept' : 'reject'}`, { method: 'POST' });
+      await load();
+      Alert.alert('Done', accept ? 'Patient attached to your DocID.' : 'Attach request rejected.');
+    } catch (err) {
+      Alert.alert('Error', err instanceof ApiError ? err.message : 'Could not update request');
+    } finally {
+      setIncomingBusy(null);
     }
   }
 
   async function toggleModule(moduleId: TherapyModuleId, enabled: boolean) {
     if (!selected) return;
     const patientId = selected.id;
-    const previous = selected.prescribedModuleIds;
+    const patientName = selected.name;
+    const previousIds = selected.prescribedModuleIds;
+    const previousLevels = { ...selected.prescribedLevels };
     setError('');
+    const defaultLevels = enabled ? MODULE_LEVELS[moduleId]?.map((l) => l.id) || [] : [];
+
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id !== patientId) return p;
         const prescribedModuleIds = enabled
           ? Array.from(new Set([...p.prescribedModuleIds, moduleId]))
           : p.prescribedModuleIds.filter((id) => id !== moduleId);
-        return { ...p, prescribedModuleIds };
+        const prescribedLevels = { ...p.prescribedLevels };
+        if (enabled) prescribedLevels[moduleId] = defaultLevels;
+        else delete prescribedLevels[moduleId];
+        return { ...p, prescribedModuleIds, prescribedLevels };
       }),
     );
+
     try {
       const updated = enabled
         ? await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
             method: 'POST',
-            body: JSON.stringify({ moduleId }),
+            body: JSON.stringify({ moduleId, levels: defaultLevels }),
           })
-        : await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, {
-            method: 'DELETE',
-          });
+        : await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, { method: 'DELETE' });
       setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      Alert.alert('Updated', enabled ? `Prescribed module for ${patientName}` : `Removed module for ${patientName}`);
     } catch (err) {
-      setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previous } : p)));
-      setError(err instanceof ApiError ? err.message : 'Could not update prescription');
+      setPatients((prev) =>
+        prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previousIds, prescribedLevels: previousLevels } : p)),
+      );
+      const msg = err instanceof ApiError ? err.message : 'Could not update prescription';
+      setError(msg);
+      Alert.alert('Error', msg);
+    }
+  }
+
+  async function toggleLevel(moduleId: TherapyModuleId, levelId: string, enabled: boolean) {
+    if (!selected) return;
+    const patientId = selected.id;
+    const patientName = selected.name;
+    const currentLevels = selected.prescribedLevels?.[moduleId] || [];
+    const newLevels = enabled ? Array.from(new Set([...currentLevels, levelId])) : currentLevels.filter((id) => id !== levelId);
+    const previousLevels = { ...selected.prescribedLevels };
+    setError('');
+
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id !== patientId) return p;
+        return { ...p, prescribedLevels: { ...p.prescribedLevels, [moduleId]: newLevels } };
+      }),
+    );
+
+    try {
+      const updated = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+        method: 'POST',
+        body: JSON.stringify({ moduleId, levels: newLevels }),
+      });
+      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      Alert.alert('Updated', `Updated levels for ${patientName}`);
+    } catch (err) {
+      setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)));
+      const msg = err instanceof ApiError ? err.message : 'Could not update level';
+      setError(msg);
+      Alert.alert('Error', msg);
     }
   }
 
@@ -102,7 +182,7 @@ export default function DoctorScreen() {
     color: colors.text,
   };
 
-  if (loading || !session || session.user.role !== 'doctor') {
+  if (loading || dataLoading || !session || session.user.role !== 'doctor') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page, justifyContent: 'center' }}>
         <Text style={{ textAlign: 'center', color: colors.muted }}>Loading…</Text>
@@ -125,7 +205,6 @@ export default function DoctorScreen() {
                 paddingHorizontal: s(10),
                 paddingVertical: s(4),
                 borderRadius: s(8),
-                overflow: 'hidden',
               }}
             >
               {session.doctor.referralCode}
@@ -136,9 +215,75 @@ export default function DoctorScreen() {
       <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
         <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
         <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
-          Patients you create are already linked to your referral code. Prescribe modules by adding or removing them.
+          Patients you create are automatically linked to your DocID. Prescribe modules and levels by adding or removing them.
         </Text>
         {error ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{error}</Text> : null}
+
+        {incoming.length > 0 ? (
+          <View
+            style={{
+              backgroundColor: colors.white,
+              borderRadius: s(20),
+              padding: s(16),
+              borderWidth: 1,
+              borderColor: '#BFDBFE',
+              marginBottom: s(16),
+            }}
+          >
+            <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(4) }}>Incoming attach requests</Text>
+            <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(12) }}>
+              Patients asked to join or switch to your DocID. Confirm or reject here if the email is delayed.
+            </Text>
+            {incoming.map((request) => (
+              <View
+                key={request.id}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: s(14),
+                  padding: s(12),
+                  marginBottom: s(8),
+                }}
+              >
+                <Text style={{ fontWeight: '700', fontSize: fs(14) }}>{request.patientName}</Text>
+                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>
+                  {request.patientEmail}
+                  {request.source === 'change' ? ' · reassignment' : ' · new attach'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: s(8), marginTop: s(10) }}>
+                  <Pressable
+                    onPress={() => void settleIncoming(request.id, true)}
+                    disabled={incomingBusy === request.id}
+                    style={{
+                      flex: 1,
+                      backgroundColor: colors.blue,
+                      borderRadius: s(10),
+                      paddingVertical: s(10),
+                      alignItems: 'center',
+                      opacity: incomingBusy === request.id ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(13) }}>Confirm</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void settleIncoming(request.id, false)}
+                    disabled={incomingBusy === request.id}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#F3F4F6',
+                      borderRadius: s(10),
+                      paddingVertical: s(10),
+                      alignItems: 'center',
+                      opacity: incomingBusy === request.id ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: '#374151', fontWeight: '600', fontSize: fs(13) }}>Reject</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
@@ -157,9 +302,23 @@ export default function DoctorScreen() {
 
         <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
           <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(10) }}>Patients</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), marginBottom: s(10) }}>
+              <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Patients</Text>
+              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999 }}>
+                {patients.length}
+              </Text>
+            </View>
+            <TextInput
+              placeholder="Search patient name, email..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={{ ...inputStyle, marginBottom: s(12), backgroundColor: '#F9FAFB' }}
+            />
             {patients.length === 0 ? <Text style={{ color: colors.muted }}>No patients yet.</Text> : null}
-            {patients.map((patient) => (
+            {patients.length > 0 && filteredPatients.length === 0 ? (
+              <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: s(16) }}>No match for "{searchQuery}"</Text>
+            ) : null}
+            {filteredPatients.map((patient) => (
               <Pressable
                 key={patient.id}
                 onPress={() => setSelectedId(patient.id)}
@@ -171,10 +330,13 @@ export default function DoctorScreen() {
                 }}
               >
                 <Text style={{ fontWeight: '700', color: selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
-                <Text style={{ fontSize: fs(12), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>{patient.email}</Text>
+                <Text style={{ fontSize: fs(12), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
+                  {patient.email} · {patient.phone}
+                </Text>
               </Pressable>
             ))}
           </View>
+
           <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
             {!selected ? <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text> : null}
             {selected ? (
@@ -186,36 +348,64 @@ export default function DoctorScreen() {
                 <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules</Text>
                 {MODULES.map((mod) => {
                   const on = selected.prescribedModuleIds.includes(mod.id);
+                  const levels = MODULE_LEVELS[mod.id] || [];
+                  const selectedLevels = selected.prescribedLevels?.[mod.id] || [];
                   return (
-                    <Pressable
-                      key={mod.id}
-                      onPress={() => void toggleModule(mod.id, !on)}
-                      style={{
-                        flexDirection: 'row',
-                        gap: s(10),
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: s(14),
-                        padding: s(12),
-                        marginBottom: s(8),
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: s(20),
-                          height: s(20),
-                          borderRadius: 4,
-                          borderWidth: 2,
-                          borderColor: on ? colors.blue : '#9CA3AF',
-                          backgroundColor: on ? colors.blue : 'transparent',
-                          marginTop: 2,
-                        }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
-                        <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
-                      </View>
-                    </Pressable>
+                    <View key={mod.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(14), padding: s(12), marginBottom: s(8) }}>
+                      <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>
+                        <View
+                          style={{
+                            width: s(20),
+                            height: s(20),
+                            borderRadius: 4,
+                            borderWidth: 2,
+                            borderColor: on ? colors.blue : '#9CA3AF',
+                            backgroundColor: on ? colors.blue : 'transparent',
+                            marginTop: 2,
+                          }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
+                          <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
+                        </View>
+                      </Pressable>
+                      {on && levels.length > 0 ? (
+                        <View style={{ marginTop: s(10), marginLeft: s(30), gap: s(6) }}>
+                          {levels.map((level) => {
+                            const levelOn = selectedLevels.includes(level.id);
+                            return (
+                              <Pressable
+                                key={level.id}
+                                onPress={() => void toggleLevel(mod.id, level.id, !levelOn)}
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: s(8),
+                                  backgroundColor: '#F9FAFB',
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: s(10),
+                                  paddingHorizontal: s(10),
+                                  paddingVertical: s(8),
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: s(16),
+                                    height: s(16),
+                                    borderRadius: 3,
+                                    borderWidth: 2,
+                                    borderColor: levelOn ? colors.blue : '#9CA3AF',
+                                    backgroundColor: levelOn ? colors.blue : 'transparent',
+                                  }}
+                                />
+                                <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', flex: 1 }}>{level.name}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+                    </View>
                   );
                 })}
               </>

@@ -96,3 +96,5 @@ Every doctor account is assigned a unique **DocID** (referral code) automaticall
 - **Rule**: First character is always an uppercase letter.
 - **Safety**: Generates with collision retries (up to 20 attempts).
 - **Purpose**: Unique clinic/doctor tracking identifier linking patients to their supervising physician.
+
+Patients can later **attach** or **change** that DocID. Admin can **transfer**. Confirmation is by SMTP email. Full flow: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
