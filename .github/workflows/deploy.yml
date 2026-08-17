@@ -72,14 +72,14 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Slack — frontend deploy started
         run: |
           chmod +x .github/scripts/slack-notify.sh
           .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
             ":rocket: *Frontend deploy started* (Vercel) — branch \`${{ github.ref_name }}\`, commit \`${{ github.sha }}\` by ${{ github.actor }}"
-
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -128,6 +128,9 @@ jobs:
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Slack — backend deploy started
         run: |
           chmod +x .github/scripts/slack-notify.sh
