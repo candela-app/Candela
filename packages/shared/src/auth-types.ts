@@ -1,5 +1,38 @@
 export type UserRole = 'admin' | 'doctor' | 'patient';
 export type PatientOrigin = 'doctor_created' | 'self_signup';
+export type DocIdRequestSource = 'self' | 'change' | 'internal';
+export type DocIdRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface PendingDocIdRequest {
+  id: string;
+  source: DocIdRequestSource;
+  targetReferralCode: string;
+  targetDoctorName: string;
+  fromReferralCode: string | null;
+  recipientRole: 'doctor' | 'patient';
+  expiresAt: string;
+}
+
+export interface DocIdRequestPreview extends PendingDocIdRequest {
+  patientName: string;
+  status: DocIdRequestStatus;
+}
+
+export interface IncomingDocIdRequest {
+  id: string;
+  source: 'self' | 'change';
+  patientName: string;
+  patientEmail: string;
+  targetReferralCode: string;
+  expiresAt: string;
+}
+
+export interface DocIdRequestResult {
+  emailSent: boolean;
+  recipientRole: 'doctor' | 'patient';
+  targetReferralCode: string;
+  expiresAt: string;
+}
 
 export interface PublicUser {
   id: string;
@@ -22,6 +55,7 @@ export interface PatientSummary extends PublicUser {
   referralCode: string | null;
   prescribedModuleIds: string[];
   prescribedLevels: Record<string, string[]>;
+  previousReferralCodes: string[];
 }
 
 export interface SessionUser {
@@ -33,6 +67,8 @@ export interface SessionUser {
     referralCode: string | null;
     prescribedModuleIds: string[];
     prescribedLevels: Record<string, string[]>;
+    pendingDocIdRequest: PendingDocIdRequest | null;
+    previousReferralCodes: string[];
   } | null;
   allowedModuleIds: string[];
   accessToken?: string;

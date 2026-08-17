@@ -20,6 +20,8 @@ graph TD
 
     PatientOverview --> ByDoctor["Doctor-Managed Patients"]
     PatientOverview --> SelfSignup["Self-Signup Patients"]
+    Admin --> Transfer["Internal DocID Transfer\n(email to patient)"]
+    PatientOverview --> DocIdFilter["Filter by current or previous DocID"]
 ```
 
 ---
@@ -54,3 +56,15 @@ graph TD
 The Admin dashboard categorizes all patients on the platform:
 - **Patients managed by doctors**: Grouped by supervising clinician and DocID.
 - **Self-signup patients**: Independent users who registered directly on the website.
+
+---
+
+## 4. Internal DocID Transfer
+
+1. Choose a patient and the **target DocID**.
+2. Click **Request transfer**.
+3. The **patient** receives a confirmation email (only Internal goes to the patient).
+4. On Yes, the current DocID is replaced and the old code is stored in history.
+5. Filter the patient lists by current or previous DocID.
+
+See [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).

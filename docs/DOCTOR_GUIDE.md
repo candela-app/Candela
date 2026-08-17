@@ -18,6 +18,7 @@ graph TD
 
     SelectPatient --> PrescribeModules["Toggle Module Prescriptions"]
     PrescribeModules --> ConfigLevels["Granular Level Playlist Selection"]
+    Doctor --> Incoming["Incoming Self-signup attach requests"]
 ```
 
 ---
@@ -28,6 +29,16 @@ graph TD
 2. Click **Create patient**.
 3. The patient is automatically linked to the clinician's **DocID** (`origin: doctor_created`).
 4. A success toast confirms patient creation and auto-selects the patient for immediate prescription setup.
+
+---
+
+## 2b. Incoming attach and reassignment
+
+Patients can enter your DocID on **`/docid`** (header **DocID** from their dashboard) to **attach** (no doctor yet) or **switch** (already linked to someone else). **You** get the confirmation email (not the patient). Confirm or reject from the email, or from **Incoming attach requests** on `/doctor` if the mail is in spam.
+
+After you confirm, prescribe modules — the patient then only sees what you assign.
+
+See [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 
 ---
 

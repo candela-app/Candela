@@ -61,5 +61,9 @@ See `.env.example`. Do not commit `.env`.
 | `JWT_REFRESH_SECRET` | unused | Reserved; refresh tokens are opaque hashes today |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` / `ADMIN_1_NAME` | seed | First admin; extra admins use `ADMIN_2_*` … `ADMIN_9_*` |
 | `ADMIN_SEED_OVERWRITE` | no | `true` updates passwords for emails that already exist; leave `false` after rotating |
+| `MAIL_TRANSPORT` | no | `smtp` to send, `log` to print confirm links locally |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | for smtp | Placeholders only in `.env.example`. Real values in local `.env` / Render |
+
+DocID attach/change/transfer: [docs/DOCID_AND_MAIL.md](../../docs/DOCID_AND_MAIL.md).
 
 Production deploy (Render) is documented in [`.github/workflows/README.md`](../../.github/workflows/README.md).

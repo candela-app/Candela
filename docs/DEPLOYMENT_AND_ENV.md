@@ -28,6 +28,11 @@ graph LR
 | `FRONTEND_URL` | Yes | Website origin for CORS | `https://candela-app-eta.vercel.app` |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | Seed | First admin; add `ADMIN_2_*` for more | set on Render / local `.env` only |
 | `ADMIN_SEED_OVERWRITE` | No | `true` updates existing admin passwords from env | `false` |
+| `MAIL_TRANSPORT` | No | `smtp` (default for sending), `log` (print links, no send) | `smtp` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | If `smtp` | SMTP mailbox. Use an app password. Never commit real values | `smtp.gmail.com` / `587` |
+| `SMTP_SECURE` | No | `true` for port 465 | `false` |
+| `MAIL_FROM` | No | From header; defaults to `SMTP_USER` | same as SMTP user |
+| `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
 
 ### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
 
@@ -49,7 +54,7 @@ graph LR
 ### Database Migrations
 Run schema migrations against direct database connection:
 ```bash
-npm run typeorm:migration:run -w @candela/backend
+npm run migration:run -w @candela/backend
 ```
 
 ### Initial Admin Seeding
