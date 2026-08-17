@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SPEED_PRESETS } from '@candela/shared/rn';
-import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
+import { GEOBOARD_PEN_COLORS, SPEED_PRESETS } from '@candela/shared/rn';
+import type {
+  AlphabetVariant,
+  DeviceOrientation,
+  GeoboardBoardId,
+  GeoboardMatrixTier,
+  GeoboardTransform,
+  PursuitMovementPattern,
+  PursuitTargetColor,
+} from '@candela/shared/rn';
 import { useLayout } from '../lib/layout';
 
 export interface AppliedClinicalSettings {
@@ -25,6 +33,19 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  alphabetVariant?: AlphabetVariant;
+  bpm?: number;
+  metronomeEnabled?: boolean;
+  matrixTier?: GeoboardMatrixTier;
+  memoryMode?: boolean;
+  memorizeSec?: number;
+  transform?: GeoboardTransform;
+  ocularity?: 'R' | 'L' | 'Both';
+  timeLimitSec?: number;
+  contrastSensitivity?: number;
+  bgColor?: string;
+  shapeColor?: string;
+  penColor?: string;
 }
 
 const LETTER_SIZES = [1, 1.4, 1.8, 2.2, 2.6, 3];
@@ -96,6 +117,24 @@ export function ClinicalSettingsModal({
   pursuitDecoyCount = 2,
   pursuitSpeedPxPerSec = 180,
   pursuitTrialTimeoutSec = 5,
+  showGeoboardControls = false,
+  geoboardBoardId = 1 as GeoboardBoardId,
+  geoboardBoardName = 'Geoboard',
+  geoboardSupportsLetterCase = false,
+  geoboardPatternCount = 0,
+  alphabetVariant = 'uppercase' as AlphabetVariant,
+  bpm = 60,
+  metronomeEnabled = false,
+  matrixTier = 1 as GeoboardMatrixTier,
+  memoryMode = false,
+  memorizeSec = 5,
+  transform = 'duplicate' as GeoboardTransform,
+  ocularity = 'Both' as 'R' | 'L' | 'Both',
+  timeLimitSec = 0,
+  contrastSensitivity = 1,
+  bgColor = '#FFFFFF',
+  shapeColor = '#000000',
+  penColor = '#FBBF24',
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -123,6 +162,24 @@ export function ClinicalSettingsModal({
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  showGeoboardControls?: boolean;
+  geoboardBoardId?: GeoboardBoardId;
+  geoboardBoardName?: string;
+  geoboardSupportsLetterCase?: boolean;
+  geoboardPatternCount?: number;
+  alphabetVariant?: AlphabetVariant;
+  bpm?: number;
+  metronomeEnabled?: boolean;
+  matrixTier?: GeoboardMatrixTier;
+  memoryMode?: boolean;
+  memorizeSec?: number;
+  transform?: GeoboardTransform;
+  ocularity?: 'R' | 'L' | 'Both';
+  timeLimitSec?: number;
+  contrastSensitivity?: number;
+  bgColor?: string;
+  shapeColor?: string;
+  penColor?: string;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
@@ -145,6 +202,19 @@ export function ClinicalSettingsModal({
   const [tempDecoys, setTempDecoys] = useState(pursuitDecoyCount);
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
+  const [tempAlphabetVariant, setTempAlphabetVariant] = useState(alphabetVariant);
+  const [tempBpm, setTempBpm] = useState(bpm);
+  const [tempMetronome, setTempMetronome] = useState(metronomeEnabled);
+  const [tempMatrixTier, setTempMatrixTier] = useState(matrixTier);
+  const [tempMemoryMode, setTempMemoryMode] = useState(memoryMode);
+  const [tempMemorizeSec, setTempMemorizeSec] = useState(memorizeSec);
+  const [tempTransform, setTempTransform] = useState(transform);
+  const [tempOcularity, setTempOcularity] = useState(ocularity);
+  const [tempTimeLimit, setTempTimeLimit] = useState(timeLimitSec);
+  const [tempContrast, setTempContrast] = useState(contrastSensitivity);
+  const [tempBgColor, setTempBgColor] = useState(bgColor);
+  const [tempShapeColor, setTempShapeColor] = useState(shapeColor);
+  const [tempPenColor, setTempPenColor] = useState(penColor);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -167,6 +237,19 @@ export function ClinicalSettingsModal({
     setTempDecoys(pursuitDecoyCount);
     setTempPursuitSpeed(pursuitSpeedPxPerSec);
     setTempTimeout(pursuitTrialTimeoutSec);
+    setTempAlphabetVariant(alphabetVariant);
+    setTempBpm(bpm);
+    setTempMetronome(metronomeEnabled);
+    setTempMatrixTier(matrixTier);
+    setTempMemoryMode(memoryMode);
+    setTempMemorizeSec(memorizeSec);
+    setTempTransform(transform);
+    setTempOcularity(ocularity);
+    setTempTimeLimit(timeLimitSec);
+    setTempContrast(contrastSensitivity);
+    setTempBgColor(bgColor);
+    setTempShapeColor(shapeColor);
+    setTempPenColor(penColor);
   }, [
     isOpen,
     patientName,
@@ -188,6 +271,19 @@ export function ClinicalSettingsModal({
     pursuitDecoyCount,
     pursuitSpeedPxPerSec,
     pursuitTrialTimeoutSec,
+    alphabetVariant,
+    bpm,
+    metronomeEnabled,
+    matrixTier,
+    memoryMode,
+    memorizeSec,
+    transform,
+    ocularity,
+    timeLimitSec,
+    contrastSensitivity,
+    bgColor,
+    shapeColor,
+    penColor,
   ]);
 
   if (!isOpen) return null;
@@ -316,6 +412,65 @@ export function ClinicalSettingsModal({
             </>
           ) : null}
 
+          {showGeoboardControls ? (
+            <>
+              <Text style={{ color: '#5EEAD4', fontSize: fs(12), fontWeight: '800', marginBottom: s(8), marginTop: s(4) }}>
+                Board {String(geoboardBoardId).padStart(2, '0')} · {geoboardBoardName}
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginBottom: s(12) }}>
+                {geoboardSupportsLetterCase && tempAlphabetVariant === 'lowercase'
+                  ? `${geoboardPatternCount} patterns · lowercase set`
+                  : `${geoboardPatternCount} patterns in this playlist`}
+              </Text>
+              {geoboardSupportsLetterCase ? (
+                <>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Letter case</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    <Chip label="Uppercase" active={tempAlphabetVariant === 'uppercase'} onPress={() => setTempAlphabetVariant('uppercase')} />
+                    <Chip label="Lowercase" active={tempAlphabetVariant === 'lowercase'} onPress={() => setTempAlphabetVariant('lowercase')} />
+                  </View>
+                </>
+              ) : null}
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Matrix density</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {([1, 2, 3, 4, 5] as GeoboardMatrixTier[]).map((tier) => (
+                  <Chip key={tier} label={`Tier ${tier}`} active={tempMatrixTier === tier} onPress={() => setTempMatrixTier(tier)} />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Transform</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {(['duplicate', 'flip_h', 'flip_v', 'rotate_90_r', 'rotate_90_l'] as GeoboardTransform[]).map((t) => (
+                  <Chip key={t} label={t.replace(/_/g, ' ')} active={tempTransform === t} onPress={() => setTempTransform(t)} />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Memory mode</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                <Chip label={tempMemoryMode ? 'On' : 'Off'} active={tempMemoryMode} onPress={() => setTempMemoryMode((v) => !v)} />
+                {[3, 5, 8, 10].map((n) => (
+                  <Chip key={n} label={`${n}s memorize`} active={tempMemorizeSec === n} onPress={() => setTempMemorizeSec(n)} />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Time limit (sec, 0 = off)</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {[0, 30, 60, 90, 120].map((n) => (
+                  <Chip key={n} label={n === 0 ? 'Off' : `${n}s`} active={tempTimeLimit === n} onPress={() => setTempTimeLimit(n)} />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Ocularity</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {(['Both', 'R', 'L'] as const).map((o) => (
+                  <Chip key={o} label={o === 'Both' ? 'Binocular' : `${o} eye`} active={tempOcularity === o} onPress={() => setTempOcularity(o)} />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Pen color</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {GEOBOARD_PEN_COLORS.map((c) => (
+                  <Chip key={c.hex} label={c.name} active={tempPenColor === c.hex} onPress={() => setTempPenColor(c.hex)} />
+                ))}
+              </View>
+            </>
+          ) : null}
+
           {showPursuitControls ? (
             <>
               <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
@@ -375,6 +530,19 @@ export function ClinicalSettingsModal({
                 pursuitDecoyCount: tempDecoys,
                 pursuitSpeedPxPerSec: tempPursuitSpeed,
                 pursuitTrialTimeoutSec: tempTimeout,
+                alphabetVariant: tempAlphabetVariant,
+                bpm: tempBpm,
+                metronomeEnabled: tempMetronome,
+                matrixTier: tempMatrixTier,
+                memoryMode: tempMemoryMode,
+                memorizeSec: tempMemorizeSec,
+                transform: tempTransform,
+                ocularity: tempOcularity,
+                timeLimitSec: tempTimeLimit,
+                contrastSensitivity: tempContrast,
+                bgColor: tempBgColor,
+                shapeColor: tempShapeColor,
+                penColor: tempPenColor,
               })
             }
             style={{

@@ -34,6 +34,8 @@ export default function HomeScreen() {
       router.push('/dashboard?module=wheel');
     } else if (id === 'sorting') {
       router.push('/dashboard?module=sorting');
+    } else if (id === 'geoboard') {
+      router.push('/dashboard?module=geoboard');
     } else {
       router.push('/dashboard?module=mobile_target');
     }

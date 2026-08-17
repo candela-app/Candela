@@ -62,3 +62,23 @@ Seed initial system administrators on first startup or via script:
 ```bash
 npm run seed:admins -w @candela/backend
 ```
+
+---
+
+## 4. GitHub Actions & Slack
+
+Production deploys run on every push to `main` (`.github/workflows/deploy.yml`).
+
+| Secret | Purpose |
+|---|---|
+| `SLACK_WEBHOOK_URL_WEB` | `#web-app` — frontend (Vercel) and backend (Render) deploy notifications |
+| `SLACK_WEBHOOK_URL_MOBILE` | `#mobile-app` — EAS Android APK build notifications |
+| `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel CLI deploy |
+| `RENDER_DEPLOY_HOOK_URL` | Render backend deploy hook |
+| `EXPO_TOKEN` | EAS Build for mobile APK (only when mobile/shared paths change) |
+
+**Web channel:** started / succeeded / failed for Vercel frontend; started / triggered / failed for Render backend hook.
+
+**Mobile channel:** APK build runs only when `apps/candela-mobile/**` or `packages/shared/**` change. Success message includes the expo.dev build page and direct APK URL.
+
+Never commit webhook URLs or tokens to the repo.

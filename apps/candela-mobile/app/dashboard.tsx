@@ -1,7 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { UI_MODULE_TO_CATALOG } from '@candela/shared/rn';
+import {
+  GEOBOARD_BOARD_IDS,
+  GEOBOARD_BOARDS,
+  MODULE_LEVELS,
+  UI_MODULE_TO_CATALOG,
+  getBoardPatterns,
+  type GeoboardBoardId,
+} from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { useAuth } from '../src/lib/auth-context';
@@ -23,6 +30,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'tracing', title: 'Bee Path Tracing', body: 'Smooth pursuit tracking & visual-motor path control', badge: 'For Touch & Stylus', accent: '#D97706', bar: '#F59E0B' },
   { uiId: 'pursuit', title: 'Pursuit Module', body: 'Continuous visual pursuit & selective attention tracking', badge: 'For All Devices', accent: '#0891B2', bar: '#22D3EE' },
   { uiId: 'mobile_target', title: 'Bubble Chase', body: '2-target bouncing pursuit & dark field tracking', badge: 'For Mobile & Tabs', accent: '#059669', bar: '#34D399' },
+  { uiId: 'geoboard', title: 'Draw a Pattern', body: 'Hand-eye coordination & visual spatial recall patterns', badge: 'For All Devices', accent: '#0D9488', bar: '#14B8A6' },
 ];
 
 export default function DashboardScreen() {
@@ -31,9 +39,20 @@ export default function DashboardScreen() {
   const { session, loading } = useAuth();
   const { fs, s, pad, columns, width } = useLayout();
   const allowedModuleIds = new Set(session?.allowedModuleIds ?? []);
+
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
     return Boolean(catalogId && allowedModuleIds.has(catalogId));
+  };
+
+  const isLevelAllowed = (uiId: string, levelId: string | number) => {
+    if (!session || session.user.role !== 'patient') return true;
+    if (session.patient?.origin === 'self_signup' || !session.patient?.doctorId) return true;
+    const catalogId = UI_MODULE_TO_CATALOG[uiId];
+    if (!catalogId || !allowedModuleIds.has(catalogId)) return false;
+    const prescribedLevels = session.patient?.prescribedLevels?.[catalogId];
+    if (prescribedLevels === undefined) return true;
+    return prescribedLevels.includes(String(levelId));
   };
 
   useEffect(() => {
@@ -51,6 +70,11 @@ export default function DashboardScreen() {
     }
   }, [loading, session, router]);
 
+  const cardWidth = useMemo(
+    () => (columns === 1 ? width - pad * 2 : (width - pad * 2 - s(12) * (Math.min(columns, 2) - 1)) / Math.min(columns, 2)),
+    [columns, width, pad, s],
+  );
+
   if (loading || !session || session.user.role !== 'patient') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -59,9 +83,6 @@ export default function DashboardScreen() {
       </View>
     );
   }
-
-  const cardWidth =
-    columns === 1 ? width - pad * 2 : (width - pad * 2 - s(12) * (Math.min(columns, 2) - 1)) / Math.min(columns, 2);
 
   const launchRotatory = (mode: string, variant: string) => {
     router.push(`/play/rotatory?mode=${mode}&variant=${variant}`);
@@ -72,8 +93,11 @@ export default function DashboardScreen() {
   const launchMobileTarget = (mode: string, variant: string) => {
     router.push(`/play/mobile-target?mode=${mode}&variant=${variant}`);
   };
+  const launchGeoboard = (boardId: GeoboardBoardId) => {
+    router.push(`/play/geoboard?board=${boardId}` as never);
+  };
 
-  const variantCard = (label: string, onPress: () => void, accent: string) => (
+  const variantCard = (label: string, onPress: () => void) => (
     <Pressable
       key={label}
       onPress={onPress}
@@ -92,6 +116,15 @@ export default function DashboardScreen() {
     >
       <Text style={{ fontSize: fs(18), fontWeight: '600', color: colors.ink, textAlign: 'center' }}>{label}</Text>
     </Pressable>
+  );
+
+  const noLevelsCard = (title: string) => (
+    <View style={{ width: '100%', backgroundColor: colors.white, borderRadius: s(24), padding: s(28), alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+      <Text style={{ fontSize: fs(18), fontWeight: '700', marginBottom: s(8) }}>{title}</Text>
+      <Text style={{ fontSize: fs(13), color: colors.muted, textAlign: 'center' }}>
+        Your doctor has not enabled any specific levels for this module.
+      </Text>
+    </View>
   );
 
   if (params.page === 'analytics') {
@@ -113,7 +146,7 @@ export default function DashboardScreen() {
           </View>
           <Text style={{ fontSize: fs(18), fontWeight: '700', marginBottom: s(8) }}>No Session Data Yet</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, textAlign: 'center', marginBottom: s(20) }}>
-            Complete therapy sessions to see your performance analytics here. Session results including accuracy, reaction times, and progress tracking will appear on this page.
+            Complete therapy sessions to see your performance analytics here.
           </Text>
           <Pressable
             onPress={() => router.replace('/dashboard')}
@@ -128,41 +161,130 @@ export default function DashboardScreen() {
   }
 
   if (params.module === 'wheel' && canPlayUiModule('wheel')) {
+    const levels = [
+      isLevelAllowed('wheel', 'uppercase') ? variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase')) : null,
+      isLevelAllowed('wheel', 'lowercase') ? variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase')) : null,
+      isLevelAllowed('wheel', 'numbers') ? variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase')) : null,
+      isLevelAllowed('wheel', 'colors') ? variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase')) : null,
+    ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader />
-        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase'), '#2563EB')}
-          {variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase'), '#2563EB')}
-          {variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase'), '#2563EB')}
-          {variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase'), '#2563EB')}
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
       </View>
     );
   }
 
   if (params.module === 'sorting' && canPlayUiModule('sorting')) {
+    const levels = [
+      isLevelAllowed('sorting', 'uppercase') ? variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase')) : null,
+      isLevelAllowed('sorting', 'lowercase') ? variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase')) : null,
+      isLevelAllowed('sorting', 'numbers') ? variantCard('Numeric Sorting', () => launchSorting('numbers')) : null,
+    ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader />
-        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase'), '#7C3AED')}
-          {variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase'), '#7C3AED')}
-          {variantCard('Numeric Sorting', () => launchSorting('numbers'), '#7C3AED')}
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
       </View>
     );
   }
 
   if (params.module === 'mobile_target' && canPlayUiModule('mobile_target')) {
+    const levels = [
+      isLevelAllowed('mobile_target', 'uppercase') ? variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase')) : null,
+      isLevelAllowed('mobile_target', 'lowercase') ? variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase')) : null,
+      isLevelAllowed('mobile_target', 'numbers') ? variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase')) : null,
+      isLevelAllowed('mobile_target', 'colors') ? variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase')) : null,
+    ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader />
-        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase'), '#059669')}
-          {variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase'), '#059669')}
-          {variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase'), '#059669')}
-          {variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase'), '#059669')}
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'geoboard' && canPlayUiModule('geoboard')) {
+    const allowedBoards = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Select a board. Every pattern in the board runs in order, then the session report opens.
+          </Text>
+          {allowedBoards.length === 0 ? (
+            noLevelsCard('No boards assigned yet')
+          ) : (
+            allowedBoards.map((id) => {
+              const board = GEOBOARD_BOARDS[id];
+              const patternCount = getBoardPatterns(id).length;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => launchGeoboard(id)}
+                  style={{
+                    backgroundColor: colors.white,
+                    borderRadius: s(22),
+                    padding: s(20),
+                    marginBottom: s(12),
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: '#14B8A6' }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginTop: s(8) }}>
+                    <View
+                      style={{
+                        width: s(36),
+                        height: s(36),
+                        borderRadius: s(12),
+                        backgroundColor: '#F0FDFA',
+                        borderWidth: 1,
+                        borderColor: '#99F6E4',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ fontWeight: '900', color: '#0F766E', fontSize: fs(13) }}>{String(id).padStart(2, '0')}</Text>
+                    </View>
+                    <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.ink, flex: 1 }}>{board.shortLabel}</Text>
+                  </View>
+                  <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(8) }}>{board.description}</Text>
+                  <Text style={{ fontSize: fs(11), color: '#9CA3AF', marginTop: s(4) }}>{board.focus}</Text>
+                  <Text
+                    style={{
+                      alignSelf: 'flex-start',
+                      marginTop: s(12),
+                      fontSize: fs(10),
+                      fontWeight: '700',
+                      color: '#0F766E',
+                      backgroundColor: '#F0FDFA',
+                      paddingHorizontal: s(10),
+                      paddingVertical: s(4),
+                      borderRadius: 999,
+                    }}
+                  >
+                    {patternCount} patterns
+                  </Text>
+                </Pressable>
+              );
+            })
+          )}
         </ScrollView>
       </View>
     );
@@ -208,7 +330,7 @@ export default function DashboardScreen() {
         </View>
 
         {allowedModuleIds.size === 0 ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(24), padding: s(28), alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(24), padding: s(28), alignItems: 'center', borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
             <Text style={{ fontSize: fs(18), fontWeight: '700' }}>No modules prescribed yet</Text>
             <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center' }}>
               Your doctor has not added any therapy modules. Check back after they prescribe one.
