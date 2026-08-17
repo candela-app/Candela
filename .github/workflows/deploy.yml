@@ -21,11 +21,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Paths filter
         uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Use this push's commit range — not develop vs main (0 files after a merge).
+          base: ${{ github.event.before }}
+          ref: ${{ github.sha }}
           filters: |
             mobile:
               - 'apps/candela-mobile/**'
