@@ -47,4 +47,4 @@ Pushes to `main` that touch `apps/candela-mobile/**` or `packages/shared/**` tri
    - `EXPO_TOKEN` — [expo.dev → Access tokens](https://expo.dev/settings/access-tokens)
    - `SLACK_WEBHOOK_URL_MOBILE` — Incoming Webhook for `#mobile-app`
 
-The `preview` profile in `eas.json` produces an installable APK pointed at the production backend (`https://candela-backend.onrender.com`).
+The `preview` profile in `eas.json` produces an installable APK pointed at the production backend (`https://candela-backend-gbdz.onrender.com`).

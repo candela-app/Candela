@@ -5,8 +5,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node ../../scripts/kill-port.js 3001 && node dist/main.js",
-    "start:dev": "node ../../scripts/kill-port.js 3001 && ts-node-dev --respawn --transpile-only src/main.ts",
-    "dev": "node ../../scripts/kill-port.js 3001 && ts-node-dev --respawn --transpile-only src/main.ts",
+    "start:dev": "node ../../scripts/kill-port.js 3001 && tsx watch src/main.ts",
+    "dev": "node ../../scripts/kill-port.js 3001 && tsx watch src/main.ts",
     "migration:run": "ts-node --transpile-only src/migrate.ts",
     "seed:admins": "ts-node --transpile-only src/seed-admins.ts"
   },
@@ -23,6 +23,7 @@
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.5",
+    "google-auth-library": "^11.0.2",
     "nodemailer": "^9.0.5",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.1.13",
@@ -37,6 +38,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.2",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0"
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.23.12"
   }
 }

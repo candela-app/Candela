@@ -13,6 +13,7 @@ import { User } from '../entities/user.entity';
 import { DocIdModule } from '../docid/docid.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleAuthService } from './google-auth.service';
 import { AdminController, DoctorController, MeController } from './role.controllers';
 
 @Module({
@@ -30,6 +31,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   controllers: [AuthController, AdminController, DoctorController, MeController],
   providers: [
     AuthService,
+    GoogleAuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

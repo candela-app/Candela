@@ -62,3 +62,9 @@ export class RefreshDto {
   @IsString()
   refreshToken?: string;
 }
+
+export class GoogleAuthDto {
+  @IsString()
+  @MinLength(10)
+  idToken: string;
+}

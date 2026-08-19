@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../common/current-user.decorator';
 import { Public, Roles } from '../common/decorators';
 import { User } from '../entities/user.entity';
@@ -7,7 +7,7 @@ import { DocIdService } from './docid.service';
 
 @Controller('api/docid')
 export class DocIdController {
-  constructor(private readonly docid: DocIdService) {}
+  constructor(@Inject(DocIdService) private readonly docid: DocIdService) {}
 
   @Roles('patient')
   @Post('requests')

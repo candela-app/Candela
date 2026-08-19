@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -21,6 +22,7 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { GoogleAuthService } from './google-auth.service';
 import { CreateAccountDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
 
 const BCRYPT_ROUNDS = 10;
@@ -33,8 +35,9 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
-    private readonly jwtService: JwtService,
-    private readonly docid: DocIdService,
+    @Inject(JwtService) private readonly jwtService: JwtService,
+    @Inject(DocIdService) private readonly docid: DocIdService,
+    @Inject(GoogleAuthService) private readonly googleAuth: GoogleAuthService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -62,10 +65,45 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('This account uses Google Sign-In');
+    }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    return this.issueSession(user, res);
+  }
+
+  async loginWithGoogle(idToken: string, res: Response) {
+    const profile = await this.googleAuth.verifyIdToken(idToken);
+    let user =
+      (await this.users.findOne({ where: { googleId: profile.googleId } })) ??
+      (await this.users.findOne({ where: { email: profile.email } }));
+
+    if (!user) {
+      user = await this.users.save(
+        this.users.create({
+          email: profile.email,
+          name: profile.name,
+          googleId: profile.googleId,
+          passwordHash: null,
+          phone: null,
+          role: 'patient',
+        }),
+      );
+      await this.patients.save(
+        this.patients.create({
+          userId: user.id,
+          doctorId: null,
+          origin: 'self_signup',
+        }),
+      );
+    } else if (!user.googleId) {
+      user.googleId = profile.googleId;
+      await this.users.save(user);
+    }
+
     return this.issueSession(user, res);
   }
 
@@ -367,7 +405,7 @@ export class AuthService implements OnModuleInit {
       id: user.id,
       email: user.email,
       name: user.name,
-      phone: user.phone,
+      phone: user.phone ?? '',
       role: user.role,
     };
   }
