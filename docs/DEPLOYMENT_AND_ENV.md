@@ -5,7 +5,7 @@
 ```mermaid
 graph LR
     Vercel["Frontend: Next.js (Vercel)\nhttps://candela-app.vercel.app"]
-    Render["Backend: NestJS (Render)\nhttps://candela-backend.onrender.com"]
+    Render["Backend: NestJS (Render)\nhttps://candela-backend-gbdz.onrender.com"]
     Neon["Database: PostgreSQL (Neon Serverless)"]
 
     Vercel -->|HTTPS + withCredentials| Render
@@ -33,12 +33,15 @@ graph LR
 | `SMTP_SECURE` | No | `true` for port 465 | `false` |
 | `MAIL_FROM` | No | From header; defaults to `SMTP_USER` | same as SMTP user |
 | `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
+| `GOOGLE_CLIENT_ID_WEB` | Google Sign-In | Web OAuth client ID | `….apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_ID_ANDROID` | Google Sign-In | Android OAuth client ID | `….apps.googleusercontent.com` |
 
 ### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
 
 | Variable | Required | Description | Example / Default |
 |---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | Yes | Public API endpoint of the backend | `https://candela-backend.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | Yes | Public API endpoint of the backend | `https://candela-backend-gbdz.onrender.com` |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Sign-In | Same as `GOOGLE_CLIENT_ID_WEB` (public) | web client ID |
 
 ---
 

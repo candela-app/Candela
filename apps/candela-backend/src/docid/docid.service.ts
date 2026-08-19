@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   GoneException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -59,8 +60,8 @@ export class DocIdService {
     @InjectRepository(DoctorProfile) private readonly doctors: Repository<DoctorProfile>,
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
     @InjectRepository(User) private readonly users: Repository<User>,
-    private readonly mail: MailService,
-    private readonly config: ConfigService,
+    @Inject(MailService) private readonly mail: MailService,
+    @Inject(ConfigService) private readonly config: ConfigService,
   ) {}
 
   async requestByPatient(user: User, rawCode: string): Promise<DocIdRequestResult> {

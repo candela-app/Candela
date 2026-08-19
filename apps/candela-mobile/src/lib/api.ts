@@ -100,7 +100,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     headers,
   });
 
-  if (res.status === 401 && retry && path !== '/api/auth/refresh' && path !== '/api/auth/login') {
+  if (res.status === 401 && retry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/google') {
     const refreshed = await tryRefresh();
     if (refreshed) {
       return api<T>(path, init, false);

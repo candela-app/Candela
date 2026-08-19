@@ -1,0 +1,100 @@
+'use client';
+
+import Script from 'next/script';
+import { useCallback, useEffect, useRef } from 'react';
+import { GOOGLE_WEB_CLIENT_ID } from '@/lib/google';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: { theme: string; size: string; width: number; text?: string; shape?: string },
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.6 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.3 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.5 5.8-6.1 7.5l6.2 5.2C39 37.3 44 31.5 44 24c0-1.3-.1-2.3-.4-3.5z" />
+    </svg>
+  );
+}
+
+export function GoogleSignInButton({
+  onCredential,
+  disabled,
+  busy,
+}: {
+  onCredential: (idToken: string) => Promise<void>;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const onCredentialRef = useRef(onCredential);
+  onCredentialRef.current = onCredential;
+
+  const init = useCallback(() => {
+    if (!window.google?.accounts?.id || !hostRef.current) {
+      return;
+    }
+    hostRef.current.innerHTML = '';
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_WEB_CLIENT_ID,
+      callback: (response) => {
+        void onCredentialRef.current(response.credential);
+      },
+    });
+    window.google.accounts.id.renderButton(hostRef.current, {
+      theme: 'outline',
+      size: 'large',
+      width: 400,
+      text: 'continue_with',
+      shape: 'pill',
+    });
+  }, []);
+
+  useEffect(() => {
+    init();
+  }, [init]);
+
+  return (
+    <div className={`relative w-full mt-1 ${disabled || busy ? 'opacity-80 pointer-events-none' : ''}`}>
+      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={init} />
+      <div className="pointer-events-none flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-900 min-h-[48px]">
+        {busy ? (
+          <span className="h-5 w-5 rounded-full border-2 border-gray-300 border-t-gray-800 animate-spin" aria-label="Signing in" />
+        ) : (
+          <>
+            <GoogleMark />
+            Continue with Google
+          </>
+        )}
+      </div>
+      {!busy ? <div ref={hostRef} className="absolute inset-0 overflow-hidden rounded-xl opacity-0" /> : null}
+    </div>
+  );
+}
+
+export function AuthDivider() {
+  return (
+    <div className="flex items-center gap-3 my-5">
+      <div className="flex-1 h-px bg-gray-200" />
+      <span className="text-xs font-semibold text-gray-400 uppercase">or</span>
+      <div className="flex-1 h-px bg-gray-200" />
+    </div>
+  );
+}
