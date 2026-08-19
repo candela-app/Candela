@@ -18,14 +18,17 @@ export class User {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255 })
-  passwordHash: string;
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true })
+  passwordHash: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 32 })
-  phone: string;
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  phone: string | null;
+
+  @Column({ name: 'google_id', type: 'varchar', length: 64, nullable: true, unique: true })
+  googleId: string | null;
 
   @Column({ type: 'varchar', length: 16 })
   role: UserRole;

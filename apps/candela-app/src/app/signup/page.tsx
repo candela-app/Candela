@@ -4,6 +4,7 @@ import { useAuth, roleHomePath } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import { AuthShell, Field, PrimaryButton } from '@/components/auth/AuthForm';
+import { AuthDivider, GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import type { SessionUser } from '@candela/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,6 +20,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
@@ -49,6 +51,26 @@ export default function SignupPage() {
     }
   }
 
+  async function onGoogle(idToken: string) {
+    setError('');
+    setGoogleBusy(true);
+    try {
+      const next = await api<SessionUser>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+      setRedirecting(true);
+      applySession(next);
+      toast.success('Account created successfully! Welcome to Kandela.');
+      router.replace(roleHomePath(next.user.role));
+    } catch (err) {
+      setGoogleBusy(false);
+      const msg = err instanceof ApiError ? err.message : 'Could not continue with Google';
+      setError(msg);
+      toast.error(msg);
+    }
+  }
+
   if (loading || session || redirecting) {
     return (
       <div className="min-h-screen bg-[#F4F7FC] flex items-center justify-center">
@@ -71,8 +93,10 @@ export default function SignupPage() {
           autoComplete="new-password"
         />
         {error && <p className="text-sm text-red-600 font-medium mb-3">{error}</p>}
-        <PrimaryButton disabled={submitting}>{submitting ? 'Creating…' : 'Create account'}</PrimaryButton>
+        <PrimaryButton disabled={submitting || googleBusy}>{submitting ? 'Creating…' : 'Create account'}</PrimaryButton>
       </form>
+      <AuthDivider />
+      <GoogleSignInButton disabled={submitting} busy={googleBusy} onCredential={onGoogle} />
       <p className="text-sm text-gray-500 mt-6 text-center">
         Already have an account?{' '}
         <Link href="/login" className="text-blue-600 font-semibold hover:underline">
