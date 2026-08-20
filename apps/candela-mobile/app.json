@@ -4,7 +4,7 @@
     "slug": "candela",
     "version": "0.1.0",
     "orientation": "default",
-    "icon": "../../packages/shared/assets/logo.png",
+    "icon": "../../packages/shared/assets/app-icon-white.png",
     "scheme": "candela",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -22,15 +22,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "../../packages/shared/assets/logo.png",
+        "foregroundImage": "../../packages/shared/assets/app-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.candela.app"
+      "package": "com.candela.app",
+      "usesCleartextTraffic": true
     },
     "plugins": [
       "expo-router",
       "expo-asset",
       "expo-font",
+      "expo-secure-store",
       "expo-web-browser"
     ],
     "experiments": {

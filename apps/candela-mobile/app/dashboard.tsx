@@ -52,6 +52,16 @@ export default function DashboardScreen() {
     if (!catalogId || !allowedModuleIds.has(catalogId)) return false;
     const prescribedLevels = session.patient?.prescribedLevels?.[catalogId];
     if (prescribedLevels === undefined) return true;
+    if (catalogId === 'bee_tracing') {
+      const known = MODULE_LEVELS.bee_tracing.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
+    if (catalogId === 'pursuit') {
+      const known = MODULE_LEVELS.pursuit.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
     return prescribedLevels.includes(String(levelId));
   };
 
@@ -94,8 +104,16 @@ export default function DashboardScreen() {
     router.push(`/play/mobile-target?mode=${mode}&variant=${variant}`);
   };
   const launchGeoboard = (boardId: GeoboardBoardId) => {
-    router.push(`/play/geoboard?board=${boardId}` as never);
+    router.push(`/play/geoboard?boardId=${boardId}` as never);
   };
+  const launchBee = (pathType: string) => {
+    router.push(`/play/bee?pathType=${pathType}` as never);
+  };
+  const launchPursuit = (pattern: string) => {
+    router.push(`/play/pursuit?pattern=${pattern}` as never);
+  };
+
+  const backToModules = () => router.replace('/dashboard');
 
   const variantCard = (label: string, onPress: () => void) => (
     <Pressable
@@ -130,7 +148,7 @@ export default function DashboardScreen() {
   if (params.page === 'analytics') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), alignSelf: 'flex-start', marginBottom: s(24) }}>
             <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
@@ -169,7 +187,7 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
@@ -187,7 +205,7 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
@@ -206,10 +224,42 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'tracing' && canPlayUiModule('tracing')) {
+    const levels = MODULE_LEVELS.bee_tracing
+      .filter((level) => isLevelAllowed('tracing', level.id))
+      .map((level) => variantCard(level.name, () => launchBee(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bee Path Tracing</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a path type to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'pursuit' && canPlayUiModule('pursuit')) {
+    const levels = MODULE_LEVELS.pursuit
+      .filter((level) => isLevelAllowed('pursuit', level.id))
+      .map((level) => variantCard(level.name, () => launchPursuit(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pursuit Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a movement pattern to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
       </View>
@@ -220,7 +270,7 @@ export default function DashboardScreen() {
     const allowedBoards = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -292,13 +342,7 @@ export default function DashboardScreen() {
 
   const handleSelectModule = (id: string) => {
     if (!canPlayUiModule(id)) return;
-    if (id === 'tracing') {
-      router.push('/play/bee');
-    } else if (id === 'pursuit') {
-      router.push('/play/pursuit');
-    } else {
-      router.push(`/dashboard?module=${id}`);
-    }
+    router.push(`/dashboard?module=${id}`);
   };
 
   return (

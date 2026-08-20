@@ -15,6 +15,7 @@ import {
   exitFullScreenSafe,
   requestFullScreenSafe,
   resolveOrientation,
+  resolveBeePathType,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -30,6 +31,7 @@ const beeSrc = typeof beePng === 'string' ? beePng : beePng.src;
 
 interface BeeTracingGameProps {
   onExit: () => void;
+  initialPathType?: string;
 }
 
 const DEFAULT_SETTINGS: BeeTracingSettings = {
@@ -57,11 +59,15 @@ const PATH_PROGRESSION: BeePathType[] = [
   'dotted',
 ];
 
-export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
+export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialPathType = 'straight' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lockedPathType = resolveBeePathType(initialPathType);
 
   // Settings & State
-  const [settings, setSettings] = useState<BeeTracingSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<BeeTracingSettings>({
+    ...DEFAULT_SETTINGS,
+    pathType: lockedPathType,
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -718,7 +724,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit }) => {
             ...prev,
             patientName: applied.patientName || prev.patientName,
             tracingMode: applied.tracingMode || prev.tracingMode,
-            pathType: (applied.pathType as any) || prev.pathType,
+            pathType: lockedPathType,
             toleranceBandPx: applied.toleranceBandPx || prev.toleranceBandPx,
             colorTheme: applied.colorTheme || prev.colorTheme,
             audioEnabled: applied.audioEnabled ?? prev.audioEnabled,

@@ -68,6 +68,11 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
+export function sessionDisplayName(session: SessionUser | null | undefined): string {
+  const name = session?.user.name?.trim();
+  return name && name.length > 0 ? name : 'Demo Patient';
+}
+
 export function roleHomePath(role: string): string {
   if (role === 'admin') {
     return '/admin';

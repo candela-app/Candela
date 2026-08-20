@@ -28,8 +28,9 @@ import {
   SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
-import { SlidersIcon } from '../icons/VectorIcons';
+import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -52,7 +53,7 @@ export function RotatoryWheelGame({
 
   // Clinical Settings
   const [patientName, setPatientName] = useState<string>('Demo Patient');
-  const [letterSize, setLetterSize] = useState<number>(1.8);
+  const [letterSize, setLetterSize] = useState<number>(2.5);
   const [bubbleSize, setBubbleSize] = useState<number>(90);
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
@@ -75,6 +76,8 @@ export function RotatoryWheelGame({
   const [isHeaderExpanded, setIsHeaderExpanded] = useState<boolean>(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -650,18 +653,25 @@ export function RotatoryWheelGame({
             </svg>
           )}
         </button>
+        <button
+          onClick={() => speak(mode === 'colors' ? currentTarget : `target ${currentTarget}`, mode)}
+          className="w-7 h-7 sm:w-8 sm:h-8 bg-transparent border-0 text-slate-500/40 hover:text-slate-400 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+          title="Replay target"
+        >
+          <ReplayIcon className="w-3.5 h-3.5" />
+        </button>
         {/* TARGET DISPLAY ASSISTIVETOUCH FLOATING ORB BUTTON */}
         <button
           onClick={() => {
-            speak(mode === 'colors' ? currentTarget : `target ${currentTarget}`, mode);
             setIsAssistiveTouchOpen((prev) => !prev);
+            setIsHeaderExpanded(false);
           }}
           className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 shadow-md flex items-center justify-center transition-all cursor-pointer backdrop-blur-md active:scale-95 group ${
             isAssistiveTouchOpen
               ? 'bg-[#1A2035] border-blue-400 text-white shadow-blue-500/30 ring-2 ring-blue-500/40'
               : 'bg-[#121626]/90 hover:bg-[#1A2035] border-blue-500/70 hover:border-blue-400 text-white'
           }`}
-          title="Current Target - Tap to hear sound & open menu"
+          title="Current Target - Tap to open menu"
         >
           {/* JUST THE TARGET SYMBOL / COLOR */}
           {mode === 'colors' ? (
@@ -679,11 +689,8 @@ export function RotatoryWheelGame({
           )}
 
           {/* UP ARROW INDICATOR TO SHOW EXPANDABLE MENU */}
-          <span
-            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-600 text-[7px] font-extrabold text-white flex items-center justify-center border border-blue-400 shadow-sm group-hover:scale-110 transition-transform"
-            title="Expand Menu"
-          >
-            ▲
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-600 text-white flex items-center justify-center border border-blue-400 shadow-sm group-hover:scale-110 transition-transform">
+            <ChevronUpIcon className="w-2 h-2" size={8} />
           </span>
         </button>
 
@@ -743,11 +750,10 @@ export function RotatoryWheelGame({
               )}
             </div>
             <span className="text-blue-400 group-hover:scale-110 transition-transform text-xs font-bold flex items-center gap-1">
-              🔊 Replay
+              <VolumeIcon className="w-3.5 h-3.5" /> Replay
             </span>
           </button>
 
-          {/* PLAY / PAUSE BUTTON */}
           <button
             onClick={() => setIsPaused((prev) => !prev)}
             className={`w-full py-2.5 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 border ${
@@ -757,7 +763,7 @@ export function RotatoryWheelGame({
             }`}
             title={isPaused ? 'Resume Game' : 'Pause Game'}
           >
-            <span className="text-sm">{isPaused ? '▶' : '⏸'}</span>
+            {isPaused ? <PlayIcon className="w-3.5 h-3.5" /> : <PauseIcon className="w-3.5 h-3.5" />}
             <span>{isPaused ? 'Play' : 'Pause'}</span>
           </button>
 
@@ -778,15 +784,24 @@ export function RotatoryWheelGame({
             <span>Settings</span>
           </button>
 
-          {/* MENU DRAWER BUTTON */}
+          <button
+            onClick={() => setConfirmReset(true)}
+            className="w-full py-2 rounded-2xl bg-gray-800/90 hover:bg-gray-700 text-xs font-bold text-gray-200 transition-colors border border-gray-700 text-center"
+          >
+            Reset Game
+          </button>
           <button
             onClick={() => {
-              setIsAssistiveTouchOpen(false);
-              setIsMenuOpen(true);
+              const inProgress = isGameStarted && !isResultsOpen;
+              if (inProgress) setConfirmQuit(true);
+              else {
+                setIsAssistiveTouchOpen(false);
+                if (onExit) onExit();
+              }
             }}
-            className="w-full py-2 rounded-2xl bg-blue-600/90 hover:bg-blue-500 text-xs font-bold text-white transition-colors shadow-md text-center"
+            className="w-full py-2 rounded-2xl bg-red-700 hover:bg-red-600 text-xs font-bold text-white transition-colors shadow-md text-center"
           >
-            Menu
+            Quit Game
           </button>
         </div>
       )}
@@ -822,10 +837,12 @@ export function RotatoryWheelGame({
               <span className="text-gray-400">Patient:</span>
               <span className="text-white font-bold">{patientName}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Letter Size:</span>
-              <span className="text-blue-400 font-bold">{letterSize} rem</span>
-            </div>
+            {mode === 'colors' ? null : (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Letter Size:</span>
+                <span className="text-blue-400 font-bold">{letterSize} rem</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Bubble Size:</span>
               <span className="text-blue-400 font-bold">{bubbleSize} px</span>
@@ -873,7 +890,7 @@ export function RotatoryWheelGame({
         {/* ROTATING WHEEL */}
         <div
           ref={wheelRef}
-          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center shadow-[0_0_60px_rgba(0,0,0,0.85)] cursor-pointer shrink-0 border-4 border-gray-800/80 animate-rotate-wheel"
+          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center shadow-[0_0_60px_rgba(0,0,0,0.85)] cursor-pointer shrink-0 animate-rotate-wheel"
           style={{
             animationDuration: `${animationDurationSeconds}s`,
             animationPlayState: isPaused ? 'paused' : 'running',
@@ -889,7 +906,7 @@ export function RotatoryWheelGame({
               return (
                 <div
                   key={bubble.id}
-                  className={`absolute rounded-full flex justify-center items-center font-bold cursor-pointer select-none border-2 border-white/60 shadow-lg active:scale-110 transition-transform -translate-x-1/2 -translate-y-1/2 ${
+                  className={`absolute rounded-full flex justify-center items-center font-bold cursor-pointer select-none active:scale-110 transition-transform -translate-x-1/2 -translate-y-1/2 ${
                     isPopping ? 'animate-pop' : ''
                   } ${isWrong ? 'animate-shake' : ''}`}
                   style={{
@@ -923,6 +940,7 @@ export function RotatoryWheelGame({
         onQuit={() => {
           if (onExit) onExit();
         }}
+        sessionInProgress={isGameStarted && !isResultsOpen}
         onReset={startLevel}
         resetButtonLabel="Reset Level"
         extraControls={
@@ -947,7 +965,9 @@ export function RotatoryWheelGame({
         }
         settingsSummary={[
           { label: 'Patient', value: patientName },
-          { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },
+          ...(mode === 'colors'
+            ? []
+            : [{ label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> }]),
           { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
           {
             label: 'Wheel Color',
@@ -998,6 +1018,7 @@ export function RotatoryWheelGame({
         wheelColor={wheelColor}
         showSpeedControl={true}
         showWheelColorControl={true}
+        showLetterSizeControl={mode !== 'colors'}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
       />
 
@@ -1018,6 +1039,28 @@ export function RotatoryWheelGame({
           data={resultsData}
         />
       )}
+      <ResetConfirmDialog
+        isOpen={confirmReset}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          setIsAssistiveTouchOpen(false);
+          resetStats();
+          startLevel();
+        }}
+      />
+      <ResetConfirmDialog
+        isOpen={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          setIsAssistiveTouchOpen(false);
+          if (onExit) onExit();
+        }}
+      />
     </div>
   );
 }

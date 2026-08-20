@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlphabetVariant,
   GameMode,
   MobileTargetSessionResultData,
   MobileTargetSetMetric,
   MobileTargetSettings,
+  THERAPY_COLOR_ITEMS,
   getContrastColor,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
+import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
+import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 import { speak } from '../lib/speech';
 
@@ -29,14 +34,18 @@ interface MovingBubble {
   scatterTimer?: number;
 }
 
-const GENERIC_COLORS = [
-  { name: 'Red', code: '#FF3344' },
-  { name: 'Blue', code: '#0070FF' },
-  { name: 'Green', code: '#00E640' },
-  { name: 'Yellow', code: '#FFDD00' },
-  { name: 'Orange', code: '#FF6600' },
-  { name: 'Purple', code: '#B000FF' },
-];
+function announceChaseTarget(mode: GameMode, value: string, name?: string) {
+  if (mode === 'colors') speak(name || value);
+  else speak(`target ${String(value).toLowerCase()}`);
+}
+
+function activeTherapyColors(enabled?: string[]) {
+  const selected = (enabled || []).map((hex) => hex.toLowerCase());
+  const items = selected.length
+    ? THERAPY_COLOR_ITEMS.filter((item) => selected.includes(item.code.toLowerCase()))
+    : THERAPY_COLOR_ITEMS;
+  return items.length >= 2 ? items : THERAPY_COLOR_ITEMS;
+}
 
 export function MobileTargetGame({
   initialMode = 'alphabets',
@@ -48,8 +57,10 @@ export function MobileTargetGame({
   onExit: () => void;
 }) {
   const { s, fs } = useLayout();
+  const insets = useSafeAreaInsets();
+  const { session } = useAuth();
   const [settings, setSettings] = useState<MobileTargetSettings>({
-    patientName: 'Mobile Patient',
+    patientName: sessionDisplayName(session),
     gameMode: initialMode,
     alphabetVariant: initialVariant,
     speedPxPerSec: 70,
@@ -58,6 +69,7 @@ export function MobileTargetGame({
     bubbleSize: 96,
     letterSize: 32,
     hasBackground: false,
+    therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
   });
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [targetItem, setTargetItem] = useState<{ value: string; color: string; name?: string }>({
@@ -71,6 +83,10 @@ export function MobileTargetGame({
   const [showClickToStart, setShowClickToStart] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
   const [setMetrics, setSetMetrics] = useState<MobileTargetSetMetric[]>([]);
@@ -86,8 +102,17 @@ export function MobileTargetGame({
   }, [bubbles]);
 
   useEffect(() => {
-    setSettings((prev) => ({ ...prev, gameMode: initialMode, alphabetVariant: initialVariant }));
+    setSettings((prev) =>
+      prev.gameMode === initialMode && prev.alphabetVariant === initialVariant
+        ? prev
+        : { ...prev, gameMode: initialMode, alphabetVariant: initialVariant },
+    );
   }, [initialMode, initialVariant]);
+  useEffect(() => {
+    const name = session?.user.name?.trim();
+    if (!name) return;
+    setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
+  }, [session?.user.name]);
 
   const gameTitle =
     settings.gameMode === 'colors'
@@ -98,50 +123,58 @@ export function MobileTargetGame({
           ? 'Lowercase Bubble Chase'
           : 'Uppercase Bubble Chase';
 
-  const generateShuffledPool = useCallback((mode: GameMode, variant?: AlphabetVariant) => {
-    let items: string[] = [];
-    if (mode === 'alphabets') {
-      items = (variant === 'lowercase' ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ').split('');
-    } else if (mode === 'numbers') {
-      items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    } else {
-      items = GENERIC_COLORS.map((c) => c.name);
-    }
-    for (let i = items.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [items[i], items[j]] = [items[j], items[i]];
-    }
-    shuffledPoolRef.current = items;
-    return items;
-  }, []);
+  const generateShuffledPool = useCallback(
+    (mode: GameMode, variant?: AlphabetVariant, enabledColors?: string[]) => {
+      let items: string[] = [];
+      if (mode === 'alphabets') {
+        items = (variant === 'lowercase' ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ').split('');
+      } else if (mode === 'numbers') {
+        items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+      } else {
+        items = activeTherapyColors(enabledColors ?? settings.therapyColors).map((c) => c.name);
+      }
+      for (let i = items.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+      shuffledPoolRef.current = items;
+      return items;
+    },
+    [settings.therapyColors]
+  );
 
   const generateSetPair = useCallback(
     (setIdx: number, mode: GameMode, variant?: AlphabetVariant, customSettings?: MobileTargetSettings, shouldSpeak = false) => {
-      if (shuffledPoolRef.current.length === 0 || setIdx === 0) generateShuffledPool(mode, variant);
+      const effSettings = customSettings || settings;
+      if (shuffledPoolRef.current.length === 0 || setIdx === 0) {
+        generateShuffledPool(mode, variant, effSettings.therapyColors);
+      }
       const pool = shuffledPoolRef.current;
-      if (settings.totalSets !== pool.length) setSettings((prev) => ({ ...prev, totalSets: pool.length }));
+      if (settings.totalSets !== pool.length) {
+        setSettings((prev) => (prev.totalSets === pool.length ? prev : { ...prev, totalSets: pool.length }));
+      }
       const targetVal = pool[setIdx % pool.length];
       const availableDistractors = pool.filter((val) => val !== targetVal);
       const distractorVal = availableDistractors[Math.floor(Math.random() * availableDistractors.length)];
-      let targetCol = GENERIC_COLORS[0].code;
-      let distractorCol = GENERIC_COLORS[1].code;
+      const palette = activeTherapyColors(effSettings.therapyColors);
+      let targetCol = palette[0].code;
+      let distractorCol = palette[1].code;
       let targetName: string | undefined;
       if (mode === 'colors') {
-        const tColorObj = GENERIC_COLORS.find((c) => c.name === targetVal) || GENERIC_COLORS[0];
-        const dColorObj = GENERIC_COLORS.find((c) => c.name === distractorVal) || GENERIC_COLORS[1];
+        const tColorObj = palette.find((c) => c.name === targetVal) || palette[0];
+        const dColorObj = palette.find((c) => c.name === distractorVal) || palette[1];
         targetCol = tColorObj.code;
         distractorCol = dColorObj.code;
         targetName = tColorObj.name;
       } else {
-        const c1 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        let c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        while (c2 === c1) c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        targetCol = GENERIC_COLORS[c1].code;
-        distractorCol = GENERIC_COLORS[c2].code;
+        const c1 = Math.floor(Math.random() * palette.length);
+        let c2 = Math.floor(Math.random() * palette.length);
+        while (c2 === c1 && palette.length > 1) c2 = Math.floor(Math.random() * palette.length);
+        targetCol = palette[c1].code;
+        distractorCol = palette[c2].code;
       }
       setTargetItem({ value: targetVal, color: targetCol, name: targetName });
-      if (shouldSpeak) speak(targetName || targetVal);
-      const effSettings = customSettings || settings;
+      if (shouldSpeak) announceChaseTarget(mode, targetVal, targetName);
       const speed = effSettings.speedPxPerSec;
       const radius = (effSettings.bubbleSize || 96) / 2;
       const axis = effSettings.movementAxis || 'random';
@@ -346,6 +379,11 @@ export function MobileTargetGame({
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, isPaused, showResults, showSettings, bounds, settings.speedPxPerSec]);
 
+  const fabSize = s(40);
+  const bottomPad = insets.bottom + s(12);
+  const rightPad = s(12);
+  const isColors = settings.gameMode === 'colors';
+
   return (
     <View style={{ flex: 1, backgroundColor: '#05070F' }}>
       {showClickToStart && !showSettings && !showResults ? (
@@ -356,7 +394,7 @@ export function MobileTargetGame({
               setShowClickToStart(false);
               setIsPlaying(true);
               setIsPaused(false);
-              speak(targetItem.name || targetItem.value);
+              announceChaseTarget(settings.gameMode, targetItem.value, targetItem.name);
             }}
             style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}
           >
@@ -364,70 +402,332 @@ export function MobileTargetGame({
           </Pressable>
         </View>
       ) : null}
-      <View style={{ position: 'absolute', top: s(48), alignSelf: 'center', zIndex: 10, backgroundColor: targetItem.color, paddingHorizontal: s(16), paddingVertical: s(8), borderRadius: s(12) }}>
-        <Text style={{ color: getContrastColor(targetItem.color), fontWeight: '900', fontSize: fs(20) }}>{targetItem.value}</Text>
-      </View>
       <View
         style={{ flex: 1 }}
-        onLayout={(e) => setBounds({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          setBounds((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+        }}
       >
-        {bubbles.map((bubble) => (
-          <Pressable
-            key={bubble.id}
-            onPress={() => {
-              if (!isPlaying || isPaused || showResults) return;
-              if (bubble.isTarget) {
-                void hapticCorrect();
-                setCorrectCount((c) => c + 1);
-                advanceToNextSet('correct', Date.now() - setStartTimeRef.current);
-              } else {
-                void hapticWrong();
-                setWrongCount((w) => w + 1);
-                wrongClicksSetRef.current += 1;
-              }
-            }}
+        {bubbles.map((bubble) => {
+          const size = bubble.radius * 2;
+          const filled = settings.hasBackground === true;
+          return (
+            <Pressable
+              key={bubble.id}
+              onPress={() => {
+                if (!isPlaying || isPaused || showResults) return;
+                if (bubble.isTarget) {
+                  void hapticCorrect();
+                  setCorrectCount((c) => c + 1);
+                  advanceToNextSet('correct', Date.now() - setStartTimeRef.current);
+                } else {
+                  void hapticWrong();
+                  setWrongCount((w) => w + 1);
+                  wrongClicksSetRef.current += 1;
+                }
+              }}
+              style={{
+                position: 'absolute',
+                left: bounds.w / 2 + bubble.x - size / 2,
+                top: bounds.h / 2 + bubble.y - size / 2,
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                backgroundColor: filled ? bubble.color : '#121626',
+                borderWidth: filled ? 3 : 4,
+                borderColor: filled ? '#FFFFFF' : bubble.color,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isColors ? null : (
+                <Text
+                  style={{
+                    color: filled ? getContrastColor(bubble.color) : bubble.color,
+                    fontWeight: '900',
+                    fontSize: settings.letterSize || 32,
+                  }}
+                >
+                  {bubble.value}
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View
+        style={{
+          position: 'absolute',
+          bottom: bottomPad,
+          right: rightPad,
+          zIndex: 40,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: s(8),
+        }}
+      >
+        <Pressable
+          onPress={() => announceChaseTarget(settings.gameMode, targetItem.value, targetItem.name)}
+          hitSlop={8}
+          style={{
+            width: fabSize,
+            height: fabSize,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+          }}
+        >
+          <ReplayIcon size={18} color="rgba(148,163,184,0.32)" />
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            setIsAssistiveTouchOpen((prev) => !prev);
+            setIsHeaderExpanded(false);
+          }}
+          style={{
+            width: fabSize,
+            height: fabSize,
+            borderRadius: fabSize / 2,
+            backgroundColor: isAssistiveTouchOpen ? '#1A2035' : 'rgba(18,22,38,0.92)',
+            borderWidth: 2,
+            borderColor: isAssistiveTouchOpen ? '#60A5FA' : 'rgba(59,130,246,0.7)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {isColors ? (
+            <View
+              style={{
+                width: s(14),
+                height: s(14),
+                borderRadius: s(7),
+                backgroundColor: targetItem.color,
+                borderWidth: 1,
+                borderColor: '#fff',
+              }}
+            />
+          ) : (
+            <Text style={{ color: targetItem.color, fontWeight: '900', fontSize: fs(14) }}>{targetItem.value || '—'}</Text>
+          )}
+          <View
             style={{
               position: 'absolute',
-              width: bubble.radius * 2,
-              height: bubble.radius * 2,
-              borderRadius: bubble.radius,
-              backgroundColor: settings.hasBackground === false ? 'transparent' : bubble.color,
-              borderWidth: 4,
-              borderColor: bubble.color,
-              left: bounds.w / 2 + bubble.x - bubble.radius,
-              top: bounds.h / 2 + bubble.y - bubble.radius,
+              top: -4,
+              right: -4,
+              width: s(14),
+              height: s(14),
+              borderRadius: s(7),
+              backgroundColor: '#2563EB',
               alignItems: 'center',
               justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: '#93C5FD',
             }}
           >
-            <Text style={{ color: settings.hasBackground === false ? bubble.color : getContrastColor(bubble.color), fontWeight: '900', fontSize: settings.letterSize || 32 }}>
-              {settings.gameMode === 'colors' ? '' : bubble.value}
-            </Text>
-          </Pressable>
-        ))}
+            <ChevronUpIcon size={8} color="#fff" />
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            setIsHeaderExpanded((prev) => !prev);
+            setIsAssistiveTouchOpen(false);
+          }}
+          style={{
+            backgroundColor: 'rgba(18,22,38,0.92)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(12),
+            paddingHorizontal: s(10),
+            paddingVertical: s(8),
+          }}
+        >
+          <Text style={{ color: '#E5E7EB', fontWeight: '800', fontSize: fs(11) }}>
+            {isHeaderExpanded ? '▼ Hide Info' : '▲ View Info'}
+          </Text>
+        </Pressable>
       </View>
-      <Pressable onPress={() => setMenuOpen(true)} style={{ position: 'absolute', bottom: s(24), right: s(16), backgroundColor: '#121626', padding: s(12), borderRadius: 22 }}>
-        <Text style={{ color: '#fff' }}>☰</Text>
-      </Pressable>
+
+      {isAssistiveTouchOpen ? (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: bottomPad + fabSize + s(16),
+            right: rightPad + s(8),
+            zIndex: 50,
+            backgroundColor: 'rgba(18,22,38,0.96)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(24),
+            padding: s(14),
+            minWidth: s(210),
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(10) }}>
+            <Text style={{ color: '#D1D5DB', fontWeight: '800', fontSize: fs(11), letterSpacing: 0.8 }}>CONTROLS</Text>
+            <Pressable onPress={() => setIsAssistiveTouchOpen(false)}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '800' }}>✕</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            onPress={() => {
+              announceChaseTarget(settings.gameMode, targetItem.value, targetItem.name);
+            }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#1A2035',
+              borderWidth: 1,
+              borderColor: 'rgba(59,130,246,0.4)',
+              borderRadius: s(16),
+              paddingHorizontal: s(12),
+              paddingVertical: s(10),
+              marginBottom: s(8),
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>Target:</Text>
+              {isColors ? (
+                <View
+                  style={{
+                    width: s(22),
+                    height: s(22),
+                    borderRadius: s(11),
+                    backgroundColor: targetItem.color,
+                    borderWidth: 1,
+                    borderColor: '#fff',
+                  }}
+                />
+              ) : (
+                <Text style={{ color: targetItem.color, fontWeight: '900', fontSize: fs(20) }}>{targetItem.value}</Text>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+              <VolumeIcon size={14} color="#60A5FA" />
+              <Text style={{ color: '#60A5FA', fontWeight: '800', fontSize: fs(11) }}>Replay</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => setIsPaused((prev) => !prev)}
+            style={{
+              backgroundColor: isPaused ? '#059669' : '#1F2937',
+              borderRadius: s(16),
+              paddingVertical: s(10),
+              alignItems: 'center',
+              marginBottom: s(8),
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: s(8),
+            }}
+          >
+            {isPaused ? <PlayIcon size={14} color="#fff" /> : <PauseIcon size={14} color="#fff" />}
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>{isPaused ? 'Play' : 'Pause'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setIsAssistiveTouchOpen(false);
+              setIsPaused(true);
+              setShowSettings(true);
+            }}
+            style={{
+              backgroundColor: '#1F2937',
+              borderRadius: s(16),
+              paddingVertical: s(10),
+              alignItems: 'center',
+              marginBottom: s(8),
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: s(8),
+            }}
+          >
+            <SlidersIcon size={16} color="#D1D5DB" />
+            <Text style={{ color: '#D1D5DB', fontWeight: '800', fontSize: fs(12) }}>Settings</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setConfirmReset(true)}
+            style={{ backgroundColor: '#1F2937', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center', marginBottom: s(8) }}
+          >
+            <Text style={{ color: '#E5E7EB', fontWeight: '800', fontSize: fs(12) }}>Reset Game</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              const inProgress = !showResults && !showSettings && !showClickToStart;
+              if (inProgress) setConfirmQuit(true);
+              else {
+                setIsAssistiveTouchOpen(false);
+                onExit();
+              }
+            }}
+            style={{ backgroundColor: '#B91C1C', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>Quit Game</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {isHeaderExpanded ? (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: bottomPad + fabSize + s(16),
+            right: rightPad,
+            zIndex: 40,
+            backgroundColor: 'rgba(18,22,38,0.96)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(18),
+            padding: s(16),
+            minWidth: s(250),
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(10) }}>
+            <View>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: fs(13) }}>Session & Clinical Info</Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>{gameTitle}</Text>
+            </View>
+            <Pressable onPress={() => setIsHeaderExpanded(false)}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '800' }}>✕</Text>
+            </Pressable>
+          </View>
+          <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', marginBottom: s(6) }}>
+            CLINICAL PARAMETERS
+          </Text>
+          <InfoRow label="Patient" value={settings.patientName} />
+          {isColors ? null : <InfoRow label="Letter Size" value={`${settings.letterSize || 32} px`} accent="#60A5FA" />}
+          <InfoRow label="Bubble Size" value={`${settings.bubbleSize || 96} px`} accent="#60A5FA" />
+          <InfoRow label="Set" value={`${currentSetIndex + 1} / ${settings.totalSets}`} accent="#60A5FA" />
+          <View style={{ height: 1, backgroundColor: '#1F2937', marginVertical: s(8) }} />
+          <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', marginBottom: s(6) }}>LIVE METRICS</Text>
+          <InfoRow label="Correct Sets" value={`${correctCount} / ${settings.totalSets}`} accent="#34D399" />
+          <InfoRow label="Wrong Clicks" value={String(wrongCount)} accent="#FB7185" />
+        </View>
+      ) : null}
       <ClinicalSettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         patientName={settings.patientName}
         letterSize={(settings.letterSize || 32) / 16}
         bubbleSize={settings.bubbleSize || 96}
-        speed={settings.speedPxPerSec / 70}
+        sampleSymbol={settings.gameMode === 'colors' ? '' : settings.gameMode === 'numbers' ? '7' : settings.alphabetVariant === 'lowercase' ? 'a' : 'A'}
+        showTherapyColorPicker={settings.gameMode === 'colors'}
+        showLetterSizeControl={settings.gameMode !== 'colors'}
+        therapyColors={settings.therapyColors}
         onApply={(next) => {
-          setSettings((prev) => ({
-            ...prev,
+          const nextColors = activeTherapyColors(next.therapyColors).map((item) => item.code);
+          const nextSettings: MobileTargetSettings = {
+            ...settings,
             patientName: next.patientName,
             letterSize: Math.round(next.letterSize * 16),
             bubbleSize: next.bubbleSize,
-            speedPxPerSec: Math.round((next.speed || 1) * 70),
-          }));
+            therapyColors: nextColors,
+          };
+          setSettings(nextSettings);
           setShowSettings(false);
           setShowClickToStart(true);
+          generateSetPair(0, nextSettings.gameMode, nextSettings.alphabetVariant, nextSettings, false);
         }}
-        showSpeedControl
       />
       {sessionResult ? (
         <GameResultsModal isOpen={showResults} data={sessionResult} onClose={onExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
@@ -436,6 +736,7 @@ export function MobileTargetGame({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onQuit={onExit}
+        sessionInProgress={!showResults && !showSettings && !showClickToStart}
         onReset={() => {
           setCurrentSetIndex(0);
           generateSetPair(0, settings.gameMode, settings.alphabetVariant);
@@ -446,9 +747,39 @@ export function MobileTargetGame({
         }}
         settingsSummary={[
           { label: 'Patient', value: settings.patientName },
-          { label: 'Speed', value: `${settings.speedPxPerSec} px/s` },
         ]}
       />
+      <ResetConfirmDialog
+        visible={confirmReset}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          setIsAssistiveTouchOpen(false);
+          setCurrentSetIndex(0);
+          generateSetPair(0, settings.gameMode, settings.alphabetVariant);
+        }}
+      />
+      <ResetConfirmDialog
+        visible={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          setIsAssistiveTouchOpen(false);
+          onExit();
+        }}
+      />
+    </View>
+  );
+}
+
+function InfoRow({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+      <Text style={{ color: '#9CA3AF', fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: accent || '#fff', fontWeight: '700', fontSize: 12 }}>{value}</Text>
     </View>
   );
 }

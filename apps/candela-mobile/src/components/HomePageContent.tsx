@@ -6,6 +6,7 @@ import {
   ArrowRightIcon,
   BeePathIcon,
   EyeIcon,
+  GeoboardIcon,
   MobileTargetIcon,
   MonitorIcon,
   PuzzleIcon,
@@ -68,11 +69,11 @@ const MODULES = [
   {
     id: 'geoboard',
     title: 'Draw a Pattern',
-    body: 'Hand-eye coordination & visual spatial recall patterns.',
+    body: 'Five pattern boards for visual-motor integration & spatial recall.',
     badge: 'For All Devices',
     accent: '#0D9488',
     bg: '#F0FDFA',
-    Icon: SlidersIcon,
+    Icon: GeoboardIcon,
   },
 ] as const;
 

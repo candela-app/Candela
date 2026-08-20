@@ -10,9 +10,15 @@ export class ApiError extends Error {
   }
 }
 
+const PRODUCTION_API_URL = 'https://candela-backend.onrender.com';
+const AUTH_ANON_PATHS = new Set(['/api/auth/login', '/api/auth/signup', '/api/auth/refresh']);
+
 function defaultApiUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+  }
+  if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+    return PRODUCTION_API_URL;
   }
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3001';
@@ -70,6 +76,7 @@ async function tryRefresh(): Promise<boolean> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
+        credentials: 'omit',
       });
       if (!res.ok) {
         await clearTokens();
@@ -90,14 +97,17 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const accessToken = await getAccessToken();
-  if (accessToken && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
+  if (!AUTH_ANON_PATHS.has(path)) {
+    const accessToken = await getAccessToken();
+    if (accessToken && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
   }
 
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
+    credentials: 'omit',
   });
 
   if (res.status === 401 && retry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/google') {

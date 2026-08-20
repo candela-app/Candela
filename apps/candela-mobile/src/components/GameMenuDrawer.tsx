@@ -1,7 +1,8 @@
+import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ReactNode } from 'react';
 import { useLayout } from '../lib/layout';
+import { ResetConfirmDialog } from './ResetConfirmDialog';
 
 export interface ClinicalSettingSummaryItem {
   label: string;
@@ -15,7 +16,9 @@ export function GameMenuDrawer({
   onReset,
   onOpenSettings,
   resetButtonLabel = 'Reset Game',
+  extraControls,
   settingsSummary,
+  sessionInProgress = true,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -23,11 +26,22 @@ export function GameMenuDrawer({
   onReset: () => void;
   onOpenSettings?: () => void;
   resetButtonLabel?: string;
+  extraControls?: ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
+  sessionInProgress?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, width } = useLayout();
   const drawerWidth = Math.min(340, width * 0.88);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setConfirmReset(false);
+      setConfirmQuit(false);
+    }
+  }, [isOpen]);
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -50,18 +64,18 @@ export function GameMenuDrawer({
           </View>
           <Pressable
             onPress={() => {
-              onClose();
-              onQuit();
+              if (sessionInProgress) setConfirmQuit(true);
+              else {
+                onClose();
+                onQuit();
+              }
             }}
             style={menuBtn}
           >
             <Text style={menuBtnText}>Quit Game</Text>
           </Pressable>
           <Pressable
-            onPress={() => {
-              onClose();
-              onReset();
-            }}
+            onPress={() => setConfirmReset(true)}
             style={menuBtn}
           >
             <Text style={menuBtnText}>{resetButtonLabel}</Text>
@@ -77,17 +91,44 @@ export function GameMenuDrawer({
               <Text style={[menuBtnText, { color: '#60A5FA' }]}>Clinical Settings</Text>
             </Pressable>
           ) : null}
+          {extraControls}
           <ScrollView style={{ marginTop: s(16) }}>
             <Text style={{ color: '#9CA3AF', fontSize: fs(12), fontWeight: '700', marginBottom: s(8) }}>SESSION</Text>
             {settingsSummary.map((item) => (
               <View key={item.label} style={{ marginBottom: s(10) }}>
                 <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>{item.label}</Text>
-                <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '600' }}>{item.value}</Text>
+                {typeof item.value === 'string' || typeof item.value === 'number' ? (
+                  <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '600' }}>{item.value}</Text>
+                ) : (
+                  item.value
+                )}
               </View>
             ))}
           </ScrollView>
         </View>
       </View>
+      <ResetConfirmDialog
+        visible={confirmReset}
+        confirmLabel={resetButtonLabel}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          onClose();
+          onReset();
+        }}
+      />
+      <ResetConfirmDialog
+        visible={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          onClose();
+          onQuit();
+        }}
+      />
     </Modal>
   );
 }

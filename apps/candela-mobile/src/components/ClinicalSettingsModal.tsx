@@ -1,16 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GEOBOARD_PEN_COLORS, SPEED_PRESETS } from '@candela/shared/rn';
-import type {
-  AlphabetVariant,
-  DeviceOrientation,
-  GeoboardBoardId,
-  GeoboardMatrixTier,
-  GeoboardTransform,
-  PursuitMovementPattern,
-  PursuitTargetColor,
-} from '@candela/shared/rn';
+import { SPEED_PRESETS, THERAPY_COLOR_ITEMS } from '@candela/shared/rn';
+import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
 import { useLayout } from '../lib/layout';
 
 export interface AppliedClinicalSettings {
@@ -33,33 +25,42 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
-  alphabetVariant?: AlphabetVariant;
-  bpm?: number;
-  metronomeEnabled?: boolean;
-  matrixTier?: GeoboardMatrixTier;
-  memoryMode?: boolean;
-  memorizeSec?: number;
-  transform?: GeoboardTransform;
-  ocularity?: 'R' | 'L' | 'Both';
-  timeLimitSec?: number;
-  contrastSensitivity?: number;
-  bgColor?: string;
-  shapeColor?: string;
-  penColor?: string;
+  therapyColors?: string[];
 }
 
-const LETTER_SIZES = [1, 1.4, 1.8, 2.2, 2.6, 3];
-const BUBBLE_SIZES = [50, 70, 90, 110, 130];
-const WHEEL_COLORS = ['#000000', '#0B1B3A', '#1A1A1A', '#111827'];
+const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
+const BUBBLE_SIZES = [60, 70, 80, 90, 100];
+const WHEEL_COLORS = ['#000000', '#0B1B3A', '#1A1A1A', '#111827', '#0D0D0D', '#1E3A8A'];
 const PATH_TYPES = ['auto', 'straight', 'curve', 'zigzag', 'wave', 'spiral', 'branching', 'dotted', 'random'];
-const PURSUIT_PATTERNS: PursuitMovementPattern[] = [
-  'linear_bounce',
-  'circular_orbit',
-  'figure_eight',
-  'random_walk',
-  'freeze_drift',
+const PURSUIT_PATTERN_OPTIONS: { val: PursuitMovementPattern; label: string }[] = [
+  { val: 'linear_bounce', label: '1. Linear Bounce (Straight Wall Bounces)' },
+  { val: 'circular_orbit', label: '2. Circular / Elliptical Orbit' },
+  { val: 'figure_eight', label: '3. Figure-8 Wave' },
+  { val: 'random_walk', label: '4. Random Walk with Momentum' },
+  { val: 'freeze_drift', label: '5. Freeze & Drift' },
 ];
-const PURSUIT_COLORS: PursuitTargetColor[] = ['#FFFFFF', '#FFD600', '#00E5FF'];
+const PURSUIT_COLOR_OPTIONS: { label: string; val: PursuitTargetColor; text: string }[] = [
+  { label: 'Cyan', val: '#00E5FF', text: '#000000' },
+  { label: 'Yellow', val: '#FFD600', text: '#000000' },
+  { label: 'White', val: '#FFFFFF', text: '#000000' },
+];
+const PURSUIT_BUBBLE_SIZES = [50, 60, 70, 80, 90, 100, 110, 120, 130];
+const PURSUIT_SPEEDS = [
+  { label: 'Slow (110 px/s)', val: 110 },
+  { label: 'Normal (180 px/s)', val: 180 },
+  { label: 'Fast (260 px/s)', val: 260 },
+];
+const DEFAULT_THERAPY_COLORS = THERAPY_COLOR_ITEMS.map((item) => item.code);
+const PURSUIT_TIMEOUTS = [
+  { label: 'Off', val: 0 },
+  { label: '4s', val: 4 },
+  { label: '5s', val: 5 },
+  { label: '6s', val: 6 },
+];
+
+function nearestStep(values: number[], n: number) {
+  return values.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), values[0]);
+}
 
 function Chip({
   label,
@@ -90,6 +91,57 @@ function Chip({
   );
 }
 
+function StepSlider({
+  values,
+  value,
+  onChange,
+  format = String,
+}: {
+  values: number[];
+  value: number;
+  onChange: (n: number) => void;
+  format?: (n: number) => string;
+}) {
+  const { fs, s } = useLayout();
+  const snapped = nearestStep(values, value);
+  const idx = Math.max(0, values.indexOf(snapped));
+  const pct = values.length > 1 ? idx / (values.length - 1) : 0;
+  return (
+    <View>
+      <View style={{ height: s(10), backgroundColor: '#141414', borderRadius: s(6), overflow: 'hidden', marginVertical: s(8) }}>
+        <View style={{ width: `${Math.round(pct * 100)}%`, height: '100%', backgroundColor: '#3B82F6' }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        {values.map((n) => (
+          <Pressable key={n} onPress={() => onChange(n)} hitSlop={8}>
+            <Text style={{ color: n === snapped ? '#60A5FA' : '#9CA3AF', fontSize: fs(11), fontWeight: '700' }}>
+              {format(n)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Card({ children }: { children: ReactNode }) {
+  const { s } = useLayout();
+  return (
+    <View
+      style={{
+        backgroundColor: '#242424',
+        borderRadius: s(16),
+        borderWidth: 1,
+        borderColor: '#1F2937',
+        padding: s(16),
+        marginBottom: s(12),
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export function ClinicalSettingsModal({
   isOpen,
   onClose,
@@ -101,6 +153,7 @@ export function ClinicalSettingsModal({
   wheelColor = '#000000',
   showSpeedControl = false,
   showWheelColorControl = false,
+  sampleSymbol = 'A',
   showBeeTracingControls = false,
   tracingMode = 'active',
   pathType = 'auto',
@@ -115,26 +168,11 @@ export function ClinicalSettingsModal({
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 2,
-  pursuitSpeedPxPerSec = 180,
-  pursuitTrialTimeoutSec = 5,
-  showGeoboardControls = false,
-  geoboardBoardId = 1 as GeoboardBoardId,
-  geoboardBoardName = 'Geoboard',
-  geoboardSupportsLetterCase = false,
-  geoboardPatternCount = 0,
-  alphabetVariant = 'uppercase' as AlphabetVariant,
-  bpm = 60,
-  metronomeEnabled = false,
-  matrixTier = 1 as GeoboardMatrixTier,
-  memoryMode = false,
-  memorizeSec = 5,
-  transform = 'duplicate' as GeoboardTransform,
-  ocularity = 'Both' as 'R' | 'L' | 'Both',
-  timeLimitSec = 0,
-  contrastSensitivity = 1,
-  bgColor = '#FFFFFF',
-  shapeColor = '#000000',
-  penColor = '#FBBF24',
+  pursuitSpeedPxPerSec = 110,
+  pursuitTrialTimeoutSec = 0,
+  showTherapyColorPicker = false,
+  therapyColors = DEFAULT_THERAPY_COLORS,
+  showLetterSizeControl = true,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -146,6 +184,7 @@ export function ClinicalSettingsModal({
   wheelColor?: string;
   showSpeedControl?: boolean;
   showWheelColorControl?: boolean;
+  sampleSymbol?: string;
   showBeeTracingControls?: boolean;
   tracingMode?: 'active' | 'guided';
   pathType?: string;
@@ -162,24 +201,9 @@ export function ClinicalSettingsModal({
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
-  showGeoboardControls?: boolean;
-  geoboardBoardId?: GeoboardBoardId;
-  geoboardBoardName?: string;
-  geoboardSupportsLetterCase?: boolean;
-  geoboardPatternCount?: number;
-  alphabetVariant?: AlphabetVariant;
-  bpm?: number;
-  metronomeEnabled?: boolean;
-  matrixTier?: GeoboardMatrixTier;
-  memoryMode?: boolean;
-  memorizeSec?: number;
-  transform?: GeoboardTransform;
-  ocularity?: 'R' | 'L' | 'Both';
-  timeLimitSec?: number;
-  contrastSensitivity?: number;
-  bgColor?: string;
-  shapeColor?: string;
-  penColor?: string;
+  showTherapyColorPicker?: boolean;
+  therapyColors?: string[];
+  showLetterSizeControl?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
@@ -202,26 +226,16 @@ export function ClinicalSettingsModal({
   const [tempDecoys, setTempDecoys] = useState(pursuitDecoyCount);
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
-  const [tempAlphabetVariant, setTempAlphabetVariant] = useState(alphabetVariant);
-  const [tempBpm, setTempBpm] = useState(bpm);
-  const [tempMetronome, setTempMetronome] = useState(metronomeEnabled);
-  const [tempMatrixTier, setTempMatrixTier] = useState(matrixTier);
-  const [tempMemoryMode, setTempMemoryMode] = useState(memoryMode);
-  const [tempMemorizeSec, setTempMemorizeSec] = useState(memorizeSec);
-  const [tempTransform, setTempTransform] = useState(transform);
-  const [tempOcularity, setTempOcularity] = useState(ocularity);
-  const [tempTimeLimit, setTempTimeLimit] = useState(timeLimitSec);
-  const [tempContrast, setTempContrast] = useState(contrastSensitivity);
-  const [tempBgColor, setTempBgColor] = useState(bgColor);
-  const [tempShapeColor, setTempShapeColor] = useState(shapeColor);
-  const [tempPenColor, setTempPenColor] = useState(penColor);
+  const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(therapyColors);
 
   useEffect(() => {
     if (!isOpen) return;
     setTempPatientName(patientName);
-    setTempLetterSize(letterSize);
-    setTempBubbleSize(bubbleSize);
-    setTempSpeed(speed);
+    setTempLetterSize(nearestStep(LETTER_SIZES, letterSize));
+    setTempBubbleSize(
+      nearestStep(showPursuitControls ? PURSUIT_BUBBLE_SIZES : BUBBLE_SIZES, bubbleSize),
+    );
+    setTempSpeed(nearestStep(SPEED_PRESETS, speed));
     setTempWheelColor(wheelColor);
     setTempTracingMode(tracingMode);
     setTempPathType(pathType);
@@ -237,324 +251,675 @@ export function ClinicalSettingsModal({
     setTempDecoys(pursuitDecoyCount);
     setTempPursuitSpeed(pursuitSpeedPxPerSec);
     setTempTimeout(pursuitTrialTimeoutSec);
-    setTempAlphabetVariant(alphabetVariant);
-    setTempBpm(bpm);
-    setTempMetronome(metronomeEnabled);
-    setTempMatrixTier(matrixTier);
-    setTempMemoryMode(memoryMode);
-    setTempMemorizeSec(memorizeSec);
-    setTempTransform(transform);
-    setTempOcularity(ocularity);
-    setTempTimeLimit(timeLimitSec);
-    setTempContrast(contrastSensitivity);
-    setTempBgColor(bgColor);
-    setTempShapeColor(shapeColor);
-    setTempPenColor(penColor);
-  }, [
-    isOpen,
-    patientName,
-    letterSize,
-    bubbleSize,
-    speed,
-    wheelColor,
-    tracingMode,
-    pathType,
-    toleranceBandPx,
-    colorTheme,
-    audioEnabled,
-    roundsPerSet,
-    pathComplexity,
-    beeSpeedSec,
-    orientation,
-    pursuitMovementPattern,
-    pursuitTargetColor,
-    pursuitDecoyCount,
-    pursuitSpeedPxPerSec,
-    pursuitTrialTimeoutSec,
-    alphabetVariant,
-    bpm,
-    metronomeEnabled,
-    matrixTier,
-    memoryMode,
-    memorizeSec,
-    transform,
-    ocularity,
-    timeLimitSec,
-    contrastSensitivity,
-    bgColor,
-    shapeColor,
-    penColor,
-  ]);
+    setTempTherapyColors((prev) => {
+      if (
+        prev.length === therapyColors.length &&
+        prev.every((hex, i) => hex === therapyColors[i])
+      ) {
+        return prev;
+      }
+      return therapyColors;
+    });
+    // Sync draft fields only when the modal opens. Listing every prop here
+    // retriggered setState on each parent render and overflowed the update depth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
-  if (!isOpen) return null;
+  const apply = () =>
+    onApply({
+      patientName: tempPatientName,
+      letterSize: tempLetterSize,
+      bubbleSize: tempBubbleSize,
+      speed: tempSpeed,
+      wheelColor: tempWheelColor,
+      tracingMode: tempTracingMode,
+      pathType: tempPathType,
+      toleranceBandPx: tempTolerance,
+      colorTheme: tempTheme,
+      audioEnabled: tempAudio,
+      roundsPerSet: tempRounds,
+      pathComplexity: tempComplexity,
+      beeSpeedSec: tempBeeSpeed,
+      orientation: tempOrientation,
+      pursuitMovementPattern: tempPattern,
+      pursuitTargetColor: tempTargetColor,
+      pursuitDecoyCount: tempDecoys,
+      pursuitSpeedPxPerSec: tempPursuitSpeed,
+      pursuitTrialTimeoutSec: tempTimeout,
+      therapyColors: tempTherapyColors,
+    });
+
+  const isBubbleGame = !showBeeTracingControls && !showPursuitControls;
+  const previewSize = Math.min(tempBubbleSize, 130);
 
   return (
-    <Modal visible={isOpen} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: '#0B1020', paddingTop: insets.top, paddingBottom: insets.bottom }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: s(16), paddingVertical: s(12) }}>
-          <Text style={{ color: '#fff', fontSize: fs(20), fontWeight: '800' }}>Clinical Settings</Text>
-          <Pressable onPress={onClose}>
-            <Text style={{ color: '#9CA3AF', fontSize: fs(16), fontWeight: '700' }}>Close</Text>
-          </Pressable>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: s(16), paddingBottom: s(40) }}>
-          <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(6) }}>Patient name</Text>
-          <TextInput
-            value={tempPatientName}
-            onChangeText={setTempPatientName}
+    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          paddingTop: insets.top + s(8),
+          paddingBottom: insets.bottom + s(8),
+          paddingHorizontal: s(12),
+        }}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: s(8) }}>
+          <View
             style={{
-              backgroundColor: '#111827',
-              color: '#fff',
-              borderRadius: s(12),
-              padding: s(12),
-              marginBottom: s(16),
+              backgroundColor: '#1A1A1A',
+              borderRadius: s(24),
               borderWidth: 1,
-              borderColor: '#374151',
-            }}
-          />
-
-          <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Letter size</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {LETTER_SIZES.map((n) => (
-              <Chip key={n} label={`${n}`} active={tempLetterSize === n} onPress={() => setTempLetterSize(n)} />
-            ))}
-          </View>
-
-          <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
-            Bubble size
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {BUBBLE_SIZES.map((n) => (
-              <Chip key={n} label={`${n}px`} active={tempBubbleSize === n} onPress={() => setTempBubbleSize(n)} />
-            ))}
-          </View>
-
-          {showSpeedControl ? (
-            <>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
-                Speed
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {SPEED_PRESETS.map((n) => (
-                  <Chip key={n} label={`${n}x`} active={tempSpeed === n} onPress={() => setTempSpeed(n)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {showWheelColorControl ? (
-            <>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
-                Wheel color
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {WHEEL_COLORS.map((c) => (
-                  <Chip key={c} label={c} active={tempWheelColor === c} onPress={() => setTempWheelColor(c)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {showBeeTracingControls ? (
-            <>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
-                Tracing mode
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                <Chip label="Active" active={tempTracingMode === 'active'} onPress={() => setTempTracingMode('active')} />
-                <Chip label="Guided" active={tempTracingMode === 'guided'} onPress={() => setTempTracingMode('guided')} />
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Path type</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {PATH_TYPES.map((p) => (
-                  <Chip key={p} label={p} active={tempPathType === p} onPress={() => setTempPathType(p)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Complexity</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['short', 'medium', 'long'] as const).map((p) => (
-                  <Chip key={p} label={p} active={tempComplexity === p} onPress={() => setTempComplexity(p)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Bee speed (sec)</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[3, 5, 8, 10].map((n) => (
-                  <Chip key={n} label={`${n}s`} active={tempBeeSpeed === n} onPress={() => setTempBeeSpeed(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tolerance</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[24, 40, 56, 72].map((n) => (
-                  <Chip key={n} label={`${n}px`} active={tempTolerance === n} onPress={() => setTempTolerance(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Theme</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['dark', 'standard', 'high_contrast'] as const).map((p) => (
-                  <Chip key={p} label={p} active={tempTheme === p} onPress={() => setTempTheme(p)} />
-                ))}
-              </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                <Chip label={tempAudio ? 'Audio on' : 'Audio off'} active={tempAudio} onPress={() => setTempAudio((v) => !v)} />
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Rounds</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[1, 3, 5, 7].map((n) => (
-                  <Chip key={n} label={`${n}`} active={tempRounds === n} onPress={() => setTempRounds(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Orientation</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['auto', 'portrait', 'landscape'] as const).map((p) => (
-                  <Chip key={p} label={p} active={tempOrientation === p} onPress={() => setTempOrientation(p)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {showGeoboardControls ? (
-            <>
-              <Text style={{ color: '#5EEAD4', fontSize: fs(12), fontWeight: '800', marginBottom: s(8), marginTop: s(4) }}>
-                Board {String(geoboardBoardId).padStart(2, '0')} · {geoboardBoardName}
-              </Text>
-              <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginBottom: s(12) }}>
-                {geoboardSupportsLetterCase && tempAlphabetVariant === 'lowercase'
-                  ? `${geoboardPatternCount} patterns · lowercase set`
-                  : `${geoboardPatternCount} patterns in this playlist`}
-              </Text>
-              {geoboardSupportsLetterCase ? (
-                <>
-                  <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Letter case</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    <Chip label="Uppercase" active={tempAlphabetVariant === 'uppercase'} onPress={() => setTempAlphabetVariant('uppercase')} />
-                    <Chip label="Lowercase" active={tempAlphabetVariant === 'lowercase'} onPress={() => setTempAlphabetVariant('lowercase')} />
-                  </View>
-                </>
-              ) : null}
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Matrix density</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {([1, 2, 3, 4, 5] as GeoboardMatrixTier[]).map((tier) => (
-                  <Chip key={tier} label={`Tier ${tier}`} active={tempMatrixTier === tier} onPress={() => setTempMatrixTier(tier)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Transform</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['duplicate', 'flip_h', 'flip_v', 'rotate_90_r', 'rotate_90_l'] as GeoboardTransform[]).map((t) => (
-                  <Chip key={t} label={t.replace(/_/g, ' ')} active={tempTransform === t} onPress={() => setTempTransform(t)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Memory mode</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                <Chip label={tempMemoryMode ? 'On' : 'Off'} active={tempMemoryMode} onPress={() => setTempMemoryMode((v) => !v)} />
-                {[3, 5, 8, 10].map((n) => (
-                  <Chip key={n} label={`${n}s memorize`} active={tempMemorizeSec === n} onPress={() => setTempMemorizeSec(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Time limit (sec, 0 = off)</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[0, 30, 60, 90, 120].map((n) => (
-                  <Chip key={n} label={n === 0 ? 'Off' : `${n}s`} active={tempTimeLimit === n} onPress={() => setTempTimeLimit(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Ocularity</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['Both', 'R', 'L'] as const).map((o) => (
-                  <Chip key={o} label={o === 'Both' ? 'Binocular' : `${o} eye`} active={tempOcularity === o} onPress={() => setTempOcularity(o)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Pen color</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {GEOBOARD_PEN_COLORS.map((c) => (
-                  <Chip key={c.hex} label={c.name} active={tempPenColor === c.hex} onPress={() => setTempPenColor(c.hex)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {showPursuitControls ? (
-            <>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8), marginTop: s(8) }}>
-                Movement
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {PURSUIT_PATTERNS.map((p) => (
-                  <Chip key={p} label={p} active={tempPattern === p} onPress={() => setTempPattern(p)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Target color</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {PURSUIT_COLORS.map((c) => (
-                  <Chip key={c} label={c} active={tempTargetColor === c} onPress={() => setTempTargetColor(c)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Decoys</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[1, 2, 3].map((n) => (
-                  <Chip key={n} label={`${n}`} active={tempDecoys === n} onPress={() => setTempDecoys(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Speed px/s</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[120, 180, 240, 300].map((n) => (
-                  <Chip key={n} label={`${n}`} active={tempPursuitSpeed === n} onPress={() => setTempPursuitSpeed(n)} />
-                ))}
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Trial timeout</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {[3, 5, 7, 10].map((n) => (
-                  <Chip key={n} label={`${n}s`} active={tempTimeout === n} onPress={() => setTempTimeout(n)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          <Pressable
-            onPress={() =>
-              onApply({
-                patientName: tempPatientName,
-                letterSize: tempLetterSize,
-                bubbleSize: tempBubbleSize,
-                speed: tempSpeed,
-                wheelColor: tempWheelColor,
-                tracingMode: tempTracingMode,
-                pathType: tempPathType,
-                toleranceBandPx: tempTolerance,
-                colorTheme: tempTheme,
-                audioEnabled: tempAudio,
-                roundsPerSet: tempRounds,
-                pathComplexity: tempComplexity,
-                beeSpeedSec: tempBeeSpeed,
-                orientation: tempOrientation,
-                pursuitMovementPattern: tempPattern,
-                pursuitTargetColor: tempTargetColor,
-                pursuitDecoyCount: tempDecoys,
-                pursuitSpeedPxPerSec: tempPursuitSpeed,
-                pursuitTrialTimeoutSec: tempTimeout,
-                alphabetVariant: tempAlphabetVariant,
-                bpm: tempBpm,
-                metronomeEnabled: tempMetronome,
-                matrixTier: tempMatrixTier,
-                memoryMode: tempMemoryMode,
-                memorizeSec: tempMemorizeSec,
-                transform: tempTransform,
-                ocularity: tempOcularity,
-                timeLimitSec: tempTimeLimit,
-                contrastSensitivity: tempContrast,
-                bgColor: tempBgColor,
-                shapeColor: tempShapeColor,
-                penColor: tempPenColor,
-              })
-            }
-            style={{
-              marginTop: s(16),
-              backgroundColor: '#10B981',
-              borderRadius: s(14),
-              paddingVertical: s(14),
-              alignItems: 'center',
+              borderColor: 'rgba(55,65,81,0.8)',
+              padding: s(18),
             }}
           >
-            <Text style={{ color: '#022c22', fontWeight: '800', fontSize: fs(16) }}>Apply & Start</Text>
-          </Pressable>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                borderBottomWidth: 1,
+                borderBottomColor: '#1F2937',
+                paddingBottom: s(14),
+                marginBottom: s(14),
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: s(12) }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: s(8) }}>
+                  <Text style={{ color: '#fff', fontSize: fs(22), fontWeight: '800' }}>Clinical Configuration</Text>
+                  <View
+                    style={{
+                      backgroundColor: 'rgba(59,130,246,0.2)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(59,130,246,0.3)',
+                      borderRadius: 999,
+                      paddingHorizontal: s(10),
+                      paddingVertical: s(4),
+                    }}
+                  >
+                    <Text style={{ color: '#60A5FA', fontSize: fs(10), fontWeight: '800', letterSpacing: 1 }}>
+                      VISION THERAPY
+                    </Text>
+                  </View>
+                </View>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
+                  {showPursuitControls
+                    ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                    : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                </Text>
+              </View>
+              <Pressable
+                onPress={onClose}
+                style={{
+                  width: s(36),
+                  height: s(36),
+                  borderRadius: s(18),
+                  backgroundColor: '#1F2937',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#D1D5DB', fontSize: fs(16), fontWeight: '700' }}>✕</Text>
+              </Pressable>
+            </View>
+
+            {isBubbleGame ? (
+              <>
+                <View
+                  style={{
+                    backgroundColor: '#0D0D0D',
+                    borderRadius: s(16),
+                    borderWidth: 1,
+                    borderColor: '#1F2937',
+                    padding: s(16),
+                    alignItems: 'center',
+                    marginBottom: s(12),
+                    minHeight: s(200),
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: s(8) }}>
+                    <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: '#3B82F6' }} />
+                    <Text style={{ color: '#60A5FA', fontSize: fs(11), fontWeight: '800', letterSpacing: 1.4 }}>
+                      LIVE PREVIEW
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: s(16) }}>
+                    <View
+                      style={{
+                        width: previewSize,
+                        height: previewSize,
+                        borderRadius: previewSize / 2,
+                        backgroundColor: '#2F80FF',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: Math.round(16 * tempLetterSize) }}>
+                        {sampleSymbol}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      backgroundColor: '#141414',
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: '#1F2937',
+                      paddingHorizontal: s(16),
+                      paddingVertical: s(8),
+                      gap: s(12),
+                    }}
+                  >
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
+                      Bubble: <Text style={{ color: '#60A5FA', fontWeight: '800' }}>{tempBubbleSize}</Text>
+                    </Text>
+                    {showLetterSizeControl ? (
+                      <>
+                        <Text style={{ color: '#4B5563' }}>|</Text>
+                        <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
+                          Font: <Text style={{ color: '#60A5FA', fontWeight: '800' }}>{tempLetterSize}</Text>
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+                </View>
+
+                {showLetterSizeControl ? (
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      LETTER SIZE
+                    </Text>
+                    <Text style={{ color: '#60A5FA', fontSize: fs(16), fontWeight: '900' }}>{tempLetterSize}</Text>
+                  </View>
+                  <StepSlider values={LETTER_SIZES} value={tempLetterSize} onChange={setTempLetterSize} />
+                </Card>
+                ) : null}
+
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      BUBBLE SIZE
+                    </Text>
+                    <Text style={{ color: '#60A5FA', fontSize: fs(16), fontWeight: '900' }}>{tempBubbleSize}</Text>
+                  </View>
+                  <StepSlider values={BUBBLE_SIZES} value={tempBubbleSize} onChange={setTempBubbleSize} />
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                    PATIENT PROFILE
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#6B7280"
+                    style={{
+                      backgroundColor: '#141414',
+                      color: '#fff',
+                      borderRadius: s(12),
+                      padding: s(12),
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                    }}
+                  />
+                </Card>
+
+                {showSpeedControl ? (
+                  <Card>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                      <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                        WHEEL SPEED
+                      </Text>
+                      <Text style={{ color: '#60A5FA', fontSize: fs(16), fontWeight: '900' }}>{tempSpeed}</Text>
+                    </View>
+                    <StepSlider values={SPEED_PRESETS} value={tempSpeed} onChange={setTempSpeed} format={(n) => `${n}`} />
+                  </Card>
+                ) : null}
+
+                {showWheelColorControl ? (
+                  <Card>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                        WHEEL COLOR
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: s(8),
+                          backgroundColor: '#141414',
+                          borderRadius: s(12),
+                          borderWidth: 1,
+                          borderColor: '#374151',
+                          paddingHorizontal: s(10),
+                          paddingVertical: s(6),
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: s(28),
+                            height: s(28),
+                            borderRadius: s(8),
+                            backgroundColor: tempWheelColor,
+                            borderWidth: 1,
+                            borderColor: '#4B5563',
+                          }}
+                        />
+                        <TextInput
+                          value={tempWheelColor}
+                          onChangeText={setTempWheelColor}
+                          autoCapitalize="none"
+                          style={{ color: '#E5E7EB', minWidth: s(80), fontSize: fs(13), fontWeight: '700' }}
+                        />
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: s(10) }}>
+                      {WHEEL_COLORS.map((c) => (
+                        <Pressable
+                          key={c}
+                          onPress={() => setTempWheelColor(c)}
+                          style={{
+                            width: s(28),
+                            height: s(28),
+                            borderRadius: s(14),
+                            backgroundColor: c,
+                            marginRight: s(8),
+                            borderWidth: tempWheelColor.toLowerCase() === c.toLowerCase() ? 2 : 1,
+                            borderColor: tempWheelColor.toLowerCase() === c.toLowerCase() ? '#60A5FA' : '#4B5563',
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </Card>
+                ) : null}
+
+                {showTherapyColorPicker ? (
+                  <Card>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
+                      THERAPY COLORS
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(10) }}>
+                      Simple names children know. Keep at least two selected.
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                      {THERAPY_COLOR_ITEMS.map((item) => {
+                        const active = tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase());
+                        return (
+                          <Pressable
+                            key={item.code}
+                            onPress={() => {
+                              setTempTherapyColors((prev) => {
+                                const on = prev.some((hex) => hex.toLowerCase() === item.code.toLowerCase());
+                                if (on) {
+                                  if (prev.length <= 2) return prev;
+                                  return prev.filter((hex) => hex.toLowerCase() !== item.code.toLowerCase());
+                                }
+                                return [...prev, item.code];
+                              });
+                            }}
+                            style={{
+                              width: s(46),
+                              alignItems: 'center',
+                              gap: s(4),
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: s(38),
+                                height: s(38),
+                                borderRadius: s(19),
+                                borderWidth: active ? 2 : 0,
+                                borderColor: '#FFFFFF',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <View
+                                style={{
+                                  width: s(34),
+                                  height: s(34),
+                                  borderRadius: s(17),
+                                  backgroundColor: '#121626',
+                                  borderWidth: 3,
+                                  borderColor: item.code,
+                                }}
+                              />
+                            </View>
+                            <Text style={{ color: active ? '#fff' : '#9CA3AF', fontSize: fs(9), fontWeight: '800' }}>
+                              {item.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </Card>
+                ) : null}
+              </>
+            ) : null}
+
+            {showBeeTracingControls ? (
+              <>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Patient name</Text>
+                <TextInput
+                  value={tempPatientName}
+                  onChangeText={setTempPatientName}
+                  style={{
+                    backgroundColor: '#141414',
+                    color: '#fff',
+                    borderRadius: s(12),
+                    padding: s(12),
+                    marginBottom: s(16),
+                    borderWidth: 1,
+                    borderColor: '#374151',
+                  }}
+                />
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tracing mode</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  <Chip label="Active" active={tempTracingMode === 'active'} onPress={() => setTempTracingMode('active')} />
+                  <Chip label="Guided" active={tempTracingMode === 'guided'} onPress={() => setTempTracingMode('guided')} />
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Path type</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {PATH_TYPES.map((p) => (
+                    <Chip key={p} label={p} active={tempPathType === p} onPress={() => setTempPathType(p)} />
+                  ))}
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Complexity</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {(['short', 'medium', 'long'] as const).map((p) => (
+                    <Chip key={p} label={p} active={tempComplexity === p} onPress={() => setTempComplexity(p)} />
+                  ))}
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Bee speed (sec)</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {[3, 5, 8, 10].map((n) => (
+                    <Chip key={n} label={`${n}s`} active={tempBeeSpeed === n} onPress={() => setTempBeeSpeed(n)} />
+                  ))}
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tolerance</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {[24, 40, 56, 72].map((n) => (
+                    <Chip key={n} label={`${n}px`} active={tempTolerance === n} onPress={() => setTempTolerance(n)} />
+                  ))}
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Theme</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {(['dark', 'standard', 'high_contrast'] as const).map((p) => (
+                    <Chip key={p} label={p} active={tempTheme === p} onPress={() => setTempTheme(p)} />
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  <Chip label={tempAudio ? 'Audio on' : 'Audio off'} active={tempAudio} onPress={() => setTempAudio((v) => !v)} />
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Rounds</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {[1, 3, 5, 7].map((n) => (
+                    <Chip key={n} label={`${n}`} active={tempRounds === n} onPress={() => setTempRounds(n)} />
+                  ))}
+                </View>
+                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Orientation</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {(['auto', 'portrait', 'landscape'] as const).map((p) => (
+                    <Chip key={p} label={p} active={tempOrientation === p} onPress={() => setTempOrientation(p)} />
+                  ))}
+                </View>
+              </>
+            ) : null}
+
+            {showPursuitControls ? (
+              <>
+                <Card>
+                  <Text
+                    style={{
+                      color: '#22D3EE',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#1F2937',
+                      paddingBottom: s(8),
+                      marginBottom: s(12),
+                    }}
+                  >
+                    Pursuit Stimulus & Target Profile
+                  </Text>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    PATIENT NAME
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#6B7280"
+                    style={{
+                      backgroundColor: '#141414',
+                      color: '#fff',
+                      borderRadius: s(12),
+                      padding: s(12),
+                      marginBottom: s(14),
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                    }}
+                  />
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    MOVEMENT PATTERN
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: '#141414',
+                      borderWidth: 1,
+                      borderColor: '#1F2937',
+                      borderRadius: s(12),
+                      padding: s(12),
+                      marginBottom: s(14),
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '800' }}>
+                      {PURSUIT_PATTERN_OPTIONS.find((opt) => opt.val === tempPattern)?.label.replace(/^\d+\.\s/, '') || tempPattern}
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(4) }}>
+                      Chosen from the pursuit level list. Switch levels to change trajectory.
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    TARGET LUMINANCE COLOR
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: s(8) }}>
+                    {PURSUIT_COLOR_OPTIONS.map((clr) => (
+                      <Pressable
+                        key={clr.val}
+                        onPress={() => setTempTargetColor(clr.val)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: s(10),
+                          borderRadius: s(12),
+                          alignItems: 'center',
+                          backgroundColor: clr.val,
+                          borderWidth: 2,
+                          borderColor: tempTargetColor === clr.val ? '#fff' : 'transparent',
+                        }}
+                      >
+                        <Text style={{ color: clr.text, fontSize: fs(11), fontWeight: '900' }}>{clr.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
+
+                <Card>
+                  <Text
+                    style={{
+                      color: '#60A5FA',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#1F2937',
+                      paddingBottom: s(8),
+                      marginBottom: s(12),
+                    }}
+                  >
+                    Dynamics & Selective Attention
+                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(8) }}>
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, flex: 1, paddingRight: s(8) }}>
+                      DECOY ELEMENT COUNT
+                    </Text>
+                    <Text style={{ color: '#22D3EE', fontSize: fs(11), fontWeight: '800' }}>
+                      {tempDecoys + 1} Total
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: s(8), marginBottom: s(14) }}>
+                    {[
+                      { label: '1 Decoy', val: 1 },
+                      { label: '2 Decoys', val: 2 },
+                      { label: '3 Decoys', val: 3 },
+                    ].map((dc) => (
+                      <Pressable
+                        key={dc.val}
+                        onPress={() => setTempDecoys(dc.val)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: s(10),
+                          borderRadius: s(12),
+                          alignItems: 'center',
+                          backgroundColor: tempDecoys === dc.val ? '#06B6D4' : '#1F2937',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: tempDecoys === dc.val ? '#0F172A' : '#D1D5DB',
+                            fontSize: fs(11),
+                            fontWeight: '800',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {dc.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
+                      BUBBLE SIZE
+                    </Text>
+                    <Text style={{ color: '#22D3EE', fontSize: fs(14), fontWeight: '900' }}>{tempBubbleSize}px</Text>
+                  </View>
+                  <StepSlider values={PURSUIT_BUBBLE_SIZES} value={tempBubbleSize} onChange={setTempBubbleSize} />
+                  <Text
+                    style={{
+                      color: '#D1D5DB',
+                      fontSize: fs(11),
+                      fontWeight: '800',
+                      letterSpacing: 0.6,
+                      marginTop: s(14),
+                      marginBottom: s(8),
+                    }}
+                  >
+                    PURSUIT SPEED
+                  </Text>
+                  <View style={{ gap: s(8), marginBottom: s(14) }}>
+                    {PURSUIT_SPEEDS.map((spd) => (
+                      <Pressable
+                        key={spd.val}
+                        onPress={() => setTempPursuitSpeed(spd.val)}
+                        style={{
+                          paddingVertical: s(10),
+                          paddingHorizontal: s(12),
+                          borderRadius: s(12),
+                          backgroundColor: tempPursuitSpeed === spd.val ? '#06B6D4' : '#1F2937',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: tempPursuitSpeed === spd.val ? '#0F172A' : '#D1D5DB',
+                            fontSize: fs(12),
+                            fontWeight: '800',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {spd.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    TRIAL TIMEOUT
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: s(8) }}>
+                    {PURSUIT_TIMEOUTS.map((to) => (
+                      <Pressable
+                        key={to.val}
+                        onPress={() => setTempTimeout(to.val)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: s(10),
+                          borderRadius: s(12),
+                          alignItems: 'center',
+                          backgroundColor: tempTimeout === to.val ? '#06B6D4' : '#1F2937',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: tempTimeout === to.val ? '#0F172A' : '#D1D5DB',
+                            fontSize: fs(11),
+                            fontWeight: '800',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {to.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(8) }}>
+                    Off keeps the trial running until the target or a decoy is tapped.
+                  </Text>
+                </Card>
+              </>
+            ) : null}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                gap: s(10),
+                borderTopWidth: 1,
+                borderTopColor: '#1F2937',
+                paddingTop: s(14),
+                marginTop: s(8),
+              }}
+            >
+              <Pressable
+                onPress={onClose}
+                style={{
+                  paddingHorizontal: s(18),
+                  paddingVertical: s(12),
+                  borderRadius: s(12),
+                  backgroundColor: 'rgba(31,41,55,0.9)',
+                  borderWidth: 1,
+                  borderColor: '#374151',
+                }}
+              >
+                <Text style={{ color: '#D1D5DB', fontWeight: '700', fontSize: fs(13) }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={apply}
+                style={{
+                  paddingHorizontal: s(20),
+                  paddingVertical: s(12),
+                  borderRadius: s(12),
+                  backgroundColor: '#2563EB',
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>Save & Apply Settings  ✓</Text>
+              </Pressable>
+            </View>
+          </View>
         </ScrollView>
       </View>
     </Modal>

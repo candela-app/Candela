@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GAME_CATALOG, MODULE_LEVELS, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { CheckIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
@@ -9,6 +10,28 @@ import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
 
 const MODULES = Object.values(GAME_CATALOG);
+
+function PrescriptionTick({ checked, size }: { checked: boolean; size: number }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: checked ? colors.blue : '#9CA3AF',
+        backgroundColor: colors.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View style={{ opacity: checked ? 1 : 0 }}>
+        <CheckIcon size={Math.round(size * 0.72)} color={colors.blue} />
+      </View>
+    </View>
+  );
+}
 
 export default function DoctorScreen() {
   const router = useRouter();
@@ -26,6 +49,7 @@ export default function DoctorScreen() {
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
+  const inFlightRef = useRef(new Set<string>());
 
   const filteredPatients = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -102,6 +126,9 @@ export default function DoctorScreen() {
     if (!selected) return;
     const patientId = selected.id;
     const patientName = selected.name;
+    const key = `mod:${patientId}:${moduleId}`;
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
     const previousIds = selected.prescribedModuleIds;
     const previousLevels = { ...selected.prescribedLevels };
     setError('');
@@ -121,13 +148,14 @@ export default function DoctorScreen() {
     );
 
     try {
-      const updated = enabled
-        ? await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
-            method: 'POST',
-            body: JSON.stringify({ moduleId, levels: defaultLevels }),
-          })
-        : await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, { method: 'DELETE' });
-      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      if (enabled) {
+        await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+          method: 'POST',
+          body: JSON.stringify({ moduleId, levels: defaultLevels }),
+        });
+      } else {
+        await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, { method: 'DELETE' });
+      }
       Alert.alert('Updated', enabled ? `Prescribed module for ${patientName}` : `Removed module for ${patientName}`);
     } catch (err) {
       setPatients((prev) =>
@@ -136,6 +164,10 @@ export default function DoctorScreen() {
       const msg = err instanceof ApiError ? err.message : 'Could not update prescription';
       setError(msg);
       Alert.alert('Error', msg);
+    } finally {
+      setTimeout(() => {
+        inFlightRef.current.delete(key);
+      }, 400);
     }
   }
 
@@ -143,6 +175,9 @@ export default function DoctorScreen() {
     if (!selected) return;
     const patientId = selected.id;
     const patientName = selected.name;
+    const key = `lvl:${patientId}:${moduleId}:${levelId}`;
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
     const currentLevels = selected.prescribedLevels?.[moduleId] || [];
     const newLevels = enabled ? Array.from(new Set([...currentLevels, levelId])) : currentLevels.filter((id) => id !== levelId);
     const previousLevels = { ...selected.prescribedLevels };
@@ -156,17 +191,20 @@ export default function DoctorScreen() {
     );
 
     try {
-      const updated = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+      await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
         method: 'POST',
         body: JSON.stringify({ moduleId, levels: newLevels }),
       });
-      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       Alert.alert('Updated', `Updated levels for ${patientName}`);
     } catch (err) {
       setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)));
       const msg = err instanceof ApiError ? err.message : 'Could not update level';
       setError(msg);
       Alert.alert('Error', msg);
+    } finally {
+      setTimeout(() => {
+        inFlightRef.current.delete(key);
+      }, 400);
     }
   }
 
@@ -345,7 +383,7 @@ export default function DoctorScreen() {
                 <Text style={{ color: colors.muted, marginBottom: s(16), fontSize: fs(13) }}>
                   {selected.email} · {selected.phone}
                 </Text>
-                <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules</Text>
+                <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules & levels</Text>
                 {MODULES.map((mod) => {
                   const on = selected.prescribedModuleIds.includes(mod.id);
                   const levels = MODULE_LEVELS[mod.id] || [];
@@ -353,17 +391,9 @@ export default function DoctorScreen() {
                   return (
                     <View key={mod.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(14), padding: s(12), marginBottom: s(8) }}>
                       <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>
-                        <View
-                          style={{
-                            width: s(20),
-                            height: s(20),
-                            borderRadius: 4,
-                            borderWidth: 2,
-                            borderColor: on ? colors.blue : '#9CA3AF',
-                            backgroundColor: on ? colors.blue : 'transparent',
-                            marginTop: 2,
-                          }}
-                        />
+                        <View style={{ marginTop: 2 }}>
+                          <PrescriptionTick checked={on} size={s(20)} />
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
                           <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
@@ -389,16 +419,7 @@ export default function DoctorScreen() {
                                   paddingVertical: s(8),
                                 }}
                               >
-                                <View
-                                  style={{
-                                    width: s(16),
-                                    height: s(16),
-                                    borderRadius: 3,
-                                    borderWidth: 2,
-                                    borderColor: levelOn ? colors.blue : '#9CA3AF',
-                                    backgroundColor: levelOn ? colors.blue : 'transparent',
-                                  }}
-                                />
+                                <PrescriptionTick checked={levelOn} size={s(16)} />
                                 <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', flex: 1 }}>{level.name}</Text>
                               </Pressable>
                             );

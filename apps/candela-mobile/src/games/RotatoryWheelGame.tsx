@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlphabetVariant,
   BRIGHT_COLORS,
@@ -19,9 +20,12 @@ import {
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
+import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
+import { sessionDisplayName, useAuth } from '../lib/auth-context';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { useLayout } from '../lib/layout';
-import { speak } from '../lib/speech';
+import { speak, stopSpeaking } from '../lib/speech';
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -34,7 +38,9 @@ export function RotatoryWheelGame({
   initialVariant = 'uppercase',
   onExit,
 }: RotatoryWheelGameProps) {
+  const { session } = useAuth();
   const { width, height, s, fs } = useLayout();
+  const insets = useSafeAreaInsets();
   const [mode] = useState<GameMode>(initialMode);
   const [variant] = useState<AlphabetVariant>(initialVariant);
   const [isPaused, setIsPaused] = useState(true);
@@ -42,8 +48,8 @@ export function RotatoryWheelGame({
   const [bubbles, setBubbles] = useState<BubbleItem[]>([]);
   const [currentTarget, setCurrentTarget] = useState('');
   const [targetColor, setTargetColor] = useState('#ff5722');
-  const [patientName, setPatientName] = useState('Demo Patient');
-  const [letterSize, setLetterSize] = useState(1.8);
+  const [patientName, setPatientName] = useState(sessionDisplayName(session));
+  const [letterSize, setLetterSize] = useState(2.5);
   const [bubbleSize, setBubbleSize] = useState(90);
   const [wheelColor, setWheelColor] = useState('#000000');
   const [customColors] = useState(['#FFFFFF', '#2F80FF', '#FF3B30']);
@@ -53,11 +59,16 @@ export function RotatoryWheelGame({
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
+  const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const [poppingActive, setPoppingActive] = useState(false);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
   const [wrongIds, setWrongIds] = useState<Set<string>>(new Set());
   const [angle, setAngle] = useState(0);
-  const [wheelPx, setWheelPx] = useState(Math.min(width, height) * 0.78);
+  const [wheelPx, setWheelPx] = useState(Math.min(width, height) * 0.98);
+  const [statsTick, setStatsTick] = useState(0);
 
   const statsRef = useRef({
     clicks: 0,
@@ -77,6 +88,11 @@ export function RotatoryWheelGame({
   useEffect(() => {
     pausedRef.current = isPaused;
   }, [isPaused]);
+  useEffect(() => {
+    const name = session?.user.name?.trim();
+    if (!name) return;
+    setPatientName((prev) => (prev === name ? prev : name));
+  }, [session?.user.name]);
 
   const animationDurationSeconds = DEFAULT_BASE_ANIMATION_DURATION / speed;
 
@@ -96,16 +112,15 @@ export function RotatoryWheelGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPaused, isSettingsOpen, isResultsOpen, isGameStarted, animationDurationSeconds]);
 
-  const speakTarget = useCallback(
-    (text: string, currentMode: GameMode) => {
-      speak(currentMode !== 'colors' ? `target ${text.toLowerCase()}` : text, {
-        rate: 0.82,
-        pitch: 1.4,
-        language: 'en-IN',
-      });
-    },
-    [],
-  );
+  const speakTarget = useCallback((text: string, currentMode: GameMode) => {
+    speak(currentMode !== 'colors' ? `target ${text.toLowerCase()}` : text, {
+      rate: 0.82,
+      pitch: 1.4,
+      language: 'en-IN',
+    });
+  }, []);
+
+  const bumpStats = () => setStatsTick((n) => n + 1);
 
   const chooseNextTarget = useCallback(
     (currentBubbles: BubbleItem[], currentMode: GameMode) => {
@@ -141,6 +156,7 @@ export function RotatoryWheelGame({
       reactionTimes: [],
       targetShownAt: null,
     };
+    setStatsTick((n) => n + 1);
   }, []);
 
   const startLevel = useCallback(() => {
@@ -228,6 +244,7 @@ export function RotatoryWheelGame({
     setResultsData(finalData);
     setIsResultsOpen(true);
     setIsPaused(true);
+    bumpStats();
   };
 
   const handleBubbleClick = (clickedBubble: BubbleItem) => {
@@ -241,12 +258,14 @@ export function RotatoryWheelGame({
       }
       statsRef.current.targetShownAt = performance.now();
       statsRef.current.correctCount += 1;
+      bumpStats();
       setPoppingIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
         setBubbles((prevBubbles) => {
           const updatedBubbles = prevBubbles.filter((b) => b.id !== clickedBubble.id);
           if (statsRef.current.correctCount >= 20) {
             setPoppingActive(false);
+            void hapticCorrect();
             finishSession(mode);
             return updatedBubbles;
           }
@@ -256,6 +275,7 @@ export function RotatoryWheelGame({
           if (!stillLeft) {
             setPoppingActive(false);
             if (updatedBubbles.length === 0) {
+              void hapticCorrect();
               setTimeout(() => startLevel(), 500);
             } else {
               setTimeout(() => chooseNextTarget(updatedBubbles, mode), 600);
@@ -267,6 +287,7 @@ export function RotatoryWheelGame({
     } else {
       void hapticWrong();
       statsRef.current.wrongCount += 1;
+      bumpStats();
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
         setWrongIds((prev) => {
@@ -278,76 +299,104 @@ export function RotatoryWheelGame({
     }
   };
 
-  const scaledBubble = Math.round(bubbleSize * Math.min(1.15, Math.max(0.75, wheelPx / 420)));
+  const handleWheelClick = () => {
+    if (!isPaused && poppingActive) {
+      statsRef.current.clicks += 1;
+      statsRef.current.wrongCount += 1;
+      bumpStats();
+      void hapticMiss();
+    }
+  };
+
+  const handleStartGame = () => {
+    setIsGameStarted(true);
+    setIsPaused(false);
+    resetStats();
+    if (currentTargetRef.current) {
+      const targetText = currentTargetRef.current;
+      setTimeout(() => speakTarget(targetText, mode), 200);
+    }
+  };
+
+  const openSettings = () => {
+    setIsAssistiveTouchOpen(false);
+    setIsPaused(true);
+    stopSpeaking();
+    setIsSettingsOpen(true);
+  };
+
+  const scaledBubble = bubbleSize;
   const letterPx = Math.round(16 * letterSize * (scaledBubble / 90));
+  const modeTitle =
+    mode === 'colors'
+      ? 'Color Discriminant Wheel'
+      : mode === 'numbers'
+        ? 'Numeric Rotatory'
+        : variant === 'lowercase'
+          ? 'Lowercase Alphabets'
+          : 'Uppercase Alphabets';
+  const modeSubtitle =
+    mode === 'colors'
+      ? 'Color Discriminant Rotatory'
+      : `${variant === 'lowercase' ? 'Lowercase' : 'Uppercase'} Rotatory`;
+  const fabSize = s(40);
+  const bottomPad = insets.bottom + s(12);
+  const rightPad = s(12);
+
+  void statsTick;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0A0A12' }}>
       {notification ? (
-        <View style={{ position: 'absolute', top: s(48), right: s(16), zIndex: 40, backgroundColor: '#059669', padding: s(12), borderRadius: s(14) }}>
-          <Text style={{ color: '#fff', fontWeight: '700' }}>✓ {notification}</Text>
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + s(12),
+            right: s(16),
+            zIndex: 300,
+            backgroundColor: 'rgba(5,150,105,0.92)',
+            paddingHorizontal: s(16),
+            paddingVertical: s(10),
+            borderRadius: s(16),
+            borderWidth: 1,
+            borderColor: 'rgba(52,211,153,0.35)',
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>✓ {notification}</Text>
         </View>
       ) : null}
 
       {!isGameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,7,13,0.98)', zIndex: 30, padding: s(24) }}>
-          <Text style={{ color: '#000', backgroundColor: '#FBBF24', fontWeight: '900', paddingHorizontal: s(12), paddingVertical: s(6), borderRadius: 999, overflow: 'hidden', marginBottom: s(16) }}>
-            VISION THERAPY GAME READY
-          </Text>
-          <Text style={{ color: '#fff', fontSize: fs(28), fontWeight: '900', textAlign: 'center', marginBottom: s(12) }}>
-            {mode === 'colors'
-              ? 'Color Discriminant Wheel'
-              : variant === 'lowercase'
-                ? 'Lowercase Alphabets'
-                : mode === 'numbers'
-                  ? 'Numeric Rotatory'
-                  : 'Uppercase Alphabets'}
-          </Text>
-          <Text style={{ color: '#E5E7EB', marginBottom: s(20) }}>
-            Patient: {patientName}  |  Speed: {speed}x
-          </Text>
+        <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 200, backgroundColor: 'rgba(6,7,13,0.98)' }}>
+          <Text style={{ color: '#fff', fontSize: fs(26), fontWeight: '900', marginBottom: s(12) }}>{modeTitle}</Text>
           <Pressable
-            onPress={() => {
-              setIsGameStarted(true);
-              setIsPaused(false);
-              resetStats();
-              if (currentTargetRef.current) {
-                setTimeout(() => speakTarget(currentTargetRef.current, mode), 200);
-              }
-            }}
+            onPress={handleStartGame}
             style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}
           >
-            <Text style={{ fontWeight: '900', fontSize: fs(20), color: '#022c22' }}>Click to Start</Text>
-          </Pressable>
-          <Pressable onPress={() => setIsSettingsOpen(true)} style={{ marginTop: s(16) }}>
-            <Text style={{ color: '#D1D5DB', fontWeight: '700' }}>Edit Clinical Settings</Text>
+            <Text style={{ fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <View style={{ position: 'absolute', top: s(48), left: 0, right: 0, alignItems: 'center', zIndex: 10 }}>
-        <View style={{ backgroundColor: targetColor, paddingHorizontal: s(18), paddingVertical: s(8), borderRadius: s(14) }}>
-          <Text style={{ color: getContrastColor(targetColor), fontWeight: '900', fontSize: fs(22) }}>
-            {currentTarget || '—'}
-          </Text>
-        </View>
-      </View>
-
       <View
         onLayout={(e) => {
           const { width: w, height: h } = e.nativeEvent.layout;
-          setWheelPx(Math.min(w, h) * 0.86);
+          setWheelPx(Math.min(w, h) * 0.98);
         }}
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
       >
-        <Pressable
-          onPress={() => {
-            if (!isPaused && poppingActive) {
-              statsRef.current.clicks += 1;
-              statsRef.current.wrongCount += 1;
-              void hapticWrong();
-            }
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: wheelPx,
+            height: wheelPx,
+            borderRadius: wheelPx / 2,
+            backgroundColor: 'rgba(59,130,246,0.1)',
           }}
+        />
+        <Pressable
+          onPress={handleWheelClick}
           style={{
             width: wheelPx,
             height: wheelPx,
@@ -363,20 +412,17 @@ export function RotatoryWheelGame({
             return (
               <Pressable
                 key={bubble.id}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleBubbleClick(bubble);
-                }}
+                onPress={() => handleBubbleClick(bubble)}
                 style={{
                   position: 'absolute',
-                  width: scaledBubble,
-                  height: scaledBubble,
-                  borderRadius: scaledBubble / 2,
-                  backgroundColor: bubble.color,
                   left: `${bubble.x}%`,
                   top: `${bubble.y}%`,
+                  width: scaledBubble,
+                  height: scaledBubble,
                   marginLeft: -scaledBubble / 2,
                   marginTop: -scaledBubble / 2,
+                  borderRadius: scaledBubble / 2,
+                  backgroundColor: bubble.color,
                   alignItems: 'center',
                   justifyContent: 'center',
                   opacity: popping ? 0.2 : 1,
@@ -392,38 +438,304 @@ export function RotatoryWheelGame({
         </Pressable>
       </View>
 
-      <Pressable
-        onPress={() => setIsMenuOpen(true)}
-        style={{ position: 'absolute', bottom: s(24), right: s(16), width: s(44), height: s(44), borderRadius: 22, backgroundColor: '#121626', alignItems: 'center', justifyContent: 'center' }}
+      {/* Bottom-right floating controls (matches website assistive-touch chrome).
+          TODO: device-config — native fullscreen APIs are not used on RN; web has a fullscreen toggle here. */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: bottomPad,
+          right: rightPad,
+          zIndex: 40,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: s(8),
+        }}
       >
-        <Text style={{ color: '#fff', fontSize: fs(18) }}>☰</Text>
-      </Pressable>
+        <Pressable
+          onPress={() => speakTarget(currentTarget, mode)}
+          hitSlop={8}
+          style={{
+            width: fabSize,
+            height: fabSize,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+          }}
+        >
+          <ReplayIcon size={18} color="rgba(148,163,184,0.32)" />
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            setIsAssistiveTouchOpen((prev) => !prev);
+            setIsHeaderExpanded(false);
+          }}
+          style={{
+            width: fabSize,
+            height: fabSize,
+            borderRadius: fabSize / 2,
+            backgroundColor: isAssistiveTouchOpen ? '#1A2035' : 'rgba(18,22,38,0.92)',
+            borderWidth: 2,
+            borderColor: isAssistiveTouchOpen ? '#60A5FA' : 'rgba(59,130,246,0.7)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {mode === 'colors' ? (
+            <View
+              style={{
+                width: s(14),
+                height: s(14),
+                borderRadius: s(7),
+                backgroundColor: targetColor,
+                borderWidth: 1,
+                borderColor: '#fff',
+              }}
+            />
+          ) : (
+            <Text style={{ color: targetColor, fontWeight: '900', fontSize: fs(14) }}>{currentTarget || '—'}</Text>
+          )}
+          <View
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: s(14),
+              height: s(14),
+              borderRadius: s(7),
+              backgroundColor: '#2563EB',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: '#93C5FD',
+            }}
+          >
+            <ChevronUpIcon size={8} color="#fff" />
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => setIsHeaderExpanded((prev) => !prev)}
+          style={{
+            backgroundColor: 'rgba(18,22,38,0.92)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(12),
+            paddingHorizontal: s(10),
+            paddingVertical: s(8),
+          }}
+        >
+          <Text style={{ color: '#E5E7EB', fontWeight: '800', fontSize: fs(11) }}>
+            {isHeaderExpanded ? '▼ Hide Info' : '▲ View Info'}
+          </Text>
+        </Pressable>
+      </View>
+
+      {isAssistiveTouchOpen ? (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: bottomPad + fabSize + s(16),
+            right: rightPad + s(8),
+            zIndex: 50,
+            backgroundColor: 'rgba(18,22,38,0.96)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(24),
+            padding: s(14),
+            minWidth: s(210),
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(10) }}>
+            <Text style={{ color: '#D1D5DB', fontWeight: '800', fontSize: fs(11), letterSpacing: 0.8 }}>CONTROLS</Text>
+            <Pressable onPress={() => setIsAssistiveTouchOpen(false)}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '800' }}>✕</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            onPress={() => speakTarget(currentTarget, mode)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#1A2035',
+              borderWidth: 1,
+              borderColor: 'rgba(59,130,246,0.4)',
+              borderRadius: s(16),
+              paddingHorizontal: s(12),
+              paddingVertical: s(10),
+              marginBottom: s(8),
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>Target:</Text>
+              {mode === 'colors' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
+                  <View
+                    style={{
+                      width: s(18),
+                      height: s(18),
+                      borderRadius: s(9),
+                      backgroundColor: targetColor,
+                      borderWidth: 1,
+                      borderColor: '#fff',
+                    }}
+                  />
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>{currentTarget}</Text>
+                </View>
+              ) : (
+                <Text style={{ color: targetColor, fontWeight: '900', fontSize: fs(20) }}>{currentTarget}</Text>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+              <VolumeIcon size={14} color="#60A5FA" />
+              <Text style={{ color: '#60A5FA', fontWeight: '800', fontSize: fs(11) }}>Replay</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => setIsPaused((prev) => !prev)}
+            style={{
+              backgroundColor: isPaused ? '#059669' : '#1F2937',
+              borderRadius: s(16),
+              paddingVertical: s(10),
+              alignItems: 'center',
+              marginBottom: s(8),
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: s(8),
+            }}
+          >
+            {isPaused ? <PlayIcon size={14} color="#fff" /> : <PauseIcon size={14} color="#fff" />}
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>{isPaused ? 'Play' : 'Pause'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={openSettings}
+            style={{
+              backgroundColor: '#1F2937',
+              borderRadius: s(16),
+              paddingVertical: s(10),
+              alignItems: 'center',
+              marginBottom: s(8),
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: s(8),
+            }}
+          >
+            <SlidersIcon size={16} color="#D1D5DB" />
+            <Text style={{ color: '#D1D5DB', fontWeight: '800', fontSize: fs(12) }}>Settings</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setConfirmReset(true)}
+            style={{ backgroundColor: '#1F2937', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center', marginBottom: s(8) }}
+          >
+            <Text style={{ color: '#E5E7EB', fontWeight: '800', fontSize: fs(12) }}>Reset Game</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              const inProgress = isGameStarted && !isResultsOpen;
+              if (inProgress) setConfirmQuit(true);
+              else {
+                setIsAssistiveTouchOpen(false);
+                onExit?.();
+              }
+            }}
+            style={{ backgroundColor: '#B91C1C', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>Quit Game</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {isHeaderExpanded ? (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: bottomPad + fabSize + s(16),
+            right: rightPad,
+            zIndex: 40,
+            backgroundColor: 'rgba(18,22,38,0.96)',
+            borderWidth: 1,
+            borderColor: '#1F2937',
+            borderRadius: s(18),
+            padding: s(16),
+            minWidth: s(250),
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(10) }}>
+            <View>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: fs(13) }}>Session & Clinical Info</Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>{modeSubtitle}</Text>
+            </View>
+            <Pressable onPress={() => setIsHeaderExpanded(false)}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '800' }}>✕</Text>
+            </Pressable>
+          </View>
+          <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', marginBottom: s(6) }}>
+            CLINICAL PARAMETERS
+          </Text>
+          <InfoRow label="Patient" value={patientName} />
+          {mode === 'colors' ? null : <InfoRow label="Letter Size" value={`${letterSize} rem`} accent="#60A5FA" />}
+          <InfoRow label="Bubble Size" value={`${bubbleSize} px`} accent="#60A5FA" />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+            <Text style={{ color: '#9CA3AF', fontSize: fs(12) }}>Wheel Color</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
+              <View
+                style={{
+                  width: s(12),
+                  height: s(12),
+                  borderRadius: s(6),
+                  backgroundColor: wheelColor,
+                  borderWidth: 1,
+                  borderColor: '#4B5563',
+                }}
+              />
+              <Text style={{ color: '#E5E7EB', fontSize: fs(11), fontFamily: 'monospace' }}>{wheelColor}</Text>
+            </View>
+          </View>
+          <View style={{ height: 1, backgroundColor: '#1F2937', marginVertical: s(8) }} />
+          <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', marginBottom: s(6) }}>LIVE METRICS</Text>
+          <InfoRow label="Correct Hits" value={`${statsRef.current.correctCount} / 20`} accent="#34D399" />
+          <InfoRow label="Wrong Clicks" value={String(statsRef.current.wrongCount)} accent="#FB7185" />
+        </View>
+      ) : null}
 
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => {
           setIsSettingsOpen(false);
-          if (isGameStarted) setIsPaused(false);
+          if (!isGameStarted) {
+            setIsPaused(true);
+          } else {
+            setIsPaused(false);
+          }
         }}
         onApply={(next) => {
           setPatientName(next.patientName);
           setLetterSize(next.letterSize);
           setBubbleSize(next.bubbleSize);
-          if (next.speed) setSpeed(next.speed);
-          if (next.wheelColor) setWheelColor(next.wheelColor);
+          if (next.speed !== undefined) setSpeed(next.speed);
+          if (next.wheelColor !== undefined) setWheelColor(next.wheelColor);
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
-          setIsGameStarted(false);
-          setIsPaused(true);
+          if (isGameStarted) {
+            setIsPaused(false);
+            resetStats();
+            startLevel();
+            if (currentTargetRef.current) {
+              const targetText = currentTargetRef.current;
+              setTimeout(() => speakTarget(targetText, mode), 200);
+            }
+          } else {
+            setIsPaused(true);
+          }
         }}
         patientName={patientName}
         letterSize={letterSize}
         bubbleSize={bubbleSize}
         speed={speed}
         wheelColor={wheelColor}
-        showSpeedControl
         showWheelColorControl
+        showLetterSizeControl={mode !== 'colors'}
+        sampleSymbol={mode === 'colors' ? '' : mode === 'numbers' ? '5' : variant === 'lowercase' ? 'a' : 'A'}
       />
       {resultsData ? (
         <GameResultsModal
@@ -437,8 +749,8 @@ export function RotatoryWheelGame({
             setIsResultsOpen(false);
             resetStats();
             startLevel();
-            setIsGameStarted(false);
-            setIsPaused(true);
+            setIsPaused(false);
+            setIsGameStarted(true);
           }}
         />
       ) : null}
@@ -446,20 +758,64 @@ export function RotatoryWheelGame({
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onQuit={() => onExit?.()}
-        onReset={() => {
+        sessionInProgress={isGameStarted && !isResultsOpen}
+        onReset={startLevel}
+        resetButtonLabel="Reset Level"
+        settingsSummary={[
+          { label: 'Patient', value: patientName },
+          ...(mode === 'colors' ? [] : [{ label: 'Letter Size', value: String(letterSize) }]),
+          { label: 'Bubble Size', value: String(bubbleSize) },
+          {
+            label: 'Wheel Color',
+            value: (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: wheelColor,
+                    borderWidth: 1,
+                    borderColor: '#4B5563',
+                  }}
+                />
+                <Text style={{ color: '#D1D5DB', fontSize: 11 }}>{wheelColor}</Text>
+              </View>
+            ),
+          },
+        ]}
+      />
+      <ResetConfirmDialog
+        visible={confirmReset}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          setIsAssistiveTouchOpen(false);
           resetStats();
           startLevel();
         }}
-        onOpenSettings={() => {
-          setIsPaused(true);
-          setIsSettingsOpen(true);
-        }}
-        settingsSummary={[
-          { label: 'Patient', value: patientName },
-          { label: 'Speed', value: `${speed}x` },
-          { label: 'Letter size', value: String(letterSize) },
-        ]}
       />
+      <ResetConfirmDialog
+        visible={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          setIsAssistiveTouchOpen(false);
+          onExit?.();
+        }}
+      />
+    </View>
+  );
+}
+
+function InfoRow({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+      <Text style={{ color: '#9CA3AF', fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: accent || '#fff', fontWeight: '700', fontSize: 12 }}>{value}</Text>
     </View>
   );
 }

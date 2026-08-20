@@ -14,40 +14,47 @@ import {
   PursuitBlockMetric,
   PursuitSessionResultData,
   PursuitMovementPattern,
-  PursuitTargetColor,
   AppliedClinicalSettings,
   ClinicalSettingsModal,
+  resolvePursuitPattern,
+  pursuitPatternName,
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
-import { GameResultsModal } from '../shared/GameResultsModal';
+import { PursuitResultsModal } from './PursuitResultsModal';
 import { ArrowLeftIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
 
 interface PursuitGameProps {
   onExit: () => void;
+  initialMovementPattern?: PursuitMovementPattern | string;
 }
 
 const TOTAL_TRIALS = 20;
 const TRIALS_PER_BLOCK = 5;
 const TOTAL_BLOCKS = 4;
 
-export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
+export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovementPattern = 'linear_bounce' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lockedPattern = resolvePursuitPattern(initialMovementPattern);
 
   // --- Clinical Settings State ---
   const [settings, setSettings] = useState<PursuitSettings>({
     patientName: 'Demo Patient',
-    movementPattern: 'linear_bounce',
-    bubbleSizePx: 80,
+    movementPattern: lockedPattern,
+    bubbleSizePx: 100,
     targetColor: '#00E5FF',
     decoyCount: 2, // 1 target + 2 decoys = 3 total elements (scalable 2-4)
     decoySalience: 0.35, // 35% opacity/salience for decoys
-    speedPxPerSec: 180,
-    trialTimeoutSec: 5,
+    speedPxPerSec: 110,
+    trialTimeoutSec: 0,
     totalTrials: TOTAL_TRIALS,
     blocksCount: TOTAL_BLOCKS,
     orientation: 'auto',
   });
+
+  useEffect(() => {
+    setSettings((prev) => (prev.movementPattern === lockedPattern ? prev : { ...prev, movementPattern: lockedPattern }));
+  }, [lockedPattern]);
 
   // --- Session & Trial Execution State ---
   const [currentTrialIndex, setCurrentTrialIndex] = useState<number>(0);
@@ -157,6 +164,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
     }
 
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
+    if (settings.trialTimeoutSec <= 0) return;
 
     timeoutTimerRef.current = setTimeout(() => {
       handleTrialEnd('timeout', { x: 0, y: 0 });
@@ -335,7 +343,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
       patientName: settings.patientName,
       sessionId: Date.now(),
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      gameName: 'Pursuit Module',
+      gameName: `Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
       stimuliCount: allTrials.length,
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
@@ -370,11 +378,11 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
       ...prev,
       patientName: applied.patientName || prev.patientName,
       bubbleSizePx: applied.bubbleSize || prev.bubbleSizePx,
-      movementPattern: applied.pursuitMovementPattern || prev.movementPattern,
+      movementPattern: lockedPattern,
       targetColor: applied.pursuitTargetColor || prev.targetColor,
       decoyCount: applied.pursuitDecoyCount ?? prev.decoyCount,
       speedPxPerSec: applied.pursuitSpeedPxPerSec || prev.speedPxPerSec,
-      trialTimeoutSec: applied.pursuitTrialTimeoutSec || prev.trialTimeoutSec,
+      trialTimeoutSec: applied.pursuitTrialTimeoutSec ?? prev.trialTimeoutSec,
     }));
     setIsSettingsOpen(false);
     handleReset();
@@ -383,10 +391,11 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
   // Menu settings summary
   const settingsSummary: ClinicalSettingSummaryItem[] = [
     { label: 'Patient Name', value: settings.patientName },
-    { label: 'Movement Pattern', value: settings.movementPattern },
+    { label: 'Movement Pattern', value: pursuitPatternName(settings.movementPattern) },
     { label: 'Decoy Count', value: `${activeDecoyCount} Decoys` },
     { label: 'Pursuit Speed', value: `${settings.speedPxPerSec} px/s` },
     { label: 'Bubble Diameter', value: `${settings.bubbleSizePx}px` },
+    { label: 'Trial Timeout', value: settings.trialTimeoutSec > 0 ? `${settings.trialTimeoutSec}s` : 'Off' },
   ];
 
   return (
@@ -543,7 +552,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit }) => {
 
       {/* SESSION RESULTS MODAL */}
       {sessionResults && (
-        <GameResultsModal
+        <PursuitResultsModal
           isOpen={isResultsOpen}
           onClose={() => {
             setIsResultsOpen(false);
