@@ -62,11 +62,9 @@ export function generateBeePath(
   complexity: PathComplexity = 'medium',
   orientation: ScreenOrientation = 'landscape'
 ): GeneratedPath {
-  const complexityMult = complexity === 'short' ? 0.75 : complexity === 'long' ? 1.35 : 1.0;
+  const complexityMult = complexity === 'short' ? 0.7 : 1.0;
   const marginX = Math.max(45, (width * 0.12) / complexityMult);
   const marginY = Math.max(45, (height * 0.12) / complexityMult);
-  const usableWidth = width - marginX * 2;
-  const usableHeight = height - marginY * 2;
 
   let points: PathPoint[] = [];
   let svgPathD = '';
@@ -180,19 +178,25 @@ export function generateBeePath(
     }
 
     case 'spiral': {
-      // Archimedean spiral starting center-left and spiraling towards end target
+      const edgePad = 8;
       const centerX = width / 2;
       const centerY = height / 2;
-      const maxRadius = Math.min(usableWidth, usableHeight) * 0.38;
-      const turns = 1.8 + tier * 0.3;
+      const maxRadius = Math.max(
+        48,
+        Math.min(centerX, centerY, width - centerX, height - centerY) - edgePad,
+      );
+      const loopSpacing = Math.max(48, Math.min(width, height) * 0.075);
+      const turns = Math.max(1.8, maxRadius / loopSpacing) * (complexity === 'short' ? 0.85 : 1);
+      const spiralSamples = Math.max(samples, Math.floor(turns * 110));
 
-      for (let i = 0; i <= samples; i++) {
-        const t = i / samples;
+      for (let i = 0; i <= spiralSamples; i++) {
+        const t = i / spiralSamples;
         const angle = t * Math.PI * 2 * turns;
         const r = t * maxRadius;
-        const x = centerX + r * Math.cos(angle);
-        const y = centerY + r * Math.sin(angle);
-        points.push({ x, y });
+        points.push({
+          x: centerX + r * Math.cos(angle),
+          y: centerY + r * Math.sin(angle),
+        });
       }
 
       startPoint = points[0];

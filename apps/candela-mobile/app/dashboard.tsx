@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { UI_MODULE_TO_CATALOG } from '@candela/shared/rn';
+import { UI_MODULE_TO_CATALOG, MODULE_LEVELS } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { useAuth } from '../src/lib/auth-context';
@@ -23,6 +23,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'tracing', title: 'Bee Path Tracing', body: 'Smooth pursuit tracking & visual-motor path control', badge: 'For Touch & Stylus', accent: '#D97706', bar: '#F59E0B' },
   { uiId: 'pursuit', title: 'Pursuit Module', body: 'Continuous visual pursuit & selective attention tracking', badge: 'For All Devices', accent: '#0891B2', bar: '#22D3EE' },
   { uiId: 'mobile_target', title: 'Bubble Chase', body: '2-target bouncing pursuit & dark field tracking', badge: 'For Mobile & Tabs', accent: '#059669', bar: '#34D399' },
+  { uiId: 'geoboard', title: 'Draw a Pattern', body: 'Digitized pattern reproduction for hand-eye coordination', badge: 'For All Devices', accent: '#0D9488', bar: '#14B8A6' },
 ];
 
 export default function DashboardScreen() {
@@ -35,6 +36,46 @@ export default function DashboardScreen() {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
     return Boolean(catalogId && allowedModuleIds.has(catalogId));
   };
+
+  const isLevelAllowed = (uiId: string, levelId: string | number) => {
+    if (!session || session.user.role !== 'patient') return true;
+    if (session.patient?.origin === 'self_signup' || !session.patient?.doctorId) return true;
+    const catalogId = UI_MODULE_TO_CATALOG[uiId];
+    if (!catalogId) return false;
+    if (!allowedModuleIds.has(catalogId)) return false;
+    const prescribedLevels = session.patient?.prescribedLevels?.[catalogId];
+    if (prescribedLevels === undefined) return true;
+    if (catalogId === 'bee_tracing') {
+      const known = MODULE_LEVELS.bee_tracing.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
+    if (catalogId === 'pursuit') {
+      const known = MODULE_LEVELS.pursuit.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
+    return prescribedLevels.includes(String(levelId));
+  };
+
+  const emptyLevels = (
+    <View
+      style={{
+        width: '100%',
+        backgroundColor: colors.white,
+        borderRadius: s(20),
+        padding: s(24),
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+      }}
+    >
+      <Text style={{ fontSize: fs(18), fontWeight: '700' }}>No levels assigned yet</Text>
+      <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center' }}>
+        Your doctor has not enabled any specific levels for this module.
+      </Text>
+    </View>
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -69,8 +110,17 @@ export default function DashboardScreen() {
   const launchSorting = (variant: string) => {
     router.push(`/play/sorting?variant=${variant}`);
   };
+  const launchBee = (pathType: string) => {
+    router.push(`/play/bee?pathType=${pathType}`);
+  };
   const launchMobileTarget = (mode: string, variant: string) => {
     router.push(`/play/mobile-target?mode=${mode}&variant=${variant}`);
+  };
+  const launchGeoboard = (boardId: number) => {
+    router.push(`/play/geoboard?boardId=${boardId}`);
+  };
+  const launchPursuit = (pattern: string) => {
+    router.push(`/play/pursuit?pattern=${pattern}`);
   };
 
   const variantCard = (label: string, onPress: () => void, accent: string) => (
@@ -94,10 +144,12 @@ export default function DashboardScreen() {
     </Pressable>
   );
 
+  const backToModules = () => router.replace('/dashboard');
+
   if (params.page === 'analytics') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), alignSelf: 'flex-start', marginBottom: s(24) }}>
             <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
@@ -130,12 +182,26 @@ export default function DashboardScreen() {
   if (params.module === 'wheel' && canPlayUiModule('wheel')) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase'), '#2563EB')}
-          {variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase'), '#2563EB')}
-          {variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase'), '#2563EB')}
-          {variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase'), '#2563EB')}
+          {isLevelAllowed('wheel', 'uppercase')
+            ? variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase'), '#2563EB')
+            : null}
+          {isLevelAllowed('wheel', 'lowercase')
+            ? variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase'), '#2563EB')
+            : null}
+          {isLevelAllowed('wheel', 'numbers')
+            ? variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase'), '#2563EB')
+            : null}
+          {isLevelAllowed('wheel', 'colors')
+            ? variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase'), '#2563EB')
+            : null}
+          {!isLevelAllowed('wheel', 'uppercase') &&
+          !isLevelAllowed('wheel', 'lowercase') &&
+          !isLevelAllowed('wheel', 'numbers') &&
+          !isLevelAllowed('wheel', 'colors')
+            ? emptyLevels
+            : null}
         </ScrollView>
       </View>
     );
@@ -144,11 +210,22 @@ export default function DashboardScreen() {
   if (params.module === 'sorting' && canPlayUiModule('sorting')) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase'), '#7C3AED')}
-          {variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase'), '#7C3AED')}
-          {variantCard('Numeric Sorting', () => launchSorting('numbers'), '#7C3AED')}
+          {isLevelAllowed('sorting', 'uppercase')
+            ? variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase'), '#7C3AED')
+            : null}
+          {isLevelAllowed('sorting', 'lowercase')
+            ? variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase'), '#7C3AED')
+            : null}
+          {isLevelAllowed('sorting', 'numbers')
+            ? variantCard('Numeric Sorting', () => launchSorting('numbers'), '#7C3AED')
+            : null}
+          {!isLevelAllowed('sorting', 'uppercase') &&
+          !isLevelAllowed('sorting', 'lowercase') &&
+          !isLevelAllowed('sorting', 'numbers')
+            ? emptyLevels
+            : null}
         </ScrollView>
       </View>
     );
@@ -157,12 +234,74 @@ export default function DashboardScreen() {
   if (params.module === 'mobile_target' && canPlayUiModule('mobile_target')) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
+        <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase'), '#059669')}
-          {variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase'), '#059669')}
-          {variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase'), '#059669')}
-          {variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase'), '#059669')}
+          {isLevelAllowed('mobile_target', 'uppercase')
+            ? variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase'), '#059669')
+            : null}
+          {isLevelAllowed('mobile_target', 'lowercase')
+            ? variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase'), '#059669')
+            : null}
+          {isLevelAllowed('mobile_target', 'numbers')
+            ? variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase'), '#059669')
+            : null}
+          {isLevelAllowed('mobile_target', 'colors')
+            ? variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase'), '#059669')
+            : null}
+          {!isLevelAllowed('mobile_target', 'uppercase') &&
+          !isLevelAllowed('mobile_target', 'lowercase') &&
+          !isLevelAllowed('mobile_target', 'numbers') &&
+          !isLevelAllowed('mobile_target', 'colors')
+            ? emptyLevels
+            : null}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'tracing' && canPlayUiModule('tracing')) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
+          {MODULE_LEVELS.bee_tracing.map((level) =>
+            isLevelAllowed('tracing', level.id)
+              ? variantCard(level.name, () => launchBee(level.id), '#D97706')
+              : null,
+          )}
+          {MODULE_LEVELS.bee_tracing.every((level) => !isLevelAllowed('tracing', level.id)) ? emptyLevels : null}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'geoboard' && canPlayUiModule('geoboard')) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
+          {MODULE_LEVELS.geoboard.map((level) =>
+            isLevelAllowed('geoboard', level.id)
+              ? variantCard(level.name, () => launchGeoboard(Number(level.id)), '#0D9488')
+              : null,
+          )}
+          {MODULE_LEVELS.geoboard.every((level) => !isLevelAllowed('geoboard', level.id)) ? emptyLevels : null}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'pursuit' && canPlayUiModule('pursuit')) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad, flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
+          {MODULE_LEVELS.pursuit.map((level) =>
+            isLevelAllowed('pursuit', level.id)
+              ? variantCard(level.name, () => launchPursuit(level.id), '#0891B2')
+              : null,
+          )}
+          {MODULE_LEVELS.pursuit.every((level) => !isLevelAllowed('pursuit', level.id)) ? emptyLevels : null}
         </ScrollView>
       </View>
     );
@@ -170,13 +309,7 @@ export default function DashboardScreen() {
 
   const handleSelectModule = (id: string) => {
     if (!canPlayUiModule(id)) return;
-    if (id === 'tracing') {
-      router.push('/play/bee');
-    } else if (id === 'pursuit') {
-      router.push('/play/pursuit');
-    } else {
-      router.push(`/dashboard?module=${id}`);
-    }
+    router.push(`/dashboard?module=${id}`);
   };
 
   return (

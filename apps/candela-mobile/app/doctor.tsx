@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { GAME_CATALOG, MODULE_LEVELS, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { CheckIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
@@ -9,6 +10,28 @@ import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
 
 const MODULES = Object.values(GAME_CATALOG);
+
+function PrescriptionTick({ checked, size }: { checked: boolean; size: number }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: checked ? colors.blue : '#9CA3AF',
+        backgroundColor: colors.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View style={{ opacity: checked ? 1 : 0 }}>
+        <CheckIcon size={Math.round(size * 0.72)} color={colors.blue} />
+      </View>
+    </View>
+  );
+}
 
 export default function DoctorScreen() {
   const router = useRouter();
@@ -22,6 +45,7 @@ export default function DoctorScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const inFlightRef = useRef(new Set<string>());
   const selected = patients.find((p) => p.id === selectedId) ?? null;
 
   const load = useCallback(async () => {
@@ -63,7 +87,12 @@ export default function DoctorScreen() {
   async function toggleModule(moduleId: TherapyModuleId, enabled: boolean) {
     if (!selected) return;
     const patientId = selected.id;
-    const previous = selected.prescribedModuleIds;
+    const key = `mod:${patientId}:${moduleId}`;
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
+    const previousIds = selected.prescribedModuleIds;
+    const previousLevels = { ...selected.prescribedLevels };
+    const defaultLevels = enabled ? MODULE_LEVELS[moduleId]?.map((level) => level.id) || [] : [];
     setError('');
     setPatients((prev) =>
       prev.map((p) => {
@@ -71,22 +100,75 @@ export default function DoctorScreen() {
         const prescribedModuleIds = enabled
           ? Array.from(new Set([...p.prescribedModuleIds, moduleId]))
           : p.prescribedModuleIds.filter((id) => id !== moduleId);
-        return { ...p, prescribedModuleIds };
+        const prescribedLevels = { ...p.prescribedLevels };
+        if (enabled) prescribedLevels[moduleId] = defaultLevels;
+        else delete prescribedLevels[moduleId];
+        return { ...p, prescribedModuleIds, prescribedLevels };
       }),
     );
     try {
-      const updated = enabled
-        ? await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
-            method: 'POST',
-            body: JSON.stringify({ moduleId }),
-          })
-        : await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, {
-            method: 'DELETE',
-          });
-      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      if (enabled) {
+        await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+          method: 'POST',
+          body: JSON.stringify({ moduleId, levels: defaultLevels }),
+        });
+      } else {
+        await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, {
+          method: 'DELETE',
+        });
+      }
     } catch (err) {
-      setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previous } : p)));
+      setPatients((prev) =>
+        prev.map((p) =>
+          p.id === patientId ? { ...p, prescribedModuleIds: previousIds, prescribedLevels: previousLevels } : p,
+        ),
+      );
       setError(err instanceof ApiError ? err.message : 'Could not update prescription');
+    } finally {
+      setTimeout(() => {
+        inFlightRef.current.delete(key);
+      }, 400);
+    }
+  }
+
+  async function toggleLevel(moduleId: TherapyModuleId, levelId: string, enabled: boolean) {
+    if (!selected) return;
+    const patientId = selected.id;
+    const key = `lvl:${patientId}:${moduleId}:${levelId}`;
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
+    const currentLevels = selected.prescribedLevels?.[moduleId] || [];
+    const newLevels = enabled
+      ? Array.from(new Set([...currentLevels, levelId]))
+      : currentLevels.filter((id) => id !== levelId);
+    const previousLevels = { ...selected.prescribedLevels };
+    setError('');
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id !== patientId) return p;
+        return {
+          ...p,
+          prescribedLevels: {
+            ...p.prescribedLevels,
+            [moduleId]: newLevels,
+          },
+        };
+      }),
+    );
+    try {
+      await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
+        method: 'POST',
+        body: JSON.stringify({ moduleId, levels: newLevels }),
+      });
+    } catch (err) {
+      setPatients((prev) =>
+        prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)),
+      );
+      setError(err instanceof ApiError ? err.message : 'Could not update level');
+    } finally {
+      setTimeout(() => {
+        inFlightRef.current.delete(key);
+      }, 400);
     }
   }
 
@@ -112,9 +194,11 @@ export default function DoctorScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <AppHeader
-        extra={
-          session.doctor ? (
+      <AppHeader />
+      <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: s(8), marginBottom: s(4) }}>
+          <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
+          {session.doctor ? (
             <Text
               style={{
                 fontFamily: 'monospace',
@@ -130,13 +214,10 @@ export default function DoctorScreen() {
             >
               {session.doctor.referralCode}
             </Text>
-          ) : null
-        }
-      />
-      <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
-        <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
-        <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
-          Patients you create are already linked to your referral code. Prescribe modules by adding or removing them.
+          ) : null}
+        </View>
+        <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+          Patients you create are already linked to your referral code. Prescribe modules and levels by adding or removing them.
         </Text>
         {error ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{error}</Text> : null}
 
@@ -183,16 +264,15 @@ export default function DoctorScreen() {
                 <Text style={{ color: colors.muted, marginBottom: s(16), fontSize: fs(13) }}>
                   {selected.email} · {selected.phone}
                 </Text>
-                <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules</Text>
+                <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules & levels</Text>
                 {MODULES.map((mod) => {
                   const on = selected.prescribedModuleIds.includes(mod.id);
+                  const levels = MODULE_LEVELS[mod.id] || [];
+                  const selectedLevels = selected.prescribedLevels?.[mod.id] || [];
                   return (
-                    <Pressable
+                    <View
                       key={mod.id}
-                      onPress={() => void toggleModule(mod.id, !on)}
                       style={{
-                        flexDirection: 'row',
-                        gap: s(10),
                         borderWidth: 1,
                         borderColor: colors.border,
                         borderRadius: s(14),
@@ -200,22 +280,48 @@ export default function DoctorScreen() {
                         marginBottom: s(8),
                       }}
                     >
-                      <View
-                        style={{
-                          width: s(20),
-                          height: s(20),
-                          borderRadius: 4,
-                          borderWidth: 2,
-                          borderColor: on ? colors.blue : '#9CA3AF',
-                          backgroundColor: on ? colors.blue : 'transparent',
-                          marginTop: 2,
-                        }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
-                        <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
-                      </View>
-                    </Pressable>
+                      <Pressable
+                        onPress={() => void toggleModule(mod.id, !on)}
+                        style={{ flexDirection: 'row', gap: s(10) }}
+                      >
+                        <View style={{ marginTop: 2 }}>
+                          <PrescriptionTick checked={on} size={s(20)} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
+                          <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
+                        </View>
+                      </Pressable>
+                      {on && levels.length > 0 ? (
+                        <View style={{ marginTop: s(10), marginLeft: s(30), gap: s(6) }}>
+                          {levels.map((level) => {
+                            const levelOn = selectedLevels.includes(level.id);
+                            return (
+                              <Pressable
+                                key={level.id}
+                                onPress={() => void toggleLevel(mod.id, level.id, !levelOn)}
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: s(8),
+                                  backgroundColor: '#F9FAFB',
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: s(10),
+                                  paddingHorizontal: s(10),
+                                  paddingVertical: s(8),
+                                }}
+                              >
+                                <PrescriptionTick checked={levelOn} size={s(16)} />
+                                <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600', color: '#374151' }}>
+                                  {level.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+                    </View>
                   );
                 })}
               </>

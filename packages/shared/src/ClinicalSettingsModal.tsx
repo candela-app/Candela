@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { requestFullScreenSafe } from './game-logic';
 import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS } from './geoboard-logic';
 import { SPEED_PRESETS } from './constants';
+import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
   DeviceOrientation,
@@ -60,7 +61,9 @@ export interface ClinicalSettingsModalProps {
   showWheelColorControl?: boolean;
   sampleSymbol?: string;
   extraStats?: React.ReactNode;
+  showLetterSizeControl?: boolean;
   showBeeTracingControls?: boolean;
+  showBeePathTypeControl?: boolean;
   tracingMode?: 'active' | 'guided';
   pathType?: string;
   toleranceBandPx?: number;
@@ -114,7 +117,9 @@ export function ClinicalSettingsModal({
   showWheelColorControl = false,
   sampleSymbol = 'A',
   extraStats,
+  showLetterSizeControl = true,
   showBeeTracingControls = false,
+  showBeePathTypeControl = false,
   tracingMode = 'active',
   pathType = 'auto',
   toleranceBandPx = 40,
@@ -128,8 +133,8 @@ export function ClinicalSettingsModal({
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 2,
-  pursuitSpeedPxPerSec = 180,
-  pursuitTrialTimeoutSec = 5,
+  pursuitSpeedPxPerSec = 110,
+  pursuitTrialTimeoutSec = 0,
   showGeoboardControls = false,
   geoboardBoardId = 1,
   geoboardBoardName = 'Geoboard',
@@ -733,23 +738,15 @@ export function ClinicalSettingsModal({
                 />
               </div>
 
-              {/* Movement Pattern Selection */}
+              {/* Movement Pattern — locked to the selected level */}
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Movement Pattern (Trajectory Math)
+                  Movement Pattern
                 </label>
-                <select
-                  value={tempPursuitMovementPattern}
-                  onChange={(e) => setTempPursuitMovementPattern(e.target.value as PursuitMovementPattern)}
-                  className="w-full rounded-xl bg-[#141414] border border-gray-700 p-3 text-xs text-white font-bold focus:border-cyan-400 focus:outline-none"
-                  style={{ backgroundColor: '#141414' }}
-                >
-                  <option value="linear_bounce">1. Linear Bounce (Straight Wall Bounces - Easiest)</option>
-                  <option value="circular_orbit">2. Circular / Elliptical Orbit (Smooth Angular Pursuit)</option>
-                  <option value="figure_eight">3. Figure-8 Wave (Continuous Direction Changes)</option>
-                  <option value="random_walk">4. Random Walk with Momentum (Smooth Steering Math)</option>
-                  <option value="freeze_drift">5. Freeze & Drift (Slow Motion + Brief Random Freezes)</option>
-                </select>
+                <div className="rounded-xl bg-[#141414] border border-gray-800 px-4 py-3">
+                  <div className="text-sm font-bold text-white">{pursuitPatternName(tempPursuitMovementPattern)}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">Chosen from the pursuit level list. Switch levels to change trajectory.</div>
+                </div>
               </div>
 
               {/* Target Bubble Color */}
@@ -863,13 +860,14 @@ export function ClinicalSettingsModal({
               {/* Trial Timeout */}
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Trial Timeout (Seconds per Trial)
+                  Trial Timeout
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {[
-                    { label: '4 Seconds', val: 4 },
-                    { label: '5 Seconds', val: 5 },
-                    { label: '6 Seconds', val: 6 },
+                    { label: 'Off', val: 0 },
+                    { label: '4s', val: 4 },
+                    { label: '5s', val: 5 },
+                    { label: '6s', val: 6 },
                   ].map((to) => (
                     <button
                       key={to.val}
@@ -885,6 +883,9 @@ export function ClinicalSettingsModal({
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Off keeps the trial running until the target or a decoy is tapped.
+                </p>
               </div>
             </div>
           </div>
@@ -1024,10 +1025,10 @@ export function ClinicalSettingsModal({
             {/* CONTAINER 3: PATH GEOMETRY & COMPLEXITY */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-emerald-400 uppercase tracking-wider border-b border-gray-800 pb-3">
-                <span>Path Geometry & Complexity</span>
+                <span>Path Complexity</span>
               </div>
 
-              {/* Path Type */}
+              {showBeePathTypeControl ? (
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
                   Path Type (Progression Sequence)
@@ -1050,6 +1051,7 @@ export function ClinicalSettingsModal({
                   <option value="dotted">7. Dotted Gap Fill (Occlusion Jumps)</option>
                 </select>
               </div>
+              ) : null}
 
               {/* Path Length & Complexity */}
               <div>
@@ -1058,8 +1060,8 @@ export function ClinicalSettingsModal({
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'short', label: 'Short' },
                     { id: 'medium', label: 'Medium' },
+                    { id: 'short', label: 'Short' },
                     { id: 'long', label: 'Long / Complex' },
                   ].map((cx) => (
                     <button
@@ -1204,15 +1206,19 @@ export function ClinicalSettingsModal({
                   style={{ backgroundColor: '#141414' }}
                 >
                   <span>Bubble: <strong className="text-blue-400 font-bold">{tempBubbleSize}</strong></span>
-                  <span className="text-gray-600">|</span>
-                  <span>Font: <strong className="text-blue-400 font-bold">{tempLetterSize}</strong></span>
+                  {showLetterSizeControl ? (
+                    <>
+                      <span className="text-gray-600">|</span>
+                      <span>Font: <strong className="text-blue-400 font-bold">{tempLetterSize}</strong></span>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
 
             {/* COLUMN 2 (CENTER): LETTER SIZE & BUBBLE SIZE CONTROLS - ONLY FOR BUBBLE / SORTING GAMES */}
             <div className="flex flex-col gap-6 justify-between">
-              {/* STEPPED LETTER SIZE CONTROL */}
+              {showLetterSizeControl ? (
               <div
                 className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 flex-1 justify-center shadow-lg"
                 style={{ backgroundColor: '#242424' }}
@@ -1242,6 +1248,7 @@ export function ClinicalSettingsModal({
                   <span>3</span>
                 </div>
               </div>
+              ) : null}
 
               {/* STEPPED BUBBLE SIZE CONTROL */}
               <div

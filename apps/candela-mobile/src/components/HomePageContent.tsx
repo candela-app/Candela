@@ -6,6 +6,7 @@ import {
   ArrowRightIcon,
   BeePathIcon,
   EyeIcon,
+  GeoboardIcon,
   MobileTargetIcon,
   MonitorIcon,
   PuzzleIcon,
@@ -64,6 +65,15 @@ const MODULES = [
     accent: '#059669',
     bg: '#ECFDF5',
     Icon: MobileTargetIcon,
+  },
+  {
+    id: 'geoboard',
+    title: 'Draw a Pattern',
+    body: 'Five pattern boards for visual-motor integration & spatial recall.',
+    badge: 'For All Devices',
+    accent: '#0D9488',
+    bg: '#F0FDFA',
+    Icon: GeoboardIcon,
   },
 ] as const;
 

@@ -1,4 +1,4 @@
-import { GameRegistryEntry, TherapyModuleId } from './types';
+import { BeePathType, GameRegistryEntry, PursuitMovementPattern, TherapyModuleId } from './types';
 
 /**
  * Shared central registry/catalog of games in the Candela vision therapy platform.
@@ -76,8 +76,16 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'numbers', name: 'Numeric Sorting' },
   ],
   bee_tracing: [
-    { id: 'active', name: 'Active Tracing' },
-    { id: 'guided', name: 'Guided Tracing' },
+    { id: 'straight', name: 'Straight Line' },
+    { id: 'curve', name: 'Gentle Curve' },
+    { id: 'zigzag', name: 'Zigzag Shifts' },
+    { id: 'wave', name: 'S-Curve Wave' },
+    { id: 'spiral', name: 'Spiral Pursuit' },
+    { id: 'branching', name: 'Branching Path' },
+    { id: 'dotted', name: 'Dotted Gap Fill' },
+    { id: 'auto', name: 'Auto Progress' },
+    { id: 'procedural_random', name: 'Dynamic Path' },
+    { id: 'random', name: 'Random Preset Path' },
   ],
   pursuit: [
     { id: 'linear_bounce', name: 'Linear Bounce' },
@@ -93,10 +101,26 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'colors', name: 'Color Discriminant Bubble Chase' },
   ],
   geoboard: [
-    { id: '1', name: 'Board 01 — Simple Lines' },
-    { id: '2', name: 'Board 02 — Alphabets' },
-    { id: '3', name: 'Board 03 — Geometric Shapes' },
-    { id: '4', name: 'Board 04 — Numbers' },
-    { id: '5', name: 'Board 05 — Compound Figures' },
+    { id: '1', name: 'Simple Lines' },
+    { id: '2', name: 'Alphabets' },
+    { id: '3', name: 'Geometric Shapes' },
+    { id: '4', name: 'Numbers' },
+    { id: '5', name: 'Compound Figures' },
   ],
 };
+
+export function resolveBeePathType(value?: string | null): BeePathType | 'auto' {
+  const known = MODULE_LEVELS.bee_tracing.map((level) => level.id);
+  if (value && known.includes(value)) return value as BeePathType | 'auto';
+  return 'straight';
+}
+
+export function resolvePursuitPattern(value?: string | null): PursuitMovementPattern {
+  const known = MODULE_LEVELS.pursuit.map((level) => level.id);
+  if (value && known.includes(value)) return value as PursuitMovementPattern;
+  return 'linear_bounce';
+}
+
+export function pursuitPatternName(pattern: PursuitMovementPattern): string {
+  return MODULE_LEVELS.pursuit.find((level) => level.id === pattern)?.name ?? 'Linear Bounce';
+}

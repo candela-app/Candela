@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MobileTargetSettings } from '@candela/shared';
+import { MobileTargetSettings, THERAPY_COLOR_ITEMS } from '@candela/shared';
 
 interface MobileTargetSettingsModalProps {
   isOpen: boolean;
@@ -40,6 +40,9 @@ export function MobileTargetSettingsModal({
   const [tempHasBackground, setTempHasBackground] = useState<boolean>(
     settings.hasBackground ?? false
   );
+  const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(
+    settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
+  );
 
   // Sync state on open
   useEffect(() => {
@@ -52,6 +55,9 @@ export function MobileTargetSettingsModal({
       setTempLetterSize(settings.letterSize || 32);
       setTempMovementAxis(settings.movementAxis || 'random');
       setTempHasBackground(settings.hasBackground ?? false);
+      setTempTherapyColors(
+        settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
+      );
     }
   }, [isOpen, settings]);
 
@@ -69,6 +75,7 @@ export function MobileTargetSettingsModal({
       letterSize: tempLetterSize,
       movementAxis: tempMovementAxis,
       hasBackground: tempHasBackground,
+      therapyColors: tempTherapyColors,
     });
     onClose();
   };
@@ -76,16 +83,22 @@ export function MobileTargetSettingsModal({
   // Sample Symbol Preview Text
   const sampleSymbol =
     settings.gameMode === 'colors'
-      ? 'RED'
+      ? THERAPY_COLOR_ITEMS.find((item) =>
+          tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase())
+        )?.name || 'Yellow'
       : settings.gameMode === 'numbers'
       ? '7'
       : settings.alphabetVariant === 'lowercase'
       ? 'a'
       : 'A';
 
-  const previewBg = tempHasBackground ? '#00F0FF' : '#121626';
-  const previewTextColor = tempHasBackground ? getContrastTextColor('#00F0FF') : '#00F0FF';
-  const previewBorder = tempHasBackground ? '3px solid #FFFFFF' : '4px solid #00F0FF';
+  const previewColor =
+    THERAPY_COLOR_ITEMS.find((item) =>
+      tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase())
+    )?.code || '#00F0FF';
+  const previewFilled = tempHasBackground;
+  const previewBg = previewFilled ? previewColor : '#121626';
+  const previewTextColor = previewFilled ? getContrastTextColor(previewColor) : previewColor;
 
   return (
     <div
@@ -143,23 +156,11 @@ export function MobileTargetSettingsModal({
                     width: `${tempBubbleSize}px`,
                     height: `${tempBubbleSize}px`,
                     backgroundColor: previewBg,
-                    border: previewBorder,
-                    boxShadow: tempHasBackground
-                      ? '0 0 25px rgba(0, 240, 255, 0.6)'
-                      : '0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.3)',
+                    border: previewFilled ? '3px solid #FFFFFF' : `4px solid ${previewColor}`,
+                    boxShadow: 'none',
                   }}
                 >
-                  {settings.gameMode === 'colors' ? (
-                    <div
-                      className="rounded-full shadow-md"
-                      style={{
-                        width: `${tempBubbleSize * 0.4}px`,
-                        height: `${tempBubbleSize * 0.4}px`,
-                        backgroundColor: tempHasBackground ? '#FFFFFF' : '#00F0FF',
-                        border: tempHasBackground ? '2px solid #000000' : '2px solid #FFFFFF',
-                      }}
-                    />
-                  ) : (
+                  {settings.gameMode === 'colors' ? null : (
                     <span
                       className="font-black"
                       style={{
@@ -180,10 +181,14 @@ export function MobileTargetSettingsModal({
                 <span>
                   Bubble: <strong className="text-emerald-400 font-bold">{tempBubbleSize}px</strong>
                 </span>
-                <span className="text-gray-600">|</span>
-                <span>
-                  Font: <strong className="text-emerald-400 font-bold">{tempLetterSize}px</strong>
-                </span>
+                {settings.gameMode !== 'colors' ? (
+                  <>
+                    <span className="text-gray-600">|</span>
+                    <span>
+                      Font: <strong className="text-emerald-400 font-bold">{tempLetterSize}px</strong>
+                    </span>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>
@@ -235,6 +240,7 @@ export function MobileTargetSettingsModal({
             </div>
 
             {/* FONT SIZE CONTROL */}
+            {settings.gameMode !== 'colors' ? (
             <div
               className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
               style={{ backgroundColor: '#242424' }}
@@ -277,6 +283,7 @@ export function MobileTargetSettingsModal({
                 ))}
               </div>
             </div>
+            ) : null}
 
             {/* MOVEMENT AXIS CONTROL */}
             <div
@@ -432,6 +439,62 @@ export function MobileTargetSettingsModal({
             </div>
           </div>
         </div>
+
+        {settings.gameMode === 'colors' ? (
+          <div
+            className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
+            style={{ backgroundColor: '#242424' }}
+          >
+            <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+              <span className="text-xs font-extrabold text-gray-200 uppercase tracking-wider">
+                Therapy Colors
+              </span>
+              <span className="font-black text-cyan-400 font-mono text-xs uppercase">
+                {tempTherapyColors.length} selected
+              </span>
+            </div>
+            <p className="text-xs text-gray-400">
+              Simple names children know. Keep at least two selected.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {THERAPY_COLOR_ITEMS.map((item) => {
+                const active = tempTherapyColors.some(
+                  (hex) => hex.toLowerCase() === item.code.toLowerCase()
+                );
+                return (
+                  <button
+                    key={item.code}
+                    type="button"
+                    onClick={() => {
+                      setTempTherapyColors((prev) => {
+                        const on = prev.some((hex) => hex.toLowerCase() === item.code.toLowerCase());
+                        if (on) {
+                          if (prev.length <= 2) return prev;
+                          return prev.filter((hex) => hex.toLowerCase() !== item.code.toLowerCase());
+                        }
+                        return [...prev, item.code];
+                      });
+                    }}
+                    className="flex flex-col items-center gap-1.5 min-w-[52px]"
+                  >
+                    <span
+                      className="w-9 h-9 rounded-full"
+                      style={{
+                        backgroundColor: '#121626',
+                        border: `3px solid ${item.code}`,
+                        outline: active ? '2px solid #FFFFFF' : 'none',
+                        outlineOffset: 2,
+                      }}
+                    />
+                    <span className={`text-[10px] font-extrabold ${active ? 'text-white' : 'text-gray-500'}`}>
+                      {item.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {/* MODAL FOOTER ACTIONS */}
         <div className="flex justify-end items-center gap-4 border-t border-gray-800 pt-4 mt-1">

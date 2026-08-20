@@ -1,6 +1,8 @@
 import * as Haptics from 'expo-haptics';
+import { playCorrectWoosh, playMissThud, playWrongWoosh } from './sfx';
 
 export async function hapticCorrect() {
+  void playCorrectWoosh();
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch {
@@ -9,8 +11,18 @@ export async function hapticCorrect() {
 }
 
 export async function hapticWrong() {
+  void playWrongWoosh();
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch {
+    // ignore
+  }
+}
+
+export async function hapticMiss() {
+  void playMissThud();
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   } catch {
     // ignore
   }

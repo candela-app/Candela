@@ -5,13 +5,15 @@ import {
   MobileTargetSettings,
   MobileTargetSetMetric,
   MobileTargetSessionResultData,
+  THERAPY_COLOR_ITEMS,
   playSuccessTone,
   playErrorTone,
 } from '@candela/shared';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
-import { ArrowLeftIcon, SlidersIcon } from '../icons/VectorIcons';
+import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
+import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
 interface MobileTargetGameProps {
   initialMode?: GameMode;
@@ -33,14 +35,13 @@ interface MovingBubble {
   scatterTimer?: number; // duration of 2D scatter deflection after collision
 }
 
-const GENERIC_COLORS = [
-  { name: 'Red', code: '#FF3344' },
-  { name: 'Blue', code: '#0070FF' },
-  { name: 'Green', code: '#00E640' },
-  { name: 'Yellow', code: '#FFDD00' },
-  { name: 'Orange', code: '#FF6600' },
-  { name: 'Purple', code: '#B000FF' },
-];
+function activeTherapyColors(enabled?: string[]) {
+  const selected = (enabled || []).map((hex) => hex.toLowerCase());
+  const items = selected.length
+    ? THERAPY_COLOR_ITEMS.filter((item) => selected.includes(item.code.toLowerCase()))
+    : THERAPY_COLOR_ITEMS;
+  return items.length >= 2 ? items : THERAPY_COLOR_ITEMS;
+}
 
 export function MobileTargetGame({
   initialMode = 'alphabets',
@@ -58,6 +59,7 @@ export function MobileTargetGame({
     bubbleSize: 96,
     letterSize: 32,
     hasBackground: false,
+    therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
   });
 
   // Speech Synthesis for Target Announcement
@@ -68,19 +70,27 @@ export function MobileTargetGame({
       const utter = new SpeechSynthesisUtterance(textToSpeak);
       utter.rate = 0.9;
       utter.pitch = 1.0;
+      utter.lang = 'en-US';
       window.speechSynthesis.speak(utter);
     } catch (e) {
       console.warn('Speech synthesis error:', e);
     }
   }, []);
 
+  const announceChaseTarget = useCallback(
+    (value: string, name?: string) => {
+      speakTarget(settings.gameMode === 'colors' ? name || value : `target ${String(value).toLowerCase()}`);
+    },
+    [settings.gameMode, speakTarget]
+  );
+
   // Sync settings when initial props change
   useEffect(() => {
-    setSettings((prev) => ({
-      ...prev,
-      gameMode: initialMode,
-      alphabetVariant: initialVariant,
-    }));
+    setSettings((prev) =>
+      prev.gameMode === initialMode && prev.alphabetVariant === initialVariant
+        ? prev
+        : { ...prev, gameMode: initialMode, alphabetVariant: initialVariant }
+    );
   }, [initialMode, initialVariant]);
 
   const gameTitle =
@@ -105,6 +115,11 @@ export function MobileTargetGame({
   const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
+  const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const [shakeError, setShakeError] = useState<boolean>(false);
 
   // Metrics
@@ -125,33 +140,52 @@ export function MobileTargetGame({
     bubblesRef.current = bubbles;
   }, [bubbles]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   // Ref for shuffled pool deck
   const shuffledPoolRef = useRef<string[]>([]);
 
   // Function to generate shuffled pool deck for full random coverage
-  const generateShuffledPool = useCallback((mode: GameMode, variant?: AlphabetVariant) => {
-    let items: string[] = [];
-    if (mode === 'alphabets') {
-      const letters =
-        variant === 'lowercase'
-          ? 'abcdefghijklmnopqrstuvwxyz'.split('')
-          : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-      items = [...letters];
-    } else if (mode === 'numbers') {
-      items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    } else if (mode === 'colors') {
-      items = GENERIC_COLORS.map((c) => c.name);
-    }
+  const generateShuffledPool = useCallback(
+    (mode: GameMode, variant?: AlphabetVariant, enabledColors?: string[]) => {
+      let items: string[] = [];
+      if (mode === 'alphabets') {
+        const letters =
+          variant === 'lowercase'
+            ? 'abcdefghijklmnopqrstuvwxyz'.split('')
+            : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+        items = [...letters];
+      } else if (mode === 'numbers') {
+        items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+      } else if (mode === 'colors') {
+        items = activeTherapyColors(enabledColors ?? settings.therapyColors).map((c) => c.name);
+      }
 
-    // Fisher-Yates shuffle
-    for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [items[i], items[j]] = [items[j], items[i]];
-    }
+      // Fisher-Yates shuffle
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
 
-    shuffledPoolRef.current = items;
-    return items;
-  }, []);
+      shuffledPoolRef.current = items;
+      return items;
+    },
+    [settings.therapyColors]
+  );
 
   // Generate Pair of Target & Distractor Bubbles
   const generateSetPair = useCallback(
@@ -162,9 +196,11 @@ export function MobileTargetGame({
       customSettings?: MobileTargetSettings,
       shouldSpeak: boolean = false
     ) => {
+      const effSettings = customSettings || settings;
+
       // Ensure pool exists
       if (shuffledPoolRef.current.length === 0 || setIdx === 0) {
-        generateShuffledPool(mode, variant);
+        generateShuffledPool(mode, variant, effSettings.therapyColors);
       }
 
       const pool = shuffledPoolRef.current;
@@ -172,7 +208,7 @@ export function MobileTargetGame({
 
       // Update totalSets in settings dynamically to pool size (e.g. 26 letters)
       if (settings.totalSets !== totalPoolSets) {
-        setSettings((prev) => ({ ...prev, totalSets: totalPoolSets }));
+        setSettings((prev) => (prev.totalSets === totalPoolSets ? prev : { ...prev, totalSets: totalPoolSets }));
       }
 
       const targetVal = pool[setIdx % pool.length];
@@ -182,32 +218,32 @@ export function MobileTargetGame({
       const distractorVal =
         availableDistractors[Math.floor(Math.random() * availableDistractors.length)];
 
-      let targetCol = GENERIC_COLORS[0].code;
-      let distractorCol = GENERIC_COLORS[1].code;
+      const palette = activeTherapyColors(effSettings.therapyColors);
+      let targetCol = palette[0].code;
+      let distractorCol = palette[1].code;
       let targetName: string | undefined = undefined;
 
       if (mode === 'colors') {
-        const tColorObj = GENERIC_COLORS.find((c) => c.name === targetVal) || GENERIC_COLORS[0];
-        const dColorObj = GENERIC_COLORS.find((c) => c.name === distractorVal) || GENERIC_COLORS[1];
+        const tColorObj = palette.find((c) => c.name === targetVal) || palette[0];
+        const dColorObj = palette.find((c) => c.name === distractorVal) || palette[1];
         targetCol = tColorObj.code;
         distractorCol = dColorObj.code;
         targetName = tColorObj.name;
       } else {
-        const c1 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        let c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        while (c2 === c1) c2 = Math.floor(Math.random() * GENERIC_COLORS.length);
-        targetCol = GENERIC_COLORS[c1].code;
-        distractorCol = GENERIC_COLORS[c2].code;
+        const c1 = Math.floor(Math.random() * palette.length);
+        let c2 = Math.floor(Math.random() * palette.length);
+        while (c2 === c1) c2 = Math.floor(Math.random() * palette.length);
+        targetCol = palette[c1].code;
+        distractorCol = palette[c2].code;
       }
 
       setTargetItem({ value: targetVal, color: targetCol, name: targetName });
 
       // Announce target via sound/speech synthesis ONLY when requested
       if (shouldSpeak) {
-        speakTarget(targetName || targetVal);
+        speakTarget(mode === 'colors' ? targetName || targetVal : `target ${String(targetVal).toLowerCase()}`);
       }
 
-      const effSettings = customSettings || settings;
       const speed = effSettings.speedPxPerSec;
       const radius = (effSettings.bubbleSize || 96) / 2;
       const axis = effSettings.movementAxis || 'random';
@@ -311,7 +347,7 @@ export function MobileTargetGame({
       wrongClicksSetRef.current = 0;
       setStartTimeRef.current = Date.now();
     },
-    [settings.speedPxPerSec, settings.bubbleSize, settings.movementAxis, generateShuffledPool]
+    [settings, generateShuffledPool]
   );
 
   // Initialize First Set
@@ -561,7 +597,11 @@ export function MobileTargetGame({
     setIsPlaying(true);
     setIsPaused(false);
     setStartTimeRef.current = Date.now();
-    speakTarget(targetItem.name || targetItem.value);
+    speakTarget(
+      settings.gameMode === 'colors'
+        ? targetItem.name || targetItem.value
+        : `target ${String(targetItem.value).toLowerCase()}`
+    );
   };
 
   const handleRestartSession = () => {
@@ -580,83 +620,17 @@ export function MobileTargetGame({
   };
 
   return (
-    <div className="w-screen h-screen bg-[#0A0A12] text-white flex flex-col justify-between select-none overflow-hidden touch-none relative font-sans">
-      {/* FIXED TOP HEADER & TARGET CONTAINER */}
-      <header className="w-full bg-[#121626]/90 border-b border-gray-800/80 px-4 py-3 flex items-center justify-between z-30 shadow-lg backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-base font-extrabold text-white tracking-tight leading-none">
-              {gameTitle}
-            </h1>
-            <span className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">
-              Set {currentSetIndex + 1} of {settings.totalSets}
-            </span>
-          </div>
-        </div>
-
-        {/* TARGET CARD DISPLAY WITH SPEAKER BUTTON */}
-        <button
-          onClick={() => speakTarget(targetItem.name || targetItem.value)}
-          title="Click to hear target sound"
-          className="flex items-center gap-3 bg-[#1A2035] hover:bg-[#222942] border-2 border-blue-500/40 hover:border-blue-400 px-4 py-1.5 rounded-2xl shadow-inner cursor-pointer transition-all active:scale-95 group"
-        >
-          <span className="text-xs text-gray-400 font-bold uppercase tracking-wider hidden sm:inline group-hover:text-blue-300">
-            Target:
-          </span>
-          {settings.gameMode === 'colors' ? (
-            <div className="flex items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-full border-2 border-white shadow-md"
-                style={{ backgroundColor: targetItem.color }}
-              />
-              <span className="font-extrabold text-sm text-white">{targetItem.name}</span>
-            </div>
-          ) : (
-            <span
-              className="text-2xl font-black tracking-widest drop-shadow-md"
-              style={{ color: targetItem.color }}
-            >
-              {targetItem.value}
-            </span>
-          )}
-          <span
-            className="text-blue-400 group-hover:scale-110 transition-transform text-base ml-1"
-            title="Play target sound"
-          >
-            🔊
-          </span>
-        </button>
-
-        {/* ACTIONS & SETTINGS */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          >
-            <SlidersIcon className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-500 text-xs font-bold text-white transition-colors"
-          >
-            Menu
-          </button>
-        </div>
-      </header>
-
-      {/* MOVING BUBBLE FIELD CANVAS */}
+    <div className="w-screen h-screen bg-[#0A0A12] text-white select-none overflow-hidden touch-none relative font-sans">
       <main
         ref={canvasRef}
-        className={`flex-1 relative w-full overflow-hidden flex items-center justify-center ${
+        className={`absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center ${
           shakeError ? 'animate-shake' : ''
         }`}
       >
-        {/* Subtle Background Field Grid Lines */}
         <div className="absolute inset-0 bg-[radial-gradient(#1E2640_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />
 
-        {/* Moving Bubbles (2 Bubbles) */}
         {bubbles.map((bubble) => {
-          const hasBg = settings.hasBackground ?? false;
+          const hasBg = settings.hasBackground === true;
           const contrastTextColor = getContrastTextColor(bubble.color);
           const textColor = hasBg ? contrastTextColor : bubble.color;
 
@@ -673,7 +647,7 @@ export function MobileTargetGame({
                 e.stopPropagation();
                 handleBubbleTap(bubble);
               }}
-              className="absolute rounded-full flex items-center justify-center cursor-pointer shadow-2xl select-none"
+              className="absolute rounded-full flex items-center justify-center cursor-pointer select-none"
               style={{
                 left: '50%',
                 top: '50%',
@@ -682,24 +656,12 @@ export function MobileTargetGame({
                 height: `${diameter}px`,
                 backgroundColor: hasBg ? bubble.color : '#121626',
                 border: hasBg ? '3px solid #FFFFFF' : `4px solid ${bubble.color}`,
-                boxShadow: hasBg
-                  ? `0 0 20px ${bubble.color}90`
-                  : `0 0 20px ${bubble.color}60, inset 0 0 10px ${bubble.color}30`,
+                boxShadow: 'none',
                 touchAction: 'none',
                 willChange: 'transform',
               }}
             >
-              {settings.gameMode === 'colors' ? (
-                <div
-                  className="rounded-full shadow-md"
-                  style={{
-                    width: `${radius * 0.8}px`,
-                    height: `${radius * 0.8}px`,
-                    backgroundColor: hasBg ? contrastTextColor : bubble.color,
-                    border: hasBg ? '2px solid rgba(0,0,0,0.3)' : '2px solid #FFFFFF',
-                  }}
-                />
-              ) : (
+              {settings.gameMode === 'colors' ? null : (
                 <span
                   className="font-black tracking-tight"
                   style={{ color: textColor, fontSize: `${fontSize}px` }}
@@ -712,15 +674,191 @@ export function MobileTargetGame({
         })}
       </main>
 
-      {/* FOOTER STATS STRIP */}
-      <footer className="w-full bg-[#121626]/90 border-t border-gray-800/80 px-6 py-3 flex items-center justify-around text-xs text-gray-400 font-semibold z-30">
-        <div>
-          Correct Sets: <span className="text-emerald-400 font-bold text-sm ml-1">{correctCount} / {settings.totalSets}</span>
+      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
+        <button
+          onClick={toggleFullscreen}
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white flex items-center justify-center shadow-md transition-all cursor-pointer backdrop-blur-md active:scale-95"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+        >
+          {isFullscreen ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={() => announceChaseTarget(targetItem.value, targetItem.name)}
+          className="w-7 h-7 sm:w-8 sm:h-8 bg-transparent border-0 text-slate-500/40 hover:text-slate-400 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+          title="Replay target"
+        >
+          <ReplayIcon className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => {
+            setIsAssistiveTouchOpen((prev) => !prev);
+            setIsHeaderExpanded(false);
+          }}
+          className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 shadow-md flex items-center justify-center transition-all cursor-pointer backdrop-blur-md active:scale-95 group ${
+            isAssistiveTouchOpen
+              ? 'bg-[#1A2035] border-blue-400 text-white shadow-blue-500/30 ring-2 ring-blue-500/40'
+              : 'bg-[#121626]/90 hover:bg-[#1A2035] border-blue-500/70 hover:border-blue-400 text-white'
+          }`}
+          title="Current Target - Tap to open menu"
+        >
+          {settings.gameMode === 'colors' ? (
+            <div
+              className="w-3.5 h-3.5 rounded-full border border-white shadow-sm shrink-0"
+              style={{ backgroundColor: targetItem.color }}
+            />
+          ) : (
+            <span className="text-xs sm:text-sm font-black tracking-tight drop-shadow-md select-none" style={{ color: targetItem.color }}>
+              {targetItem.value}
+            </span>
+          )}
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-600 text-white flex items-center justify-center border border-blue-400 shadow-sm">
+            <ChevronUpIcon className="w-2 h-2" size={8} />
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            setIsHeaderExpanded((prev) => !prev);
+            setIsAssistiveTouchOpen(false);
+          }}
+          className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white text-[10px] sm:text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-md active:scale-95"
+          title={isHeaderExpanded ? 'Hide Info' : 'View Info'}
+        >
+          <span className="text-blue-400 font-extrabold text-[9px] sm:text-[10px]">{isHeaderExpanded ? '▼' : '▲'}</span>
+          <span>{isHeaderExpanded ? 'Hide Info' : 'View Info'}</span>
+        </button>
+      </div>
+
+      {isAssistiveTouchOpen && (
+        <div className="fixed bottom-16 right-16 sm:bottom-20 sm:right-24 z-50 bg-[#121626]/95 border border-gray-800/90 p-4 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col gap-3 min-w-[210px] animate-slide-in-up">
+          <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
+            <span className="text-xs font-extrabold text-gray-300 uppercase tracking-wider">Controls</span>
+            <button onClick={() => setIsAssistiveTouchOpen(false)} className="text-gray-400 hover:text-white text-sm font-bold cursor-pointer p-0.5">
+              ✕
+            </button>
+          </div>
+          <button
+            onClick={() => announceChaseTarget(targetItem.value, targetItem.name)}
+            title="Current target"
+            className="flex items-center justify-between bg-[#1A2035] hover:bg-[#222942] border border-blue-500/40 hover:border-blue-400 px-3 py-2 rounded-2xl shadow-inner cursor-pointer transition-all active:scale-95 group w-full"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Target:</span>
+              {settings.gameMode === 'colors' ? (
+                <div className="w-5 h-5 rounded-full border border-white shadow-sm" style={{ backgroundColor: targetItem.color }} />
+              ) : (
+                <span className="text-xl font-black tracking-widest drop-shadow-md" style={{ color: targetItem.color }}>
+                  {targetItem.value}
+                </span>
+              )}
+            </div>
+            <span className="text-blue-400 text-xs font-bold flex items-center gap-1">
+              <VolumeIcon className="w-3.5 h-3.5" /> Replay
+            </span>
+          </button>
+          <button
+            onClick={() => setIsPaused((prev) => !prev)}
+            className={`w-full py-2.5 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 border ${
+              isPaused
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md'
+                : 'bg-gray-800/90 hover:bg-gray-700 text-gray-200 border-gray-700'
+            }`}
+          >
+            {isPaused ? <PlayIcon className="w-3.5 h-3.5" /> : <PauseIcon className="w-3.5 h-3.5" />}
+            <span>{isPaused ? 'Play' : 'Pause'}</span>
+          </button>
+          <button
+            onClick={() => {
+              setIsAssistiveTouchOpen(false);
+              setIsPaused(true);
+              setShowSettings(true);
+            }}
+            className="w-full py-2.5 px-3 rounded-2xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700/80 flex items-center justify-center gap-2 text-xs font-bold"
+          >
+            <SlidersIcon className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
+          <button
+            onClick={() => setConfirmReset(true)}
+            className="w-full py-2 rounded-2xl bg-gray-800/90 hover:bg-gray-700 text-xs font-bold text-gray-200 transition-colors border border-gray-700 text-center"
+          >
+            Reset Game
+          </button>
+          <button
+            onClick={() => {
+              const inProgress = !showResults && !showSettings && !showClickToStart;
+              if (inProgress) setConfirmQuit(true);
+              else {
+                setIsAssistiveTouchOpen(false);
+                onExit();
+              }
+            }}
+            className="w-full py-2 rounded-2xl bg-red-700 hover:bg-red-600 text-xs font-bold text-white transition-colors shadow-md text-center"
+          >
+            Quit Game
+          </button>
         </div>
-        <div>
-          Wrong Clicks: <span className="text-rose-400 font-bold text-sm ml-1">{wrongCount}</span>
+      )}
+
+      {isHeaderExpanded && (
+        <div className="fixed bottom-16 right-4 sm:bottom-20 sm:right-6 z-40 bg-[#121626]/95 border border-gray-800/90 p-4 sm:p-5 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col gap-3 text-xs animate-slide-in-up min-w-[270px]">
+          <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+            <div>
+              <h1 className="text-sm font-extrabold text-white tracking-tight">Session & Clinical Info</h1>
+              <span className="text-[11px] text-gray-400 font-medium">{gameTitle}</span>
+            </div>
+            <button onClick={() => setIsHeaderExpanded(false)} className="text-gray-400 hover:text-white text-base font-bold ml-3 cursor-pointer">
+              ✕
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5 text-xs font-medium text-gray-300">
+            <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Clinical Parameters</span>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Patient:</span>
+              <span className="text-white font-bold">{settings.patientName}</span>
+            </div>
+            {settings.gameMode === 'colors' ? null : (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Letter Size:</span>
+                <span className="text-blue-400 font-bold">{settings.letterSize || 32} px</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Bubble Size:</span>
+              <span className="text-blue-400 font-bold">{settings.bubbleSize || 96} px</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Set:</span>
+              <span className="text-blue-400 font-bold">{currentSetIndex + 1} / {settings.totalSets}</span>
+            </div>
+          </div>
+          <div className="h-px bg-gray-800/80 my-0.5" />
+          <div className="flex flex-col gap-1.5 text-xs font-medium text-gray-300">
+            <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Live Metrics</span>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Correct Sets:</span>
+              <span className="text-emerald-400 font-bold">{correctCount} / {settings.totalSets}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Wrong Clicks:</span>
+              <span className="text-rose-400 font-bold">{wrongCount}</span>
+            </div>
+          </div>
         </div>
-      </footer>
+      )}
 
       {/* PEDIATRIC LOW-VISION PLAY BUTTON (NO MODAL CARD) */}
       {showClickToStart && !showSettings && !showResults && (
@@ -777,12 +915,14 @@ export function MobileTargetGame({
         }}
         settings={settings}
         onUpdateSettings={(newSettings) => {
-          setSettings(newSettings);
+          const nextColors = activeTherapyColors(newSettings.therapyColors).map((item) => item.code);
+          const next = { ...newSettings, therapyColors: nextColors };
+          setSettings(next);
           setShowSettings(false);
           setIsPlaying(false);
           setIsPaused(true);
           setShowClickToStart(true);
-          generateSetPair(currentSetIndex, newSettings.gameMode, newSettings.alphabetVariant, newSettings);
+          generateSetPair(0, next.gameMode, next.alphabetVariant, next);
         }}
         isInitialLaunch={!isPlaying && currentSetIndex === 0}
       />
@@ -799,6 +939,7 @@ export function MobileTargetGame({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onQuit={onExit}
+        sessionInProgress={!showResults && !showSettings && !showClickToStart}
         onReset={handleRestartSession}
         onOpenSettings={() => {
           setMenuOpen(false);
@@ -811,6 +952,27 @@ export function MobileTargetGame({
           { label: 'Speed', value: `${settings.speedPxPerSec} px/s` },
           { label: 'Set Duration', value: `${settings.setDurationSec}s` },
         ]}
+      />
+      <ResetConfirmDialog
+        isOpen={confirmReset}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          setIsAssistiveTouchOpen(false);
+          handleRestartSession();
+        }}
+      />
+      <ResetConfirmDialog
+        isOpen={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          setIsAssistiveTouchOpen(false);
+          onExit();
+        }}
       />
     </div>
   );

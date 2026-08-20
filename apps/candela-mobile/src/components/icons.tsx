@@ -94,6 +94,50 @@ export function SlidersIcon({ size = 24, color = 'currentColor' }: IconProps) {
   );
 }
 
+export function ReplayIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <Path d="M3 3v5h5" />
+    </Svg>
+  );
+}
+
+export function UndoIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 7v6h6" />
+      <Path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 2.9L3 13" />
+    </Svg>
+  );
+}
+
+export function ClearIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M18 6 6 18" />
+      <Path d="m6 6 12 12" />
+    </Svg>
+  );
+}
+
+export function SkipIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Polygon points="5 4 15 12 5 20 5 4" fill={color} />
+      <Line x1="19" x2="19" y1="5" y2="19" />
+    </Svg>
+  );
+}
+
+export function CheckIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M20 6 9 17l-5-5" />
+    </Svg>
+  );
+}
+
 export function AnalyticsIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -136,6 +180,25 @@ export function RocketIcon({ size = 24, color = 'currentColor' }: IconProps) {
   );
 }
 
+export function LogOutIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <Polyline points="16 17 21 12 16 7" />
+      <Line x1="21" x2="9" y1="12" y2="12" />
+    </Svg>
+  );
+}
+
+export function ArrowLeftIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5" />
+      <Path d="m12 19-7-7 7-7" />
+    </Svg>
+  );
+}
+
 export function ArrowRightIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -162,6 +225,23 @@ export function ZapIcon({ size = 24, color = 'currentColor' }: IconProps) {
   );
 }
 
+export function GeoboardIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
+      <Circle cx="8" cy="8" r="1" fill={color} />
+      <Circle cx="12" cy="8" r="1" fill={color} />
+      <Circle cx="16" cy="8" r="1" fill={color} />
+      <Circle cx="8" cy="12" r="1" fill={color} />
+      <Circle cx="12" cy="12" r="1" fill={color} />
+      <Circle cx="16" cy="12" r="1" fill={color} />
+      <Circle cx="8" cy="16" r="1" fill={color} />
+      <Circle cx="12" cy="16" r="1" fill={color} />
+      <Circle cx="16" cy="16" r="1" fill={color} />
+    </Svg>
+  );
+}
+
 export function MobileTargetIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -169,6 +249,41 @@ export function MobileTargetIcon({ size = 24, color = 'currentColor' }: IconProp
       <Circle cx="9" cy="8" r="2" />
       <Circle cx="15" cy="14" r="2" />
       <Path d="m11 10 2 2" />
+    </Svg>
+  );
+}
+
+export function PlayIcon({ size = 20, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Polygon points="6 3 20 12 6 21 6 3" />
+    </Svg>
+  );
+}
+
+export function PauseIcon({ size = 20, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Rect x="6" y="4" width="4" height="16" rx="1" />
+      <Rect x="14" y="4" width="4" height="16" rx="1" />
+    </Svg>
+  );
+}
+
+export function ChevronUpIcon({ size = 12, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="18 15 12 9 6 15" />
+    </Svg>
+  );
+}
+
+export function VolumeIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <Path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <Path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
     </Svg>
   );
 }

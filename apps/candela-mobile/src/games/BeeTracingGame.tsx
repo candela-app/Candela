@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, PanResponder, Pressable, Text, View } from 'react-native';
+import { Animated, AppState, PanResponder, Pressable, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import {
   BeePathType,
@@ -10,19 +11,27 @@ import {
   evaluateTracingMetrics,
   findNearestPathPointInWindow,
   generateBeePath,
+  resolveBeePathType,
   resolveOrientation,
   type GeneratedPath,
 } from '@candela/shared/rn';
-import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
-import { GameResultsModal } from '../components/GameResultsModal';
+import { BeeResultsModal } from '../components/BeeResultsModal';
+import { BeeSettingsModal } from '../components/BeeSettingsModal';
+import { GameMenuDrawer } from '../components/GameMenuDrawer';
+import { ReplayIcon, SlidersIcon } from '../components/icons';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { startBeeBuzz, stopBeeBuzz } from '../lib/sfx';
+import { useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
+
+const PATH_WIDTH_NARROW = 12;
+const FLOWER_REACH_PX = 26;
 
 const DEFAULT_SETTINGS: BeeTracingSettings = {
   patientName: 'Demo Patient',
   tracingMode: 'active',
   pathType: 'auto',
-  toleranceBandPx: 40,
+  toleranceBandPx: PATH_WIDTH_NARROW,
   beeSpeedSec: 5,
   pathComplexity: 'medium',
   colorTheme: 'dark',
@@ -33,11 +42,74 @@ const DEFAULT_SETTINGS: BeeTracingSettings = {
 };
 
 const PATH_PROGRESSION: BeePathType[] = ['straight', 'curve', 'zigzag', 'wave', 'spiral', 'branching', 'dotted'];
+const BEE_SIZE = 84;
+const BEE_GRAB_RADIUS = 70;
+const SETTINGS_ICON_SIZE = 44;
 
-export function BeeTracingGame({ onExit }: { onExit: () => void }) {
+const BEE_THEMES = {
+  dark: {
+    bg: '#0C121C',
+    path: '#E2B93B',
+    trace: '#4AA8A4',
+    ui: '#E7EEF5',
+    muted: '#9AA8B5',
+    flower: '#E56B9A',
+  },
+  standard: {
+    bg: '#F2F5F3',
+    path: '#1F6F6A',
+    trace: '#2E6B9A',
+    ui: '#1A2A32',
+    muted: '#4A5C66',
+    flower: '#C44B78',
+  },
+} as const;
+
+function beeTheme(theme: BeeTracingSettings['colorTheme']) {
+  return theme === 'dark' ? BEE_THEMES.dark : BEE_THEMES.standard;
+}
+
+function pinBeeTailToPlayBottom(generated: GeneratedPath, height: number, beeSize: number): GeneratedPath {
+  if (generated.orientation !== 'portrait' || generated.points.length < 2) return generated;
+  const start = generated.startPoint;
+  const end = generated.endPoint;
+  if (generated.pathType === 'spiral' || start.y < height * 0.55) return generated;
+  const oldSpan = end.y - start.y;
+  if (Math.abs(oldSpan) < 1) return generated;
+  const newStartY = height - beeSize / 2;
+  const newEndY = end.y;
+  const mapY = (y: number) => newStartY + ((y - start.y) / oldSpan) * (newEndY - newStartY);
+  const points = generated.points.map((p) => ({ x: p.x, y: mapY(p.y) }));
+  const svgPathD = points.reduce((d, p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `${d} L ${p.x} ${p.y}`), '');
+  return {
+    ...generated,
+    points,
+    startPoint: { x: start.x, y: newStartY },
+    endPoint: { x: end.x, y: newEndY },
+    svgPathD,
+    distractorPoint: generated.distractorPoint
+      ? { x: generated.distractorPoint.x, y: mapY(generated.distractorPoint.y) }
+      : undefined,
+  };
+}
+
+export function BeeTracingGame({
+  onExit,
+  initialPathType = 'straight',
+}: {
+  onExit: () => void;
+  initialPathType?: string;
+}) {
+  const { session } = useAuth();
   const { s, fs } = useLayout();
-  const [settings, setSettings] = useState<BeeTracingSettings>(DEFAULT_SETTINGS);
+  const insets = useSafeAreaInsets();
+  const lockedPathType = resolveBeePathType(initialPathType);
+  const [settings, setSettings] = useState<BeeTracingSettings>({
+    ...DEFAULT_SETTINGS,
+    pathType: lockedPathType,
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const [roundResults, setRoundResults] = useState<RoundResultData[]>([]);
@@ -46,6 +118,8 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
   const [isTracing, setIsTracing] = useState(false);
   const [isGuidedDemoRunning, setIsGuidedDemoRunning] = useState(false);
   const [userTracePoints, setUserTracePoints] = useState<PathPoint[]>([]);
+  const [demoTrail, setDemoTrail] = useState<PathPoint[]>([]);
+  const [hasDemoPlayed, setHasDemoPlayed] = useState(false);
   const [userTimestamps, setUserTimestamps] = useState<number[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [roundSuccessCelebration, setRoundSuccessCelebration] = useState(false);
@@ -55,6 +129,52 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
   const beePosRef = useRef(beePos);
   const tracingRef = useRef(false);
   const pathRef = useRef<GeneratedPath | null>(null);
+  const playOriginRef = useRef({ x: 0, y: 0 });
+  const playViewRef = useRef<View>(null);
+  const guidedRef = useRef(false);
+  const roundSuccessRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const completeRoundRef = useRef<() => void>(() => undefined);
+  const beeScale = useRef(new Animated.Value(1)).current;
+  const heldRef = useRef(false);
+  const demoTokenRef = useRef(0);
+
+  const leaveGame = () => {
+    demoTokenRef.current += 1;
+    tracingRef.current = false;
+    setBeeHeld(false);
+    void stopBeeBuzz();
+    onExit();
+  };
+
+  const setBeeHeld = (held: boolean) => {
+    if (heldRef.current === held) return;
+    heldRef.current = held;
+    Animated.spring(beeScale, {
+      toValue: held ? 1.7 : 1,
+      friction: 6,
+      tension: 70,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const startPathBuzz = () => {
+    if (settingsRef.current.audioEnabled) void startBeeBuzz();
+  };
+
+  const stopPathBuzz = () => {
+    void stopBeeBuzz();
+  };
+
+  const fingerOnBee = (x: number, y: number) => {
+    const radius = (BEE_SIZE / 2) * (heldRef.current ? 1.7 : 1) + 6;
+    return Math.hypot(x - beePosRef.current.x, y - beePosRef.current.y) <= radius;
+  };
+
+  const buzzIfFingerOnBee = (x: number, y: number) => {
+    if (tracingRef.current && fingerOnBee(x, y)) startPathBuzz();
+    else stopPathBuzz();
+  };
 
   useEffect(() => {
     beePosRef.current = beePos;
@@ -65,6 +185,29 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     pathRef.current = currentPath;
   }, [currentPath]);
+  useEffect(() => {
+    guidedRef.current = isGuidedDemoRunning;
+  }, [isGuidedDemoRunning]);
+  useEffect(() => {
+    roundSuccessRef.current = roundSuccessCelebration;
+  }, [roundSuccessCelebration]);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+  useEffect(() => {
+    const name = session?.user.name?.trim();
+    if (name) setSettings((prev) => ({ ...prev, patientName: name }));
+  }, [session?.user.name]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') void stopBeeBuzz();
+    });
+    return () => {
+      sub.remove();
+      demoTokenRef.current += 1;
+      void stopBeeBuzz();
+    };
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -72,17 +215,41 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
   };
 
   const runGuidedDemo = (generated: GeneratedPath) => {
+    demoTokenRef.current += 1;
+    const token = demoTokenRef.current;
+    guidedRef.current = true;
     setIsGuidedDemoRunning(true);
-    const duration = settings.beeSpeedSec * 1000;
+    setHasDemoPlayed(false);
+    setIsTracing(false);
+    tracingRef.current = false;
+    setBeeHeld(false);
+    setUserTracePoints([generated.startPoint]);
+    setUserTimestamps([Date.now()]);
+    setDemoTrail([generated.startPoint]);
+    setBeePos(generated.startPoint);
+    beePosRef.current = generated.startPoint;
+    currentPathIndexRef.current = 0;
+    const duration = Math.max(250, settingsRef.current.beeSpeedSec * 1000);
     const startTime = Date.now();
     const animate = () => {
+      if (token !== demoTokenRef.current) return;
       const progress = Math.min(1, (Date.now() - startTime) / duration);
-      const ptIndex = Math.floor(progress * (generated.points.length - 1));
-      setBeePos(generated.points[ptIndex] || generated.startPoint);
-      if (progress < 1) requestAnimationFrame(animate);
-      else {
+      const last = Math.max(0, generated.points.length - 1);
+      const ptIndex = Math.min(last, Math.floor(progress * last));
+      const pt = generated.points[ptIndex] || generated.startPoint;
+      beePosRef.current = pt;
+      setBeePos(pt);
+      setDemoTrail(generated.points.slice(0, ptIndex + 1));
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        stopPathBuzz();
+        guidedRef.current = false;
         setIsGuidedDemoRunning(false);
+        setHasDemoPlayed(true);
         setBeePos(generated.startPoint);
+        beePosRef.current = generated.startPoint;
+        setDemoTrail(generated.points);
         showToast('Demo complete! Now trace the path!');
       }
     };
@@ -98,14 +265,27 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
       } else if (settings.pathType === 'random') {
         targetPathType = PATH_PROGRESSION[Math.floor(Math.random() * PATH_PROGRESSION.length)];
       } else {
-        targetPathType = settings.pathType;
+        targetPathType = settings.pathType as BeePathType;
       }
       const resolvedOrientation = resolveOrientation(settings.orientation || 'auto', w, h);
-      const generated = generateBeePath(targetPathType, w, h, tier, settings.pathComplexity, resolvedOrientation);
+      const generatedRaw = generateBeePath(
+        targetPathType,
+        w,
+        h,
+        tier,
+        settings.pathComplexity,
+        resolvedOrientation,
+      );
+      const generated =
+        settings.pathComplexity === 'short'
+          ? generatedRaw
+          : pinBeeTailToPlayBottom(generatedRaw, h, BEE_SIZE);
       setCurrentPath(generated);
       setBeePos(generated.startPoint);
       setUserTracePoints([generated.startPoint]);
       setUserTimestamps([Date.now()]);
+      setDemoTrail([]);
+      setHasDemoPlayed(false);
       setRoundSuccessCelebration(false);
       currentPathIndexRef.current = 0;
       roundStartTimeRef.current = Date.now();
@@ -122,6 +302,8 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
   const handleRoundCompletion = () => {
     if (roundSuccessCelebration || !currentPath) return;
     setIsTracing(false);
+    setBeeHeld(false);
+    stopPathBuzz();
     setRoundSuccessCelebration(true);
     void hapticCorrect();
     showToast('Flower Reached! Great Job!');
@@ -148,62 +330,96 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
       else setCurrentRoundNumber((prev) => prev + 1);
     }, 1800);
   };
+  completeRoundRef.current = handleRoundCompletion;
 
-  const pan = PanResponder.create({
+  const touchInPlay = (pageX: number, pageY: number) => ({
+    x: pageX - playOriginRef.current.x,
+    y: pageY - playOriginRef.current.y,
+  });
+
+  const pan = useRef(
+    PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (evt) => {
         const path = pathRef.current;
-        if (!path || isGuidedDemoRunning || roundSuccessCelebration) return;
-        const x = evt.nativeEvent.locationX;
-        const y = evt.nativeEvent.locationY;
+        if (!path || guidedRef.current || roundSuccessRef.current) return;
+        playViewRef.current?.measureInWindow((x, y) => {
+          playOriginRef.current = { x, y };
+        });
+        const { x, y } = touchInPlay(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
         const distToBee = Math.hypot(x - beePosRef.current.x, y - beePosRef.current.y);
         const distToStart = Math.hypot(x - path.startPoint.x, y - path.startPoint.y);
         const isStart = currentPathIndexRef.current === 0;
-        if (distToBee <= 60 || (isStart && distToStart <= 60)) {
+        if (distToBee <= BEE_GRAB_RADIUS || (isStart && distToStart <= BEE_GRAB_RADIUS)) {
+          tracingRef.current = true;
           setIsTracing(true);
+          setBeeHeld(true);
+          setDemoTrail([]);
+          buzzIfFingerOnBee(x, y);
         }
       },
       onPanResponderMove: (evt) => {
         const path = pathRef.current;
-        if (!path) return;
-        const x = evt.nativeEvent.locationX;
-        const y = evt.nativeEvent.locationY;
+        if (!path || guidedRef.current || roundSuccessRef.current) return;
+        const { x, y } = touchInPlay(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
         const currentPt = { x, y };
         if (!tracingRef.current) {
-          if (Math.hypot(x - beePosRef.current.x, y - beePosRef.current.y) <= 60) setIsTracing(true);
-          else return;
+          if (Math.hypot(x - beePosRef.current.x, y - beePosRef.current.y) <= BEE_GRAB_RADIUS) {
+            tracingRef.current = true;
+            setIsTracing(true);
+            setBeeHeld(true);
+            setDemoTrail([]);
+          } else return;
         }
         const { nearestPoint, distance, index } = findNearestPathPointInWindow(
           currentPt,
           path.points,
           currentPathIndexRef.current,
-          35,
+          48,
         );
-        if (distance > settings.toleranceBandPx) {
+        const cfg = settingsRef.current;
+        if (distance > cfg.toleranceBandPx) {
+          stopPathBuzz();
           void hapticWrong();
           showToast('Stay on the path!');
           const snapPoint = path.points[currentPathIndexRef.current] || nearestPoint;
+          beePosRef.current = snapPoint;
           setBeePos(snapPoint);
           setUserTracePoints((prev) => [...prev, snapPoint]);
           setUserTimestamps((prev) => [...prev, Date.now()]);
         } else {
           currentPathIndexRef.current = Math.max(currentPathIndexRef.current, index);
-          const lerpFactor = settings.beeSpeedSec >= 10 ? 0.18 : settings.beeSpeedSec >= 5 ? 0.5 : 1.0;
-          const activeBeePos = {
-            x: beePosRef.current.x + (currentPt.x - beePosRef.current.x) * lerpFactor,
-            y: beePosRef.current.y + (currentPt.y - beePosRef.current.y) * lerpFactor,
+          const lerpFactor = cfg.beeSpeedSec >= 10 ? 0.45 : cfg.beeSpeedSec >= 5 ? 0.85 : 1;
+          const nextPos = {
+            x: beePosRef.current.x + (nearestPoint.x - beePosRef.current.x) * lerpFactor,
+            y: beePosRef.current.y + (nearestPoint.y - beePosRef.current.y) * lerpFactor,
           };
-          setBeePos(activeBeePos);
+          beePosRef.current = nextPos;
+          setBeePos(nextPos);
           setUserTracePoints((prev) => [...prev, currentPt]);
           setUserTimestamps((prev) => [...prev, Date.now()]);
+          buzzIfFingerOnBee(x, y);
+          const bee = beePosRef.current;
+          const distBeeToFlower = Math.hypot(bee.x - path.endPoint.x, bee.y - path.endPoint.y);
+          if (distBeeToFlower <= FLOWER_REACH_PX) completeRoundRef.current();
         }
-        const distToFlower = Math.hypot(x - path.endPoint.x, y - path.endPoint.y);
-        const hasTraversedPath = currentPathIndexRef.current >= Math.floor(path.points.length * 0.85);
-        if (distToFlower <= 45 && hasTraversedPath) handleRoundCompletion();
       },
-      onPanResponderRelease: () => setIsTracing(false),
-    });
+      onPanResponderRelease: () => {
+        tracingRef.current = false;
+        setIsTracing(false);
+        setBeeHeld(false);
+        stopPathBuzz();
+      },
+      onPanResponderTerminate: () => {
+        tracingRef.current = false;
+        setIsTracing(false);
+        setBeeHeld(false);
+        stopPathBuzz();
+      },
+    }),
+  ).current;
 
   const sessionData = (): BeeSessionResultData => {
     const avgAcc = roundResults.length
@@ -212,56 +428,108 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
     const totalDuration = roundResults.reduce((a, r) => a + r.completionTimeSec, 0);
     const totalDeviations = roundResults.reduce((a, r) => a + r.deviationCount, 0);
     const totalRecovery = roundResults.reduce((a, r) => a + r.avgRecoveryTimeSec, 0);
+    const horizontalRounds = roundResults.filter((r) => r.orientation === 'landscape');
+    const verticalRounds = roundResults.filter((r) => r.orientation === 'portrait');
     return {
       patientName: settings.patientName,
       sessionId: Date.now(),
-      date: new Date().toLocaleDateString('en-GB'),
-      gameName: 'Bee Path Tracing',
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      gameName: 'Bee Path Tracing Therapy',
       stimuliCount: roundResults.length,
-      letterSize: 1,
-      speed: `${settings.beeSpeedSec}s`,
+      letterSize: settings.toleranceBandPx,
+      speed: settings.tracingMode,
       durationSec: totalDuration,
-      clicksTotal: roundResults.length,
+      clicksTotal: userTracePoints.length,
       correct: roundResults.length,
       wrong: totalDeviations,
       accuracy: avgAcc,
-      avgReactionSec: 0,
+      avgReactionSec: totalDuration / Math.max(1, roundResults.length),
       pathType: String(settings.pathType),
       tracingMode: settings.tracingMode,
       colorTheme: settings.colorTheme,
       toleranceBandPx: settings.toleranceBandPx,
       deviationCount: totalDeviations,
-      avgRecoveryTimeSec: roundResults.length ? totalRecovery / roundResults.length : 0,
+      avgRecoveryTimeSec: roundResults.length ? Math.round((totalRecovery / roundResults.length) * 10) / 10 : 0,
       roundsCompleted: roundResults.length,
       roundResults,
+      horizontalAccuracyPercent:
+        horizontalRounds.length > 0
+          ? Math.round(horizontalRounds.reduce((a, r) => a + r.accuracyPercent, 0) / horizontalRounds.length)
+          : undefined,
+      verticalAccuracyPercent:
+        verticalRounds.length > 0
+          ? Math.round(verticalRounds.reduce((a, r) => a + r.accuracyPercent, 0) / verticalRounds.length)
+          : undefined,
     };
   };
 
-  const bg = settings.colorTheme === 'dark' ? '#071018' : '#F4F7FC';
-  const pathColor = settings.colorTheme === 'dark' ? '#FBBF24' : '#D97706';
+  const theme = beeTheme(settings.colorTheme);
+  const pathWidth = settings.toleranceBandPx;
+  const isGuided = settings.tracingMode === 'guided';
+  const chromeStack = SETTINGS_ICON_SIZE + (isGuided ? SETTINGS_ICON_SIZE : 0);
   const points = currentPath?.points.map((p) => `${p.x},${p.y}`).join(' ') || '';
   const trace = userTracePoints.map((p) => `${p.x},${p.y}`).join(' ');
+  const demo = demoTrail.map((p) => `${p.x},${p.y}`).join(' ');
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <View
-        style={{ flex: 1 }}
-        onLayout={(e) => setBounds({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        ref={playViewRef}
+        collapsable={false}
+        style={{ flex: 1, marginBottom: insets.bottom + chromeStack }}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          setBounds({ w, h });
+          playViewRef.current?.measureInWindow((x, y) => {
+            playOriginRef.current = { x, y };
+          });
+        }}
         {...pan.panHandlers}
       >
-        <Svg width="100%" height="100%">
-          {points ? <Polyline points={points} fill="none" stroke={pathColor} strokeWidth={6} strokeLinecap="round" /> : null}
-          {trace ? <Polyline points={trace} fill="none" stroke="#38BDF8" strokeWidth={3} strokeLinecap="round" /> : null}
-          {currentPath ? <Circle cx={currentPath.endPoint.x} cy={currentPath.endPoint.y} r={18} fill="#F472B6" /> : null}
-        </Svg>
-        <Image
+        {bounds.w > 0 && bounds.h > 0 ? (
+          <Svg width={bounds.w} height={bounds.h} viewBox={`0 0 ${bounds.w} ${bounds.h}`}>
+            {points ? (
+              <Polyline
+                points={points}
+                fill="none"
+                stroke={theme.path}
+                strokeWidth={pathWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+            {demo ? (
+              <Polyline
+                points={demo}
+                fill="none"
+                stroke={theme.trace}
+                strokeWidth={Math.max(8, Math.round(pathWidth * 0.4))}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+            {trace && demoTrail.length <= 1 ? (
+              <Polyline
+                points={trace}
+                fill="none"
+                stroke={theme.trace}
+                strokeWidth={Math.max(8, Math.round(pathWidth * 0.4))}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+            {currentPath ? <Circle cx={currentPath.endPoint.x} cy={currentPath.endPoint.y} r={18} fill={theme.flower} /> : null}
+          </Svg>
+        ) : null}
+        <Animated.Image
           source={require('@candela/shared/assets/bee.png')}
           style={{
             position: 'absolute',
-            width: s(56),
-            height: s(56),
-            left: beePos.x - s(28),
-            top: beePos.y - s(28),
+            width: BEE_SIZE,
+            height: BEE_SIZE,
+            left: beePos.x - BEE_SIZE / 2,
+            top: beePos.y - BEE_SIZE / 2,
+            transform: [{ scale: beeScale }],
           }}
         />
       </View>
@@ -270,59 +538,90 @@ export function BeeTracingGame({ onExit }: { onExit: () => void }) {
           <Text style={{ color: '#fff', fontWeight: '700' }}>{toastMessage}</Text>
         </View>
       ) : null}
-      <Pressable onPress={onExit} style={{ position: 'absolute', top: s(48), left: s(16), backgroundColor: '#111827', padding: s(10), borderRadius: s(10) }}>
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Exit</Text>
-      </Pressable>
-      <Text style={{ position: 'absolute', top: s(52), right: s(16), color: '#fff', fontWeight: '700', fontSize: fs(13) }}>
+      <Text style={{ position: 'absolute', top: s(52), right: s(16), color: theme.ui, fontWeight: '700', fontSize: fs(13) }}>
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </Text>
-      <ClinicalSettingsModal
+      {isGuided && currentPath ? (
+        <Pressable
+          onPress={() => {
+            if (roundSuccessCelebration) return;
+            runGuidedDemo(currentPath);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={hasDemoPlayed ? 'Replay demo' : 'Play demo'}
+          style={{
+            position: 'absolute',
+            bottom: insets.bottom + SETTINGS_ICON_SIZE,
+            right: s(16),
+            width: SETTINGS_ICON_SIZE,
+            height: SETTINGS_ICON_SIZE,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+            opacity: isGuidedDemoRunning ? 0.45 : 1,
+          }}
+        >
+          <ReplayIcon size={22} color={theme.muted} />
+        </Pressable>
+      ) : null}
+      <Pressable
+        onPress={() => setIsMenuOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Settings menu"
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom,
+          right: s(16),
+          width: SETTINGS_ICON_SIZE,
+          height: SETTINGS_ICON_SIZE,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'transparent',
+        }}
+      >
+        <SlidersIcon size={22} color={theme.muted} />
+      </Pressable>
+      <BeeSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        showBeeTracingControls
-        patientName={settings.patientName}
-        letterSize={1.8}
-        bubbleSize={90}
-        tracingMode={settings.tracingMode}
-        pathType={settings.pathType}
-        toleranceBandPx={settings.toleranceBandPx}
-        colorTheme={settings.colorTheme}
-        audioEnabled={settings.audioEnabled}
-        roundsPerSet={settings.roundsPerSet}
-        pathComplexity={settings.pathComplexity}
-        beeSpeedSec={settings.beeSpeedSec}
-        orientation={settings.orientation}
+        settings={settings}
         onApply={(next) => {
-          setSettings((prev) => ({
-            ...prev,
-            patientName: next.patientName,
-            tracingMode: next.tracingMode || prev.tracingMode,
-            pathType: (next.pathType as BeePathType) || prev.pathType,
-            toleranceBandPx: next.toleranceBandPx || prev.toleranceBandPx,
-            colorTheme: next.colorTheme || prev.colorTheme,
-            audioEnabled: next.audioEnabled ?? prev.audioEnabled,
-            roundsPerSet: next.roundsPerSet || prev.roundsPerSet,
-            pathComplexity: next.pathComplexity || prev.pathComplexity,
-            beeSpeedSec: next.beeSpeedSec || prev.beeSpeedSec,
-            orientation: next.orientation || prev.orientation,
-          }));
+          setSettings({ ...next, pathType: lockedPathType });
           setIsSettingsOpen(false);
           setCurrentRoundNumber(1);
           setRoundResults([]);
         }}
       />
-      {isResultsOpen ? (
-        <GameResultsModal
-          isOpen={isResultsOpen}
-          data={sessionData()}
-          onClose={onExit}
-          onReplay={() => {
-            setIsResultsOpen(false);
-            setCurrentRoundNumber(1);
-            setRoundResults([]);
-          }}
-        />
-      ) : null}
+      <BeeResultsModal
+        isOpen={isResultsOpen}
+        data={sessionData()}
+        onClose={leaveGame}
+        onReplay={() => {
+          setIsResultsOpen(false);
+          setCurrentRoundNumber(1);
+          setRoundResults([]);
+        }}
+      />
+      <GameMenuDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onQuit={leaveGame}
+        onReset={() => {
+          void stopBeeBuzz();
+          setCurrentRoundNumber(1);
+          setRoundResults([]);
+          initRoundPath(1, bounds.w, bounds.h);
+        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        resetButtonLabel="Reset Level"
+        settingsSummary={[
+          { label: 'Patient', value: settings.patientName },
+          { label: 'Mode', value: settings.tracingMode },
+          { label: 'Path', value: String(settings.pathType) },
+          { label: 'Path Width', value: `${settings.toleranceBandPx}px` },
+          { label: 'Rounds', value: `${currentRoundNumber}/${settings.roundsPerSet}` },
+        ]}
+      />
     </View>
   );
 }

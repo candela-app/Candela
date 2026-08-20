@@ -1,17 +1,33 @@
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHomePath, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
-import { colors } from '../lib/theme';
 import type { ReactNode } from 'react';
+import { ArrowLeftIcon, LogOutIcon } from './icons';
 
-export function AppHeader({ extra }: { extra?: ReactNode }) {
+export function AppHeader({
+  extra,
+  onBack,
+  backHref,
+}: {
+  extra?: ReactNode;
+  onBack?: () => void;
+  backHref?: string;
+}) {
   const { session, loading, logout } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { fs, s, pad } = useLayout();
-  const logoHref = session ? roleHomePath(session.user.role) : '/';
+  const homeHref = session ? roleHomePath(session.user.role) : '/';
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (backHref) {
+      router.push(backHref as never);
+    }
+  };
 
   return (
     <View
@@ -19,42 +35,64 @@ export function AppHeader({ extra }: { extra?: ReactNode }) {
         paddingTop: insets.top + s(8),
         paddingHorizontal: pad,
         paddingBottom: s(12),
+        minHeight: s(72),
         backgroundColor: 'rgba(255,255,255,0.96)',
         borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        borderBottomColor: '#F3F4F6',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: s(8),
       }}
     >
-      <Pressable
-        onPress={() => router.replace(logoHref as never)}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}
-      >
-        <Image
-          source={require('@candela/shared/assets/logo.jpeg')}
-          style={{ width: fs(32), height: fs(32) }}
-          resizeMode="contain"
-        />
-        <Text style={{ fontSize: fs(24), fontWeight: '800', color: colors.ink, letterSpacing: -0.4 }}>Kandela</Text>
-      </Pressable>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-        {session ? (
-          <Text numberOfLines={1} style={{ maxWidth: s(120), fontSize: fs(13), fontWeight: '600', color: '#4B5563' }}>
+      {session ? (
+        <Pressable onPress={() => router.replace(homeHref as never)} style={{ flex: 1, paddingVertical: s(4) }}>
+          <Text numberOfLines={1} style={{ fontSize: fs(16), fontWeight: '700', color: '#111827' }}>
             {session.user.name}
           </Text>
-        ) : null}
+        </Pressable>
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
         {extra}
+        {onBack || backHref ? (
+          <Pressable
+            onPress={handleBack}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: s(4),
+              paddingHorizontal: s(12),
+              paddingVertical: s(7),
+              borderRadius: s(12),
+              backgroundColor: '#F3F4F6',
+            }}
+          >
+            <ArrowLeftIcon size={s(14)} color="#6B7280" />
+            <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151' }}>Back</Text>
+          </Pressable>
+        ) : null}
         {session ? (
           <Pressable
             onPress={async () => {
               await logout();
-              router.replace('/login');
+              router.replace('/');
             }}
-            style={{ paddingHorizontal: s(12), paddingVertical: s(7), borderRadius: s(12), backgroundColor: '#F3F4F6' }}
+            style={{
+              width: s(36),
+              height: s(36),
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: s(12),
+              backgroundColor: '#FEF2F2',
+              borderWidth: 1,
+              borderColor: 'rgba(254,202,202,0.8)',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
           >
-            <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151' }}>Sign out</Text>
+            <LogOutIcon size={s(16)} color="#DC2626" />
           </Pressable>
         ) : (
           !loading && (

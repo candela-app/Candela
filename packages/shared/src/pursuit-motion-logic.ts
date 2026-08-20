@@ -22,6 +22,40 @@ function triangleWave(val: number, maxVal: number): number {
   return mod < maxVal ? mod : doubleMax - mod;
 }
 
+function freezeDriftProgress(phase: number, driftDuration: number, ease: number): number {
+  const duration = Math.max(0.001, driftDuration);
+  const easeWindow = Math.min(ease, duration * 0.35);
+  const cruise = Math.max(0, duration - 2 * easeWindow);
+  const easeArea = easeWindow / 3;
+  const total = 2 * easeArea + cruise;
+  const t = Math.max(0, Math.min(duration, phase));
+  let integrated = 0;
+  if (t <= easeWindow) {
+    integrated = easeWindow * Math.pow(t / Math.max(0.001, easeWindow), 3) / 3;
+  } else if (t <= easeWindow + cruise) {
+    integrated = easeArea + (t - easeWindow);
+  } else {
+    const u = (t - easeWindow - cruise) / Math.max(0.001, easeWindow);
+    integrated = easeArea + cruise + easeWindow * (1 - Math.pow(1 - u, 3)) / 3;
+  }
+  return total > 0 ? integrated / total : 1;
+}
+
+function freezeDriftSpeedScale(phase: number, driftDuration: number, ease: number): number {
+  const duration = Math.max(0.001, driftDuration);
+  const easeWindow = Math.min(ease, duration * 0.35);
+  if (phase <= 0 || phase >= duration) return 0;
+  if (phase < easeWindow) {
+    const u = phase / Math.max(0.001, easeWindow);
+    return u * u;
+  }
+  if (phase > duration - easeWindow) {
+    const u = (duration - phase) / Math.max(0.001, easeWindow);
+    return u * u;
+  }
+  return 1;
+}
+
 /**
  * Calculates current position and velocity vector for a moving bubble element
  * given movement pattern, elapsed time, container bounds, orientation, and seed.
@@ -106,17 +140,38 @@ export function getMovementPath(
     }
 
     case 'figure_eight': {
-      // Lissajous Figure-8 pattern: x = A sin(wt), y = B sin(2wt)
-      const rx = (spanX / 2) * scaleX;
-      const ry = (spanY / 2) * scaleY;
-      const omega = (effectiveSpeed / Math.max(1, (rx + ry) / 2));
-      const tPhased = timeSec * omega + phaseOffset;
+      // Gerono lemniscate, oriented to the longer screen axis so the 8 is readable
+      // on both portrait phones and landscape tablets without clipping.
+      const pad = 0.84;
+      const availW = spanX * pad;
+      const availH = spanY * pad;
+      const vertical = isPortrait || spanY >= spanX * 0.92;
+      const decoyScale = elementIndex === 0 ? 1 : Math.max(0.55, 0.86 - elementIndex * 0.12);
+      const loop = Math.max(
+        36,
+        (vertical ? Math.min(availW, availH / 2) : Math.min(availH, availW / 2)) * decoyScale,
+      );
+      const omega = effectiveSpeed / Math.max(72, loop * 0.92);
+      const phi = timeSec * omega + phaseOffset + Math.PI / 2;
+      // Slow the crossing (center) and spend more time on the outer loops.
+      const t = phi - 0.32 * Math.sin(2 * phi);
+      const tDot = omega * (1 - 0.64 * Math.cos(2 * phi));
+      const s1 = Math.sin(t);
+      const c1 = Math.cos(t);
+      const s2 = Math.sin(2 * t);
+      const c2 = Math.cos(2 * t);
 
-      x = centerX + rx * Math.sin(tPhased);
-      y = centerY + ry * Math.sin(2 * tPhased);
-
-      vx = rx * omega * Math.cos(tPhased);
-      vy = ry * 2 * omega * Math.cos(2 * tPhased);
+      if (vertical) {
+        x = centerX + (loop / 2) * s2;
+        y = centerY + loop * s1;
+        vx = loop * tDot * c2;
+        vy = loop * tDot * c1;
+      } else {
+        x = centerX + loop * s1;
+        y = centerY + (loop / 2) * s2;
+        vx = loop * tDot * c1;
+        vy = loop * tDot * c2;
+      }
       break;
     }
 
@@ -159,53 +214,38 @@ export function getMovementPath(
     }
 
     case 'freeze_drift': {
-      // Drift with periodic brief freezes
-      // Freeze cycle: 2.5s total cycle (1.8s drift, 0.7s freeze)
-      const cycleDuration = 2.5;
-      const freezeDuration = Math.max(0.3, 0.8 - (elementIndex * 0.15));
-      const driftDuration = cycleDuration - freezeDuration;
+      // Slow harmonic drift that actually pauses in place, then eases back into motion.
+      // Wall-clock time keeps running during a freeze; motion time does not, so there is no teleport.
+      const cycleDuration = 4.8 + (elementIndex % 3) * 0.65 + (seed % 1) * 0.45;
+      const freezeDuration = 0.8 + (elementIndex % 2) * 0.22 + ((seed * 3) % 1) * 0.18;
+      const driftDuration = Math.max(2.4, cycleDuration - freezeDuration);
+      const ease = Math.min(0.7, driftDuration * 0.28);
+      const shifted = timeSec + phaseOffset * 0.35;
+      const cycleIndex = Math.floor(shifted / cycleDuration);
+      const phase = shifted - cycleIndex * cycleDuration;
+      const frozen = phase >= driftDuration;
+      const driftPhase = frozen ? driftDuration : phase;
+      const progress = freezeDriftProgress(driftPhase, driftDuration, ease);
+      const speedScale = frozen ? 0 : freezeDriftSpeedScale(driftPhase, driftDuration, ease);
+      const motionTime = (cycleIndex + progress) * driftDuration * 0.9;
 
-      const phase = ((timeSec + phaseOffset) % cycleDuration);
-
-      if (phase > driftDuration) {
-        // Freeze state
-        isFrozen = true;
-        const freezeStartSec = timeSec - (phase - driftDuration);
-        const frozenState = getMovementPath(
-          'linear_bounce',
-          freezeStartSec,
-          containerWidth,
-          containerHeight,
-          bubbleSizePx,
-          effectiveSpeed * 0.4,
-          elementIndex,
-          seed,
-          orientation,
-          tier
-        );
-        x = frozenState.x;
-        y = frozenState.y;
-        vx = 0;
-        vy = 0;
-      } else {
-        // Drift state
-        const driftState = getMovementPath(
-          'linear_bounce',
-          timeSec,
-          containerWidth,
-          containerHeight,
-          bubbleSizePx,
-          effectiveSpeed * 0.5,
-          elementIndex,
-          seed,
-          orientation,
-          tier
-        );
-        x = driftState.x;
-        y = driftState.y;
-        vx = driftState.vx;
-        vy = driftState.vy;
-      }
+      const driftState = getMovementPath(
+        'random_walk',
+        motionTime,
+        containerWidth,
+        containerHeight,
+        bubbleSizePx,
+        effectiveSpeed * 0.48,
+        elementIndex,
+        seed,
+        orientation,
+        tier,
+      );
+      x = driftState.x;
+      y = driftState.y;
+      isFrozen = frozen;
+      vx = frozen ? 0 : driftState.vx * speedScale;
+      vy = frozen ? 0 : driftState.vy * speedScale;
       break;
     }
 

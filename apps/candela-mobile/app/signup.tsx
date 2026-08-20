@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import type { SessionUser } from '@candela/shared/rn';
-import { AuthShell, Field, PrimaryButton } from '../src/components/AuthForm';
+import { AuthShell, Field, PrimaryButton, WebsiteExploreNote } from '../src/components/AuthForm';
 import { ApiError, api } from '../src/lib/api';
 import { roleHomePath, useAuth } from '../src/lib/auth-context';
+import { clearTokens } from '../src/lib/tokens';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
 
@@ -31,6 +32,7 @@ export default function SignupScreen() {
     setError('');
     setSubmitting(true);
     try {
+      await clearTokens();
       const next = await api<SessionUser>('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify({ name, phone, email, password }),
@@ -68,6 +70,7 @@ export default function SignupScreen() {
           Sign in
         </Link>
       </Text>
+      <WebsiteExploreNote />
     </AuthShell>
   );
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
   PursuitBlockMetric,
+  PursuitMovementPattern,
   PursuitSessionResultData,
   PursuitSettings,
   PursuitTrialMetric,
@@ -9,28 +10,39 @@ import {
   calculateTrackingError,
   getDeviceTier,
   getMovementPath,
+  pursuitPatternName,
+  resolvePursuitPattern,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
-import { GameResultsModal } from '../components/GameResultsModal';
+import { PursuitResultsModal } from '../components/PursuitResultsModal';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 
 const TOTAL_TRIALS = 20;
 const TRIALS_PER_BLOCK = 5;
 const TOTAL_BLOCKS = 4;
 
-export function PursuitGame({ onExit }: { onExit: () => void }) {
+export function PursuitGame({
+  onExit,
+  movementPattern = 'linear_bounce',
+}: {
+  onExit: () => void;
+  movementPattern?: PursuitMovementPattern | string;
+}) {
+  const lockedPattern = resolvePursuitPattern(movementPattern);
+  const { session } = useAuth();
   const { width, height, s, fs } = useLayout();
   const [settings, setSettings] = useState<PursuitSettings>({
-    patientName: 'Demo Patient',
-    movementPattern: 'linear_bounce',
-    bubbleSizePx: 80,
+    patientName: sessionDisplayName(session),
+    movementPattern: lockedPattern,
+    bubbleSizePx: 100,
     targetColor: '#00E5FF',
     decoyCount: 2,
     decoySalience: 0.35,
-    speedPxPerSec: 180,
-    trialTimeoutSec: 5,
+    speedPxPerSec: 110,
+    trialTimeoutSec: 0,
     totalTrials: TOTAL_TRIALS,
     blocksCount: TOTAL_BLOCKS,
     orientation: 'auto',
@@ -49,6 +61,15 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seedRef = useRef(1);
   const targetStateRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
+
+  useEffect(() => {
+    setSettings((prev) => (prev.movementPattern === lockedPattern ? prev : { ...prev, movementPattern: lockedPattern }));
+  }, [lockedPattern]);
+
+  useEffect(() => {
+    const name = session?.user.name?.trim();
+    if (name) setSettings((prev) => ({ ...prev, patientName: name }));
+  }, [session?.user.name]);
 
   const deviceTier = getDeviceTier(width, height);
   const currentBlockIndex = Math.floor(currentTrialIndex / TRIALS_PER_BLOCK);
@@ -86,7 +107,7 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
       patientName: settings.patientName,
       sessionId: Date.now(),
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      gameName: 'Pursuit Module',
+      gameName: `Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
       stimuliCount: allTrials.length,
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
@@ -138,6 +159,7 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
+    if (settings.trialTimeoutSec <= 0) return;
     timeoutTimerRef.current = setTimeout(() => handleTrialEnd('timeout', { x: 0, y: 0 }), settings.trialTimeoutSec * 1000);
     return () => {
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
@@ -276,11 +298,11 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
             ...prev,
             patientName: applied.patientName || prev.patientName,
             bubbleSizePx: applied.bubbleSize || prev.bubbleSizePx,
-            movementPattern: applied.pursuitMovementPattern || prev.movementPattern,
+            movementPattern: lockedPattern,
             targetColor: applied.pursuitTargetColor || prev.targetColor,
             decoyCount: applied.pursuitDecoyCount ?? prev.decoyCount,
             speedPxPerSec: applied.pursuitSpeedPxPerSec || prev.speedPxPerSec,
-            trialTimeoutSec: applied.pursuitTrialTimeoutSec || prev.trialTimeoutSec,
+            trialTimeoutSec: applied.pursuitTrialTimeoutSec ?? prev.trialTimeoutSec,
           }));
           setIsSettingsOpen(false);
           trialMetricsRef.current = [];
@@ -288,7 +310,16 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
         }}
       />
       {sessionResults ? (
-        <GameResultsModal isOpen={isResultsOpen} data={sessionResults} onClose={onExit} onReplay={() => { setIsResultsOpen(false); trialMetricsRef.current = []; setCurrentTrialIndex(0); }} />
+        <PursuitResultsModal
+          isOpen={isResultsOpen}
+          data={sessionResults}
+          onClose={onExit}
+          onReplay={() => {
+            setIsResultsOpen(false);
+            trialMetricsRef.current = [];
+            setCurrentTrialIndex(0);
+          }}
+        />
       ) : null}
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -301,8 +332,11 @@ export function PursuitGame({ onExit }: { onExit: () => void }) {
         onOpenSettings={() => setIsSettingsOpen(true)}
         settingsSummary={[
           { label: 'Patient Name', value: settings.patientName },
-          { label: 'Movement Pattern', value: settings.movementPattern },
+          { label: 'Movement Pattern', value: pursuitPatternName(settings.movementPattern) },
           { label: 'Decoy Count', value: `${activeDecoyCount} Decoys` },
+          { label: 'Pursuit Speed', value: `${settings.speedPxPerSec} px/s` },
+          { label: 'Bubble Diameter', value: `${settings.bubbleSizePx}px` },
+          { label: 'Trial Timeout', value: settings.trialTimeoutSec > 0 ? `${settings.trialTimeoutSec}s` : 'Off' },
         ]}
       />
     </View>

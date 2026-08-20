@@ -27,11 +27,6 @@ export default function HomePage() {
       return;
     }
     const params = new URLSearchParams({ therapy: 'vision', module: id });
-    if (id === 'tracing') {
-      params.set('game', 'bee_tracing');
-    } else if (id === 'pursuit') {
-      params.set('game', 'pursuit');
-    }
     router.push(`/dashboard?${params.toString()}`);
   };
 
