@@ -25,7 +25,7 @@ export class AuthController {
   @Public()
   @Post('google')
   loginGoogle(@Body() dto: GoogleAuthDto, @Res({ passthrough: true }) res: Response) {
-    return this.auth.loginWithGoogle(dto.idToken, res);
+    return this.auth.loginWithGoogle(dto, res);
   }
 
   @Public()

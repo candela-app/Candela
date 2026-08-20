@@ -23,7 +23,7 @@ import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
 import { GoogleAuthService } from './google-auth.service';
-import { CreateAccountDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
+import { CreateAccountDto, GoogleAuthDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -75,8 +75,15 @@ export class AuthService implements OnModuleInit {
     return this.issueSession(user, res);
   }
 
-  async loginWithGoogle(idToken: string, res: Response) {
-    const profile = await this.googleAuth.verifyIdToken(idToken);
+  async loginWithGoogle(dto: GoogleAuthDto, res: Response) {
+    let profile;
+    if (dto.idToken) {
+      profile = await this.googleAuth.verifyIdToken(dto.idToken);
+    } else if (dto.accessToken) {
+      profile = await this.googleAuth.verifyAccessToken(dto.accessToken);
+    } else {
+      throw new UnauthorizedException('Missing Google token');
+    }
     let user =
       (await this.users.findOne({ where: { googleId: profile.googleId } })) ??
       (await this.users.findOne({ where: { email: profile.email } }));
