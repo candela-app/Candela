@@ -51,13 +51,13 @@ export default function SignupPage() {
     }
   }
 
-  async function onGoogle(idToken: string) {
+  async function onGoogle(accessToken: string) {
     setError('');
     setGoogleBusy(true);
     try {
       const next = await api<SessionUser>('/api/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ accessToken }),
       });
       setRedirecting(true);
       applySession(next);
@@ -96,7 +96,7 @@ export default function SignupPage() {
         <PrimaryButton disabled={submitting || googleBusy}>{submitting ? 'Creating…' : 'Create account'}</PrimaryButton>
       </form>
       <AuthDivider />
-      <GoogleSignInButton disabled={submitting} busy={googleBusy} onCredential={onGoogle} />
+      <GoogleSignInButton disabled={submitting} busy={googleBusy} onAccessToken={onGoogle} />
       <p className="text-sm text-gray-500 mt-6 text-center">
         Already have an account?{' '}
         <Link href="/login" className="text-blue-600 font-semibold hover:underline">
