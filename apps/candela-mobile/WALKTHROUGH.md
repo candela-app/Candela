@@ -18,6 +18,8 @@ The website still uses httpOnly cookies. Native apps cannot. Login/signup/refres
 | `/play/rotatory` | Rotatory Wheel | Patient |
 | `/play/sorting` | Sorting | Patient |
 | `/play/bee` | Bee Path Tracing | Patient |
+
+Bee sessions default to **10 rounds**. Auto mode plays straight → curve → zigzag → wave → spiral → branching → dotted, then repeats the first three. Branching shows a faded wrong path; dotted uses a dashed guide. Spiral keeps a narrow path and does not zoom the bee.
 | `/play/pursuit` | Pursuit | Patient |
 | `/play/mobile-target` | Bubble Chase | Patient |
 

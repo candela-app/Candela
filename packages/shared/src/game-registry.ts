@@ -101,6 +101,7 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'colors', name: 'Color Discriminant Bubble Chase' },
   ],
   geoboard: [
+    { id: '6', name: 'Stand and Steep' },
     { id: '1', name: 'Simple Lines' },
     { id: '2', name: 'Alphabets' },
     { id: '3', name: 'Geometric Shapes' },

@@ -27,7 +27,7 @@ The Bee Path Tracing Therapy Module is designed for oculomotor tracking, smooth 
 
 ### ✨ Dynamic Path Types & Procedural Generator
 Available path options in clinical settings:
-1. `auto`: Progressive auto-advancement through all 7 core path types across rounds.
+1. `auto`: Progressive auto-advancement through **10 rounds**. Rounds 1–7 are the core path types in order (straight, curve, zigzag, wave, spiral, branching, dotted). Rounds 8–10 repeat straight, curve, and zigzag so the full set is played.
 2. `procedural_random` (**✨ Fully Procedural Dynamic Path**):
    - Generates random Hive (Start) and Flower (Destination) screen positions for every round.
    - Spawns 2–4 intermediate control waypoints and connects them using Catmull-Rom spline curves.
@@ -37,9 +37,11 @@ Available path options in clinical settings:
 5. `curve`: 2. Gentle Curve (Broad Arc)
 6. `zigzag`: 3. Zigzag Shifts (Sharp Direction Changes)
 7. `wave`: 4. S-Curve Wave (Sinusoidal Motion)
-8. `spiral`: 5. Spiral Pursuit (Inward Arc)
-9. `branching`: 6. Branching Path (Distractor Branch)
-10. `dotted`: 7. Dotted Gap Fill (Occlusion Jumps)
+8. `spiral`: 5. Spiral Pursuit (Inward Arc). Path width is locked to **narrow**; the bee does not zoom on grab.
+9. `branching`: 6. Branching Path — **correct path** plus a **faded distractor branch** and faded flower.
+10. `dotted`: 7. Dotted Gap Fill — the guide is a **dotted** line (not a solid path).
+
+Default session length is **10 rounds**. Completing a round cannot skip the next (R4 / wave is always played in auto mode).
 
 ### ⏱️ Bee Speed & Pursuit Responsiveness
 Configurable across ALL tracing modes in `ClinicalSettingsModal`:

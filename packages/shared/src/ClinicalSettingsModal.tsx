@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { requestFullScreenSafe } from './game-logic';
-import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS } from './geoboard-logic';
+import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
 import { SPEED_PRESETS } from './constants';
 import { pursuitPatternName } from './game-registry';
 import {
@@ -46,6 +46,7 @@ export interface AppliedClinicalSettings {
   bgColor?: string;
   shapeColor?: string;
   penColor?: string;
+  pegSizeScale?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -97,6 +98,7 @@ export interface ClinicalSettingsModalProps {
   bgColor?: string;
   shapeColor?: string;
   penColor?: string;
+  pegSizeScale?: number;
 }
 
 /**
@@ -125,7 +127,7 @@ export function ClinicalSettingsModal({
   toleranceBandPx = 40,
   colorTheme = 'dark',
   audioEnabled = true,
-  roundsPerSet = 7,
+  roundsPerSet = 10,
   pathComplexity = 'medium',
   beeSpeedSec = 4,
   orientation = 'auto',
@@ -153,6 +155,7 @@ export function ClinicalSettingsModal({
   bgColor = '#FFFFFF',
   shapeColor = '#000000',
   penColor = '#FBBF24',
+  pegSizeScale = 1,
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -188,6 +191,7 @@ export function ClinicalSettingsModal({
   const [tempBgColor, setTempBgColor] = useState<string>(bgColor);
   const [tempShapeColor, setTempShapeColor] = useState<string>(shapeColor);
   const [tempPenColor, setTempPenColor] = useState<string>(penColor);
+  const [tempPegSizeScale, setTempPegSizeScale] = useState<number>(pegSizeScale);
 
   useEffect(() => {
     if (isOpen) {
@@ -223,6 +227,7 @@ export function ClinicalSettingsModal({
       setTempBgColor(bgColor);
       setTempShapeColor(shapeColor);
       setTempPenColor(penColor);
+      setTempPegSizeScale(pegSizeScale);
       requestFullScreenSafe();
     }
   }, [
@@ -259,9 +264,12 @@ export function ClinicalSettingsModal({
     bgColor,
     shapeColor,
     penColor,
+    pegSizeScale,
   ]);
 
   if (!isOpen) return null;
+
+  const beginnerLineBoard = showGeoboardControls && isBeginnerLineBoard(geoboardBoardId);
 
   const handleApply = () => {
     onApply({
@@ -272,7 +280,7 @@ export function ClinicalSettingsModal({
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
       pathType: tempPathType,
-      toleranceBandPx: tempToleranceBandPx,
+      toleranceBandPx: tempPathType === 'spiral' ? 12 : tempToleranceBandPx,
       colorTheme: tempColorTheme,
       audioEnabled: tempAudioEnabled,
       roundsPerSet: tempRoundsPerSet,
@@ -297,6 +305,7 @@ export function ClinicalSettingsModal({
       bgColor: tempBgColor,
       shapeColor: tempShapeColor,
       penColor: tempPenColor,
+      pegSizeScale: tempPegSizeScale,
     });
   };
 
@@ -405,6 +414,13 @@ export function ClinicalSettingsModal({
                 </div>
               )}
 
+              {beginnerLineBoard ? (
+                <p className="text-[12px] text-gray-400 leading-relaxed">
+                  First the reference line stays on screen so they can copy a standing (vertical) or steep (horizontal)
+                  line on other pegs. Later they draw the same kind of line on the drawing board.
+                </p>
+              ) : (
+                <>
               {/* Matrix Density */}
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
@@ -455,6 +471,8 @@ export function ClinicalSettingsModal({
                   <option value="rotate_90_l">Rotate 90&deg; Counter-clockwise</option>
                 </select>
               </div>
+                </>
+              )}
             </div>
 
             {/* CONTAINER 2: DIFFICULTY & PRESENTATION */}
@@ -463,6 +481,8 @@ export function ClinicalSettingsModal({
                 <span>Difficulty & Presentation</span>
               </div>
 
+              {!beginnerLineBoard && (
+                <>
               {/* Memory Mode */}
               <div className="flex justify-between items-center gap-4">
                 <div>
@@ -496,6 +516,8 @@ export function ClinicalSettingsModal({
                     onChange={(e) => setTempMemorizeSec(parseInt(e.target.value, 10))}
                   />
                 </div>
+              )}
+                </>
               )}
 
               {/* Time Limit */}
@@ -682,6 +704,32 @@ export function ClinicalSettingsModal({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
                     Pen preview
                   </span>
+                </div>
+              </div>
+
+              {/* Peg size — Max is the current on-board diameter. */}
+              <div className="border-t border-gray-800/80 pt-4">
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                  <span>Peg Size</span>
+                  <span className="text-amber-400 font-mono font-extrabold normal-case tracking-normal">
+                    {GEOBOARD_PEG_SIZE_PRESETS.find((p) => Math.abs(p.scale - tempPegSizeScale) < 0.01)?.label ?? 'Max'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {GEOBOARD_PEG_SIZE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setTempPegSizeScale(preset.scale)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all ${
+                        Math.abs(tempPegSizeScale - preset.scale) < 0.01
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -919,9 +967,9 @@ export function ClinicalSettingsModal({
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: '3 Rounds', val: 3 },
                     { label: '5 Rounds', val: 5 },
-                    { label: '7 Rounds (All)', val: 7 },
+                    { label: '7 Rounds', val: 7 },
+                    { label: '10 Rounds (All)', val: 10 },
                   ].map((rnd) => (
                     <button
                       key={rnd.val}
@@ -1039,7 +1087,7 @@ export function ClinicalSettingsModal({
                   className="w-full rounded-xl bg-[#141414] border border-gray-700 p-3 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none"
                   style={{ backgroundColor: '#141414' }}
                 >
-                  <option value="auto">Auto Progress (All 7 Path Types Sequentially)</option>
+                  <option value="auto">Auto Progress (10 rounds through all path types)</option>
                   <option value="procedural_random">✨ Fully Procedural Dynamic Path (Random Endpoints & Custom Curve)</option>
                   <option value="random">🎲 Random Preset Path (Random Template Each Round)</option>
                   <option value="straight">1. Straight Line (Horizontal/Diagonal)</option>
@@ -1116,7 +1164,8 @@ export function ClinicalSettingsModal({
                 <span>Visual & Contrast Theme</span>
               </div>
 
-              {/* Tolerance Corridor Band */}
+              {/* Corridor Width (Tolerance Band) */}
+              {tempPathType !== 'spiral' ? (
               <div>
                 <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
                   <span>Corridor Width (Tolerance Band)</span>
@@ -1143,6 +1192,7 @@ export function ClinicalSettingsModal({
                   ))}
                 </div>
               </div>
+              ) : null}
 
               {/* Low-Vision Color Theme */}
               <div>
@@ -1188,7 +1238,7 @@ export function ClinicalSettingsModal({
                 {/* ISOLATED NON-OVERLAPPING PREVIEW CONTAINER */}
                 <div className="flex-1 flex justify-center items-center py-3 relative w-full h-[160px] overflow-hidden">
                   <div
-                    className="rounded-full flex justify-center items-center font-extrabold border-2 border-white/60 shadow-2xl transition-all duration-200 select-none max-w-full max-h-full"
+                    className="rounded-full flex justify-center items-center font-extrabold transition-all duration-200 select-none max-w-full max-h-full"
                     style={{
                       width: `${tempBubbleSize}px`,
                       height: `${tempBubbleSize}px`,

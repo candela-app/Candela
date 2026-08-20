@@ -19,6 +19,11 @@ export interface GeoboardPattern {
   segments: Array<[number, number]>;
   /** Letter case, only set on alphabet patterns. */
   variant?: AlphabetVariant;
+  /**
+   * Beginner board only: `copy` keeps the reference visible; `recall` flashes it
+   * then hides it so the patient draws on their own.
+   */
+  task?: 'copy' | 'recall';
 }
 
 // 5x5 Grid representation:
@@ -32,6 +37,18 @@ export interface GeoboardPattern {
 // row 0 = ascender, rows 1-3 = x-height (baseline at row 3), row 4 = descender.
 
 export const GEOBOARD_PATTERNS: GeoboardPattern[] = [
+  // --- STAND AND STEEP (Board 06, first level) ---
+  { id: 'ss_copy_h', name: 'Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[10, 14]] },
+  { id: 'ss_copy_v', name: 'Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[2, 22]] },
+  { id: 'ss_copy_h_top', name: 'Top Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 4]] },
+  { id: 'ss_copy_v_left', name: 'Left Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 20]] },
+  { id: 'ss_copy_h_short', name: 'Short Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[10, 12]] },
+  { id: 'ss_copy_v_short', name: 'Short Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[2, 12]] },
+  { id: 'ss_own_h', name: 'Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[10, 14]] },
+  { id: 'ss_own_v', name: 'Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[2, 22]] },
+  { id: 'ss_own_h_bot', name: 'Bottom Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[20, 24]] },
+  { id: 'ss_own_v_right', name: 'Right Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[4, 24]] },
+
   // --- SIMPLE LINES (Board 01) ---
   { id: 'p_horiz_line', name: 'Horizontal Line', stimulusType: 'patterns', complexityTier: 1, segments: [[10, 14]] },
   { id: 'p_vert_line', name: 'Vertical Line', stimulusType: 'patterns', complexityTier: 1, segments: [[2, 22]] },
@@ -401,6 +418,47 @@ export function evaluateDrawing(
   return { correct: false, errorType: 'incomplete' };
 }
 
+function segmentOrientation(a: number, b: number, width: number): 'h' | 'v' | 'other' {
+  const rowA = Math.floor(a / width);
+  const rowB = Math.floor(b / width);
+  const colA = a % width;
+  const colB = b % width;
+  if (rowA === rowB && colA !== colB) return 'h';
+  if (colA === colB && rowA !== rowB) return 'v';
+  return 'other';
+}
+
+/**
+ * Stand and Steep practice: the reference line stays on the board as a guide.
+ * The patient must draw another line of the same orientation on other pegs.
+ */
+export function evaluateBeginnerPractice(
+  drawnSegments: Array<[number, number]>,
+  referenceSegments: Array<[number, number]>,
+  width: number = 5,
+  height: number = 5
+): EvaluationResult {
+  const refUnits = normalizePatternSegments(referenceSegments, width, height);
+  if (refUnits.length === 0) return { correct: false, errorType: 'incomplete' };
+  const want = segmentOrientation(refUnits[0][0], refUnits[0][1], width);
+  if (want === 'other') return evaluateDrawing(drawnSegments, referenceSegments, width, height);
+
+  const refKeys = new Set(refUnits.map(([start, end]) => `${start}-${end}`));
+  const drawnUnits = normalizePatternSegments(drawnSegments, width, height);
+  const practiceUnits = drawnUnits.filter(([start, end]) => {
+    if (refKeys.has(`${start}-${end}`)) return false;
+    return segmentOrientation(start, end, width) === want;
+  });
+
+  if (practiceUnits.length === 0) {
+    return { correct: false, errorType: drawnUnits.length === 0 ? 'incomplete' : 'wrong-shape' };
+  }
+  if (practiceUnits.length >= Math.max(1, Math.min(refUnits.length, 2))) {
+    return { correct: true, errorType: 'none' };
+  }
+  return { correct: false, errorType: 'incomplete' };
+}
+
 export interface DifficultyProgressResult {
   nextComplexity: GeoboardComplexityTier;
   nextMatrix: GeoboardMatrixTier;
@@ -506,12 +564,36 @@ export interface GeoboardBoardDefinition {
   supportsLetterCase: boolean;
   patternIds: string[];
   patternIdsLowercase?: string[];
+  /** Copy-then-recall horizontal/vertical lines; locks transform and matrix. */
+  guidedBeginner?: boolean;
 }
 
 export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> = {
+  6: {
+    id: 6,
+    name: 'Board 01 — Stand and Steep',
+    shortLabel: 'Stand and Steep',
+    description: 'Copy a standing (vertical) or steep (horizontal) reference line, then draw it on your own.',
+    focus: 'First-level line practice: reference copy, then independent drawing',
+    stimulusType: 'patterns',
+    supportsLetterCase: false,
+    guidedBeginner: true,
+    patternIds: [
+      'ss_copy_h',
+      'ss_copy_v',
+      'ss_copy_h_top',
+      'ss_copy_v_left',
+      'ss_copy_h_short',
+      'ss_copy_v_short',
+      'ss_own_h',
+      'ss_own_v',
+      'ss_own_h_bot',
+      'ss_own_v_right',
+    ],
+  },
   1: {
     id: 1,
-    name: 'Board 01 — Simple Lines',
+    name: 'Board 02 — Simple Lines',
     shortLabel: 'Lines',
     description: 'Single strokes, parallels and right angles.',
     focus: 'Dot targeting & straight-line motor control',
@@ -534,7 +616,7 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
   },
   2: {
     id: 2,
-    name: 'Board 02 — Alphabets',
+    name: 'Board 03 — Alphabets',
     shortLabel: 'Alphabets',
     description: 'Full letter set, uppercase or lowercase.',
     focus: 'Letter form reproduction & orthographic mapping',
@@ -553,7 +635,7 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
   },
   3: {
     id: 3,
-    name: 'Board 03 — Geometric Shapes',
+    name: 'Board 04 — Geometric Shapes',
     shortLabel: 'Shapes',
     description: 'Closed figures, diagonals and angled forms.',
     focus: 'Closure, angle & vertex planning',
@@ -574,7 +656,7 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
   },
   4: {
     id: 4,
-    name: 'Board 04 — Numbers',
+    name: 'Board 05 — Numbers',
     shortLabel: 'Numbers',
     description: 'Digits 0 through 9 in sequence.',
     focus: 'Numeral form reproduction & sequencing',
@@ -584,7 +666,7 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
   },
   5: {
     id: 5,
-    name: 'Board 05 — Compound Figures',
+    name: 'Board 06 — Compound Figures',
     shortLabel: 'Compound',
     description: 'Multi-segment figures with nested detail.',
     focus: 'Sequential planning & sustained spatial attention',
@@ -603,7 +685,36 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
   },
 };
 
-export const GEOBOARD_BOARD_IDS: GeoboardBoardId[] = [1, 2, 3, 4, 5];
+export const STAND_AND_STEEP_BOARD_ID: GeoboardBoardId = 6;
+
+/** Display order: beginner lines first, then the original boards. */
+export const GEOBOARD_BOARD_IDS: GeoboardBoardId[] = [6, 1, 2, 3, 4, 5];
+
+export function isBeginnerLineBoard(boardId: GeoboardBoardId): boolean {
+  return GEOBOARD_BOARDS[boardId]?.guidedBeginner === true;
+}
+
+export function patternStartsWithMemorize(pattern: GeoboardPattern | null | undefined, memoryMode: boolean): boolean {
+  if (pattern?.task === 'copy' || pattern?.task === 'recall') return false;
+  return memoryMode;
+}
+
+export function patternShowsModel(
+  pattern: GeoboardPattern | null | undefined,
+  memoryMode: boolean,
+  gameState: string,
+): boolean {
+  if (pattern?.task === 'copy' || pattern?.task === 'recall') return true;
+  return !memoryMode || gameState === 'memorize';
+}
+
+export function lockBeginnerGeoboardProtocol<T extends { transform: string; matrixTier: number; memoryMode: boolean }>(
+  protocol: T,
+  boardId: GeoboardBoardId,
+): T {
+  if (!isBeginnerLineBoard(boardId)) return protocol;
+  return { ...protocol, transform: 'duplicate', matrixTier: 1, memoryMode: false };
+}
 
 /**
  * Resolves a board's ordered playlist. Board 02 honours the letter-case setting;
@@ -807,6 +918,31 @@ export function getContrastAdjustedColor(
   const toHex = (v: number) => v.toString(16).padStart(2, '0');
 
   return `#${toHex(mix(sr, br))}${toHex(mix(sg, bg))}${toHex(mix(sb, bb))}`;
+}
+
+/** Current on-board peg diameter is the maximum. Scale down from here to shrink. */
+export const GEOBOARD_PEG_SIZE_MAX_FRACTION = 0.07;
+export const GEOBOARD_PEG_SIZE_MIN_PX = 6;
+
+export const GEOBOARD_PEG_SIZE_PRESETS: ReadonlyArray<{ id: string; label: string; scale: number }> = [
+  { id: 'small', label: 'Small', scale: 0.4 },
+  { id: 'medium', label: 'Medium', scale: 0.58 },
+  { id: 'large', label: 'Large', scale: 0.78 },
+  { id: 'max', label: 'Max', scale: 1 },
+];
+
+export function clampGeoboardPegSizeScale(scale?: number): number {
+  if (typeof scale !== 'number' || Number.isNaN(scale)) return 1;
+  return Math.min(1, Math.max(0.4, scale));
+}
+
+/** Pixel diameter for a peg. `scale` 1 keeps today's size; smaller values shrink. */
+export function geoboardPegPixelSize(boardMinEdge: number, scale = 1): number {
+  const maxSize = Math.max(12, Math.round(boardMinEdge * GEOBOARD_PEG_SIZE_MAX_FRACTION));
+  return Math.max(
+    GEOBOARD_PEG_SIZE_MIN_PX,
+    Math.round(maxSize * clampGeoboardPegSizeScale(scale)),
+  );
 }
 
 /**

@@ -185,7 +185,7 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
               Rounds per Set
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {[3, 4, 5].map((count) => (
+              {[5, 7, 10].map((count) => (
                 <button
                   key={count}
                   type="button"
