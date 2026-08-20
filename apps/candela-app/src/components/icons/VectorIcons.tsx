@@ -627,6 +627,102 @@ export function SearchIcon({ className = 'w-5 h-5', size, ...props }: IconProps)
   );
 }
 
+export function PlayIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      {...props}
+    >
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
+  );
+}
+
+export function PauseIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      {...props}
+    >
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </svg>
+  );
+}
+
+export function ChevronUpIcon({ className = 'w-3 h-3', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 12}
+      height={size || 12}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+export function VolumeIcon({ className = 'w-4 h-4', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 16}
+      height={size || 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+export function ReplayIcon({ className = 'w-4 h-4', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 16}
+      height={size || 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
+  );
+}
+
 
 
 

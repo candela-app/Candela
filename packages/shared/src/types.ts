@@ -157,7 +157,7 @@ export interface PursuitSettings {
   decoyCount: number; // 1 to 3 decoys (max 4 total elements on screen)
   decoySalience: number; // 0.2 to 0.6 opacity/saturation fraction
   speedPxPerSec: number; // e.g. 100-300 px/s
-  trialTimeoutSec: number; // 4 to 6 seconds per trial
+  trialTimeoutSec: number; // 0 = off, otherwise seconds per trial
   totalTrials: number; // 20 trials total
   blocksCount: number; // 4 blocks of 5
   orientation?: DeviceOrientation;
@@ -204,6 +204,7 @@ export interface MobileTargetSettings {
   letterSize?: number; // font size in px (e.g. 18-48px)
   movementAxis?: 'horizontal' | 'vertical' | 'random';
   hasBackground?: boolean; // true = filled bubble background, false = outline / no background
+  therapyColors?: string[]; // enabled hex colors for color-discriminant mode
 }
 
 export interface MobileTargetSetMetric {
@@ -254,6 +255,8 @@ export interface GeoboardProtocol {
   bgColor: string;
   shapeColor: string;
   penColor: string;
+  dotColor?: string;
+  dotActiveColor?: string;
 }
 
 /** Segment-match tally for one screen half, used to surface hemifield asymmetry. */

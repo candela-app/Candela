@@ -23,6 +23,10 @@ import {
   getBoardPatterns,
   requestFullScreenSafe,
   UI_MODULE_TO_CATALOG,
+  MODULE_LEVELS,
+  resolveBeePathType,
+  resolvePursuitPattern,
+  type PursuitMovementPattern,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -58,6 +62,16 @@ function MainContent() {
     if (prescribedLevels === undefined) {
       return true;
     }
+    if (catalogId === 'bee_tracing') {
+      const known = MODULE_LEVELS.bee_tracing.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
+    if (catalogId === 'pursuit') {
+      const known = MODULE_LEVELS.pursuit.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
     return prescribedLevels.includes(String(levelId));
   };
 
@@ -74,6 +88,8 @@ function MainContent() {
     variant: 'uppercase',
   });
   const [sortingVariant, setSortingVariant] = useState<SortingVariant>('uppercase');
+  const [beePathType, setBeePathType] = useState<string>('straight');
+  const [pursuitPattern, setPursuitPattern] = useState<PursuitMovementPattern>('linear_bounce');
   const [geoboardBoardId, setGeoboardBoardId] = useState<GeoboardBoardId>(1);
 
   // Sync state from URL Query Params
@@ -99,13 +115,21 @@ function MainContent() {
       setSelectedModule('sorting');
       setView('play_sorting');
     } else if (gameParam === 'bee_tracing') {
+      setBeePathType(resolveBeePathType(variantParam));
       setSelectedTherapy('vision');
       setSelectedModule('tracing');
       setView('play_bee_tracing');
     } else if (gameParam === 'pursuit') {
-      setSelectedTherapy('vision');
-      setSelectedModule('pursuit');
-      setView('play_pursuit');
+      if (variantParam) {
+        setPursuitPattern(resolvePursuitPattern(variantParam));
+        setSelectedTherapy('vision');
+        setSelectedModule('pursuit');
+        setView('play_pursuit');
+      } else {
+        setSelectedTherapy('vision');
+        setSelectedModule('pursuit');
+        setView('game');
+      }
     } else if (gameParam === 'geoboard') {
       const parsed = Number(boardParam);
       const resolved = (GEOBOARD_BOARD_IDS as number[]).includes(parsed)
@@ -187,15 +211,7 @@ function MainContent() {
     if (session?.user.role === 'patient' && !canPlayUiModule(id)) {
       return;
     }
-    if (id === 'tracing') {
-      requestFullScreenSafe();
-      updateQueryParams({ page: null, therapy: 'vision', module: 'tracing', game: 'bee_tracing', mode: null, variant: null, board: null });
-    } else if (id === 'pursuit') {
-      requestFullScreenSafe();
-      updateQueryParams({ page: null, therapy: 'vision', module: 'pursuit', game: 'pursuit', mode: null, variant: null, board: null });
-    } else {
-      updateQueryParams({ page: null, therapy: 'vision', module: id, game: null, mode: null, variant: null, board: null });
-    }
+    updateQueryParams({ page: null, therapy: 'vision', module: id, game: null, mode: null, variant: null, board: null });
   };
 
   const handleLaunchRotatory = (mode: GameMode, variant: AlphabetVariant) => {
@@ -207,6 +223,32 @@ function MainContent() {
       game: 'rotatory',
       mode,
       variant,
+    });
+  };
+
+  const handleLaunchBee = (pathType: string) => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'tracing',
+      game: 'bee_tracing',
+      mode: null,
+      variant: pathType,
+      board: null,
+    });
+  };
+
+  const handleLaunchPursuit = (pattern: string) => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'pursuit',
+      game: 'pursuit',
+      mode: null,
+      variant: pattern,
+      board: null,
     });
   };
 
@@ -249,7 +291,7 @@ function MainContent() {
   };
 
   const handleExitGame = () => {
-    if (selectedModule && selectedModule !== 'pursuit' && selectedModule !== 'tracing') {
+    if (selectedModule) {
       updateQueryParams({
         page: null,
         therapy: 'vision',
@@ -499,12 +541,16 @@ function MainContent() {
             <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
               {selectedModule === 'wheel' && 'Rotatory Module'}
               {selectedModule === 'sorting' && 'Sorting Module'}
+              {selectedModule === 'tracing' && 'Bee Path Tracing'}
+              {selectedModule === 'pursuit' && 'Pursuit Module'}
               {selectedModule === 'mobile_target' && 'Bubble Chase'}
               {selectedModule === 'geoboard' && 'Draw a Pattern'}
             </h2>
             <p className="text-sm text-gray-500 font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
               {selectedModule === 'sorting' && 'Select a sorting category to begin'}
+              {selectedModule === 'tracing' && 'Select a path geometry to begin'}
+              {selectedModule === 'pursuit' && 'Select a movement pattern to begin'}
               {selectedModule === 'mobile_target' && 'Select an exercise mode to begin'}
               {selectedModule === 'geoboard' && 'Select a board. Every pattern in the board runs in order, then the session report opens.'}
             </p>
@@ -594,6 +640,54 @@ function MainContent() {
                     </p>
                   </div>
                 )}
+            </main>
+          )}
+
+          {selectedModule === 'tracing' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.bee_tracing.map((level) =>
+                isLevelAllowed('tracing', level.id) ? (
+                  <div
+                    key={level.id}
+                    className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                    onClick={() => handleLaunchBee(level.id)}
+                  >
+                    <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">{level.name}</p>
+                  </div>
+                ) : null,
+              )}
+              {MODULE_LEVELS.bee_tracing.every((level) => !isLevelAllowed('tracing', level.id)) && (
+                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                  <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
+
+          {selectedModule === 'pursuit' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.pursuit.map((level) =>
+                isLevelAllowed('pursuit', level.id) ? (
+                  <div
+                    key={level.id}
+                    className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-cyan-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
+                    onClick={() => handleLaunchPursuit(level.id)}
+                  >
+                    <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">{level.name}</p>
+                  </div>
+                ) : null,
+              )}
+              {MODULE_LEVELS.pursuit.every((level) => !isLevelAllowed('pursuit', level.id)) && (
+                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
+                  <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
             </main>
           )}
 
@@ -714,12 +808,12 @@ function MainContent() {
         <SortingGame variant={sortingVariant} onExit={handleExitGame} />
       )}
 
-      {view === 'play_bee_tracing' && canPlayUiModule('tracing') && (
-        <BeeTracingGame onExit={handleExitGame} />
+      {view === 'play_bee_tracing' && canPlayUiModule('tracing') && isLevelAllowed('tracing', beePathType) && (
+        <BeeTracingGame initialPathType={beePathType} onExit={handleExitGame} />
       )}
 
-      {view === 'play_pursuit' && canPlayUiModule('pursuit') && (
-        <PursuitGame onExit={handleExitGame} />
+      {view === 'play_pursuit' && canPlayUiModule('pursuit') && isLevelAllowed('pursuit', pursuitPattern) && (
+        <PursuitGame initialMovementPattern={pursuitPattern} onExit={handleExitGame} />
       )}
 
       {view === 'play_mobile_target' && canPlayUiModule('mobile_target') && isLevelAllowed('mobile_target', mobileTargetConfig.mode === 'alphabets' ? mobileTargetConfig.variant : mobileTargetConfig.mode) && (

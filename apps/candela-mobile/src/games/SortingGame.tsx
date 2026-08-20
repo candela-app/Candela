@@ -16,17 +16,19 @@ import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 import { speak } from '../lib/speech';
 
 export function SortingGame({ variant = 'uppercase', onExit }: { variant?: SortingVariant; onExit?: () => void }) {
+  const { session } = useAuth();
   const { width, height, s, fs, isTablet } = useLayout();
   const [gameStarted, setGameStarted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
-  const [patientName, setPatientName] = useState('Demo Patient');
+  const [patientName, setPatientName] = useState(sessionDisplayName(session));
   const [letterSize, setLetterSize] = useState(1.8);
   const [bubbleSize, setBubbleSize] = useState(90);
   const [notification, setNotification] = useState<string | null>(null);
@@ -42,6 +44,11 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
   const [playArea, setPlayArea] = useState({ w: width, h: height });
+
+  useEffect(() => {
+    const name = session?.user.name?.trim();
+    if (name) setPatientName(name);
+  }, [session?.user.name]);
 
   const isMobileTab = !isTablet || Math.min(width, height) < 1024;
 
@@ -187,7 +194,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
 
   const allItems = sequenceItems();
   const target = allItems[expectedIndex] || '';
-  const scaledBubble = Math.round(bubbleSize * Math.min(1.15, Math.max(0.75, playArea.w / 420)));
+  const scaledBubble = bubbleSize;
   const letterPx = Math.round(16 * letterSize * (scaledBubble / 90));
 
   return (

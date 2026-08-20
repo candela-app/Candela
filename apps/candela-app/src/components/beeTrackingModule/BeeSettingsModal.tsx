@@ -3,7 +3,6 @@
 import React from 'react';
 import {
   BeeTracingSettings,
-  BeePathType,
   TracingMode,
   ColorTheme,
   InputSensitivity,
@@ -23,17 +22,6 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
   onUpdateSettings,
 }) => {
   if (!isOpen) return null;
-
-  const pathTypeOptions: { label: string; value: BeePathType | 'auto' }[] = [
-    { label: 'Auto Progress (1 → 7)', value: 'auto' },
-    { label: '1. Straight Line', value: 'straight' },
-    { label: '2. Gentle Curve', value: 'curve' },
-    { label: '3. Zigzag Shifts', value: 'zigzag' },
-    { label: '4. S-Curve Wave', value: 'wave' },
-    { label: '5. Spiral Pursuit', value: 'spiral' },
-    { label: '6. Branching Path', value: 'branching' },
-    { label: '7. Dotted Gap Fill', value: 'dotted' },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in select-none">
@@ -107,24 +95,6 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
                 </span>
               </button>
             </div>
-          </div>
-
-          {/* Path Type Progression */}
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1.5">
-              Path Type (Progression)
-            </label>
-            <select
-              value={settings.pathType}
-              onChange={(e) => onUpdateSettings({ pathType: e.target.value as BeePathType | 'auto' })}
-              className="w-full rounded-xl bg-[#1D212E] border border-white/15 px-4 py-2.5 text-white font-medium focus:border-amber-400 focus:outline-none cursor-pointer"
-            >
-              {pathTypeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Tolerance Band Width */}

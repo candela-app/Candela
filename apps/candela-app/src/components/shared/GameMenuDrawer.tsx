@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { requestFullScreenSafe, exitFullScreenSafe } from '@candela/shared';
+import { ResetConfirmDialog } from './ResetConfirmDialog';
 
 export interface ClinicalSettingSummaryItem {
   label: string;
@@ -17,6 +18,7 @@ export interface GameMenuDrawerProps {
   resetButtonLabel?: string;
   extraControls?: React.ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
+  sessionInProgress?: boolean;
 }
 
 export function GameMenuDrawer({
@@ -28,7 +30,18 @@ export function GameMenuDrawer({
   resetButtonLabel = 'Reset Game',
   extraControls,
   settingsSummary,
+  sessionInProgress = true,
 }: GameMenuDrawerProps) {
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setConfirmReset(false);
+      setConfirmQuit(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -55,9 +68,12 @@ export function GameMenuDrawer({
         <button
           className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
-            onClose();
-            exitFullScreenSafe();
-            onQuit();
+            if (sessionInProgress) setConfirmQuit(true);
+            else {
+              onClose();
+              exitFullScreenSafe();
+              onQuit();
+            }
           }}
         >
           Quit Game
@@ -65,10 +81,7 @@ export function GameMenuDrawer({
 
         <button
           className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors shrink-0"
-          onClick={() => {
-            onClose();
-            onReset();
-          }}
+          onClick={() => setConfirmReset(true)}
         >
           {resetButtonLabel}
         </button>
@@ -116,6 +129,29 @@ export function GameMenuDrawer({
           </div>
         )}
       </div>
+      <ResetConfirmDialog
+        isOpen={confirmReset}
+        confirmLabel={resetButtonLabel}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => {
+          setConfirmReset(false);
+          onClose();
+          onReset();
+        }}
+      />
+      <ResetConfirmDialog
+        isOpen={confirmQuit}
+        title="Leave this game?"
+        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        confirmLabel="Leave"
+        onCancel={() => setConfirmQuit(false)}
+        onConfirm={() => {
+          setConfirmQuit(false);
+          onClose();
+          exitFullScreenSafe();
+          onQuit();
+        }}
+      />
     </div>
   );
 }

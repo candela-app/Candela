@@ -35,7 +35,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Body() body: RefreshDto,
   ) {
-    return this.auth.refresh(readRefreshCookie(req.cookies) || body?.refreshToken, res);
+    return this.auth.refresh(body?.refreshToken || readRefreshCookie(req.cookies), res);
   }
 
   @Public()
@@ -45,7 +45,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Body() body: RefreshDto,
   ) {
-    return this.auth.logout(readRefreshCookie(req.cookies) || body?.refreshToken, res);
+    return this.auth.logout(body?.refreshToken || readRefreshCookie(req.cookies), res);
   }
 
   @Get('me')

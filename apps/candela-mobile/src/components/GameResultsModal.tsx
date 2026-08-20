@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { SessionResultData } from '@candela/shared/rn';
+import type { GeoboardSessionResultData, SessionResultData } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
 
@@ -17,61 +18,215 @@ export function GameResultsModal({
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
-  if (!isOpen) return null;
+  const [toast, setToast] = useState<string | null>(null);
 
-  const rows: [string, string | number][] = [
-    ['Patient', data.patientName],
-    ['Game', data.gameName],
-    ['Date', data.date],
-    ['Accuracy', `${data.accuracy}%`],
-    ['Correct', data.correct],
-    ['Wrong', data.wrong],
-    ['Clicks', data.clicksTotal],
-    ['Duration', `${data.durationSec}s`],
-    ['Avg reaction', `${data.avgReactionSec}s`],
-    ['Speed', data.speed],
+  const formattedDate =
+    data.date ||
+    new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+  const exportCsv = async () => {
+    try {
+      await shareSessionCsv(data);
+      setToast('CSV ready to share');
+    } catch {
+      setToast('Export failed');
+    }
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const isGeoboard = 'boardId' in data && 'leftHalfAccuracy' in data;
+  const geo = isGeoboard ? (data as GeoboardSessionResultData) : null;
+
+  const metrics: { label: string; value: string; color: string }[] = [
+    { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
+    { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
+    { label: 'Avg Reaction', value: `${Math.round(data.avgReactionSec * 1000)}ms`, color: '#FBBF24' },
+    { label: isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped', value: String(data.stimuliCount), color: '#C084FC' },
+    { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
+    { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
   ];
 
   return (
-    <Modal visible={isOpen} animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: '#121212', paddingTop: insets.top, paddingBottom: insets.bottom }}>
-        <ScrollView contentContainerStyle={{ padding: s(20) }}>
-          <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '800', marginBottom: s(6) }}>Session complete</Text>
-          <Text style={{ color: '#9CA3AF', marginBottom: s(20) }}>{data.gameName}</Text>
-          {rows.map(([label, value]) => (
-            <View
-              key={label}
+    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          paddingTop: insets.top + s(12),
+          paddingBottom: insets.bottom + s(12),
+          paddingHorizontal: s(16),
+          justifyContent: 'center',
+        }}
+      >
+        {toast ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: insets.top + s(12),
+              right: s(16),
+              zIndex: 20,
+              backgroundColor: 'rgba(5,150,105,0.92)',
+              paddingHorizontal: s(14),
+              paddingVertical: s(8),
+              borderRadius: s(14),
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>✓ {toast}</Text>
+          </View>
+        ) : null}
+
+        <View
+          style={{
+            backgroundColor: '#121212',
+            borderRadius: s(24),
+            borderWidth: 1,
+            borderColor: 'rgba(16,185,129,0.3)',
+            padding: s(20),
+            maxHeight: '92%',
+          }}
+        >
+          <Pressable onPress={() => void exportCsv()} style={{ position: 'absolute', top: s(16), right: s(16), zIndex: 10, padding: s(6) }}>
+            <Text style={{ color: '#9CA3AF', fontSize: fs(18) }}>⇩</Text>
+          </Pressable>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={{ alignItems: 'center', marginBottom: s(18), paddingHorizontal: s(12) }}>
+              <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '800', textAlign: 'center' }}>
+                Session Completed
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(13), marginTop: s(6), textAlign: 'center' }}>
+                {data.gameName} • Patient:{' '}
+                <Text style={{ color: '#34D399', fontWeight: '700' }}>{data.patientName || 'Demo Patient'}</Text>
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(4) }}>
+                Date: <Text style={{ color: '#D1D5DB' }}>{formattedDate}</Text>
+              </Text>
+            </View>
+
+            {geo ? (
+              <View
+                style={{
+                  borderRadius: s(16),
+                  borderWidth: 1,
+                  borderColor: 'rgba(20,184,166,0.25)',
+                  backgroundColor: 'rgba(4,47,46,0.35)',
+                  padding: s(14),
+                  marginBottom: s(16),
+                  gap: s(12),
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1, paddingRight: s(8) }}>
+                    <Text style={{ color: '#2DD4BF', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
+                      {geo.boardName.toUpperCase()}
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: 2 }}>
+                      {geo.correct} of {data.stimuliCount} patterns reproduced
+                      {geo.alphabetVariant ? ` · ${geo.alphabetVariant}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(16) }}>
+                    {'★'.repeat(geo.starRating ?? 0)}
+                    <Text style={{ color: 'rgba(255,255,255,0.15)' }}>{'★'.repeat(5 - (geo.starRating ?? 0))}</Text>
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>Left Field {geo.leftHalfAccuracy}%</Text>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>Right Field {geo.rightHalfAccuracy}%</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: s(8) }}>
+                  {[
+                    { label: 'Wrong Dot', value: geo.errorBreakdown?.wrongDot ?? 0, color: '#FB7185' },
+                    { label: 'Wrong Shape', value: geo.errorBreakdown?.wrongShape ?? 0, color: '#FBBF24' },
+                    { label: 'Incomplete', value: geo.errorBreakdown?.incomplete ?? 0, color: '#38BDF8' },
+                  ].map((item) => (
+                    <View
+                      key={item.label}
+                      style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', borderRadius: s(12), padding: s(8), alignItems: 'center' }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
+                      <Text style={{ color: item.color, fontSize: fs(18), fontWeight: '900' }}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+                {geo.penColor ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700' }}>PEN</Text>
+                    <View style={{ width: s(14), height: s(14), borderRadius: 99, backgroundColor: geo.penColor, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }} />
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700' }}>{geo.penColorName}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(10), marginBottom: s(18) }}>
+              {metrics.map((item) => (
+                <View
+                  key={item.label}
+                  style={{
+                    width: '48%',
+                    flexGrow: 1,
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: s(16),
+                    padding: s(14),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                    {item.label.toUpperCase()}
+                  </Text>
+                  <Text style={{ color: item.color, fontSize: fs(22), fontWeight: '900' }}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Pressable
+              onPress={onReplay}
               style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                paddingVertical: s(10),
-                borderBottomWidth: 1,
-                borderBottomColor: '#1F2937',
+                backgroundColor: '#10B981',
+                borderRadius: s(12),
+                paddingVertical: s(14),
+                alignItems: 'center',
+                marginBottom: s(10),
               }}
             >
-              <Text style={{ color: '#9CA3AF', fontSize: fs(13) }}>{label}</Text>
-              <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '700' }}>{String(value)}</Text>
-            </View>
-          ))}
-          <Pressable
-            onPress={() => void shareSessionCsv(data)}
-            style={{ marginTop: s(20), backgroundColor: '#1F2937', borderRadius: s(12), padding: s(14), alignItems: 'center' }}
-          >
-            <Text style={{ color: '#93C5FD', fontWeight: '700' }}>Export CSV</Text>
-          </Pressable>
-          <Pressable
-            onPress={onReplay}
-            style={{ marginTop: s(10), backgroundColor: '#2563EB', borderRadius: s(12), padding: s(14), alignItems: 'center' }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Replay</Text>
-          </Pressable>
-          <Pressable
-            onPress={onClose}
-            style={{ marginTop: s(10), borderRadius: s(12), padding: s(14), alignItems: 'center' }}
-          >
-            <Text style={{ color: '#D1D5DB', fontWeight: '700' }}>Close</Text>
-          </Pressable>
-        </ScrollView>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(15) }}>Play Again</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void exportCsv()}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderRadius: s(12),
+                paddingVertical: s(14),
+                alignItems: 'center',
+                marginBottom: s(10),
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: fs(14) }}>Export CSV</Text>
+            </Pressable>
+            <Pressable
+              onPress={onClose}
+              style={{
+                backgroundColor: 'rgba(239,68,68,0.1)',
+                borderWidth: 1,
+                borderColor: 'rgba(239,68,68,0.3)',
+                borderRadius: s(12),
+                paddingVertical: s(14),
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#F87171', fontWeight: '700', fontSize: fs(14) }}>Exit to Menu</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );

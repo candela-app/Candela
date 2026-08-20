@@ -1,13 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EyeIcon, EyeOffIcon } from './icons';
+import { brandLogo, openWebsite } from '../lib/brand';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { fs, s, pad, contentMax, width } = useLayout();
 
@@ -15,19 +14,31 @@ export function AuthShell({ title, children }: { title: string; children: ReactN
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <View
         style={{
-          paddingTop: insets.top + s(8),
+          paddingTop: insets.top + s(20),
           paddingHorizontal: pad,
-          paddingBottom: s(12),
-          backgroundColor: 'rgba(255,255,255,0.96)',
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
+          paddingBottom: s(40),
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <Pressable onPress={() => router.replace('/')}>
-          <Text style={{ fontSize: fs(24), fontWeight: '800', color: colors.ink }}>Kandela</Text>
-        </Pressable>
+        <Image
+          source={brandLogo}
+          style={{ height: s(64), width: s(220) }}
+          resizeMode="contain"
+          accessibilityLabel="Kandela"
+        />
       </View>
-      <View style={{ flex: 1, justifyContent: 'center', padding: pad, alignItems: 'center' }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingBottom: insets.bottom + pad,
+          paddingHorizontal: pad,
+          alignItems: 'center',
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View
           style={{
             width: Math.min(contentMax, width - pad * 2),
@@ -42,7 +53,7 @@ export function AuthShell({ title, children }: { title: string; children: ReactN
           <Text style={{ fontSize: fs(22), fontWeight: '800', color: colors.text, marginBottom: s(20) }}>{title}</Text>
           {children}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -162,5 +173,19 @@ export function PrimaryButton({
     >
       <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(14) }}>{children}</Text>
     </Pressable>
+  );
+}
+
+export function WebsiteExploreNote() {
+  const { fs, s } = useLayout();
+  return (
+    <View style={{ marginTop: s(28), paddingTop: s(20), borderTopWidth: 1, borderTopColor: colors.border }}>
+      <Text style={{ fontSize: fs(13), color: colors.muted, textAlign: 'center', lineHeight: fs(20) }}>
+        Want to explore more? Visit our website to learn about Kandela and see the full web experience.
+      </Text>
+      <Pressable onPress={openWebsite} style={{ marginTop: s(8), alignSelf: 'center' }}>
+        <Text style={{ fontSize: fs(13), color: colors.blue, fontWeight: '700' }}>Open website</Text>
+      </Pressable>
+    </View>
   );
 }

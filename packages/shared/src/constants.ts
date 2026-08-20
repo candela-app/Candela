@@ -14,16 +14,19 @@ export const BRIGHT_COLORS: ColorItem[] = [
   { name: 'Yellow', code: '#FFD600' },
 ];
 
-// Bright, high-contrast, vision-therapy friendly colors
-export const THERAPY_COLORS: string[] = [
-  '#FFD600', // Bright Yellow
-  '#00B0FF', // Vivid Sky Blue
-  '#FF3D00', // Vivid Coral Red
-  '#00E676', // Vivid Emerald Green
-  '#9C27B0', // Vivid Purple
-  '#FF9100', // Vibrant Amber Orange
-  '#FF4081', // Vivid Hot Pink
+// Kid-friendly names for color-discriminant games: high luminance, wide hue spacing.
+export const THERAPY_COLOR_ITEMS: ColorItem[] = [
+  { name: 'Yellow', code: '#FFD600' },
+  { name: 'Light Blue', code: '#00F0FF' },
+  { name: 'Red', code: '#FF3D00' },
+  { name: 'Green', code: '#00E676' },
+  { name: 'Pink', code: '#FF2E93' },
+  { name: 'Blue', code: '#2979FF' },
+  { name: 'Orange', code: '#FF9100' },
+  { name: 'Purple', code: '#D500F9' },
 ];
+
+export const THERAPY_COLORS: string[] = THERAPY_COLOR_ITEMS.map((item) => item.code);
 
 export const ALPHABETS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const NUMBERS = '0123456789';
