@@ -1,22 +1,30 @@
 'use client';
 
 import Script from 'next/script';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GOOGLE_WEB_CLIENT_ID } from '@/lib/google';
+
+type GoogleTokenClient = {
+  requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+};
+
+type GoogleTokenResponse = {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+};
 
 declare global {
   interface Window {
     google?: {
       accounts: {
-        id: {
-          initialize: (config: {
+        oauth2: {
+          initTokenClient: (config: {
             client_id: string;
-            callback: (response: { credential: string }) => void;
-          }) => void;
-          renderButton: (
-            parent: HTMLElement,
-            options: { theme: string; size: string; width: number; text?: string; shape?: string },
-          ) => void;
+            scope: string;
+            callback: (response: GoogleTokenResponse) => void;
+            error_callback?: (error: { type?: string; message?: string }) => void;
+          }) => GoogleTokenClient;
         };
       };
     };
@@ -35,46 +43,56 @@ function GoogleMark() {
 }
 
 export function GoogleSignInButton({
-  onCredential,
+  onAccessToken,
   disabled,
   busy,
 }: {
-  onCredential: (idToken: string) => Promise<void>;
+  onAccessToken: (accessToken: string) => Promise<void>;
   disabled?: boolean;
   busy?: boolean;
 }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const onCredentialRef = useRef(onCredential);
-  onCredentialRef.current = onCredential;
+  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
+  const onAccessTokenRef = useRef(onAccessToken);
+  onAccessTokenRef.current = onAccessToken;
+  const [ready, setReady] = useState(false);
 
   const init = useCallback(() => {
-    if (!window.google?.accounts?.id || !hostRef.current) {
+    if (!window.google?.accounts?.oauth2) {
       return;
     }
-    hostRef.current.innerHTML = '';
-    window.google.accounts.id.initialize({
+    tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_WEB_CLIENT_ID,
+      scope: 'openid email profile',
       callback: (response) => {
-        void onCredentialRef.current(response.credential);
+        if (response.error || !response.access_token) {
+          return;
+        }
+        void onAccessTokenRef.current(response.access_token);
       },
     });
-    window.google.accounts.id.renderButton(hostRef.current, {
-      theme: 'outline',
-      size: 'large',
-      width: 400,
-      text: 'continue_with',
-      shape: 'pill',
-    });
+    setReady(true);
   }, []);
 
   useEffect(() => {
     init();
   }, [init]);
 
+  function onClick() {
+    if (disabled || busy || !tokenClientRef.current) {
+      return;
+    }
+    tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+  }
+
   return (
-    <div className={`relative w-full mt-1 ${disabled || busy ? 'opacity-80 pointer-events-none' : ''}`}>
+    <>
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={init} />
-      <div className="pointer-events-none flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-900 min-h-[48px]">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled || busy || !ready}
+        className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-900 min-h-[48px] mt-1 disabled:opacity-80"
+      >
         {busy ? (
           <span className="h-5 w-5 rounded-full border-2 border-gray-300 border-t-gray-800 animate-spin" aria-label="Signing in" />
         ) : (
@@ -83,9 +101,8 @@ export function GoogleSignInButton({
             Continue with Google
           </>
         )}
-      </div>
-      {!busy ? <div ref={hostRef} className="absolute inset-0 overflow-hidden rounded-xl opacity-0" /> : null}
-    </div>
+      </button>
+    </>
   );
 }
 
