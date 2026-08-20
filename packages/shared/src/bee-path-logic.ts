@@ -9,6 +9,7 @@ export interface GeneratedPath {
   endPoint: PathPoint;
   distractorPoint?: PathPoint;
   distractorSvgPathD?: string;
+  distractorPoints?: PathPoint[];
   dashArray?: string;
   totalLength: number;
   baselineTimeSec: number;
@@ -72,6 +73,7 @@ export function generateBeePath(
   let endPoint: PathPoint = mapNormalizedPoint(1, 0, width, height, marginX, marginY, orientation);
   let distractorPoint: PathPoint | undefined = undefined;
   let distractorSvgPathD: string | undefined = undefined;
+  let distractorPoints: PathPoint[] | undefined = undefined;
   let dashArray: string | undefined = undefined;
 
   const samples = Math.floor((150 + tier * 25) * complexityMult);
@@ -212,8 +214,8 @@ export function generateBeePath(
     case 'branching': {
       startPoint = mapNormalizedPoint(0, 0, width, height, marginX, marginY, orientation);
       const splitPt = mapNormalizedPoint(0.45, 0, width, height, marginX, marginY, orientation);
-      endPoint = mapNormalizedPoint(1.0, -0.25, width, height, marginX, marginY, orientation);
-      distractorPoint = mapNormalizedPoint(1.0, 0.25, width, height, marginX, marginY, orientation);
+      endPoint = mapNormalizedPoint(1.0, -0.28, width, height, marginX, marginY, orientation);
+      distractorPoint = mapNormalizedPoint(1.0, 0.32, width, height, marginX, marginY, orientation);
 
       for (let i = 0; i <= samples; i++) {
         const t = i / samples;
@@ -226,16 +228,25 @@ export function generateBeePath(
         } else {
           const tSub = (t - 0.45) / 0.55;
           const u = 0.45 + tSub * 0.55;
-          const v = -0.25 * Math.sin((tSub * Math.PI) / 2);
+          const v = -0.28 * Math.sin((tSub * Math.PI) / 2);
           points.push(mapNormalizedPoint(u, v, width, height, marginX, marginY, orientation));
         }
       }
 
-      const mainControl = mapNormalizedPoint(0.65, 0, width, height, marginX, marginY, orientation);
-      const distControl = mapNormalizedPoint(0.65, 0, width, height, marginX, marginY, orientation);
+      const mainControl = mapNormalizedPoint(0.72, -0.22, width, height, marginX, marginY, orientation);
+      const distControl = mapNormalizedPoint(0.72, 0.28, width, height, marginX, marginY, orientation);
 
       svgPathD = `M ${startPoint.x} ${startPoint.y} L ${splitPt.x} ${splitPt.y} Q ${mainControl.x} ${mainControl.y} ${endPoint.x} ${endPoint.y}`;
       distractorSvgPathD = `M ${splitPt.x} ${splitPt.y} Q ${distControl.x} ${distControl.y} ${distractorPoint.x} ${distractorPoint.y}`;
+      distractorPoints = [];
+      for (let i = 0; i <= 48; i++) {
+        const t = i / 48;
+        const inv = 1 - t;
+        distractorPoints.push({
+          x: inv * inv * splitPt.x + 2 * inv * t * distControl.x + t * t * distractorPoint.x,
+          y: inv * inv * splitPt.y + 2 * inv * t * distControl.y + t * t * distractorPoint.y,
+        });
+      }
       break;
     }
 
@@ -258,7 +269,7 @@ export function generateBeePath(
         svgPathD += ` L ${points[i].x} ${points[i].y}`;
       }
 
-      dashArray = '16 20';
+      dashArray = '2 22';
       break;
     }
 
@@ -318,6 +329,7 @@ export function generateBeePath(
     endPoint,
     distractorPoint,
     distractorSvgPathD,
+    distractorPoints,
     dashArray,
     totalLength,
     baselineTimeSec,

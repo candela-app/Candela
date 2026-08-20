@@ -87,7 +87,7 @@ export function BeeSettingsModal({
   onApply: (next: BeeTracingSettings) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { fs, s } = useLayout();
+  const { fs, s, isTablet } = useLayout();
   const [draft, setDraft] = useState<BeeTracingSettings>(settings);
 
   useEffect(() => {
@@ -169,9 +169,9 @@ export function BeeSettingsModal({
               <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>ROUNDS PER SESSION / SET</Text>
               <View style={{ flexDirection: 'row', gap: s(8) }}>
                 {[
-                  { label: '3 Rounds', val: 3 },
                   { label: '5 Rounds', val: 5 },
-                  { label: '7 Rounds (All)', val: 7 },
+                  { label: '7 Rounds', val: 7 },
+                  { label: '10 Rounds (All)', val: 10 },
                 ].map((item) => (
                   <Option
                     key={item.val}
@@ -253,26 +253,39 @@ export function BeeSettingsModal({
                   />
                 ))}
               </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
-                DEVICE ORIENTATION & PRIMARY MOTION AXIS
-              </Text>
-              <View style={{ flexDirection: 'row', gap: s(8) }}>
-                {[
-                  { id: 'auto' as DeviceOrientation, label: 'Auto' },
-                  { id: 'landscape' as DeviceOrientation, label: 'Landscape' },
-                  { id: 'portrait' as DeviceOrientation, label: 'Portrait' },
-                ].map((item) => (
-                  <Option
-                    key={item.id}
-                    label={item.label}
-                    active={(draft.orientation || 'auto') === item.id}
-                    onPress={() => patch({ orientation: item.id })}
-                  />
-                ))}
-              </View>
+              {!isTablet ? (
+                <>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
+                    DEVICE ORIENTATION & PRIMARY MOTION AXIS
+                  </Text>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(12) }}>Portrait only on phones</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
+                    DEVICE ORIENTATION & PRIMARY MOTION AXIS
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: s(8) }}>
+                    {[
+                      { id: 'auto' as DeviceOrientation, label: 'Auto' },
+                      { id: 'landscape' as DeviceOrientation, label: 'Landscape' },
+                      { id: 'portrait' as DeviceOrientation, label: 'Portrait' },
+                    ].map((item) => (
+                      <Option
+                        key={item.id}
+                        label={item.label}
+                        active={(draft.orientation || 'auto') === item.id}
+                        onPress={() => patch({ orientation: item.id })}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
             </Card>
 
             <Card title="Visual & Contrast Theme" color="#C084FC">
+              {draft.pathType !== 'spiral' ? (
+                <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
                   PATH WIDTH
@@ -292,6 +305,8 @@ export function BeeSettingsModal({
                   />
                 ))}
               </View>
+                </>
+              ) : null}
               <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
                 THERAPY COLOR THEME
               </Text>
@@ -325,7 +340,12 @@ export function BeeSettingsModal({
                 <Text style={{ color: '#D1D5DB', fontWeight: '700', fontSize: fs(13) }}>Cancel</Text>
               </Pressable>
               <Pressable
-                onPress={() => onApply(draft)}
+                onPress={() =>
+                  onApply({
+                    ...draft,
+                    toleranceBandPx: draft.pathType === 'spiral' ? 12 : draft.toleranceBandPx,
+                  })
+                }
                 style={{
                   paddingHorizontal: s(18),
                   paddingVertical: s(12),

@@ -6,7 +6,6 @@ import {
   GEOBOARD_BOARDS,
   MODULE_LEVELS,
   UI_MODULE_TO_CATALOG,
-  getBoardPatterns,
   type GeoboardBoardId,
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
@@ -62,6 +61,7 @@ export default function DashboardScreen() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
+    if (catalogId === 'geoboard' && String(levelId) === '6') return true;
     return prescribedLevels.includes(String(levelId));
   };
 
@@ -267,74 +267,16 @@ export default function DashboardScreen() {
   }
 
   if (params.module === 'geoboard' && canPlayUiModule('geoboard')) {
-    const allowedBoards = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id));
+    const levels = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) =>
+      variantCard(GEOBOARD_BOARDS[id].shortLabel, () => launchGeoboard(id)),
+    );
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Select a board. Every pattern in the board runs in order, then the session report opens.
-          </Text>
-          {allowedBoards.length === 0 ? (
-            noLevelsCard('No boards assigned yet')
-          ) : (
-            allowedBoards.map((id) => {
-              const board = GEOBOARD_BOARDS[id];
-              const patternCount = getBoardPatterns(id).length;
-              return (
-                <Pressable
-                  key={id}
-                  onPress={() => launchGeoboard(id)}
-                  style={{
-                    backgroundColor: colors.white,
-                    borderRadius: s(22),
-                    padding: s(20),
-                    marginBottom: s(12),
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: '#14B8A6' }} />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginTop: s(8) }}>
-                    <View
-                      style={{
-                        width: s(36),
-                        height: s(36),
-                        borderRadius: s(12),
-                        backgroundColor: '#F0FDFA',
-                        borderWidth: 1,
-                        borderColor: '#99F6E4',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Text style={{ fontWeight: '900', color: '#0F766E', fontSize: fs(13) }}>{String(id).padStart(2, '0')}</Text>
-                    </View>
-                    <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.ink, flex: 1 }}>{board.shortLabel}</Text>
-                  </View>
-                  <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(8) }}>{board.description}</Text>
-                  <Text style={{ fontSize: fs(11), color: '#9CA3AF', marginTop: s(4) }}>{board.focus}</Text>
-                  <Text
-                    style={{
-                      alignSelf: 'flex-start',
-                      marginTop: s(12),
-                      fontSize: fs(10),
-                      fontWeight: '700',
-                      color: '#0F766E',
-                      backgroundColor: '#F0FDFA',
-                      paddingHorizontal: s(10),
-                      paddingVertical: s(4),
-                      borderRadius: 999,
-                    }}
-                  >
-                    {patternCount} patterns
-                  </Text>
-                </Pressable>
-              );
-            })
-          )}
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No boards assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
       </View>
     );

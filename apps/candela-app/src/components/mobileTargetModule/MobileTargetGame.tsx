@@ -860,47 +860,18 @@ export function MobileTargetGame({
         </div>
       )}
 
-      {/* PEDIATRIC LOW-VISION PLAY BUTTON (NO MODAL CARD) */}
+      {/* Click to Start overlay */}
       {showClickToStart && !showSettings && !showResults && (
-        <div
-          onClick={handleStartGameFromOverlay}
-          onTouchStart={(e) => {
-            e.preventDefault();
-            handleStartGameFromOverlay();
-          }}
-          className="fixed inset-0 z-40 bg-[#06060C]/90 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer select-none px-4 animate-fadeIn"
-        >
-          <div className="flex flex-col items-center gap-8 transform transition-transform hover:scale-105 active:scale-95">
-            {/* GIANT HIGH-CONTRAST NEON PLAY BUTTON */}
-            <div className="relative flex items-center justify-center">
-              {/* Pulsing Outer Neon Ring for Visual Guidance */}
-              <div className="absolute w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-emerald-400/30 animate-ping" />
-              <div className="absolute w-44 h-44 sm:w-52 sm:h-52 rounded-full bg-emerald-500/20 blur-xl" />
-
-              {/* Main Circular High-Contrast Button */}
-              <button
-                type="button"
-                className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-emerald-500 via-green-400 to-lime-300 border-4 border-white shadow-[0_0_60px_rgba(57,255,20,0.85)] flex items-center justify-center cursor-pointer"
-                title="Tap to Play"
-              >
-                {/* Giant High-Contrast Black Triangle Play Icon */}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="#000000"
-                  className="w-24 h-24 sm:w-28 sm:h-28 translate-x-2 drop-shadow-lg"
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-            </div>
-
-            {/* HUGE CHILD-FRIENDLY HIGH-CONTRAST TEXT */}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-3xl sm:text-5xl font-black text-white tracking-wider drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-                TAP TO PLAY
-              </span>
-            </div>
-          </div>
+        <div className="fixed inset-0 z-40 bg-[#06070D]/98 flex flex-col items-center justify-center gap-4 px-4 select-none">
+          <h2 className="text-2xl sm:text-3xl font-black text-white text-center">{gameTitle}</h2>
+          <button
+            type="button"
+            onClick={handleStartGameFromOverlay}
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+            title="Click to Start Therapy Session"
+          >
+            Click to Start
+          </button>
         </div>
       )}
 

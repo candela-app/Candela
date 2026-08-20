@@ -54,7 +54,7 @@ export function RotatoryWheelGame({
   // Clinical Settings
   const [patientName, setPatientName] = useState<string>('Demo Patient');
   const [letterSize, setLetterSize] = useState<number>(2.5);
-  const [bubbleSize, setBubbleSize] = useState<number>(90);
+  const [bubbleSize, setBubbleSize] = useState<number>(80);
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
 
@@ -119,31 +119,22 @@ export function RotatoryWheelGame({
   const isSettingsOpenRef = useRef<boolean>(isSettingsOpen);
   const currentTargetRef = useRef<string>('');
 
-  // Voice selection helper for Native Telugu / Child voice (te-IN)
-  const teluguVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  // Original English target voice (device en-US, e.g. Samantha)
+  const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
     const updateVoices = () => {
       const voices = window.speechSynthesis.getVoices();
-      const teVoice =
-        voices.find(
-          (v) =>
-            v.lang.toLowerCase().includes('te-in') ||
-            v.lang.toLowerCase().includes('te_in') ||
-            v.name.toLowerCase().includes('telugu')
-        ) ||
-        voices.find(
-          (v) =>
-            v.lang.toLowerCase().includes('en-in') ||
-            v.lang.toLowerCase().includes('en_in') ||
-            v.name.toLowerCase().includes('india') ||
-            v.name.toLowerCase().includes('indian')
-        );
+      const original =
+        voices.find((v) => v.name === 'Samantha') ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('en-us') && v.localService) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('en-us')) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('en'));
 
-      if (teVoice) {
-        teluguVoiceRef.current = teVoice;
+      if (original) {
+        targetVoiceRef.current = original;
       }
     };
 
@@ -201,22 +192,20 @@ export function RotatoryWheelGame({
     };
   }, []);
 
-  // Native Telugu/Indian accent pediatric child voice helper (te-IN / en-IN accent, pitch=1.4, rate=0.82)
   const speak = useCallback((text: string, currentMode: GameMode) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance();
 
-    // Standard English text for clear pediatric reading mechanism
     utter.text = currentMode !== 'colors' ? text.toLowerCase() : text;
-    utter.rate = 0.82; // Clear pediatric speech pacing
-    utter.pitch = 1.4; // Elevated pitch for natural pediatric child voice timbre
+    utter.rate = 0.95;
+    utter.pitch = 1;
 
-    if (teluguVoiceRef.current) {
-      utter.voice = teluguVoiceRef.current;
-      utter.lang = teluguVoiceRef.current.lang;
+    if (targetVoiceRef.current) {
+      utter.voice = targetVoiceRef.current;
+      utter.lang = targetVoiceRef.current.lang;
     } else {
-      utter.lang = 'te-IN';
+      utter.lang = 'en-US';
     }
 
     window.speechSynthesis.speak(utter);
@@ -551,52 +540,21 @@ export function RotatoryWheelGame({
         </div>
       )}
 
-      {/* CLICK TO START OVERLAY (High-Contrast Pediatric Low-Vision Design) */}
       {!isGameStarted && !isSettingsOpen && !isResultsOpen && (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 backdrop-blur-2xl flex flex-col justify-center items-center gap-7 p-6 text-center animate-fade-in select-none">
-          {/* Ambient Glow Orbs */}
-          <div className="absolute w-[500px] h-[500px] rounded-full bg-blue-500/15 blur-[120px] pointer-events-none" />
-          <div className="absolute w-[400px] h-[400px] rounded-full bg-amber-500/10 blur-[100px] pointer-events-none" />
-
-          {/* High-Contrast Pediatric Header Tag */}
-          <div className="flex flex-col items-center gap-3 max-w-lg z-10">
-            <span className="text-xs sm:text-sm font-black px-4 py-1.5 rounded-full bg-amber-400 text-black shadow-[0_0_25px_rgba(251,191,36,0.6)] uppercase tracking-widest border-2 border-amber-300">
-              ✨ Vision Therapy Game Ready
-            </span>
-
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
-              {mode === 'colors' ? (
-                <span className="bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">
-                  Color Discriminant Wheel
-                </span>
-              ) : (
-                <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-300 bg-clip-text text-transparent">
-                  {variant === 'lowercase' ? 'Lowercase Alphabets' : 'Uppercase Alphabets'}
-                </span>
-              )}
-            </h2>
-
-            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121626]/90 border border-gray-700/80 shadow-xl text-xs sm:text-sm font-bold text-gray-200 mt-1">
-              <span className="text-cyan-400">👤 Patient:</span>
-              <span className="text-white font-extrabold">{patientName}</span>
-              <span className="text-gray-500">|</span>
-              <span className="text-amber-400">⚡ Speed:</span>
-              <span className="text-white font-extrabold">{speed}x</span>
-            </div>
-          </div>
-
-          {/* Big High-Contrast Pediatric Start Button */}
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">
+            {mode === 'colors'
+              ? 'Color Discriminant Wheel'
+              : variant === 'lowercase'
+                ? 'Lowercase Alphabets'
+                : 'Uppercase Alphabets'}
+          </h2>
           <button
             onClick={handleStartGame}
-            className="group relative flex items-center justify-center gap-4 px-10 py-5 sm:px-14 sm:py-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 font-black text-xl sm:text-2xl md:text-3xl rounded-full shadow-[0_0_50px_rgba(16,185,129,0.6)] hover:shadow-[0_0_70px_rgba(6,182,212,0.9)] border-4 border-white transition-all cursor-pointer active:scale-95 z-10 tracking-wide"
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
             title="Click to Start Therapy Session"
           >
-            <span className="text-3xl sm:text-4xl group-hover:scale-125 transition-transform drop-shadow-md">
-              🎯
-            </span>
-            <span className="uppercase tracking-wider font-black text-slate-950">
-              Click to Start
-            </span>
+            Click to Start
           </button>
 
           {/* Sub-action: Edit Settings */}
@@ -884,13 +842,11 @@ export function RotatoryWheelGame({
 
       {/* CENTER: ROTATING WHEEL (MAXIMIZED FULL SCREEN DIAMETER EDGE-TO-EDGE) */}
       <main className="relative w-full h-full min-h-screen flex items-center justify-center p-0 overflow-hidden">
-        {/* Ambient background glow behind wheel */}
-        <div className="absolute w-[98vh] h-[98vh] max-w-[98vw] max-h-[98vw] rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute w-[98vh] h-[98vh] max-w-[98vw] max-h-[98vw] rounded-full bg-blue-500/10 pointer-events-none" />
 
-        {/* ROTATING WHEEL */}
         <div
           ref={wheelRef}
-          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center shadow-[0_0_60px_rgba(0,0,0,0.85)] cursor-pointer shrink-0 animate-rotate-wheel"
+          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center cursor-pointer shrink-0 animate-rotate-wheel"
           style={{
             animationDuration: `${animationDurationSeconds}s`,
             animationPlayState: isPaused ? 'paused' : 'running',

@@ -153,14 +153,70 @@ export async function playMetronomeTick() {
   }
 }
 
-export async function playDotJoin() {
-  try {
-    const path = await fileFor('dotjoin', () =>
-      encodeWavSweep({ startHz: 1320, endHz: 1480, durationMs: 55, kind: 'sine', gain: 0.28 }),
+const JOIN_POOL_SIZE = 3;
+let joinPool: Audio.Sound[] = [];
+let joinPoolReady: Promise<Audio.Sound[]> | null = null;
+let joinCursor = 0;
+
+async function loadJoinPool() {
+  if (joinPool.length >= JOIN_POOL_SIZE) return joinPool;
+  await ensureAudioMode();
+  const path = await fileFor('dotjoin-v2', () =>
+    encodeWavSweep({ startHz: 988, endHz: 1318, durationMs: 160, kind: 'sine', gain: 0.4 }),
+  );
+  while (joinPool.length < JOIN_POOL_SIZE) {
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: path },
+      { shouldPlay: false, volume: 1, progressUpdateIntervalMillis: 250 },
     );
-    await playFile(path);
+    joinPool.push(sound);
+  }
+  return joinPool;
+}
+
+function ensureJoinPool() {
+  if (!joinPoolReady) {
+    joinPoolReady = loadJoinPool().catch((err) => {
+      joinPoolReady = null;
+      throw err;
+    });
+  }
+  return joinPoolReady;
+}
+
+export async function preloadDotJoin() {
+  try {
+    await ensureJoinPool();
   } catch {
     // audio is optional on simulators
+  }
+}
+
+export async function playDotJoin() {
+  try {
+    const pool = await ensureJoinPool();
+    if (pool.length === 0) return;
+    const sound = pool[joinCursor % pool.length];
+    joinCursor += 1;
+    const status = await sound.getStatusAsync();
+    if (!status.isLoaded) {
+      joinPool = [];
+      joinPoolReady = null;
+      const retry = await ensureJoinPool();
+      const next = retry[0];
+      if (!next) return;
+      await next.setPositionAsync(0);
+      await next.playAsync();
+      return;
+    }
+    if (status.isPlaying) {
+      await sound.stopAsync();
+    }
+    await sound.setPositionAsync(0);
+    await sound.playAsync();
+  } catch {
+    joinPool = [];
+    joinPoolReady = null;
   }
 }
 

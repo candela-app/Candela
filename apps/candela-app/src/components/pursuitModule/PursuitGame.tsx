@@ -8,7 +8,6 @@ import {
   calculateAnticipationVsLag,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
-  exitFullScreenSafe,
   PursuitSettings,
   PursuitTrialMetric,
   PursuitBlockMetric,
@@ -21,7 +20,7 @@ import {
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { PursuitResultsModal } from './PursuitResultsModal';
-import { ArrowLeftIcon } from '../icons/VectorIcons';
+import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
 
 interface PursuitGameProps {
@@ -400,38 +399,11 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   return (
     <div ref={containerRef} className={styles.gameContainer}>
-      {/* HUD HEADER */}
-      <div className={styles.hudHeader}>
-        <div className="flex items-center gap-3">
-          <button
-            className={styles.hudButton}
-            onClick={() => {
-              exitFullScreenSafe();
-              onExit();
-            }}
-            title="Exit Game"
-          >
-            <ArrowLeftIcon className="w-4 h-4 text-cyan-400 inline-block mr-1" />
-            <span>Exit</span>
-          </button>
-          <div className={styles.hudPill}>
-            <span>Block {Math.min(TOTAL_BLOCKS, currentBlockIndex + 1)} of {TOTAL_BLOCKS}</span>
-          </div>
-          <div className={styles.hudPill}>
-            <span>Target Tracking</span>
-            <span className="text-cyan-400">
-              Trial {Math.min(TOTAL_TRIALS, currentTrialIndex + 1)} / {TOTAL_TRIALS}
-            </span>
-          </div>
+      {!isBlockPaused && !isResultsOpen ? (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 text-white font-bold pointer-events-none">
+          Trial {Math.min(currentTrialIndex + 1, TOTAL_TRIALS)}/{TOTAL_TRIALS}
         </div>
-
-        <button
-          className={styles.hudButton}
-          onClick={() => setIsMenuOpen(true)}
-        >
-          ☰ Menu
-        </button>
-      </div>
+      ) : null}
 
       {/* BLOCK TRANSITION OVERLAY (1.5s neutral pause) */}
       {isBlockPaused && (
@@ -462,8 +434,8 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
               width: `${settings.bubbleSizePx}px`,
               height: `${settings.bubbleSizePx}px`,
               backgroundColor: settings.targetColor,
-              border: '3px solid #FFFFFF',
-              boxShadow: `0 0 24px ${settings.targetColor}`,
+              border: 'none',
+              boxShadow: 'none',
               touchAction: 'none',
             }}
             onClick={(e) => {
@@ -481,11 +453,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
               const tapY = rect && touch ? touch.clientY - rect.top : targetState.y;
               handleTrialEnd('correct', { x: tapX, y: tapY });
             }}
-          >
-            <div
-              className="w-3.5 h-3.5 rounded-full bg-black/40 border border-white/60 pointer-events-none"
-            />
-          </div>
+          />
         )}
 
         {/* DECOY BUBBLES (Dimmer, Lower Saturation of Similar Hue) */}
@@ -502,7 +470,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
                 height: `${settings.bubbleSizePx}px`,
                 backgroundColor: settings.targetColor,
                 opacity: settings.decoySalience, // Dim salience
-                border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                border: 'none',
                 touchAction: 'none',
               }}
               onClick={(e) => {
@@ -524,6 +492,15 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
           ))}
       </div>
 
+      <button
+        type="button"
+        onClick={() => setIsMenuOpen(true)}
+        className="absolute bottom-6 right-4 z-50 w-11 h-11 rounded-full bg-[#121626] text-white flex items-center justify-center cursor-pointer active:scale-95"
+        title="Settings menu"
+      >
+        <SlidersIcon className="w-5 h-5" />
+      </button>
+
       {/* MENU DRAWER */}
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -531,6 +508,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         onQuit={onExit}
         onReset={handleReset}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        sessionInProgress={!isSettingsOpen && !isResultsOpen}
         settingsSummary={settingsSummary}
       />
 

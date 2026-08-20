@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PanResponder, Pressable, Text, View } from 'react-native';
+import { BackHandler, PanResponder, Pressable, Text, View, type GestureResponderEvent } from 'react-native';
+import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Path } from 'react-native-svg';
 import {
   GEOBOARD_BOARDS,
   applyTransformToPattern,
   evaluateDrawing,
+  evaluateBeginnerPractice,
   evaluateHalfFieldAccuracy,
-  findNearestGeoboardDot,
   getBoardPatterns,
   getContrastAdjustedColor,
   getGeoboardDotPositions,
   getGeoboardGridDots,
+  geoboardPegPixelSize,
   getGeoboardStarRating,
   getPenColorName,
+  isBeginnerLineBoard,
+  lockBeginnerGeoboardProtocol,
+  patternShowsModel,
+  patternStartsWithMemorize,
   type GeoboardBoardId,
   type GeoboardComplexityTier,
   type GeoboardPattern,
@@ -26,14 +32,13 @@ import { GameResultsModal } from '../components/GameResultsModal';
 import { GeoboardSettingsModal } from '../components/GeoboardSettingsModal';
 import { CheckIcon, ClearIcon, ReplayIcon, SkipIcon, SlidersIcon, UndoIcon } from '../components/icons';
 import { hapticCorrect, hapticLight, hapticMiss, hapticWrong } from '../lib/haptics';
-import { playDotJoin, playMetronomeTick } from '../lib/sfx';
+import { playDotJoin, playMetronomeTick, preloadDotJoin } from '../lib/sfx';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 
 const GRID_SIZE = 5;
 const DOT_COUNT = GRID_SIZE * GRID_SIZE;
 const DOT_POSITIONS = getGeoboardDotPositions(GRID_SIZE, GRID_SIZE);
-const SNAP_RADIUS_PERCENT = 9;
 const FEEDBACK_DURATION_MS = 1300;
 const SESSION_TIME_CAP_SEC = 600;
 const INK_MIN_SPACING_PERCENT = 0.6;
@@ -43,7 +48,10 @@ const THERAPY_MODEL_COLOR = '#000000';
 const THERAPY_PEN_COLOR = '#FBBF24';
 const THERAPY_DOT_COLOR = '#111827';
 const THERAPY_DOT_ACTIVE_COLOR = '#0284C7';
-const SETTINGS_ICON_SIZE = 44;
+const BOARD_BORDER_WIDTH = 2;
+const TOOLBAR_BUTTON_COUNT = 6;
+const TOOLBAR_ICON_MAX = 44;
+const TOOLBAR_ICON_MIN = 26;
 
 type GeoboardGameState = 'settings' | 'memorize' | 'play' | 'feedback' | 'results';
 
@@ -60,6 +68,57 @@ interface PenStroke {
 interface TrialFeedback {
   correct: boolean;
   message: string;
+}
+
+function pointFromBoardEvent(
+  evt: GestureResponderEvent,
+  origin: { x: number; y: number; w: number; h: number },
+): InkPoint {
+  const { locationX, locationY, pageX, pageY } = evt.nativeEvent;
+  const inBoard = (value: number, size: number) => Number.isFinite(value) && value >= -48 && value <= size + 48;
+  const localX = inBoard(locationX, origin.w) ? locationX : pageX - origin.x;
+  const localY = inBoard(locationY, origin.h) ? locationY : pageY - origin.y;
+  const innerW = Math.max(1, origin.w - BOARD_BORDER_WIDTH * 2);
+  const innerH = Math.max(1, origin.h - BOARD_BORDER_WIDTH * 2);
+  return {
+    x: ((localX - BOARD_BORDER_WIDTH) / innerW) * 100,
+    y: ((localY - BOARD_BORDER_WIDTH) / innerH) * 100,
+  };
+}
+
+/** Snap to a peg. Used only at stroke start and end so ink does not join every peg it crosses. */
+function hitTestGeoboardDot(
+  xPercent: number,
+  yPercent: number,
+  visibleDots: boolean[],
+  boardW: number,
+  boardH: number,
+  previousDot: number | null,
+  radiusScale = 1,
+): number | null {
+  const innerW = Math.max(1, boardW - BOARD_BORDER_WIDTH * 2);
+  const innerH = Math.max(1, boardH - BOARD_BORDER_WIDTH * 2);
+  const px = (xPercent / 100) * innerW;
+  const py = (yPercent / 100) * innerH;
+  const cell = Math.min(innerW / GRID_SIZE, innerH / GRID_SIZE);
+  const radius = cell * 0.45 * radiusScale;
+
+  let bestIndex: number | null = null;
+  let bestDistance = radius;
+
+  for (const dot of DOT_POSITIONS) {
+    if (visibleDots[dot.index] === false) continue;
+    if (dot.index === previousDot) continue;
+    const dx = (dot.x / 100) * innerW - px;
+    const dy = (dot.y / 100) * innerH - py;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= bestDistance) {
+      bestDistance = distance;
+      bestIndex = dot.index;
+    }
+  }
+
+  return bestIndex;
 }
 
 function inkPath(points: InkPoint[]): string {
@@ -165,6 +224,7 @@ export function GeoboardGame({
   const { session } = useAuth();
   const { s, fs, width, height, isTablet } = useLayout();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
 
   const [gameState, setGameState] = useState<GeoboardGameState>('settings');
   const [protocol, setProtocol] = useState<GeoboardProtocol>({
@@ -187,6 +247,7 @@ export function GeoboardGame({
     penColor: THERAPY_PEN_COLOR,
     dotColor: THERAPY_DOT_COLOR,
     dotActiveColor: THERAPY_DOT_ACTIVE_COLOR,
+    pegSizeScale: 1,
   });
   const [playlist, setPlaylist] = useState<GeoboardPattern[]>([]);
   const [trialIndex, setTrialIndex] = useState(0);
@@ -205,6 +266,7 @@ export function GeoboardGame({
   const [resultsData, setResultsData] = useState<GeoboardSessionResultData | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [allowExit, setAllowExit] = useState(false);
   const [fatigueWarning, setFatigueWarning] = useState(false);
   const [modelLayout, setModelLayout] = useState({ w: 0, h: 0 });
   const [drawLayout, setDrawLayout] = useState({ w: 0, h: 0 });
@@ -225,6 +287,7 @@ export function GeoboardGame({
   const demoTokenRef = useRef(0);
   const demoRunningRef = useRef(false);
   const demoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const allowExitRef = useRef(false);
 
   const currentPattern = playlist[trialIndex] ?? null;
   const patternCount = playlist.length || getBoardPatterns(boardId, protocol.alphabetVariant).length;
@@ -233,12 +296,47 @@ export function GeoboardGame({
     gameStateRef.current = gameState;
   }, [gameState]);
   useEffect(() => {
+    allowExitRef.current = allowExit;
+  }, [allowExit]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      gestureEnabled: false,
+      fullScreenGestureEnabled: false,
+    });
+  }, [navigation]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (allowExitRef.current || gameStateRef.current === 'settings') return;
+      e.preventDefault();
+    });
+    return unsub;
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!allowExit) return;
+    onExit?.();
+  }, [allowExit, onExit]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (allowExitRef.current) return false;
+      if (gameStateRef.current === 'settings') return false;
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+  useEffect(() => {
     answerDotsRef.current = answerDotsVisible;
   }, [answerDotsVisible]);
   useEffect(() => {
     const name = session?.user.name?.trim();
     if (name) setProtocol((prev) => ({ ...prev, patientName: name }));
   }, [session?.user.name]);
+  useEffect(() => {
+    void preloadDotJoin();
+  }, []);
 
   const drawnSegments = useMemo(() => {
     const seen = new Set<string>();
@@ -324,8 +422,8 @@ export function GeoboardGame({
       correctionsRef.current = 0;
       tapSequenceRef.current = [];
       setTimeLeft(activeProtocol.timeLimitSec);
-      if (activeProtocol.memoryMode) {
-        setMemorizeTimeLeft(activeProtocol.memorizeSec);
+      if (patternStartsWithMemorize(pattern, activeProtocol.memoryMode)) {
+        setMemorizeTimeLeft(Math.max(3, activeProtocol.memorizeSec || 5));
         setGameState('memorize');
       } else {
         trialStartRef.current = performance.now();
@@ -337,14 +435,15 @@ export function GeoboardGame({
 
   const startSession = useCallback(
     (activeProtocol: GeoboardProtocol) => {
-      const list = getBoardPatterns(boardId, activeProtocol.alphabetVariant);
+      const locked = lockBeginnerGeoboardProtocol(activeProtocol, boardId);
+      const list = getBoardPatterns(boardId, locked.alphabetVariant);
       setPlaylist(list);
       setTrials([]);
       setTrialIndex(0);
       setResultsData(null);
       setFatigueWarning(false);
       sessionStartRef.current = performance.now();
-      loadTrial(0, list, activeProtocol);
+      loadTrial(0, list, locked);
     },
     [boardId, loadTrial],
   );
@@ -494,11 +593,19 @@ export function GeoboardGame({
 
   const handleDone = useCallback(() => {
     if (gameState !== 'play' || !currentPattern || demoRunningRef.current) return;
-    const evaluation = evaluateDrawing(drawnSegments, targetSegments, GRID_SIZE, GRID_SIZE);
+    const evaluation =
+      currentPattern.task === 'copy'
+        ? evaluateBeginnerPractice(drawnSegments, targetSegments, GRID_SIZE, GRID_SIZE)
+        : evaluateDrawing(drawnSegments, targetSegments, GRID_SIZE, GRID_SIZE);
     const metric = buildTrialMetric(currentPattern, drawnSegments, targetSegments, evaluation, false);
     let message = 'Nice work — that matches.';
     if (!evaluation.correct) {
-      if (evaluation.errorType === 'wrong-dot') message = 'A line reached a dot that is not part of the shape.';
+      if (currentPattern.task === 'copy') {
+        message =
+          evaluation.errorType === 'wrong-shape'
+            ? 'Draw a standing or steep line like the one already on the board.'
+            : 'Draw that line on other dots on this board.';
+      } else if (evaluation.errorType === 'wrong-dot') message = 'A line reached a dot that is not part of the shape.';
       else if (evaluation.errorType === 'incomplete') message = 'Some lines of the shape are still missing.';
       else message = 'The lines form a different shape.';
     }
@@ -544,14 +651,6 @@ export function GeoboardGame({
     handleSkipRef.current(true);
   }, [gameState, protocol.timeLimitSec, timeLeft]);
 
-  const pointFromPage = (pageX: number, pageY: number): InkPoint => {
-    const origin = answerOriginRef.current;
-    return {
-      x: ((pageX - origin.x) / origin.w) * 100,
-      y: ((pageY - origin.y) / origin.h) * 100,
-    };
-  };
-
   const captureDot = (dot: number) => {
     const stroke = strokeRef.current;
     if (!stroke) return;
@@ -574,14 +673,13 @@ export function GeoboardGame({
       onMoveShouldSetPanResponder: () => gameStateRef.current === 'play' && !demoRunningRef.current,
       onPanResponderGrant: (evt) => {
         if (gameStateRef.current !== 'play' || demoRunningRef.current) return;
-        answerViewRef.current?.measureInWindow((x, y, w, h) => {
-          answerOriginRef.current = { x, y, w, h };
-        });
-        const point = pointFromPage(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+        const point = pointFromBoardEvent(evt, answerOriginRef.current);
         strokeRef.current = { points: [point], dots: [] };
         isStrokingRef.current = true;
         setLiveDots([]);
-        const dot = findNearestGeoboardDot(point.x, point.y, answerDotsRef.current, SNAP_RADIUS_PERCENT, GRID_SIZE, GRID_SIZE);
+        const lastDot = strokeRef.current?.dots[strokeRef.current.dots.length - 1] ?? null;
+        const origin = answerOriginRef.current;
+        const dot = hitTestGeoboardDot(point.x, point.y, answerDotsRef.current, origin.w, origin.h, lastDot);
         if (dot !== null) captureDot(dot);
         setLiveInkD(inkPath([point]));
       },
@@ -589,18 +687,24 @@ export function GeoboardGame({
         if (gameStateRef.current !== 'play' || !isStrokingRef.current || demoRunningRef.current) return;
         const stroke = strokeRef.current;
         if (!stroke) return;
-        const point = pointFromPage(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+        const point = pointFromBoardEvent(evt, answerOriginRef.current);
         const last = stroke.points[stroke.points.length - 1];
         if (Math.hypot(point.x - last.x, point.y - last.y) < INK_MIN_SPACING_PERCENT) return;
         stroke.points.push(point);
         setLiveInkD(inkPath(stroke.points));
-        const dot = findNearestGeoboardDot(point.x, point.y, answerDotsRef.current, SNAP_RADIUS_PERCENT, GRID_SIZE, GRID_SIZE);
-        if (dot !== null) captureDot(dot);
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt) => {
         if (!isStrokingRef.current) return;
         isStrokingRef.current = false;
         const stroke = strokeRef.current;
+        if (stroke) {
+          const origin = answerOriginRef.current;
+          const point = pointFromBoardEvent(evt, origin);
+          stroke.points.push(point);
+          const lastDot = stroke.dots[stroke.dots.length - 1] ?? null;
+          const endDot = hitTestGeoboardDot(point.x, point.y, answerDotsRef.current, origin.w, origin.h, lastDot, 1.35);
+          if (endDot !== null) captureDot(endDot);
+        }
         strokeRef.current = null;
         setLiveInkD('');
         setLiveDots([]);
@@ -610,7 +714,7 @@ export function GeoboardGame({
           const prev = stroke.points[idx - 1];
           return acc + Math.hypot(point.x - prev.x, point.y - prev.y);
         }, 0);
-        if (travelled < INK_MIN_STROKE_PERCENT) return;
+        if (travelled < INK_MIN_STROKE_PERCENT || stroke.dots.length < 2) return;
         setStrokes((prev) => [...prev, stroke]);
       },
       onPanResponderTerminate: () => {
@@ -717,7 +821,7 @@ export function GeoboardGame({
   };
 
   const handleApplySettings = (next: GeoboardProtocol) => {
-    const applied = { ...next, boardId };
+    const applied = lockBeginnerGeoboardProtocol({ ...next, boardId }, boardId);
     setProtocol(applied);
     setIsSettingsOpen(false);
     startSession(applied);
@@ -725,7 +829,7 @@ export function GeoboardGame({
 
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
-    if (gameState === 'settings' && onExit) onExit();
+    if (gameState === 'settings') onExit?.();
   };
 
   const handleReplay = () => {
@@ -735,8 +839,20 @@ export function GeoboardGame({
   };
 
   const isPlayingPhase = gameState === 'memorize' || gameState === 'play' || gameState === 'feedback';
-  const showModel = !protocol.memoryMode || gameState === 'memorize';
+  const showModel = patternShowsModel(currentPattern, protocol.memoryMode, gameState);
+  const practiceOnReference = currentPattern?.task === 'copy';
+  const modelInteractive = practiceOnReference && gameState === 'play';
+  const drawInteractive = !practiceOnReference && gameState === 'play';
   const sideBySide = isTablet && width > height;
+  const playPad = isPlayingPhase ? s(8) : 0;
+  const toolbarAvail = Math.max(1, width - playPad * 2 - (sideBySide ? 0 : s(8)));
+  const toolbarIconSize = sideBySide
+    ? TOOLBAR_ICON_MAX
+    : Math.max(
+        TOOLBAR_ICON_MIN,
+        Math.min(TOOLBAR_ICON_MAX, Math.floor(toolbarAvail / TOOLBAR_BUTTON_COUNT)),
+      );
+  const toolbarGlyphSize = Math.max(14, Math.round(toolbarIconSize * (18 / TOOLBAR_ICON_MAX)));
   const modelStroke = Math.max(2.8, 900 / Math.max(modelLayout.w || width, modelLayout.h || width));
   const inkStroke = Math.max(2.4, 780 / Math.max(drawLayout.w || width, drawLayout.h || width));
 
@@ -755,11 +871,52 @@ export function GeoboardGame({
       />
     ));
 
+  const inkLayer = (
+    <>
+      {renderLines(drawnSegments, protocol.penColor, inkStroke * 0.55, 0.35)}
+      {strokes.map((stroke, idx) => (
+        <Path
+          key={`stroke-${idx}`}
+          d={inkPath(stroke.points)}
+          fill="none"
+          stroke={protocol.penColor}
+          strokeWidth={inkStroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+      {liveInkD ? (
+        <Path
+          d={liveInkD}
+          fill="none"
+          stroke={protocol.penColor}
+          strokeWidth={inkStroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+      {demoInkD ? (
+        <Path
+          d={demoInkD}
+          fill="none"
+          stroke={protocol.penColor}
+          strokeWidth={inkStroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeOpacity={0.9}
+        />
+      ) : null}
+    </>
+  );
+
   const idleDotColor = protocol.dotColor || THERAPY_DOT_COLOR;
   const activeDotColor = protocol.dotActiveColor || THERAPY_DOT_ACTIVE_COLOR;
 
   const renderPegs = (interactive: boolean, layout: { w: number; h: number }) => {
-    const pegSize = Math.max(12, Math.round(Math.min(layout.w || width, layout.h || width) * 0.07));
+    const pegSize = geoboardPegPixelSize(
+      Math.min(layout.w || width, layout.h || width),
+      protocol.pegSizeScale,
+    );
     return DOT_POSITIONS.map((dot, idx) => {
       const hidden = interactive && !answerDotsVisible[idx];
       const active = idx === selectedDot || touchedDots.has(idx) || liveDots.includes(idx);
@@ -778,7 +935,7 @@ export function GeoboardGame({
             marginTop: -pegSize / 2,
             borderRadius: pegSize / 2,
             backgroundColor: active ? activeDotColor : idleDotColor,
-            borderWidth: 2,
+            borderWidth: pegSize >= 14 ? 2 : 1,
             borderColor: protocol.bgColor === '#FFFFFF' || protocol.bgColor === '#F2F5F3' ? '#E5E7EB' : '#94A3B8',
             opacity: interactive ? 1 : 0.92,
           }}
@@ -807,8 +964,9 @@ export function GeoboardGame({
         const { width: w, height: h } = e.nativeEvent.layout;
         if (w !== layout.w || h !== layout.h) onSize({ w, h });
         if (interactive) {
+          answerOriginRef.current = { ...answerOriginRef.current, w, h };
           answerViewRef.current?.measureInWindow((x, y, mw, mh) => {
-            answerOriginRef.current = { x, y, w: mw, h: mh };
+            answerOriginRef.current = { x, y, w: mw || w, h: mh || h };
           });
         }
       }}
@@ -818,14 +976,20 @@ export function GeoboardGame({
         alignSelf: 'stretch',
         width: '100%',
         borderRadius: 0,
-        borderWidth: 2,
+        borderWidth: BOARD_BORDER_WIDTH,
         borderColor: '#0F172A',
         backgroundColor: protocol.bgColor,
         overflow: 'hidden',
       }}
     >
       {layout.w > 0 && layout.h > 0 ? (
-        <Svg width={layout.w} height={layout.h} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <Svg
+          pointerEvents="none"
+          width={Math.max(1, layout.w - BOARD_BORDER_WIDTH * 2)}
+          height={Math.max(1, layout.h - BOARD_BORDER_WIDTH * 2)}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
           {svgChildren}
         </Svg>
       ) : null}
@@ -842,10 +1006,10 @@ export function GeoboardGame({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={10}
       style={{
-        width: SETTINGS_ICON_SIZE,
-        height: SETTINGS_ICON_SIZE,
+        width: toolbarIconSize,
+        height: toolbarIconSize,
+        flexShrink: 0,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: disabled ? 0.28 : 1,
@@ -881,10 +1045,15 @@ export function GeoboardGame({
         <View style={{ flex: 1, flexDirection: sideBySide ? 'row' : 'column' }}>
           <View style={{ flex: 1 }}>
             {boardFrame({
-              interactive: false,
+              interactive: modelInteractive,
               layout: modelLayout,
               onSize: setModelLayout,
-              svgChildren: showModel ? renderLines(currentPattern.segments, modelColor, modelStroke) : null,
+              svgChildren: (
+                <>
+                  {showModel ? renderLines(currentPattern.segments, modelColor, modelStroke) : null}
+                  {practiceOnReference ? inkLayer : null}
+                </>
+              ),
               overlay: showModel ? (
                 <Text
                   pointerEvents="none"
@@ -925,28 +1094,38 @@ export function GeoboardGame({
           <View
             style={{
               flexDirection: sideBySide ? 'column' : 'row',
-              flexWrap: sideBySide ? 'nowrap' : 'wrap',
+              flexWrap: 'nowrap',
+              flexShrink: 0,
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: s(8),
-              paddingHorizontal: s(8),
-              paddingVertical: s(8),
-              minHeight: sideBySide ? undefined : s(52),
-              width: sideBySide ? s(80) : undefined,
+              justifyContent: 'space-evenly',
+              paddingHorizontal: sideBySide ? s(8) : 0,
+              paddingVertical: sideBySide ? s(8) : s(4),
+              height: sideBySide ? undefined : toolbarIconSize + s(8),
+              width: sideBySide ? toolbarIconSize + s(16) : '100%',
               backgroundColor: '#0B1220',
             }}
           >
             {gameState === 'play' ? (
               <>
                 {actionBtn(
-                  <ReplayIcon size={20} color="#64748B" />,
+                  <ReplayIcon size={toolbarGlyphSize} color="#64748B" />,
                   isDemoRunning ? 'Replay demo' : 'Play demo',
                   runPatternDemo,
                 )}
-                {actionBtn(<UndoIcon size={20} color="#64748B" />, 'Undo', handleUndo, isDemoRunning || strokes.length === 0)}
-                {actionBtn(<ClearIcon size={20} color="#64748B" />, 'Clear', handleClear, isDemoRunning || strokes.length === 0)}
-                {actionBtn(<SkipIcon size={20} color="#64748B" />, 'Skip', () => handleSkip(false))}
-                {actionBtn(<CheckIcon size={20} color="#64748B" />, 'Done', handleDone, isDemoRunning)}
+                {actionBtn(
+                  <UndoIcon size={toolbarGlyphSize} color="#64748B" />,
+                  'Undo',
+                  handleUndo,
+                  isDemoRunning || strokes.length === 0,
+                )}
+                {actionBtn(
+                  <ClearIcon size={toolbarGlyphSize} color="#64748B" />,
+                  'Clear',
+                  handleClear,
+                  isDemoRunning || strokes.length === 0,
+                )}
+                {actionBtn(<SkipIcon size={toolbarGlyphSize} color="#64748B" />, 'Skip', () => handleSkip(false))}
+                {actionBtn(<CheckIcon size={toolbarGlyphSize} color="#64748B" />, 'Done', handleDone, isDemoRunning)}
               </>
             ) : null}
             <Pressable
@@ -954,58 +1133,23 @@ export function GeoboardGame({
               accessibilityRole="button"
               accessibilityLabel="Settings menu"
               style={{
-                width: SETTINGS_ICON_SIZE,
-                height: SETTINGS_ICON_SIZE,
+                width: toolbarIconSize,
+                height: toolbarIconSize,
+                flexShrink: 0,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <SlidersIcon size={20} color="#64748B" />
+              <SlidersIcon size={toolbarGlyphSize} color="#64748B" />
             </Pressable>
           </View>
 
           <View style={{ flex: 1 }}>
             {boardFrame({
-              interactive: true,
+              interactive: drawInteractive,
               layout: drawLayout,
               onSize: setDrawLayout,
-              svgChildren: (
-                <>
-                  {renderLines(drawnSegments, protocol.penColor, inkStroke * 0.55, 0.35)}
-                  {strokes.map((stroke, idx) => (
-                    <Path
-                      key={`stroke-${idx}`}
-                      d={inkPath(stroke.points)}
-                      fill="none"
-                      stroke={protocol.penColor}
-                      strokeWidth={inkStroke}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ))}
-                  {liveInkD ? (
-                    <Path
-                      d={liveInkD}
-                      fill="none"
-                      stroke={protocol.penColor}
-                      strokeWidth={inkStroke}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ) : null}
-                  {demoInkD ? (
-                    <Path
-                      d={demoInkD}
-                      fill="none"
-                      stroke={protocol.penColor}
-                      strokeWidth={inkStroke}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeOpacity={0.9}
-                    />
-                  ) : null}
-                </>
-              ),
+              svgChildren: practiceOnReference ? null : inkLayer,
               overlay:
                 gameState === 'feedback' && feedback ? (
                   <View
@@ -1036,7 +1180,7 @@ export function GeoboardGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onQuit={() => onExit?.()}
+        onQuit={() => setAllowExit(true)}
         onReset={() => {
           setIsMenuOpen(false);
           startSession(protocol);
@@ -1052,9 +1196,13 @@ export function GeoboardGame({
           ...(board.supportsLetterCase
             ? [{ label: 'Letter Case', value: protocol.alphabetVariant === 'lowercase' ? 'Lowercase' : 'Uppercase' }]
             : []),
-          { label: 'Matrix', value: `${answerDotsVisible.filter(Boolean).length} dots` },
-          { label: 'Transform', value: protocol.transform.replace(/_/g, ' ') },
-          { label: 'Memory Mode', value: protocol.memoryMode ? `On · ${protocol.memorizeSec}s` : 'Off' },
+          ...(isBeginnerLineBoard(boardId)
+            ? [{ label: 'Rules', value: 'Copy the reference, then draw on your own' }]
+            : [
+                { label: 'Matrix', value: `${answerDotsVisible.filter(Boolean).length} dots` },
+                { label: 'Transform', value: protocol.transform.replace(/_/g, ' ') },
+                { label: 'Memory Mode', value: protocol.memoryMode ? `On · ${protocol.memorizeSec}s` : 'Off' },
+              ]),
           { label: 'Time Limit', value: protocol.timeLimitSec > 0 ? `${protocol.timeLimitSec}s` : 'Off' },
           { label: 'Ocularity', value: protocol.ocularity === 'Both' ? 'Binocular' : `${protocol.ocularity} eye` },
         ]}
@@ -1067,11 +1215,12 @@ export function GeoboardGame({
         protocol={protocol}
         boardName={board.shortLabel}
         supportsLetterCase={board.supportsLetterCase}
+        beginnerLineBoard={isBeginnerLineBoard(boardId)}
         patternCount={patternCount}
       />
 
       {resultsData ? (
-        <GameResultsModal isOpen={gameState === 'results'} data={resultsData} onClose={() => onExit?.()} onReplay={handleReplay} />
+        <GameResultsModal isOpen={gameState === 'results'} data={resultsData} onClose={() => setAllowExit(true)} onReplay={handleReplay} />
       ) : null}
     </View>
   );

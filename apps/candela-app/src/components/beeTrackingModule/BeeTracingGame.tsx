@@ -13,7 +13,6 @@ import {
   playSoftOffPathSound,
   ClinicalSettingsModal,
   exitFullScreenSafe,
-  requestFullScreenSafe,
   resolveOrientation,
   resolveBeePathType,
 } from '@candela/shared';
@@ -25,9 +24,14 @@ import {
   evaluateTracingMetrics,
 } from './BeePathGenerator';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
 const beeSrc = typeof beePng === 'string' ? beePng : beePng.src;
+const INVISIBLE_CORRIDOR_PX = 72;
+const CORRIDOR_SEARCH_WINDOW = 80;
+const VISIBLE_PATH_WIDTH = 6;
 
 interface BeeTracingGameProps {
   onExit: () => void;
@@ -44,7 +48,7 @@ const DEFAULT_SETTINGS: BeeTracingSettings = {
   colorTheme: 'dark', // Dark theme by default
   audioEnabled: true,
   inputSensitivity: 'auto',
-  roundsPerSet: 7, // Auto progress defaults to playing through ALL 7 path types!
+  roundsPerSet: 10, // Auto progress plays 10 rounds through the path sequence
   orientation: 'auto',
 };
 
@@ -70,36 +74,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  // Fullscreen state listener
-  useEffect(() => {
-    const handleFSChange = () => {
-      const isFS = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).msFullscreenElement
-      );
-      setIsFullscreen(isFS);
-    };
-
-    document.addEventListener('fullscreenchange', handleFSChange);
-    document.addEventListener('webkitfullscreenchange', handleFSChange);
-    handleFSChange();
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFSChange);
-      document.removeEventListener('webkitfullscreenchange', handleFSChange);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (isFullscreen) {
-      exitFullScreenSafe();
-    } else {
-      requestFullScreenSafe();
-    }
-  };
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Set & Round tracking
   const [currentRoundNumber, setCurrentRoundNumber] = useState<number>(1);
@@ -127,6 +102,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   const sessionStartTimeRef = useRef<number>(Date.now());
   const roundStartTimeRef = useRef<number>(Date.now());
   const currentPathIndexRef = useRef<number>(0);
+  const roundSuccessRef = useRef(false);
 
   // Generate path based on current round number and settings
   const initRoundPath = useCallback(
@@ -165,6 +141,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       setUserTracePoints([generated.startPoint]);
       setUserTimestamps([Date.now()]);
       setRoundSuccessCelebration(false);
+      roundSuccessRef.current = false;
       setIsOffPathWobble(false);
       setHasDemoPlayed(false); // Reset demo played flag for new round
       currentPathIndexRef.current = 0; // Reset sequential path progress index
@@ -287,14 +264,15 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       currentPt,
       currentPath.points,
       currentPathIndexRef.current,
-      35
+      CORRIDOR_SEARCH_WINDOW
     );
 
     if (Math.random() < 0.3) {
       triggerAudioBuzz();
     }
 
-    if (distance > settings.toleranceBandPx) {
+    const corridorPx = Math.max(settings.toleranceBandPx, INVISIBLE_CORRIDOR_PX);
+    if (distance > corridorPx) {
       // Soft fail snap-back to current active path progress
       setIsOffPathWobble(true);
       triggerAudioOffPath();
@@ -341,7 +319,8 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
   // Round Completion Logic
   const handleRoundCompletion = () => {
-    if (roundSuccessCelebration || !currentPath) return;
+    if (roundSuccessRef.current || !currentPath) return;
+    roundSuccessRef.current = true;
     setIsTracing(false);
     setRoundSuccessCelebration(true);
 
@@ -353,10 +332,11 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     showToast('🎉 Flower Reached! Great Job!');
 
     const completionTimeSec = Math.max(1, Math.round((Date.now() - roundStartTimeRef.current) / 1000));
+    const corridorPx = Math.max(settings.toleranceBandPx, INVISIBLE_CORRIDOR_PX);
     const metrics = evaluateTracingMetrics(
       userTracePoints,
       currentPath.points,
-      settings.toleranceBandPx,
+      corridorPx,
       userTimestamps
     );
 
@@ -377,13 +357,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
     const updatedResults = [...roundResults, roundData];
     setRoundResults(updatedResults);
+    const finishedRound = currentRoundNumber;
 
-    // Check if set is complete
     setTimeout(() => {
-      if (currentRoundNumber >= settings.roundsPerSet) {
+      if (finishedRound >= settings.roundsPerSet) {
         setIsResultsOpen(true);
       } else {
-        setCurrentRoundNumber((prev) => prev + 1);
+        setCurrentRoundNumber((prev) => (prev === finishedRound ? prev + 1 : prev));
       }
     }, 1800);
   };
@@ -455,94 +435,35 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       ? '#00F3FF' // Cyber Neon Cyan
       : '#FFB703'; // Electric Neon Gold
 
-  const neonGlowColor =
+  const uiColor =
     settings.colorTheme === 'high_contrast'
-      ? '#FACC15'
+      ? '#F8FAFC'
       : settings.colorTheme === 'dark'
-      ? '#00A8FF'
-      : '#FFD166';
-
-  const bandColor =
+      ? '#E7EEF5'
+      : '#1A2A32';
+  const mutedColor =
     settings.colorTheme === 'high_contrast'
-      ? 'rgba(250, 204, 21, 0.15)'
+      ? '#CBD5E1'
       : settings.colorTheme === 'dark'
-      ? 'rgba(0, 243, 255, 0.15)'
-      : 'rgba(255, 183, 3, 0.12)';
+      ? '#9AA8B5'
+      : '#4A5C66';
+  const isGuided = settings.tracingMode === 'guided';
 
   return (
-    <div className={`w-screen h-screen ${themeBgClass} flex flex-col justify-between select-none touch-none overflow-hidden relative transition-colors duration-300`}>
-      {/* Header Bar - Sleek & Minimal */}
-      <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 bg-slate-900/60 backdrop-blur-md border-b border-white/10 z-30">
-        {/* Left: Exit button & Title */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            onClick={() => {
-              exitFullScreenSafe();
-              onExit();
-            }}
-            className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-all cursor-pointer"
-          >
-            ← Exit
-          </button>
-          <div className="flex items-center gap-1.5">
-            <img src={beeSrc} alt="Bee" className="w-5 h-5 sm:w-7 sm:h-7 object-contain inline-block filter drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-            <h1 className="text-sm sm:text-base font-extrabold text-amber-400 whitespace-nowrap">
-              Bee Tracing
-            </h1>
-          </div>
-        </div>
-
-        {/* Right: Demo button, Set Progress, Settings & Fullscreen */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {currentPath && (
-            <button
-              onClick={() => runGuidedDemo(currentPath)}
-              disabled={isGuidedDemoRunning}
-              className="py-1.5 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-md disabled:opacity-50 active:scale-95"
-              title={hasDemoPlayed ? 'Replay Demo Path' : 'Play Demo Path'}
-            >
-              <span>{isGuidedDemoRunning ? '▶' : hasDemoPlayed ? '↺' : '▶'}</span>
-              <span className="hidden sm:inline">{isGuidedDemoRunning ? 'Playing...' : hasDemoPlayed ? 'Replay' : 'Demo'}</span>
-            </button>
-          )}
-
-          <div className="text-right shrink-0">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 block leading-tight">
-              Set
-            </span>
-            <span className="text-xs sm:text-sm font-black text-white leading-none">
-              {currentRoundNumber}/{settings.roundsPerSet}
-            </span>
-          </div>
-
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 transition-all cursor-pointer text-base shrink-0"
-            title="Clinical Settings"
-          >
-            ⚙️
-          </button>
-
-          <button
-            onClick={toggleFullscreen}
-            className={`p-2 rounded-xl font-bold text-xs transition-all cursor-pointer shrink-0 shadow-md active:scale-95 ${
-              isFullscreen
-                ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/30'
-                : 'bg-white/10 border border-white/20 text-gray-200 hover:bg-white/20'
-            }`}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          >
-            <span>{isFullscreen ? '↙' : '⛶'}</span>
-          </button>
-        </div>
-      </header>
-
+    <div className={`w-screen h-screen ${themeBgClass} select-none touch-none overflow-hidden relative transition-colors duration-300`}>
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-xl text-xs animate-bounce">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-xl text-xs animate-bounce">
           {toastMessage}
         </div>
       )}
+
+      <span
+        className="absolute top-12 right-4 z-30 font-bold text-sm pointer-events-none"
+        style={{ color: uiColor }}
+      >
+        Round {currentRoundNumber}/{settings.roundsPerSet}
+      </span>
 
       {/* Main Interactive Canvas Area */}
       <main
@@ -550,7 +471,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className="flex-1 relative cursor-crosshair w-full h-full overflow-hidden"
+        className="absolute inset-0 cursor-crosshair w-full h-full overflow-hidden"
       >
         {currentPath && (
           <>
@@ -567,36 +488,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
                 </filter>
               </defs>
 
-              {/* Tolerance Corridor Band Line */}
-              <path
-                d={currentPath.svgPathD}
-                fill="none"
-                stroke={bandColor}
-                strokeWidth={settings.toleranceBandPx * 2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Outer Neon Glow Path Line */}
-              <path
-                d={currentPath.svgPathD}
-                fill="none"
-                stroke={neonGlowColor}
-                strokeWidth="14"
-                strokeDasharray={currentPath.dashArray || 'none'}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity="0.6"
-                filter="url(#neon-glow)"
-              />
-
-              {/* Ideal Core Shiny Neon Target Path Line */}
+              {/* Invisible corridor is hit-tested only. Draw a thin visible guide path. */}
               <path
                 d={currentPath.svgPathD}
                 fill="none"
                 stroke={pathColor}
-                strokeWidth="6"
-                strokeDasharray={currentPath.dashArray || 'none'}
+                strokeWidth={currentPath.pathType === 'spiral' ? 6 : VISIBLE_PATH_WIDTH}
+                strokeDasharray={currentPath.dashArray || undefined}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={settings.tracingMode === 'guided' && !isGuidedDemoRunning ? 0.4 : 0.95}
@@ -608,9 +506,10 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
                   d={currentPath.distractorSvgPathD}
                   fill="none"
                   stroke={pathColor}
-                  strokeWidth="4"
-                  strokeDasharray="8 8"
-                  opacity="0.35"
+                  strokeWidth={VISIBLE_PATH_WIDTH}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.28"
                 />
               )}
 
@@ -671,8 +570,8 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
             {/* Interactive Bee Sprite - Increased Size for Touch Ergonomics */}
             <div
               className={`absolute z-30 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 pointer-events-none ${
-                isOffPathWobble ? 'animate-bounce scale-125' : ''
-              } ${roundSuccessCelebration ? 'animate-spin scale-150' : ''}`}
+                isOffPathWobble ? 'animate-bounce' : ''
+              } ${roundSuccessCelebration && currentPath.pathType !== 'spiral' ? 'animate-spin scale-150' : ''}`}
               style={{ left: beePos.x, top: beePos.y }}
             >
               <div className="relative flex items-center justify-center">
@@ -695,25 +594,55 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         )}
       </main>
 
-      {/* Footer Info Bar */}
-      <footer className="px-4 py-2 bg-slate-900/60 backdrop-blur-md border-t border-white/10 z-30 flex justify-between items-center text-xs text-gray-300 font-medium">
-        <div className="truncate">
-          <strong className="text-amber-400 capitalize">
-            {currentPath?.pathType}
-          </strong>
-          <span className="text-gray-400 text-[11px] ml-1">
-            (T{currentPath?.difficultyTier}, {currentPath?.orientation === 'portrait' ? 'Vertical ↕' : 'Horizontal ↔'})
-          </span>
-        </div>
-        <div className="text-[11px] text-right truncate text-gray-400 ml-2">
-          {isTracing ? (
-            <span className="text-emerald-400 font-bold">● Tracing...</span>
-          ) : (
-            <span>Trace to flower!</span>
-          )}
-        </div>
-      </footer>
+      {isGuided && currentPath ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (roundSuccessCelebration) return;
+            runGuidedDemo(currentPath);
+          }}
+          disabled={isGuidedDemoRunning}
+          className="absolute bottom-14 right-4 z-40 w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer disabled:opacity-45 active:scale-95"
+          style={{ color: mutedColor }}
+          title={hasDemoPlayed ? 'Replay demo' : 'Play demo'}
+        >
+          <ReplayIcon className="w-[22px] h-[22px]" />
+        </button>
+      ) : null}
 
+      <button
+        type="button"
+        onClick={() => setIsMenuOpen(true)}
+        className="absolute bottom-3 right-4 z-40 w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer active:scale-95"
+        style={{ color: mutedColor }}
+        title="Settings menu"
+      >
+        <SlidersIcon className="w-[22px] h-[22px]" />
+      </button>
+
+      <GameMenuDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onQuit={() => {
+          exitFullScreenSafe();
+          onExit();
+        }}
+        onReset={() => {
+          setCurrentRoundNumber(1);
+          setRoundResults([]);
+          initRoundPath(1);
+        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        resetButtonLabel="Reset Level"
+        sessionInProgress={!isSettingsOpen && !isResultsOpen}
+        settingsSummary={[
+          { label: 'Patient', value: settings.patientName },
+          { label: 'Mode', value: settings.tracingMode },
+          { label: 'Path', value: String(settings.pathType) },
+          { label: 'Path Width', value: `${settings.toleranceBandPx}px` },
+          { label: 'Rounds', value: `${currentRoundNumber}/${settings.roundsPerSet}` },
+        ]}
+      />
 
       {/* Shared Clinical Settings Modal */}
       <ClinicalSettingsModal

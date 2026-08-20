@@ -11,7 +11,12 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+          <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+            <Stack.Screen
+              name="play/geoboard"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+          </Stack>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

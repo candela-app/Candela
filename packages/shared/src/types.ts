@@ -90,7 +90,7 @@ export interface BeeTracingSettings {
   colorTheme: ColorTheme;
   audioEnabled: boolean;
   inputSensitivity: InputSensitivity;
-  roundsPerSet: number; // session length: 3, 5, 7 rounds
+  roundsPerSet: number; // session length: 5, 7, or 10 rounds
   orientation?: DeviceOrientation;
 }
 
@@ -234,8 +234,8 @@ export type GeoboardMatrixTier = 1 | 2 | 3 | 4 | 5; // 1 = Full, 2 = 8 missing, 
 export type GeoboardComplexityTier = 1 | 2 | 3 | 4; // 1 = simple lines, 2 = closed shapes, 3 = diagonals, 4 = compound polygons
 export type GeoboardTransform = 'duplicate' | 'flip_h' | 'flip_v' | 'rotate_90_l' | 'rotate_90_r';
 
-/** Board 01 lines, 02 alphabets, 03 shapes, 04 numbers, 05 compound figures. */
-export type GeoboardBoardId = 1 | 2 | 3 | 4 | 5;
+/** Board 06 beginner lines, 01 lines, 02 alphabets, 03 shapes, 04 numbers, 05 compound figures. */
+export type GeoboardBoardId = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface GeoboardProtocol {
   patientName: string;
@@ -257,6 +257,8 @@ export interface GeoboardProtocol {
   penColor: string;
   dotColor?: string;
   dotActiveColor?: string;
+  /** 1 = current (maximum) peg size; lower values shrink the pegs. */
+  pegSizeScale?: number;
 }
 
 /** Segment-match tally for one screen half, used to surface hemifield asymmetry. */

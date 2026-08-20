@@ -72,6 +72,7 @@ function MainContent() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
+    if (catalogId === 'geoboard' && String(levelId) === '6') return true;
     return prescribedLevels.includes(String(levelId));
   };
 
