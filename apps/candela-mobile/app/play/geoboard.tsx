@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import type { GeoboardBoardId } from '@candela/shared/rn';
 import { GEOBOARD_BOARD_IDS } from '@candela/shared/rn';
 import { GeoboardGame } from '../../src/games/GeoboardGame';
@@ -14,9 +14,18 @@ export default function GeoboardPlayScreen() {
   const { boardId, board } = useLocalSearchParams<{ boardId?: string; board?: string }>();
   const raw = Array.isArray(boardId) ? boardId[0] : boardId ?? (Array.isArray(board) ? board[0] : board);
   return (
-    <GeoboardGame
-      boardId={resolveBoardId(raw)}
-      onExit={() => router.replace('/dashboard?module=geoboard')}
-    />
+    <>
+      <Stack.Screen
+        options={{
+          gestureEnabled: false,
+          fullScreenGestureEnabled: false,
+          animation: 'fade',
+        }}
+      />
+      <GeoboardGame
+        boardId={resolveBoardId(raw)}
+        onExit={() => router.replace('/dashboard?module=geoboard')}
+      />
+    </>
   );
 }

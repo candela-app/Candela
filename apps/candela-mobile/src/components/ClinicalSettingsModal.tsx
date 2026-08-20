@@ -160,7 +160,7 @@ export function ClinicalSettingsModal({
   toleranceBandPx = 40,
   colorTheme = 'dark',
   audioEnabled = true,
-  roundsPerSet = 7,
+  roundsPerSet = 10,
   pathComplexity = 'medium',
   beeSpeedSec = 5,
   orientation = 'auto',
@@ -274,7 +274,7 @@ export function ClinicalSettingsModal({
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
       pathType: tempPathType,
-      toleranceBandPx: tempTolerance,
+      toleranceBandPx: tempPathType === 'spiral' ? 12 : tempTolerance,
       colorTheme: tempTheme,
       audioEnabled: tempAudio,
       roundsPerSet: tempRounds,
@@ -640,11 +640,15 @@ export function ClinicalSettingsModal({
                   ))}
                 </View>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tolerance</Text>
+                {tempPathType !== 'spiral' ? (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   {[24, 40, 56, 72].map((n) => (
                     <Chip key={n} label={`${n}px`} active={tempTolerance === n} onPress={() => setTempTolerance(n)} />
                   ))}
                 </View>
+                ) : (
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginBottom: s(8) }}>Spiral uses a fixed narrow path.</Text>
+                )}
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Theme</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   {(['dark', 'standard', 'high_contrast'] as const).map((p) => (
@@ -656,7 +660,7 @@ export function ClinicalSettingsModal({
                 </View>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Rounds</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {[1, 3, 5, 7].map((n) => (
+                  {[5, 7, 10].map((n) => (
                     <Chip key={n} label={`${n}`} active={tempRounds === n} onPress={() => setTempRounds(n)} />
                   ))}
                 </View>

@@ -23,12 +23,15 @@ export function AppHeader({
   const { fs, s, pad } = useLayout();
   const homeHref = session ? roleHomePath(session.user.role) : '/';
   const onDocIdPage = pathname === '/docid';
+  const showBack = Boolean(onBack || backHref || onDocIdPage);
 
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else if (backHref) {
       router.push(backHref as never);
+    } else if (onDocIdPage) {
+      router.replace(homeHref as never);
     }
   };
 
@@ -48,71 +51,53 @@ export function AppHeader({
         gap: s(8),
       }}
     >
-      {session ? (
-        <Pressable onPress={() => router.replace(homeHref as never)} style={{ flex: 1, paddingVertical: s(4) }}>
-          <Text numberOfLines={1} style={{ fontSize: fs(16), fontWeight: '700', color: '#111827' }}>
-            {session.user.name}
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={{ flex: 1 }} />
-      )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), flexShrink: 1 }}>
-        {session?.user.role === 'patient' ? (
-          onDocIdPage ? (
-            <Pressable
-              onPress={() => router.push('/dashboard')}
-              style={{
-                paddingHorizontal: s(10),
-                paddingVertical: s(7),
-                borderRadius: s(12),
-                backgroundColor: '#EFF6FF',
-                borderWidth: 1,
-                borderColor: '#BFDBFE',
-              }}
-            >
-              <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>Home</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={() => router.push('/docid' as never)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: s(6),
-                paddingHorizontal: s(10),
-                paddingVertical: s(7),
-                borderRadius: s(12),
-                backgroundColor: '#EFF6FF',
-                borderWidth: 1,
-                borderColor: '#BFDBFE',
-              }}
-            >
-              <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>DocID</Text>
-              {session.patient?.pendingDocIdRequest ? (
-                <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: colors.blue }} />
-              ) : null}
-            </Pressable>
-          )
-        ) : null}
-        {extra}
-        {onBack || backHref ? (
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        {showBack ? (
           <Pressable
             onPress={handleBack}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={s(8)}
+            style={{
+              width: s(36),
+              height: s(36),
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ArrowLeftIcon size={s(22)} color="#111827" />
+          </Pressable>
+        ) : session ? (
+          <Pressable onPress={() => router.replace(homeHref as never)} style={{ paddingVertical: s(4), maxWidth: '100%' }}>
+            <Text numberOfLines={1} style={{ fontSize: fs(16), fontWeight: '700', color: '#111827' }}>
+              {session.user.name}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), flexShrink: 0 }}>
+        {session?.user.role === 'patient' && !onDocIdPage ? (
+          <Pressable
+            onPress={() => router.push('/docid' as never)}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              gap: s(4),
-              paddingHorizontal: s(12),
+              gap: s(6),
+              paddingHorizontal: s(10),
               paddingVertical: s(7),
               borderRadius: s(12),
-              backgroundColor: '#F3F4F6',
+              backgroundColor: '#EFF6FF',
+              borderWidth: 1,
+              borderColor: '#BFDBFE',
             }}
           >
-            <ArrowLeftIcon size={s(14)} color="#6B7280" />
-            <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151' }}>Back</Text>
+            <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>DocID</Text>
+            {session.patient?.pendingDocIdRequest ? (
+              <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: colors.blue }} />
+            ) : null}
           </Pressable>
         ) : null}
+        {extra}
         {session ? (
           <Pressable
             onPress={async () => {

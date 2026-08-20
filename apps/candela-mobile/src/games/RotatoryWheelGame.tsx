@@ -50,7 +50,7 @@ export function RotatoryWheelGame({
   const [targetColor, setTargetColor] = useState('#ff5722');
   const [patientName, setPatientName] = useState(sessionDisplayName(session));
   const [letterSize, setLetterSize] = useState(2.5);
-  const [bubbleSize, setBubbleSize] = useState(90);
+  const [bubbleSize, setBubbleSize] = useState(80);
   const [wheelColor, setWheelColor] = useState('#000000');
   const [customColors] = useState(['#FFFFFF', '#2F80FF', '#FF3B30']);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -114,9 +114,9 @@ export function RotatoryWheelGame({
 
   const speakTarget = useCallback((text: string, currentMode: GameMode) => {
     speak(currentMode !== 'colors' ? `target ${text.toLowerCase()}` : text, {
-      rate: 0.82,
-      pitch: 1.4,
-      language: 'en-IN',
+      rate: 0.95,
+      pitch: 1,
+      language: 'en-US',
     });
   }, []);
 

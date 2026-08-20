@@ -18,12 +18,12 @@ import {
   playMissPressSoundAndHaptic,
   playSuccessSoundAndHaptic,
   requestFullScreenSafe,
-  exitFullScreenSafe,
   ClinicalSettingsModal,
   SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { SlidersIcon } from '../icons/VectorIcons';
 
 interface SortingGameProps {
   variant?: SortingVariant;
@@ -32,7 +32,6 @@ interface SortingGameProps {
 
 export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps) {
   const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [isBlinking, setIsBlinking] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Settings & Results Modal State
@@ -185,16 +184,6 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       setTempBubbleSize(bubbleSize);
     }
   }, [isSettingsOpen, patientName, letterSize, bubbleSize]);
-
-  // Idle blinking emoji timer
-  useEffect(() => {
-    if (gameStarted) return;
-    const interval = setInterval(() => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 1200);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [gameStarted]);
 
   // Duration timer
   useEffect(() => {
@@ -406,14 +395,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
   const allItems = sequenceItems();
   const currentTargetSymbol = allItems[expectedIndex] || '';
-  const batchPlan = getBatchPlan();
 
   const avgReactionMs = reactionTimes.length
     ? Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length)
     : 0;
 
   return (
-    <div className="relative w-screen h-screen bg-[#0A0A0A] flex flex-col justify-between overflow-hidden text-white">
+    <div className="relative w-screen h-screen bg-[#0A0A0A] overflow-hidden text-white">
       {/* TOP-RIGHT NOTIFICATION TOAST */}
       {notification && (
         <div className="fixed top-6 right-6 z-[300] flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md text-white font-bold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/30 text-sm animate-fade-in">
@@ -421,65 +409,33 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         </div>
       )}
 
-      {/* HEADER BAR */}
-      <div className="w-full flex justify-between items-center px-6 py-4 bg-[#141414]/90 backdrop-blur border-b border-gray-800 z-10">
-        <div className="flex items-center gap-4">
+      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Sorting Module</h2>
           <button
-            className="text-2xl font-bold text-gray-300 hover:text-white transition-colors"
-            onClick={() => {
-              exitFullScreenSafe();
-              if (onExit) onExit();
-            }}
+            type="button"
+            onClick={startGame}
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+            title="Click to Start Therapy Session"
           >
-            ← Back
+            Click to Start
           </button>
-          <h2 className="text-2xl font-extrabold text-white capitalize">
-            {variant} Sorting
-          </h2>
         </div>
+      ) : null}
 
-        {gameStarted && (
-          <div className="flex items-center gap-6">
-            <div className="text-lg font-bold text-gray-300">
-              Next: <span className="text-2xl font-black text-blue-400 font-mono">{currentTargetSymbol}</span>
-            </div>
-            <div className="text-sm font-semibold text-gray-400">
-              Batch {currentBatchIndex + 1} of {batchPlan.length} ({expectedIndex} / {allItems.length})
-            </div>
-          </div>
-        )}
-
-        <button
-          className="text-3xl text-gray-300 hover:text-white transition-colors"
-          onClick={() => setIsMenuOpen(true)}
-        >
-          ☰
-        </button>
-      </div>
+      {gameStarted ? (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-[#111827] px-4 py-2 rounded-xl">
+          <span className="text-white font-black text-2xl">{currentTargetSymbol}</span>
+        </div>
+      ) : null}
 
       {/* GAME AREA */}
       <div
         ref={containerRef}
-        className="relative flex-1 w-full h-full bg-[#000000] overflow-hidden cursor-pointer"
+        className="relative w-full h-full bg-[#000000] overflow-hidden cursor-pointer"
         onClick={handleBackgroundClick}
       >
-        {!gameStarted ? (
-          <div className="absolute inset-0 flex flex-col justify-center items-center gap-6 bg-black/80">
-            <button
-              className="text-8xl hover:scale-110 active:scale-95 transition-transform cursor-pointer select-none"
-              onClick={startGame}
-              title="Click to Start Game"
-            >
-              {isBlinking ? '😉' : '🙂'}
-            </button>
-            <div className="text-2xl font-bold text-gray-200">
-              Click the emoji to start sorting!
-            </div>
-            <div className="text-sm text-gray-400 font-medium">
-              Device: <span className="text-blue-400 font-bold">{deviceType}</span> ({deviceType === 'Desktop' ? '5-item chunks' : '4-item chunks'})
-            </div>
-          </div>
-        ) : (
+        {gameStarted ? (
           <div>
             {bubbles.map((bubble) => {
               const isPopping = poppingIds.has(bubble.id);
@@ -488,7 +444,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               return (
                 <div
                   key={bubble.id}
-                  className={`absolute rounded-full flex justify-center items-center font-extrabold cursor-pointer select-none border-2 border-white/40 shadow-lg active:scale-110 transition-all -translate-x-1/2 -translate-y-1/2 ${
+                  className={`absolute rounded-full flex justify-center items-center font-extrabold cursor-pointer select-none active:scale-110 transition-all -translate-x-1/2 -translate-y-1/2 ${
                     isPopping ? 'animate-pop' : ''
                   } ${isWrong ? 'animate-shake' : ''}`}
                   style={{
@@ -510,8 +466,17 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               );
             })}
           </div>
-        )}
+        ) : null}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsMenuOpen(true)}
+        className="absolute bottom-6 right-4 z-40 w-11 h-11 rounded-full bg-[#121626] text-white flex items-center justify-center cursor-pointer active:scale-95"
+        title="Settings menu"
+      >
+        <SlidersIcon className="w-5 h-5" />
+      </button>
 
       {/* SHARED OFFCANVAS MENU */}
       <GameMenuDrawer
@@ -523,6 +488,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         onReset={() => setGameStarted(false)}
         resetButtonLabel="Reset Game"
         onOpenSettings={() => setIsSettingsOpen(true)}
+        sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient', value: patientName },
           { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },

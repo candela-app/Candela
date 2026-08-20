@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GEOBOARD_PEN_COLORS,
+  GEOBOARD_PEG_SIZE_PRESETS,
   getContrastAdjustedColor,
   getPenColorName,
   type AlphabetVariant,
@@ -108,6 +109,7 @@ export function GeoboardSettingsModal({
   protocol,
   boardName,
   supportsLetterCase,
+  beginnerLineBoard = false,
   patternCount,
 }: {
   isOpen: boolean;
@@ -116,6 +118,7 @@ export function GeoboardSettingsModal({
   protocol: GeoboardProtocol;
   boardName: string;
   supportsLetterCase: boolean;
+  beginnerLineBoard?: boolean;
   patternCount: number;
 }) {
   const insets = useSafeAreaInsets();
@@ -128,12 +131,14 @@ export function GeoboardSettingsModal({
         ...protocol,
         dotColor: protocol.dotColor || '#111827',
         dotActiveColor: protocol.dotActiveColor || '#0284C7',
+        pegSizeScale: protocol.pegSizeScale ?? 1,
       });
     }
   }, [isOpen, protocol]);
 
   const patch = (partial: Partial<GeoboardProtocol>) => setDraft((prev) => ({ ...prev, ...partial }));
   const previewColor = getContrastAdjustedColor(draft.shapeColor, draft.bgColor, draft.contrastSensitivity);
+  const previewPeg = Math.max(8, Math.round(s(16) * (draft.pegSizeScale ?? 1)));
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -216,6 +221,13 @@ export function GeoboardSettingsModal({
                   </Text>
                 </>
               ) : null}
+              {beginnerLineBoard ? (
+                <Text style={{ color: '#9CA3AF', fontSize: fs(12), lineHeight: fs(18) }}>
+                  First the reference line stays on screen so they can copy a standing (vertical) or steep (horizontal)
+                  line. Later the reference is hidden and they draw the same kind of line on their own.
+                </Text>
+              ) : (
+                <>
               <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>MATRIX DENSITY (DOT SUPPORT)</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(6) }}>
                 {([
@@ -248,6 +260,8 @@ export function GeoboardSettingsModal({
                   />
                 ))}
               </View>
+                </>
+              )}
             </Card>
 
             <Card title="Difficulty & Presentation" color="#FBBF24">
@@ -458,6 +472,18 @@ export function GeoboardSettingsModal({
                   />
                 ))}
               </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800' }}>PEG SIZE</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'nowrap', gap: s(8) }}>
+                {GEOBOARD_PEG_SIZE_PRESETS.map((preset) => (
+                  <Option
+                    key={preset.id}
+                    label={preset.label}
+                    active={Math.abs((draft.pegSizeScale ?? 1) - preset.scale) < 0.01}
+                    onPress={() => patch({ pegSizeScale: preset.scale })}
+                    activeColor="#F59E0B"
+                  />
+                ))}
+              </View>
               <View
                 style={{
                   marginTop: s(4),
@@ -477,18 +503,18 @@ export function GeoboardSettingsModal({
                   <View
                     key={idx}
                     style={{
-                      width: s(16),
-                      height: s(16),
-                      borderRadius: s(8),
+                      width: previewPeg,
+                      height: previewPeg,
+                      borderRadius: previewPeg / 2,
                       backgroundColor: idx === 2 ? draft.dotActiveColor || '#0284C7' : draft.dotColor || '#111827',
-                      borderWidth: 2,
+                      borderWidth: previewPeg >= 14 ? 2 : 1,
                       borderColor: draft.bgColor === '#FFFFFF' || draft.bgColor === '#F2F5F3' ? '#E5E7EB' : '#94A3B8',
                     }}
                   />
                 ))}
               </View>
               <Text style={{ color: '#6B7280', fontSize: fs(11), textAlign: 'center' }}>
-                Dot preview · middle peg shows the active colour
+                Dot preview · size and colours
               </Text>
             </Card>
 
