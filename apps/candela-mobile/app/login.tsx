@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import type { SessionUser } from '@candela/shared/rn';
 import { AuthShell, Field, PasswordField, PrimaryButton, WebsiteExploreNote } from '../src/components/AuthForm';
+import { AuthDivider, GoogleSignInButton } from '../src/components/GoogleSignInButton';
 import { ApiError, api } from '../src/lib/api';
 import { roleHomePath, useAuth } from '../src/lib/auth-context';
 import { clearTokens } from '../src/lib/tokens';
@@ -17,6 +18,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
@@ -44,6 +46,23 @@ export default function LoginScreen() {
     }
   }
 
+  async function onGoogle(idToken: string) {
+    setError('');
+    setGoogleBusy(true);
+    try {
+      const next = await api<SessionUser>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+      setRedirecting(true);
+      applySession(next);
+      router.replace(roleHomePath(next.user.role) as never);
+    } catch (err) {
+      setGoogleBusy(false);
+      setError(err instanceof ApiError ? err.message : 'Could not sign in with Google');
+    }
+  }
+
   if (loading || session || redirecting) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}>
@@ -57,9 +76,11 @@ export default function LoginScreen() {
       <Field label="Email" value={email} onChange={setEmail} keyboardType="email-address" autoComplete="email" />
       <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="password" />
       {error ? <Text style={{ color: colors.red, fontWeight: '600', marginBottom: 12 }}>{error}</Text> : null}
-      <PrimaryButton disabled={submitting} onPress={() => void onSubmit()}>
+      <PrimaryButton disabled={submitting || googleBusy} onPress={() => void onSubmit()}>
         {submitting ? 'Signing in…' : 'Sign in'}
       </PrimaryButton>
+      <AuthDivider />
+      <GoogleSignInButton disabled={submitting} busy={googleBusy} onIdToken={onGoogle} />
       <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: 24, textAlign: 'center' }}>
         Don&apos;t have an account?{' '}
         <Link href="/signup" style={{ color: colors.blue, fontWeight: '700' }}>

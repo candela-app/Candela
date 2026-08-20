@@ -10,13 +10,16 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { DocIdModule } from '../docid/docid.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleAuthService } from './google-auth.service';
 import { AdminController, DoctorController, MeController } from './role.controllers';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, DoctorProfile, PatientProfile, Prescription, RefreshToken]),
+    DocIdModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -28,6 +31,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   controllers: [AuthController, AdminController, DoctorController, MeController],
   providers: [
     AuthService,
+    GoogleAuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

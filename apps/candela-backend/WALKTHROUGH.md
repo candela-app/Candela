@@ -12,7 +12,7 @@ Three roles share one `users` table (`role` column). Extra rows exist only where
 | **Doctor** | Admin | `doctors` (referral code) | Create patients already linked to them. Add/remove prescribed modules. |
 | **Patient** | Doctor, or self-signup | `patients` | Play modules: prescribed list if linked to a doctor, **all catalog modules** if self-signup. |
 
-Login is always **email + password**. Patients never type a referral code. Display name in the UI is `users.name`.
+Login is always **email + password**. Self-signup patients can later type a doctor's DocID to request an attach. Display name in the UI is `users.name`.
 
 ---
 
@@ -20,21 +20,21 @@ Login is always **email + password**. Patients never type a referral code. Displ
 
 ### Referral codes
 
-Generated automatically when an admin creates a doctor. Used only as a **tracking key** (shown on admin/doctor dashboards).
+Generated automatically when an admin creates a doctor. Shown on admin/doctor dashboards and used as the **DocID** for attach / change / transfer.
 
 - Exactly **6 characters**
 - **3 letters** (A–Z) and **3 digits** (0–9)
 - **First character is always a letter**
 - Remaining 5 characters are shuffled (any order)
 
-Implementation: `src/common/referral-code.ts`. Collisions retry up to 20 times.
+Implementation: `src/common/referral-code.ts`. Collisions retry up to 20 times. Patient linking: [docs/DOCID_AND_MAIL.md](../../docs/DOCID_AND_MAIL.md).
 
 ### Patient origin
 
 | `patients.origin` | How the account is created | `doctor_id` | Modules on `GET /api/me` |
 |-------------------|----------------------------|-------------|--------------------------|
 | `doctor_created` | Doctor submits name, phone, email, password | that doctor | Only rows in `prescriptions` (empty list until the doctor checks modules) |
-| `self_signup` | `POST /api/auth/signup` (same fields, no doctor) | `null` | All catalog ids |
+| `self_signup` | `POST /api/auth/signup` (same fields, no doctor) | `null` until a doctor confirms an attach | All catalog ids while unlinked; prescribed only after attach |
 
 Catalog ids: `rotatory`, `sorting`, `bee_tracing`, `pursuit`, `mobile_target` (`src/common/catalog.ts`).
 
@@ -59,17 +59,11 @@ The website proxies `/api/*` to this server so cookies stay first-party on the N
 
 Admins are **not** a separate table. They are `users` rows with `role = 'admin'`.
 
-`npm run seed:admins` (and startup `seedAdmin()` in `AuthService`) inserts these if missing:
-
-- `sai@candela.com`
-- `satvik@candela.com`
-
-Passwords are defined only in `src/seed-admins.ts` / `AuthService.seedAdmin` — do not copy them into other docs.
+Credentials come from environment variables (`ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD`, plus optional `ADMIN_2_*` …). `npm run seed:admins` and startup `seedAdminUsers()` insert those accounts if they are missing. Set `ADMIN_SEED_OVERWRITE=true` only while rotating passwords, then turn it off. Never commit real admin passwords.
 
 ### Explicit non-goals (this pass)
 
 - No game session / metrics tables
-- No linking a self-signup patient to a doctor later
 - No password-reset email
 - No doctor self-registration
 
@@ -87,10 +81,14 @@ patients (user_id PK → users, doctor_id → doctors nullable, origin)
 
 prescriptions (id, patient_id → patients, module_id, unique(patient_id, module_id))
 
+docid_requests (pending attach/change/transfer + hashed confirm token)
+
+patient_docid_history (previous DocIDs after change/internal)
+
 refresh_tokens (id, user_id → users, token_hash unique, expires_at, revoked_at)
 ```
 
-TypeORM `synchronize` is **false**. Schema is applied by migration `InitAuth1740000000000`. Runtime uses `DATABASE_URL` (Neon pooler). Migrations use `DATABASE_URL_DIRECT`.
+TypeORM `synchronize` is **false**. Schema is applied by migrations (`InitAuth`, prescription levels, DocID requests). Runtime uses `DATABASE_URL` (Neon pooler). Migrations use `DATABASE_URL_DIRECT`.
 
 ---
 
@@ -98,7 +96,7 @@ TypeORM `synchronize` is **false**. Schema is applied by migration `InitAuth1740
 
 All JSON. Cookie session via `credentials: 'include'` from the website. Bearer access token is also accepted.
 
-Public (no login): `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/health`.
+Public (no login): `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/health`, DocID token confirm/reject.
 
 Everyone else needs a valid access cookie/JWT. `@Roles(...)` additionally requires `admin` or `doctor`.
 
@@ -141,6 +139,19 @@ Creating a doctor generates `referral_code` and a `doctors` row.
 
 Cross-doctor access returns 404/403. Unknown `moduleId` returns 404.
 
+### DocID (`src/docid`)
+
+| Method | Path | Who |
+|--------|------|-----|
+| POST | `/api/docid/requests` | Patient (Self or Change) |
+| POST | `/api/docid/transfers` | Admin (Internal) |
+| GET | `/api/docid/incoming` | Doctor |
+| POST | `/api/docid/requests/:id/accept` | Recipient |
+| POST | `/api/docid/requests/:id/reject` | Recipient |
+| GET | `/api/docid/requests/token/:token` | Public |
+| POST | `/api/docid/requests/token/:token/accept` | Public |
+| POST | `/api/docid/requests/token/:token/reject` | Public |
+
 ---
 
 ## 5. File Map & Locations
@@ -149,12 +160,14 @@ Cross-doctor access returns 404/403. Unknown `moduleId` returns 404.
 - **Health**: `apps/candela-backend/src/app.controller.ts`, `app.service.ts`
 - **Auth + role HTTP**: `apps/candela-backend/src/auth/auth.controller.ts`, `role.controllers.ts`
 - **Business logic**: `apps/candela-backend/src/auth/auth.service.ts`
+- **DocID requests**: `apps/candela-backend/src/docid/`
+- **Mail**: `apps/candela-backend/src/mail/mail.service.ts`
 - **DTOs**: `apps/candela-backend/src/auth/dto.ts`
 - **Guards**: `apps/candela-backend/src/common/jwt-auth.guard.ts`, `roles.guard.ts`
 - **Referral codes**: `apps/candela-backend/src/common/referral-code.ts`
 - **Module catalog**: `apps/candela-backend/src/common/catalog.ts`
 - **Entities**: `apps/candela-backend/src/entities/`
-- **Migration**: `apps/candela-backend/src/migrations/1740000000000-InitAuth.ts`
-- **Admin seed**: `apps/candela-backend/src/seed-admins.ts`
+- **Migration**: `apps/candela-backend/src/migrations/`
+- **Admin seed**: `apps/candela-backend/src/common/admin-seed.ts`, `src/seed-admins.ts`
 - **Website types**: `packages/shared/src/auth-types.ts`
-- **Website UI**: `/login`, `/signup`, `/admin`, `/doctor`, `/dashboard` in `apps/candela-app`
+- **Website UI**: `/login`, `/signup`, `/admin`, `/doctor`, `/dashboard`, `/docid/confirm`, `/docid/reject` in `apps/candela-app`

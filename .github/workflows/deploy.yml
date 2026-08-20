@@ -8,7 +8,34 @@ concurrency:
   group: ci-cd-main
   cancel-in-progress: true
 
+env:
+  SLACK_WEBHOOK_URL_WEB: ${{ secrets.SLACK_WEBHOOK_URL_WEB }}
+  SLACK_WEBHOOK_URL_MOBILE: ${{ secrets.SLACK_WEBHOOK_URL_MOBILE }}
+
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Paths filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Use this push's commit range — not develop vs main (0 files after a merge).
+          base: ${{ github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            mobile:
+              - 'apps/candela-mobile/**'
+              - 'packages/shared/**'
+
   ci:
     name: CI Build
     runs-on: ubuntu-latest
@@ -34,8 +61,15 @@ jobs:
       - name: Build backend
         run: npm run build --workspace=@candela/backend
 
+      - name: Slack — CI failed
+        if: failure()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":x: *Candela CI failed* on \`${{ github.ref_name }}\` — commit \`${{ github.sha }}\` by ${{ github.actor }}. Vercel and Render deploys were skipped. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
   deploy-vercel:
-    name: Deploy Vercel
+    name: Deploy Frontend (Vercel)
     needs: ci
     runs-on: ubuntu-latest
     env:
@@ -45,6 +79,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Slack — frontend deploy started
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":rocket: *Frontend deploy started* (Vercel) — branch \`${{ github.ref_name }}\`, commit \`${{ github.sha }}\` by ${{ github.actor }}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -65,20 +105,138 @@ jobs:
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel
-        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        id: deploy
+        run: |
+          set -e
+          DEPLOY_URL=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $DEPLOY_URL"
+
+      - name: Slack — frontend deploy succeeded
+        if: success()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":white_check_mark: *Frontend deploy succeeded* (Vercel) — ${{ steps.deploy.outputs.url }}"
+
+      - name: Slack — frontend deploy failed
+        if: failure()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":x: *Frontend deploy failed* (Vercel) — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   deploy-render:
-    name: Deploy Render
+    name: Deploy Backend (Render)
     needs: ci
     runs-on: ubuntu-latest
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
-      - name: Trigger Render deploy hook
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Slack — backend deploy started
         run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":rocket: *Backend deploy started* (Render) — branch \`${{ github.ref_name }}\`, commit \`${{ github.sha }}\` by ${{ github.actor }}"
+
+      - name: Trigger Render deploy hook
+        id: render
+        run: |
+          set -e
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "Missing secret: RENDER_DEPLOY_HOOK_URL"
             exit 1
           fi
           curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL"
-          echo "Render deploy triggered"
+          echo "Render deploy hook accepted"
+
+      - name: Slack — backend deploy triggered
+        if: success()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":white_check_mark: *Backend deploy triggered* (Render) — hook accepted. Render will finish the rollout on its dashboard (this webhook does not wait for live health)."
+
+      - name: Slack — backend deploy failed
+        if: failure()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_WEB" \
+            ":x: *Backend deploy failed* (Render hook) — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  build-mobile-apk:
+    name: Build Mobile APK (EAS)
+    needs: [changes, ci]
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Slack — mobile APK build started
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" \
+            ":rocket: *Mobile APK build started* (EAS Android) — branch \`${{ github.ref_name }}\`, commit \`${{ github.sha }}\` by ${{ github.actor }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@candela/shared
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli@latest
+
+      - name: Require Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing secret: EXPO_TOKEN (create at https://expo.dev/settings/access-tokens)"
+            exit 1
+          fi
+
+      - name: Build Android APK
+        id: eas
+        working-directory: apps/candela-mobile
+        run: |
+          set -e
+          eas build --platform android --profile preview --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
+          BUILD_ID=$(jq -r '.[0].id // empty' "$RUNNER_TEMP/eas-build.json")
+          BUILD_URL=$(jq -r '.[0].artifacts.buildUrl // empty' "$RUNNER_TEMP/eas-build.json")
+          if [ -z "$BUILD_ID" ]; then
+            echo "Could not parse EAS build output:"
+            cat "$RUNNER_TEMP/eas-build.json"
+            exit 1
+          fi
+          BUILD_PAGE="https://expo.dev/builds/$BUILD_ID"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          echo "build_page=$BUILD_PAGE" >> "$GITHUB_OUTPUT"
+          echo "apk_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Slack — mobile APK build succeeded
+        if: success()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          MSG=":white_check_mark: *Mobile APK build succeeded* (EAS Android)
+          Build: ${{ steps.eas.outputs.build_page }}
+          APK: ${{ steps.eas.outputs.apk_url }}"
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" "$MSG"
+
+      - name: Slack — mobile APK build failed
+        if: failure()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" \
+            ":x: *Mobile APK build failed* (EAS Android) — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

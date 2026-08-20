@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   NotFoundException,
   Param,
   Patch,
@@ -18,7 +19,7 @@ import { User } from '../entities/user.entity';
 @Controller('api/admin')
 @Roles('admin')
 export class AdminController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('doctors')
   createDoctor(@Body() dto: CreateAccountDto) {
@@ -49,7 +50,7 @@ export class AdminController {
 @Controller('api/doctors/me')
 @Roles('doctor')
 export class DoctorController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('patients')
   createPatient(@CurrentUser() user: User, @Body() dto: CreateAccountDto) {
@@ -102,7 +103,7 @@ export class DoctorController {
 
 @Controller('api/me')
 export class MeController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Get()
   me(@CurrentUser() user: User) {

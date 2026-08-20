@@ -1,14 +1,14 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Public } from '../common/decorators';
 import { CurrentUser } from '../common/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AuthService, readRefreshCookie } from './auth.service';
-import { LoginDto, SignupDto, RefreshDto } from './dto';
+import { GoogleAuthDto, LoginDto, SignupDto, RefreshDto } from './dto';
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Public()
   @Post('signup')
@@ -20,6 +20,12 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     return this.auth.login(dto, res);
+  }
+
+  @Public()
+  @Post('google')
+  loginGoogle(@Body() dto: GoogleAuthDto, @Res({ passthrough: true }) res: Response) {
+    return this.auth.loginWithGoogle(dto, res);
   }
 
   @Public()

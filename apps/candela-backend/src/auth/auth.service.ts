@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -11,15 +12,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Response } from 'express';
 import { Repository } from 'typeorm';
+import { seedAdminUsers } from '../common/admin-seed';
 import { ALL_MODULE_IDS } from '../common/catalog';
 import { ACCESS_MAX_AGE_SEC, clearAuthCookies, REFRESH_COOKIE, REFRESH_MAX_AGE_SEC, setAuthCookies } from '../common/cookies';
 import { generateReferralCode } from '../common/referral-code';
+import { DocIdService } from '../docid/docid.service';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
-import { CreateAccountDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
+import { GoogleAuthService } from './google-auth.service';
+import { CreateAccountDto, GoogleAuthDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -31,36 +35,13 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
-    private readonly jwtService: JwtService,
+    @Inject(JwtService) private readonly jwtService: JwtService,
+    @Inject(DocIdService) private readonly docid: DocIdService,
+    @Inject(GoogleAuthService) private readonly googleAuth: GoogleAuthService,
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.seedAdmin();
-  }
-
-  private async seedAdmin(): Promise<void> {
-    const admins = [
-      { email: 'sai@candela.com', password: 'sai123$', name: 'Sai' },
-      { email: 'satvik@candela.com', password: 'satvik123$', name: 'Satvik' },
-    ];
-    for (const admin of admins) {
-      const email = admin.email.trim().toLowerCase();
-      const existing = await this.users.findOne({ where: { email } });
-      if (existing) {
-        continue;
-      }
-      const passwordHash = await bcrypt.hash(admin.password, BCRYPT_ROUNDS);
-      await this.users.save(
-        this.users.create({
-          email,
-          passwordHash,
-          name: admin.name,
-          phone: '0000000000',
-          role: 'admin',
-        }),
-      );
-      console.log(`Seeded admin account for ${email}`);
-    }
+    await seedAdminUsers(this.users);
   }
 
   async signup(dto: SignupDto, res: Response) {
@@ -84,10 +65,52 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('This account uses Google Sign-In');
+    }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    return this.issueSession(user, res);
+  }
+
+  async loginWithGoogle(dto: GoogleAuthDto, res: Response) {
+    let profile;
+    if (dto.idToken) {
+      profile = await this.googleAuth.verifyIdToken(dto.idToken);
+    } else if (dto.accessToken) {
+      profile = await this.googleAuth.verifyAccessToken(dto.accessToken);
+    } else {
+      throw new UnauthorizedException('Missing Google token');
+    }
+    let user =
+      (await this.users.findOne({ where: { googleId: profile.googleId } })) ??
+      (await this.users.findOne({ where: { email: profile.email } }));
+
+    if (!user) {
+      user = await this.users.save(
+        this.users.create({
+          email: profile.email,
+          name: profile.name,
+          googleId: profile.googleId,
+          passwordHash: null,
+          phone: null,
+          role: 'patient',
+        }),
+      );
+      await this.patients.save(
+        this.patients.create({
+          userId: user.id,
+          doctorId: null,
+          origin: 'self_signup',
+        }),
+      );
+    } else if (!user.googleId) {
+      user.googleId = profile.googleId;
+      await this.users.save(user);
+    }
+
     return this.issueSession(user, res);
   }
 
@@ -206,6 +229,7 @@ export class AuthService implements OnModuleInit {
     if (!user || user.role !== 'doctor') {
       throw new NotFoundException('Doctor not found');
     }
+    await this.docid.cancelPendingForDoctor(doctorUserId);
     await this.refreshTokens.delete({ userId: doctorUserId });
     await this.patients.update({ doctorId: doctorUserId }, { doctorId: null });
     await this.doctors.delete({ userId: doctorUserId });
@@ -219,7 +243,7 @@ export class AuthService implements OnModuleInit {
       relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
       order: { origin: 'ASC' },
     });
-    return patients.map((p) => this.patientToSummary(p));
+    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
   }
 
   async listDoctorPatients(doctorUserId: string) {
@@ -227,7 +251,7 @@ export class AuthService implements OnModuleInit {
       where: { doctorId: doctorUserId },
       relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
     });
-    return patients.map((p) => this.patientToSummary(p));
+    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
   }
 
   async getOwnedPatient(doctorUserId: string, patientId: string) {
@@ -238,7 +262,8 @@ export class AuthService implements OnModuleInit {
     if (!patient) {
       return null;
     }
-    return this.patientToSummary(patient);
+    const [summary] = await this.attachDocIdMeta([this.patientToSummary(patient)]);
+    return summary;
   }
 
   async addPrescription(doctorUserId: string, patientId: string, moduleId: string, levels: string[] = []) {
@@ -350,8 +375,13 @@ export class AuthService implements OnModuleInit {
         acc[p.moduleId] = p.levels || [];
         return acc;
       }, {} as Record<string, string[]>) ?? {};
-      const allowedModuleIds =
-        patient?.origin === 'self_signup' || !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
+      const allowedModuleIds = !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
+      const pendingDocIdRequest = patient
+        ? await this.docid.getPendingForPatient(patient.userId)
+        : null;
+      const previousReferralCodes = patient
+        ? await this.docid.listHistoryCodes(patient.userId)
+        : [];
       return {
         user: publicUser,
         doctor: null,
@@ -362,6 +392,8 @@ export class AuthService implements OnModuleInit {
               referralCode: patient.doctor?.referralCode ?? null,
               prescribedModuleIds: prescribed,
               prescribedLevels,
+              pendingDocIdRequest,
+              previousReferralCodes,
             }
           : null,
         allowedModuleIds,
@@ -380,7 +412,7 @@ export class AuthService implements OnModuleInit {
       id: user.id,
       email: user.email,
       name: user.name,
-      phone: user.phone,
+      phone: user.phone ?? '',
       role: user.role,
     };
   }
@@ -393,7 +425,8 @@ export class AuthService implements OnModuleInit {
     if (!patient) {
       return null;
     }
-    return this.patientToSummary(patient);
+    const [summary] = await this.attachDocIdMeta([this.patientToSummary(patient)]);
+    return summary;
   }
 
   private patientToSummary(patient: PatientProfile) {
@@ -410,7 +443,18 @@ export class AuthService implements OnModuleInit {
       referralCode: patient.doctor?.referralCode ?? null,
       prescribedModuleIds: patient.prescriptions?.map((p) => p.moduleId) ?? [],
       prescribedLevels,
+      previousReferralCodes: [] as string[],
     };
+  }
+
+  private async attachDocIdMeta<T extends { id: string; previousReferralCodes: string[] }>(
+    summaries: T[],
+  ): Promise<T[]> {
+    const history = await this.docid.listHistoryCodesByPatientIds(summaries.map((s) => s.id));
+    return summaries.map((summary) => ({
+      ...summary,
+      previousReferralCodes: history.get(summary.id) ?? [],
+    }));
   }
 }
 

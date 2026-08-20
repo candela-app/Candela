@@ -1,8 +1,9 @@
 import { Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHomePath, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
+import { colors } from '../lib/theme';
 import type { ReactNode } from 'react';
 import { ArrowLeftIcon, LogOutIcon } from './icons';
 
@@ -17,9 +18,11 @@ export function AppHeader({
 }) {
   const { session, loading, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { fs, s, pad } = useLayout();
   const homeHref = session ? roleHomePath(session.user.role) : '/';
+  const onDocIdPage = pathname === '/docid';
 
   const handleBack = () => {
     if (onBack) {
@@ -54,7 +57,44 @@ export function AppHeader({
       ) : (
         <View style={{ flex: 1 }} />
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), flexShrink: 1 }}>
+        {session?.user.role === 'patient' ? (
+          onDocIdPage ? (
+            <Pressable
+              onPress={() => router.push('/dashboard')}
+              style={{
+                paddingHorizontal: s(10),
+                paddingVertical: s(7),
+                borderRadius: s(12),
+                backgroundColor: '#EFF6FF',
+                borderWidth: 1,
+                borderColor: '#BFDBFE',
+              }}
+            >
+              <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>Home</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push('/docid' as never)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: s(6),
+                paddingHorizontal: s(10),
+                paddingVertical: s(7),
+                borderRadius: s(12),
+                backgroundColor: '#EFF6FF',
+                borderWidth: 1,
+                borderColor: '#BFDBFE',
+              }}
+            >
+              <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>DocID</Text>
+              {session.patient?.pendingDocIdRequest ? (
+                <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: colors.blue }} />
+              ) : null}
+            </Pressable>
+          )
+        ) : null}
         {extra}
         {onBack || backHref ? (
           <Pressable

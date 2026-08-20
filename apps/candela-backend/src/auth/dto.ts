@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -61,4 +61,16 @@ export class RefreshDto {
   @IsOptional()
   @IsString()
   refreshToken?: string;
+}
+
+export class GoogleAuthDto {
+  @ValidateIf((dto: GoogleAuthDto) => !dto.accessToken)
+  @IsString()
+  @MinLength(10)
+  idToken?: string;
+
+  @ValidateIf((dto: GoogleAuthDto) => !dto.idToken)
+  @IsString()
+  @MinLength(10)
+  accessToken?: string;
 }

@@ -11,10 +11,11 @@ function resolveBoardId(value?: string): GeoboardBoardId {
 
 export default function GeoboardPlayScreen() {
   const router = useRouter();
-  const { boardId } = useLocalSearchParams<{ boardId?: string }>();
+  const { boardId, board } = useLocalSearchParams<{ boardId?: string; board?: string }>();
+  const raw = Array.isArray(boardId) ? boardId[0] : boardId ?? (Array.isArray(board) ? board[0] : board);
   return (
     <GeoboardGame
-      boardId={resolveBoardId(Array.isArray(boardId) ? boardId[0] : boardId)}
+      boardId={resolveBoardId(raw)}
       onExit={() => router.replace('/dashboard?module=geoboard')}
     />
   );
