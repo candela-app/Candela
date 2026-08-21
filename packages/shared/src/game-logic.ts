@@ -1,5 +1,16 @@
 import { BubblePosition, GameMode, ColorItem, SessionResultData, DeviceTier } from './types';
-import { ALPHABETS, NUMBERS, BRIGHT_COLORS } from './constants';
+import {
+  ALPHABETS,
+  NUMBERS,
+  BRIGHT_COLORS,
+  PHONE_BUBBLE_SIZE_PX,
+  PHONE_SORTING_BUBBLE_SIZE_PX,
+  TABLET_BUBBLE_SIZE_PX,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
+  MAX_SORTING_NUMBER_COUNT,
+  SORTING_BATCH_SIZE,
+} from './constants';
 
 /**
  * Detects device tier from viewport dimensions.
@@ -14,6 +25,53 @@ export function getDeviceTier(width?: number, height?: number): DeviceTier {
   if (w < 600 || (w < 1024 && h < 500)) return 'mobile';
   if (w <= 1200) return 'tablet';
   return 'tv';
+}
+
+/** Rotatory/sorting bubble default: phones keep the smaller size; tabs and up use 100px. */
+export function defaultBubbleSizePx(
+  tier: DeviceTier = getDeviceTier(),
+  game: 'rotatory' | 'sorting' = 'rotatory',
+): number {
+  if (tier === 'mobile') return game === 'sorting' ? PHONE_SORTING_BUBBLE_SIZE_PX : PHONE_BUBBLE_SIZE_PX;
+  return TABLET_BUBBLE_SIZE_PX;
+}
+
+export function clampSortingNumberRange(from: number, to: number): { from: number; to: number } {
+  let start = Number.isFinite(from) ? Math.round(from) : DEFAULT_SORTING_NUMBER_FROM;
+  let end = Number.isFinite(to) ? Math.round(to) : DEFAULT_SORTING_NUMBER_TO;
+  if (start > end) {
+    const swap = start;
+    start = end;
+    end = swap;
+  }
+  if (end - start + 1 > MAX_SORTING_NUMBER_COUNT) {
+    end = start + MAX_SORTING_NUMBER_COUNT - 1;
+  }
+  return { from: start, to: end };
+}
+
+export function sortingNumberSequence(from: number, to: number): string[] {
+  const range = clampSortingNumberRange(from, to);
+  const items: string[] = [];
+  for (let n = range.from; n <= range.to; n += 1) items.push(String(n));
+  return items;
+}
+
+export function sortingBatchPlan(total: number, tier: DeviceTier): number[] {
+  const perRound = SORTING_BATCH_SIZE[tier] ?? 4;
+  if (total <= 0) return [];
+  const plan: number[] = [];
+  let remaining = total;
+  while (remaining > 0) {
+    const count = Math.min(perRound, remaining);
+    plan.push(count);
+    remaining -= count;
+  }
+  if (plan.length >= 2 && plan[plan.length - 1] === 1) {
+    plan[plan.length - 2] -= 1;
+    plan[plan.length - 1] += 1;
+  }
+  return plan;
 }
 
 /**

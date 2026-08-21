@@ -12,6 +12,7 @@ import {
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
@@ -48,6 +49,7 @@ export function MobileTargetGame({
   initialVariant = 'uppercase',
   onExit,
 }: MobileTargetGameProps) {
+  useGameSessionLock(true);
   // Settings
   const [settings, setSettings] = useState<MobileTargetSettings>({
     patientName: 'Mobile Patient',

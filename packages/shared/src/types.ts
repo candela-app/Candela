@@ -64,6 +64,8 @@ export interface SortingGameSettings {
   letterSize: number;
   bubbleSizePx: number;
   patientName: string;
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }
 
 // --- Bee Path Tracing Module Types ---
@@ -88,6 +90,8 @@ export interface BeeTracingSettings {
   beeSpeedSec: number; // duration for demo in guided mode (e.g. 6s slow, 4s normal, 2.5s fast)
   pathComplexity: PathComplexity; // short/baseline, medium/extended, long/complex
   colorTheme: ColorTheme;
+  /** End-of-path target dot. Default pink. */
+  targetDotColor?: string;
   audioEnabled: boolean;
   inputSensitivity: InputSensitivity;
   roundsPerSet: number; // session length: 5, 7, or 10 rounds

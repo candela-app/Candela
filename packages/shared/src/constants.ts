@@ -36,3 +36,29 @@ export const SPEED_PRESETS = [0.5, 1, 1.25, 1.5, 2];
 
 export const DEFAULT_BUBBLE_COUNT = 12;
 export const DEFAULT_BASE_ANIMATION_DURATION = 25; // seconds for 1x speed
+
+export const DEFAULT_SORTING_NUMBER_FROM = 1;
+export const DEFAULT_SORTING_NUMBER_TO = 20;
+export const MAX_SORTING_NUMBER_COUNT = 20;
+
+export const SORTING_BATCH_SIZE: Record<DeviceTier, number> = {
+  mobile: 4,
+  tablet: 5,
+  tv: 8,
+};
+
+/** Phone bubble diameter (rotatory). Tablet / TV / desktop uses TABLET_BUBBLE_SIZE_PX. */
+export const PHONE_BUBBLE_SIZE_PX = 80;
+export const TABLET_BUBBLE_SIZE_PX = 100;
+export const PHONE_SORTING_BUBBLE_SIZE_PX = 90;
+export const BUBBLE_SIZE_PRESETS = [60, 80, 100, 120];
+
+export const DEFAULT_BEE_TARGET_DOT_COLOR = '#E56B9A';
+export const BEE_TARGET_DOT_COLORS: ColorItem[] = [
+  { name: 'Pink', code: '#E56B9A' },
+  { name: 'Rose', code: '#F43F5E' },
+  { name: 'Yellow', code: '#FBBF24' },
+  { name: 'Cyan', code: '#22D3EE' },
+  { name: 'White', code: '#F8FAFC' },
+  { name: 'Lime', code: '#84CC16' },
+];

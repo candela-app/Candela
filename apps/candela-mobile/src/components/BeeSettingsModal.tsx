@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BeeTracingSettings, ColorTheme, DeviceOrientation, PathComplexity, TracingMode } from '@candela/shared/rn';
+import { BEE_TARGET_DOT_COLORS, DEFAULT_BEE_TARGET_DOT_COLOR } from '@candela/shared/rn';
 import { useLayout } from '../lib/layout';
 
 function Card({ title, color, children }: { title: string; color: string; children: ReactNode }) {
@@ -320,6 +321,25 @@ export function BeeSettingsModal({
                     label={item.label}
                     active={(draft.colorTheme === 'high_contrast' ? 'standard' : draft.colorTheme) === item.id}
                     onPress={() => patch({ colorTheme: item.id })}
+                  />
+                ))}
+              </View>
+              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
+                TARGET DOT COLOR
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                {BEE_TARGET_DOT_COLORS.map((swatch) => (
+                  <Pressable
+                    key={swatch.code}
+                    onPress={() => patch({ targetDotColor: swatch.code })}
+                    style={{
+                      width: s(36),
+                      height: s(36),
+                      borderRadius: s(18),
+                      backgroundColor: swatch.code,
+                      borderWidth: (draft.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR) === swatch.code ? 3 : 0,
+                      borderColor: '#fff',
+                    }}
                   />
                 ))}
               </View>

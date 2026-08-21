@@ -12,12 +12,16 @@ import {
   evaluateTracingMetrics,
   findNearestPathPointInWindow,
   generateBeePath,
+  beeHeadingDeg,
+  lerpHeadingDeg,
   resolveBeePathType,
   resolveOrientation,
+  DEFAULT_BEE_TARGET_DOT_COLOR,
   type GeneratedPath,
 } from '@candela/shared/rn';
 import { BeeResultsModal } from '../components/BeeResultsModal';
 import { BeeSettingsModal } from '../components/BeeSettingsModal';
+import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { ReplayIcon, SlidersIcon } from '../components/icons';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
@@ -39,6 +43,7 @@ const DEFAULT_SETTINGS: BeeTracingSettings = {
   beeSpeedSec: 5,
   pathComplexity: 'medium',
   colorTheme: 'dark',
+  targetDotColor: DEFAULT_BEE_TARGET_DOT_COLOR,
   audioEnabled: true,
   inputSensitivity: 'auto',
   roundsPerSet: 10,
@@ -122,6 +127,9 @@ export function BeeTracingGame({
     orientation: lockPortrait ? 'portrait' : DEFAULT_SETTINGS.orientation,
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [beeHeading, setBeeHeading] = useState(0);
+  const { requestExit } = useGameSessionLock(onExit);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
@@ -157,7 +165,7 @@ export function BeeTracingGame({
     tracingRef.current = false;
     setBeeHeld(false);
     void stopBeeBuzz();
-    onExit();
+    requestExit();
   };
 
   const setBeeHeld = (held: boolean) => {
@@ -192,6 +200,11 @@ export function BeeTracingGame({
 
   useEffect(() => {
     beePosRef.current = beePos;
+    const path = pathRef.current;
+    if (!path) return;
+    const lookAhead = path.pathType === 'spiral' || path.pathType === 'curve' || path.pathType === 'wave' ? 8 : 4;
+    const target = beeHeadingDeg(path.points, currentPathIndexRef.current, lookAhead);
+    setBeeHeading((prev) => lerpHeadingDeg(prev, target, path.pathType === 'spiral' ? 0.2 : 0.34));
   }, [beePos]);
   useEffect(() => {
     tracingRef.current = isTracing;
@@ -259,6 +272,7 @@ export function BeeTracingGame({
       const last = Math.max(0, generated.points.length - 1);
       const ptIndex = Math.min(last, Math.floor(progress * last));
       const pt = generated.points[ptIndex] || generated.startPoint;
+      currentPathIndexRef.current = ptIndex;
       beePosRef.current = pt;
       setBeePos(pt);
       setDemoTrail(generated.points.slice(0, ptIndex + 1));
@@ -321,9 +335,9 @@ export function BeeTracingGame({
   );
 
   useEffect(() => {
-    if (isSettingsOpen) return;
+    if (isSettingsOpen || !gameStarted) return;
     initRoundPath(currentRoundNumber, bounds.w, bounds.h);
-  }, [currentRoundNumber, isSettingsOpen, initRoundPath, bounds.w, bounds.h]);
+  }, [currentRoundNumber, isSettingsOpen, gameStarted, initRoundPath, bounds.w, bounds.h]);
 
   const handleRoundCompletion = () => {
     if (roundSuccessRef.current || !currentPath) return;
@@ -578,22 +592,31 @@ export function BeeTracingGame({
               />
             ) : null}
             {currentPath?.distractorPoint ? (
-              <Circle cx={currentPath.distractorPoint.x} cy={currentPath.distractorPoint.y} r={16} fill={theme.flower} opacity={0.35} />
+              <Circle cx={currentPath.distractorPoint.x} cy={currentPath.distractorPoint.y} r={16} fill={settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR} opacity={0.35} />
             ) : null}
-            {currentPath ? <Circle cx={currentPath.endPoint.x} cy={currentPath.endPoint.y} r={18} fill={theme.flower} /> : null}
+            {currentPath ? <Circle cx={currentPath.endPoint.x} cy={currentPath.endPoint.y} r={18} fill={settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR} /> : null}
           </Svg>
         ) : null}
-        <Animated.Image
-          source={require('@candela/shared/assets/bee.png')}
+        <View
+          pointerEvents="none"
           style={{
             position: 'absolute',
             width: BEE_SIZE,
             height: BEE_SIZE,
             left: beePos.x - BEE_SIZE / 2,
             top: beePos.y - BEE_SIZE / 2,
-            transform: [{ scale: beeScale }],
+            transform: [{ rotate: `${beeHeading}deg` }],
           }}
-        />
+        >
+          <Animated.Image
+            source={require('@candela/shared/assets/bee.png')}
+            style={{
+              width: BEE_SIZE,
+              height: BEE_SIZE,
+              transform: [{ scale: beeScale }],
+            }}
+          />
+        </View>
       </View>
       {toastMessage ? (
         <View style={{ position: 'absolute', top: s(48), alignSelf: 'center', backgroundColor: '#111827', padding: s(10), borderRadius: s(12) }}>
@@ -603,6 +626,32 @@ export function BeeTracingGame({
       <Text style={{ position: 'absolute', top: s(52), right: s(16), color: theme.ui, fontWeight: '700', fontSize: fs(13) }}>
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </Text>
+      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(6,7,13,0.96)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: s(12),
+            zIndex: 40,
+          }}
+        >
+          <Pressable
+            onPress={() => setGameStarted(true)}
+            style={{ backgroundColor: '#34D399', paddingHorizontal: s(28), paddingVertical: s(14), borderRadius: 999 }}
+          >
+            <Text style={{ color: '#022c22', fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
+          </Pressable>
+          <Pressable onPress={() => setIsSettingsOpen(true)}>
+            <Text style={{ color: '#CBD5E1', fontWeight: '700' }}>Edit Clinical Settings</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {isGuided && currentPath ? (
         <Pressable
           onPress={() => {

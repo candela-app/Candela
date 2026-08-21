@@ -18,6 +18,8 @@ import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { PursuitResultsModal } from '../components/PursuitResultsModal';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
+import { useGameSessionLock } from '../lib/use-game-session-lock';
+import { SlidersIcon } from '../components/icons';
 import { useLayout } from '../lib/layout';
 
 const TOTAL_TRIALS = 20;
@@ -55,6 +57,8 @@ export function PursuitGame({
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [gameStarted, setGameStarted] = useState(false);
+  const { requestExit } = useGameSessionLock(onExit);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [sessionResults, setSessionResults] = useState<PursuitSessionResultData | null>(null);
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
@@ -153,8 +157,8 @@ export function PursuitGame({
   );
 
   useEffect(() => {
-    if (!isSettingsOpen) startTrial(currentTrialIndex);
-  }, [currentTrialIndex, isSettingsOpen]);
+    if (!isSettingsOpen && gameStarted) startTrial(currentTrialIndex);
+  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
 
   useEffect(() => {
     if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
@@ -278,8 +282,46 @@ export function PursuitGame({
       <Text style={{ position: 'absolute', top: s(48), alignSelf: 'center', color: '#fff', fontWeight: '700' }}>
         Trial {Math.min(currentTrialIndex + 1, TOTAL_TRIALS)}/{TOTAL_TRIALS}
       </Text>
-      <Pressable onPress={() => setIsMenuOpen(true)} style={{ position: 'absolute', bottom: s(24), right: s(16), backgroundColor: '#121626', padding: s(12), borderRadius: 22 }}>
-        <Text style={{ color: '#fff' }}>☰</Text>
+      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(6,7,13,0.96)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
+            gap: 12,
+          }}
+        >
+          <Pressable
+            onPress={() => setGameStarted(true)}
+            style={{ backgroundColor: '#34D399', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999 }}
+          >
+            <Text style={{ color: '#022c22', fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
+          </Pressable>
+          <Pressable onPress={() => setIsSettingsOpen(true)}>
+            <Text style={{ color: '#CBD5E1', fontWeight: '700' }}>Edit Clinical Settings</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      <Pressable
+        onPress={() => setIsMenuOpen(true)}
+        style={{
+          position: 'absolute',
+          bottom: s(24),
+          right: s(16),
+          width: s(44),
+          height: s(44),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'transparent',
+        }}
+      >
+        <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
@@ -313,7 +355,7 @@ export function PursuitGame({
         <PursuitResultsModal
           isOpen={isResultsOpen}
           data={sessionResults}
-          onClose={onExit}
+          onClose={requestExit}
           onReplay={() => {
             setIsResultsOpen(false);
             trialMetricsRef.current = [];
@@ -324,7 +366,7 @@ export function PursuitGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onQuit={onExit}
+        onQuit={requestExit}
         onReset={() => {
           trialMetricsRef.current = [];
           setCurrentTrialIndex(0);

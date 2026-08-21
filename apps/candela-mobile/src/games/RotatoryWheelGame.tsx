@@ -23,6 +23,7 @@ import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
 import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
+import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { useLayout } from '../lib/layout';
 import { speak, stopSpeaking } from '../lib/speech';
@@ -39,7 +40,7 @@ export function RotatoryWheelGame({
   onExit,
 }: RotatoryWheelGameProps) {
   const { session } = useAuth();
-  const { width, height, s, fs } = useLayout();
+  const { width, height, s, fs, isTablet } = useLayout();
   const insets = useSafeAreaInsets();
   const [mode] = useState<GameMode>(initialMode);
   const [variant] = useState<AlphabetVariant>(initialVariant);
@@ -50,13 +51,14 @@ export function RotatoryWheelGame({
   const [targetColor, setTargetColor] = useState('#ff5722');
   const [patientName, setPatientName] = useState(sessionDisplayName(session));
   const [letterSize, setLetterSize] = useState(2.5);
-  const [bubbleSize, setBubbleSize] = useState(80);
+  const [bubbleSize, setBubbleSize] = useState(() => (isTablet ? 100 : 80));
   const [wheelColor, setWheelColor] = useState('#000000');
   const [customColors] = useState(['#FFFFFF', '#2F80FF', '#FF3B30']);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
+  const { requestExit } = useGameSessionLock(onExit);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
@@ -634,7 +636,7 @@ export function RotatoryWheelGame({
               if (inProgress) setConfirmQuit(true);
               else {
                 setIsAssistiveTouchOpen(false);
-                onExit?.();
+                requestExit();
               }
             }}
             style={{ backgroundColor: '#B91C1C', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center' }}
@@ -743,7 +745,7 @@ export function RotatoryWheelGame({
           data={resultsData}
           onClose={() => {
             setIsResultsOpen(false);
-            onExit?.();
+            requestExit();
           }}
           onReplay={() => {
             setIsResultsOpen(false);
@@ -757,7 +759,7 @@ export function RotatoryWheelGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onQuit={() => onExit?.()}
+        onQuit={() => requestExit()}
         sessionInProgress={isGameStarted && !isResultsOpen}
         onReset={startLevel}
         resetButtonLabel="Reset Level"
@@ -804,7 +806,7 @@ export function RotatoryWheelGame({
         onConfirm={() => {
           setConfirmQuit(false);
           setIsAssistiveTouchOpen(false);
-          onExit?.();
+          requestExit();
         }}
       />
     </View>

@@ -248,7 +248,8 @@
   width: 100%;
   max-width: 960px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
   gap: 2.5rem;
@@ -552,6 +553,15 @@
   margin: 0 auto;
 }
 
+@media (min-width: 1201px) {
+  .gridsContainer,
+  .playClean .gridsContainer {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    max-width: min(1680px, 96vw);
+  }
+}
+
 .playClean .gridWrapper {
   border-radius: 0;
   box-shadow: none;
@@ -775,7 +785,7 @@
 
 /* Portrait phones and tablets: stack the two boards and snap the scroll so a
    flick parks on the model or the drawing board rather than stopping halfway. */
-@media (orientation: portrait) and (max-width: 900px) {
+@media (orientation: portrait) and (max-width: 1200px) {
   .mainLayout {
     scroll-snap-type: y mandatory;
     scroll-padding-top: 0.5rem;
