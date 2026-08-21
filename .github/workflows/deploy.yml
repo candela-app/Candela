@@ -3,6 +3,12 @@ name: Production Build and Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_mobile:
+        description: 'Force Mobile APK build (EAS)'
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-cd-main
@@ -170,7 +176,7 @@ jobs:
   build-mobile-apk:
     name: Build Mobile APK (EAS)
     needs: [changes, ci]
-    if: needs.changes.outputs.mobile == 'true'
+    if: needs.changes.outputs.mobile == 'true' || github.event.inputs.build_mobile == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
