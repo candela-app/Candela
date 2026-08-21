@@ -198,8 +198,8 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const strokeRef = useRef<PenStroke | null>(null);
   const activeBoardRef = useRef<InkBoard>('draw');
   const strokeBoardHistoryRef = useRef<InkBoard[]>([]);
-  const livePathModelRef = useRef<SVGPathElement | null>(null);
-  const livePathDrawRef = useRef<SVGPathElement | null>(null);
+  const livePathModelRef = useRef<SVGPathElement>(null);
+  const livePathDrawRef = useRef<SVGPathElement>(null);
   const sessionStartRef = useRef<number>(0);
   const trialStartRef = useRef<number>(0);
   const firstDotAtRef = useRef<number | null>(null);
@@ -781,7 +781,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   });
 
   const inkSvg = (
-    liveRef: React.RefObject<SVGPathElement | null>,
+    liveRef: React.RefObject<SVGPathElement>,
     boardStrokes: PenStroke[],
     boardSegments: Array<[number, number]>,
   ) => (

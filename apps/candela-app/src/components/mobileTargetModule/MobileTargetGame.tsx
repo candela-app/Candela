@@ -131,7 +131,7 @@ export function MobileTargetGame({
   const [sessionResult, setSessionResult] = useState<MobileTargetSessionResultData | null>(null);
 
   // Refs for physics loop
-  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const setStartTimeRef = useRef<number>(Date.now());
   const bubblesRef = useRef<MovingBubble[]>([]);
