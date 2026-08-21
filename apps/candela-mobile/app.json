@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kandela",
     "slug": "candela",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "default",
     "icon": "../../packages/shared/assets/app-icon-white.png",
     "scheme": "candela",
