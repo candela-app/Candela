@@ -66,7 +66,7 @@ export function GameMenuDrawer({
 
         {/* SHARED CORE ACTIONS */}
         <button
-          className="w-full py-3 px-4 bg-[#222222] border border-gray-700 rounded-xl text-gray-200 hover:bg-gray-800 font-semibold cursor-pointer transition-colors shrink-0"
+          className="w-full py-3 px-4 bg-[#B91C1C] border border-red-800 rounded-xl text-white hover:bg-red-700 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
             if (sessionInProgress) setConfirmQuit(true);
             else {

@@ -5,15 +5,40 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/lib/auth-context';
 
+export const unstable_settings = {
+  initialRouteName: 'index',
+};
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+          <Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: 'fade' }}>
+            <Stack.Screen name="index" />
             <Stack.Screen
               name="play/geoboard"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/rotatory"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/sorting"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/bee"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/pursuit"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/mobile-target"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
           </Stack>

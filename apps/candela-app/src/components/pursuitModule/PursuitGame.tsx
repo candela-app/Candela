@@ -19,6 +19,7 @@ import {
   pursuitPatternName,
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
+import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { PursuitResultsModal } from './PursuitResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
@@ -76,6 +77,8 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   // Menu & Results Modals
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [gameStarted, setGameStarted] = useState(false);
+  useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [sessionResults, setSessionResults] = useState<PursuitSessionResultData | null>(null);
 
@@ -153,8 +156,9 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   // Setup trial on mount or trial index change
   useEffect(() => {
+    if (isSettingsOpen || !gameStarted) return;
     startTrial(currentTrialIndex);
-  }, [currentTrialIndex]);
+  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
 
   // Timeout handler (logged as miss / timeout, auto advance)
   useEffect(() => {
@@ -399,6 +403,20 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   return (
     <div ref={containerRef} className={styles.gameContainer}>
+      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Pursuit</h2>
+          <button
+            onClick={() => setGameStarted(true)}
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+          >
+            Click to Start
+          </button>
+          <button onClick={() => setIsSettingsOpen(true)} className="text-sm font-extrabold text-gray-300">
+            Edit Clinical Settings
+          </button>
+        </div>
+      ) : null}
       {!isBlockPaused && !isResultsOpen ? (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 text-white font-bold pointer-events-none">
           Trial {Math.min(currentTrialIndex + 1, TOTAL_TRIALS)}/{TOTAL_TRIALS}
@@ -495,7 +513,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       <button
         type="button"
         onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-6 right-4 z-50 w-11 h-11 rounded-full bg-[#121626] text-white flex items-center justify-center cursor-pointer active:scale-95"
+        className="absolute bottom-6 right-4 z-50 w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300"
         title="Settings menu"
       >
         <SlidersIcon className="w-5 h-5" />

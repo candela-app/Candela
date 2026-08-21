@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { requestFullScreenSafe } from './game-logic';
+import { requestFullScreenSafe, clampSortingNumberRange } from './game-logic';
 import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
-import { SPEED_PRESETS } from './constants';
+import {
+  SPEED_PRESETS,
+  BUBBLE_SIZE_PRESETS,
+  BEE_TARGET_DOT_COLORS,
+  DEFAULT_BEE_TARGET_DOT_COLOR,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
+  MAX_SORTING_NUMBER_COUNT,
+} from './constants';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
@@ -47,6 +55,9 @@ export interface AppliedClinicalSettings {
   shapeColor?: string;
   penColor?: string;
   pegSizeScale?: number;
+  targetDotColor?: string;
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -99,6 +110,10 @@ export interface ClinicalSettingsModalProps {
   shapeColor?: string;
   penColor?: string;
   pegSizeScale?: number;
+  targetDotColor?: string;
+  showNumberRangeControl?: boolean;
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }
 
 /**
@@ -156,6 +171,10 @@ export function ClinicalSettingsModal({
   shapeColor = '#000000',
   penColor = '#FBBF24',
   pegSizeScale = 1,
+  targetDotColor = DEFAULT_BEE_TARGET_DOT_COLOR,
+  showNumberRangeControl = false,
+  numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
+  numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -192,6 +211,9 @@ export function ClinicalSettingsModal({
   const [tempShapeColor, setTempShapeColor] = useState<string>(shapeColor);
   const [tempPenColor, setTempPenColor] = useState<string>(penColor);
   const [tempPegSizeScale, setTempPegSizeScale] = useState<number>(pegSizeScale);
+  const [tempTargetDotColor, setTempTargetDotColor] = useState<string>(targetDotColor);
+  const [tempNumberRangeFrom, setTempNumberRangeFrom] = useState<number>(numberRangeFrom);
+  const [tempNumberRangeTo, setTempNumberRangeTo] = useState<number>(numberRangeTo);
 
   useEffect(() => {
     if (isOpen) {
@@ -228,6 +250,9 @@ export function ClinicalSettingsModal({
       setTempShapeColor(shapeColor);
       setTempPenColor(penColor);
       setTempPegSizeScale(pegSizeScale);
+      setTempTargetDotColor(targetDotColor);
+      setTempNumberRangeFrom(numberRangeFrom);
+      setTempNumberRangeTo(numberRangeTo);
       requestFullScreenSafe();
     }
   }, [
@@ -265,6 +290,9 @@ export function ClinicalSettingsModal({
     shapeColor,
     penColor,
     pegSizeScale,
+    targetDotColor,
+    numberRangeFrom,
+    numberRangeTo,
   ]);
 
   if (!isOpen) return null;
@@ -272,6 +300,7 @@ export function ClinicalSettingsModal({
   const beginnerLineBoard = showGeoboardControls && isBeginnerLineBoard(geoboardBoardId);
 
   const handleApply = () => {
+    const numberRange = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
     onApply({
       patientName: tempPatientName,
       letterSize: tempLetterSize,
@@ -306,6 +335,9 @@ export function ClinicalSettingsModal({
       shapeColor: tempShapeColor,
       penColor: tempPenColor,
       pegSizeScale: tempPegSizeScale,
+      targetDotColor: tempTargetDotColor,
+      numberRangeFrom: numberRange.from,
+      numberRangeTo: numberRange.to,
     });
   };
 
@@ -1220,25 +1252,56 @@ export function ClinicalSettingsModal({
                   ))}
                 </div>
               </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Target Dot Color
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">End-of-path marker. Default is pink.</p>
+                <div className="flex flex-wrap gap-2">
+                  {BEE_TARGET_DOT_COLORS.map((swatch) => (
+                    <button
+                      key={swatch.code}
+                      type="button"
+                      onClick={() => setTempTargetDotColor(swatch.code)}
+                      className={`h-10 min-w-[2.5rem] px-3 rounded-xl border-2 text-[11px] font-bold transition-all ${
+                        tempTargetDotColor === swatch.code
+                          ? 'border-white scale-105 shadow-md'
+                          : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: swatch.code, color: swatch.code === '#F8FAFC' ? '#0F172A' : '#0F172A' }}
+                      title={swatch.name}
+                    >
+                      {swatch.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch w-full">
-            {/* COLUMN 1 (LEFT): LIVE PREVIEW - ONLY FOR BUBBLE / SORTING GAMES */}
-            <div className="flex flex-col h-full justify-between">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch w-full">
+            <div className="lg:col-span-4 flex flex-col">
               <div
-                className="bg-[#0D0D0D] p-6 rounded-2xl border border-gray-800 flex flex-col items-center justify-between gap-4 overflow-hidden shadow-inner relative h-full min-h-[260px] sm:min-h-[280px]"
-                style={{ backgroundColor: '#0D0D0D' }}
+                className="bg-[#0B1220] p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center justify-between gap-5 overflow-hidden shadow-inner relative h-full min-h-[280px]"
               >
-                <div className="w-full flex items-center gap-2 text-xs font-extrabold text-blue-400 uppercase tracking-widest">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping inline-block" />
-                  Live Preview
+                <div className="w-full flex items-center justify-between text-xs font-extrabold text-cyan-300 uppercase tracking-widest">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse inline-block" />
+                    Live Preview
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">Matches play size</span>
                 </div>
 
-                {/* ISOLATED NON-OVERLAPPING PREVIEW CONTAINER */}
-                <div className="flex-1 flex justify-center items-center py-3 relative w-full h-[160px] overflow-hidden">
+                <div
+                  className="flex-1 flex justify-center items-center py-4 relative w-full min-h-[180px] rounded-2xl"
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at center, rgba(34,211,238,0.08) 0, transparent 55%), repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px), repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px)',
+                  }}
+                >
                   <div
-                    className="rounded-full flex justify-center items-center font-extrabold transition-all duration-200 select-none max-w-full max-h-full"
+                    className="rounded-full flex justify-center items-center font-extrabold transition-all duration-200 select-none shadow-[0_12px_40px_rgba(47,128,255,0.35)]"
                     style={{
                       width: `${tempBubbleSize}px`,
                       height: `${tempBubbleSize}px`,
@@ -1251,90 +1314,76 @@ export function ClinicalSettingsModal({
                   </div>
                 </div>
 
-                <div
-                  className="flex gap-5 text-xs sm:text-sm text-gray-300 font-mono px-5 py-2.5 rounded-full border border-gray-800 shadow-md"
-                  style={{ backgroundColor: '#141414' }}
-                >
-                  <span>Bubble: <strong className="text-blue-400 font-bold">{tempBubbleSize}</strong></span>
+                <div className="flex gap-4 text-xs sm:text-sm text-slate-300 font-mono px-5 py-2.5 rounded-full border border-slate-700 bg-slate-950/80">
+                  <span>Bubble <strong className="text-cyan-300">{tempBubbleSize}px</strong></span>
                   {showLetterSizeControl ? (
                     <>
-                      <span className="text-gray-600">|</span>
-                      <span>Font: <strong className="text-blue-400 font-bold">{tempLetterSize}</strong></span>
+                      <span className="text-slate-600">·</span>
+                      <span>Letter <strong className="text-cyan-300">{tempLetterSize}</strong></span>
                     </>
                   ) : null}
                 </div>
               </div>
             </div>
 
-            {/* COLUMN 2 (CENTER): LETTER SIZE & BUBBLE SIZE CONTROLS - ONLY FOR BUBBLE / SORTING GAMES */}
-            <div className="flex flex-col gap-6 justify-between">
+            <div className="lg:col-span-5 flex flex-col gap-5">
               {showLetterSizeControl ? (
-              <div
-                className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 flex-1 justify-center shadow-lg"
-                style={{ backgroundColor: '#242424' }}
-              >
-                <div className="flex justify-between items-center border-b border-gray-800 pb-2.5">
-                  <span className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider">
+              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
                     Letter Size
                   </span>
-                  <span className="font-black text-blue-400 font-mono text-lg">{tempLetterSize}</span>
+                  <span className="font-black text-cyan-300 font-mono text-lg">{tempLetterSize}</span>
                 </div>
-
-                <input
-                  type="range"
-                  min="1.0"
-                  max="3.0"
-                  step="0.5"
-                  className="w-full accent-blue-500 cursor-pointer h-2.5 my-2"
-                  value={tempLetterSize}
-                  onChange={(e) => setTempLetterSize(parseFloat(e.target.value))}
-                />
-
-                <div className="flex justify-between text-xs text-gray-400 font-mono px-1 mt-1">
-                  <span>1</span>
-                  <span>1.5</span>
-                  <span>2</span>
-                  <span>2.5</span>
-                  <span>3</span>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 1.5, 2, 2.5, 3].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        tempLetterSize === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
                 </div>
               </div>
               ) : null}
 
-              {/* STEPPED BUBBLE SIZE CONTROL */}
-              <div
-                className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 flex-1 justify-center shadow-lg"
-                style={{ backgroundColor: '#242424' }}
-              >
-                <div className="flex justify-between items-center border-b border-gray-800 pb-2.5">
-                  <span className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider">
+              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg flex-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
                     Bubble Size
                   </span>
-                  <span className="font-black text-blue-400 font-mono text-lg">{tempBubbleSize}</span>
+                  <span className="font-black text-cyan-300 font-mono text-lg">{tempBubbleSize}px</span>
                 </div>
-
-                <input
-                  type="range"
-                  min="50"
-                  max="130"
-                  step="20"
-                  className="w-full accent-blue-500 cursor-pointer h-2.5 my-2"
-                  value={tempBubbleSize}
-                  onChange={(e) => setTempBubbleSize(parseInt(e.target.value, 10))}
-                />
-
-                <div className="flex justify-between text-xs text-gray-400 font-mono px-1 mt-1">
-                  <span>50</span>
-                  <span>70</span>
-                  <span>90</span>
-                  <span>110</span>
-                  <span>130</span>
+                <div className="grid grid-cols-4 gap-2">
+                  {BUBBLE_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempBubbleSize(size)}
+                      className={`py-3 rounded-2xl text-sm font-black transition-all ${
+                        tempBubbleSize === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-[11px] text-slate-500">Tablets default to 100px. Phones keep the smaller size.</p>
               </div>
             </div>
 
 
             {/* COLUMN 3 (RIGHT): PATIENT PROFILE & DYNAMICS */}
-            <div className="flex flex-col gap-6 justify-between">
+            <div className="lg:col-span-3 flex flex-col gap-5 justify-between">
               {/* PATIENT NAME CARD */}
               <div
                 className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
@@ -1352,6 +1401,44 @@ export function ClinicalSettingsModal({
                   onChange={(e) => setTempPatientName(e.target.value)}
                 />
               </div>
+
+              {showNumberRangeControl ? (
+                <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-3 shadow-lg">
+                  <label className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
+                    Number Range
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Any start. At most {MAX_SORTING_NUMBER_COUNT} numbers (default {DEFAULT_SORTING_NUMBER_FROM}–{DEFAULT_SORTING_NUMBER_TO}).
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400">From</span>
+                      <input
+                        type="number"
+                        className="w-full mt-1 p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-400 font-mono"
+                        value={tempNumberRangeFrom}
+                        onChange={(e) => setTempNumberRangeFrom(parseInt(e.target.value, 10))}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400">To</span>
+                      <input
+                        type="number"
+                        className="w-full mt-1 p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-400 font-mono"
+                        value={tempNumberRangeTo}
+                        onChange={(e) => setTempNumberRangeTo(parseInt(e.target.value, 10))}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-cyan-300 font-semibold">
+                    {(() => {
+                      const range = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
+                      const count = range.to - range.from + 1;
+                      return `${range.from}–${range.to} · ${count} number${count === 1 ? '' : 's'}`;
+                    })()}
+                  </p>
+                </div>
+              ) : null}
 
               {/* SPEED CONTROL CARD (IF APPLICABLE) */}
               {showSpeedControl && (

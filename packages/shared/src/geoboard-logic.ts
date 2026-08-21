@@ -38,16 +38,17 @@ export interface GeoboardPattern {
 
 export const GEOBOARD_PATTERNS: GeoboardPattern[] = [
   // --- STAND AND STEEP (Board 06, first level) ---
-  { id: 'ss_copy_h', name: 'Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[10, 14]] },
-  { id: 'ss_copy_v', name: 'Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[2, 22]] },
+  // Reference stays on row 0 (steep / horizontal) or column 0 (standing / vertical).
+  { id: 'ss_copy_h', name: 'Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 4]] },
+  { id: 'ss_copy_v', name: 'Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 20]] },
   { id: 'ss_copy_h_top', name: 'Top Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 4]] },
   { id: 'ss_copy_v_left', name: 'Left Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 20]] },
-  { id: 'ss_copy_h_short', name: 'Short Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[10, 12]] },
-  { id: 'ss_copy_v_short', name: 'Short Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[2, 12]] },
-  { id: 'ss_own_h', name: 'Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[10, 14]] },
-  { id: 'ss_own_v', name: 'Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[2, 22]] },
-  { id: 'ss_own_h_bot', name: 'Bottom Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[20, 24]] },
-  { id: 'ss_own_v_right', name: 'Right Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[4, 24]] },
+  { id: 'ss_copy_h_short', name: 'Short Steep Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 2]] },
+  { id: 'ss_copy_v_short', name: 'Short Standing Line — Practice', stimulusType: 'patterns', complexityTier: 1, task: 'copy', segments: [[0, 10]] },
+  { id: 'ss_own_h', name: 'Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[0, 4]] },
+  { id: 'ss_own_v', name: 'Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[0, 20]] },
+  { id: 'ss_own_h_bot', name: 'Bottom Steep Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[0, 4]] },
+  { id: 'ss_own_v_right', name: 'Right Standing Line — On Your Own', stimulusType: 'patterns', complexityTier: 1, task: 'recall', segments: [[0, 20]] },
 
   // --- SIMPLE LINES (Board 01) ---
   { id: 'p_horiz_line', name: 'Horizontal Line', stimulusType: 'patterns', complexityTier: 1, segments: [[10, 14]] },
@@ -418,6 +419,29 @@ export function evaluateDrawing(
   return { correct: false, errorType: 'incomplete' };
 }
 
+/**
+ * Pins a beginner reference to the first row (steep) or first column (standing).
+ */
+export function snapBeginnerReferenceToFirstAxis(
+  segments: Array<[number, number]>,
+  width: number = 5,
+): Array<[number, number]> {
+  return segments.map(([a, b]) => {
+    const orient = segmentOrientation(a, b, width);
+    if (orient === 'h') {
+      const startCol = Math.min(a % width, b % width);
+      const endCol = Math.max(a % width, b % width);
+      return [startCol, endCol];
+    }
+    if (orient === 'v') {
+      const startRow = Math.min(Math.floor(a / width), Math.floor(b / width));
+      const endRow = Math.max(Math.floor(a / width), Math.floor(b / width));
+      return [startRow * width, endRow * width];
+    }
+    return [a, b];
+  });
+}
+
 function segmentOrientation(a: number, b: number, width: number): 'h' | 'v' | 'other' {
   const rowA = Math.floor(a / width);
   const rowB = Math.floor(b / width);
@@ -429,8 +453,9 @@ function segmentOrientation(a: number, b: number, width: number): 'h' | 'v' | 'o
 }
 
 /**
- * Stand and Steep practice: the reference line stays on the board as a guide.
- * The patient must draw another line of the same orientation on other pegs.
+ * Stand and Steep: the guide is one full first-row (steep) or first-column
+ * (standing) line. Progress requires every remaining row or column to be
+ * drawn in full as well.
  */
 export function evaluateBeginnerPractice(
   drawnSegments: Array<[number, number]>,
@@ -443,20 +468,41 @@ export function evaluateBeginnerPractice(
   const want = segmentOrientation(refUnits[0][0], refUnits[0][1], width);
   if (want === 'other') return evaluateDrawing(drawnSegments, referenceSegments, width, height);
 
-  const refKeys = new Set(refUnits.map(([start, end]) => `${start}-${end}`));
   const drawnUnits = normalizePatternSegments(drawnSegments, width, height);
-  const practiceUnits = drawnUnits.filter(([start, end]) => {
-    if (refKeys.has(`${start}-${end}`)) return false;
-    return segmentOrientation(start, end, width) === want;
-  });
+  const merged = normalizePatternSegments([...referenceSegments, ...drawnSegments], width, height);
+  const needed = want === 'h' ? height : width;
+  const complete = countCompleteLines(merged, want, width, height);
 
+  if (complete >= needed) return { correct: true, errorType: 'none' };
+
+  const practiceUnits = drawnUnits.filter(([start, end]) => segmentOrientation(start, end, width) === want);
   if (practiceUnits.length === 0) {
     return { correct: false, errorType: drawnUnits.length === 0 ? 'incomplete' : 'wrong-shape' };
   }
-  if (practiceUnits.length >= Math.max(1, Math.min(refUnits.length, 2))) {
-    return { correct: true, errorType: 'none' };
-  }
   return { correct: false, errorType: 'incomplete' };
+}
+
+function countCompleteLines(
+  units: Array<[number, number]>,
+  want: 'h' | 'v',
+  width: number,
+  height: number,
+): number {
+  let complete = 0;
+  if (want === 'h') {
+    for (let row = 0; row < height; row += 1) {
+      const segs = units.filter(
+        ([a, b]) => Math.floor(a / width) === row && Math.floor(b / width) === row,
+      );
+      if (segs.length >= width - 1) complete += 1;
+    }
+    return complete;
+  }
+  for (let col = 0; col < width; col += 1) {
+    const segs = units.filter(([a, b]) => a % width === col && b % width === col);
+    if (segs.length >= height - 1) complete += 1;
+  }
+  return complete;
 }
 
 export interface DifficultyProgressResult {
@@ -581,14 +627,8 @@ export const GEOBOARD_BOARDS: Record<GeoboardBoardId, GeoboardBoardDefinition> =
     patternIds: [
       'ss_copy_h',
       'ss_copy_v',
-      'ss_copy_h_top',
-      'ss_copy_v_left',
-      'ss_copy_h_short',
-      'ss_copy_v_short',
       'ss_own_h',
       'ss_own_v',
-      'ss_own_h_bot',
-      'ss_own_v_right',
     ],
   },
   1: {
@@ -734,7 +774,12 @@ export function getBoardPatterns(
 
   return ids
     .map((id) => getPatternById(id))
-    .filter((p): p is GeoboardPattern => Boolean(p));
+    .filter((p): p is GeoboardPattern => Boolean(p))
+    .map((pattern) =>
+      board.guidedBeginner
+        ? { ...pattern, segments: snapBeginnerReferenceToFirstAxis(pattern.segments) }
+        : pattern,
+    );
 }
 
 // ============================================================
