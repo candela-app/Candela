@@ -494,3 +494,24 @@ export function evaluateTracingMetrics(
     avgRecoveryTimeSec: Math.round((avgRecoveryMs / 1000) * 10) / 10,
   };
 }
+
+/** Sprite art faces +X (right). Offset if the PNG is authored differently. */
+export const BEE_SPRITE_HEADING_OFFSET_DEG = 90;
+
+export function beeHeadingDeg(points: PathPoint[], index: number, lookAhead = 5): number {
+  if (!points.length) return 0;
+  const i = Math.max(0, Math.min(index, points.length - 1));
+  let j = Math.min(points.length - 1, i + Math.max(1, lookAhead));
+  let a = points[i];
+  let b = points[j];
+  if (Math.hypot(b.x - a.x, b.y - a.y) < 1 && i > 0) {
+    a = points[Math.max(0, i - 1)];
+    b = points[i];
+  }
+  return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI + BEE_SPRITE_HEADING_OFFSET_DEG;
+}
+
+export function lerpHeadingDeg(from: number, to: number, t: number): number {
+  const delta = ((to - from + 540) % 360) - 180;
+  return from + delta * Math.max(0, Math.min(1, t));
+}

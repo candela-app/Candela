@@ -17,6 +17,7 @@ import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon
 import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
+import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { useLayout } from '../lib/layout';
 import { speak } from '../lib/speech';
 
@@ -59,6 +60,7 @@ export function MobileTargetGame({
   const { s, fs } = useLayout();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
+  const { requestExit } = useGameSessionLock(onExit);
   const [settings, setSettings] = useState<MobileTargetSettings>({
     patientName: sessionDisplayName(session),
     gameMode: initialMode,
@@ -657,7 +659,7 @@ export function MobileTargetGame({
               if (inProgress) setConfirmQuit(true);
               else {
                 setIsAssistiveTouchOpen(false);
-                onExit();
+                requestExit();
               }
             }}
             style={{ backgroundColor: '#B91C1C', borderRadius: s(16), paddingVertical: s(10), alignItems: 'center' }}
@@ -730,12 +732,12 @@ export function MobileTargetGame({
         }}
       />
       {sessionResult ? (
-        <GameResultsModal isOpen={showResults} data={sessionResult} onClose={onExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
+        <GameResultsModal isOpen={showResults} data={sessionResult} onClose={requestExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
       ) : null}
       <GameMenuDrawer
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onQuit={onExit}
+        onQuit={requestExit}
         sessionInProgress={!showResults && !showSettings && !showClickToStart}
         onReset={() => {
           setCurrentSetIndex(0);
@@ -768,7 +770,7 @@ export function MobileTargetGame({
         onConfirm={() => {
           setConfirmQuit(false);
           setIsAssistiveTouchOpen(false);
-          onExit();
+          requestExit();
         }}
       />
     </View>

@@ -70,9 +70,9 @@ export function GameMenuDrawer({
                 onQuit();
               }
             }}
-            style={menuBtn}
+            style={[menuBtn, menuBtnQuit]}
           >
-            <Text style={menuBtnText}>Quit Game</Text>
+            <Text style={[menuBtnText, { color: '#fff' }]}>Quit Game</Text>
           </Pressable>
           <Pressable
             onPress={() => setConfirmReset(true)}
@@ -142,6 +142,11 @@ const menuBtn = {
   borderColor: '#374151',
   borderRadius: 12,
   marginBottom: 10,
+};
+
+const menuBtnQuit = {
+  backgroundColor: '#B91C1C',
+  borderColor: '#991B1B',
 };
 
 const menuBtnText = { color: '#E5E7EB', fontWeight: '600' as const, textAlign: 'center' as const };

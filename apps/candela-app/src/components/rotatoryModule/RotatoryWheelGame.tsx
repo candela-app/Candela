@@ -12,6 +12,7 @@ import {
   DEFAULT_BASE_ANIMATION_DURATION,
   checkOverlap,
   getMinDistancePercent,
+  defaultBubbleSizePx,
   getDeviceTier,
   getSlotFallbackPosition,
   getRandomSymbol,
@@ -28,6 +29,7 @@ import {
   SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
@@ -54,7 +56,7 @@ export function RotatoryWheelGame({
   // Clinical Settings
   const [patientName, setPatientName] = useState<string>('Demo Patient');
   const [letterSize, setLetterSize] = useState<number>(2.5);
-  const [bubbleSize, setBubbleSize] = useState<number>(80);
+  const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'rotatory'));
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
 
@@ -78,6 +80,7 @@ export function RotatoryWheelGame({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  useGameSessionLock(true);
 
   useEffect(() => {
     const handleFullscreenChange = () => {

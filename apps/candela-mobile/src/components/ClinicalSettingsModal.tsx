@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SPEED_PRESETS, THERAPY_COLOR_ITEMS } from '@candela/shared/rn';
+import { SPEED_PRESETS, THERAPY_COLOR_ITEMS, DEFAULT_SORTING_NUMBER_FROM, DEFAULT_SORTING_NUMBER_TO, MAX_SORTING_NUMBER_COUNT, clampSortingNumberRange } from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
 import { useLayout } from '../lib/layout';
 
@@ -26,10 +26,12 @@ export interface AppliedClinicalSettings {
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
   therapyColors?: string[];
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
-const BUBBLE_SIZES = [60, 70, 80, 90, 100];
+const BUBBLE_SIZES = [60, 80, 100, 120];
 const WHEEL_COLORS = ['#000000', '#0B1B3A', '#1A1A1A', '#111827', '#0D0D0D', '#1E3A8A'];
 const PATH_TYPES = ['auto', 'straight', 'curve', 'zigzag', 'wave', 'spiral', 'branching', 'dotted', 'random'];
 const PURSUIT_PATTERN_OPTIONS: { val: PursuitMovementPattern; label: string }[] = [
@@ -173,6 +175,9 @@ export function ClinicalSettingsModal({
   showTherapyColorPicker = false,
   therapyColors = DEFAULT_THERAPY_COLORS,
   showLetterSizeControl = true,
+  showNumberRangeControl = false,
+  numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
+  numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -204,6 +209,9 @@ export function ClinicalSettingsModal({
   showTherapyColorPicker?: boolean;
   therapyColors?: string[];
   showLetterSizeControl?: boolean;
+  showNumberRangeControl?: boolean;
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
@@ -227,6 +235,8 @@ export function ClinicalSettingsModal({
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
   const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(therapyColors);
+  const [tempNumberRangeFrom, setTempNumberRangeFrom] = useState(numberRangeFrom);
+  const [tempNumberRangeTo, setTempNumberRangeTo] = useState(numberRangeTo);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -251,6 +261,8 @@ export function ClinicalSettingsModal({
     setTempDecoys(pursuitDecoyCount);
     setTempPursuitSpeed(pursuitSpeedPxPerSec);
     setTempTimeout(pursuitTrialTimeoutSec);
+    setTempNumberRangeFrom(numberRangeFrom);
+    setTempNumberRangeTo(numberRangeTo);
     setTempTherapyColors((prev) => {
       if (
         prev.length === therapyColors.length &&
@@ -265,7 +277,8 @@ export function ClinicalSettingsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const apply = () =>
+  const apply = () => {
+    const numberRange = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
     onApply({
       patientName: tempPatientName,
       letterSize: tempLetterSize,
@@ -287,7 +300,10 @@ export function ClinicalSettingsModal({
       pursuitSpeedPxPerSec: tempPursuitSpeed,
       pursuitTrialTimeoutSec: tempTimeout,
       therapyColors: tempTherapyColors,
+      numberRangeFrom: numberRange.from,
+      numberRangeTo: numberRange.to,
     });
+  };
 
   const isBubbleGame = !showBeeTracingControls && !showPursuitControls;
   const previewSize = Math.min(tempBubbleSize, 130);
@@ -466,6 +482,60 @@ export function ClinicalSettingsModal({
                     }}
                   />
                 </Card>
+
+                {showNumberRangeControl ? (
+                  <Card>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                      NUMBER RANGE
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(8) }}>
+                      Any start. At most {MAX_SORTING_NUMBER_COUNT} numbers (default {DEFAULT_SORTING_NUMBER_FROM}–{DEFAULT_SORTING_NUMBER_TO}).
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: s(10) }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#9CA3AF', fontSize: fs(10), marginBottom: s(4) }}>FROM</Text>
+                        <TextInput
+                          keyboardType="number-pad"
+                          value={String(Number.isFinite(tempNumberRangeFrom) ? tempNumberRangeFrom : '')}
+                          onChangeText={(text) => setTempNumberRangeFrom(parseInt(text, 10))}
+                          style={{
+                            backgroundColor: '#141414',
+                            color: '#fff',
+                            borderRadius: s(12),
+                            padding: s(12),
+                            borderWidth: 1,
+                            borderColor: '#374151',
+                            fontWeight: '800',
+                          }}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#9CA3AF', fontSize: fs(10), marginBottom: s(4) }}>TO</Text>
+                        <TextInput
+                          keyboardType="number-pad"
+                          value={String(Number.isFinite(tempNumberRangeTo) ? tempNumberRangeTo : '')}
+                          onChangeText={(text) => setTempNumberRangeTo(parseInt(text, 10))}
+                          style={{
+                            backgroundColor: '#141414',
+                            color: '#fff',
+                            borderRadius: s(12),
+                            padding: s(12),
+                            borderWidth: 1,
+                            borderColor: '#374151',
+                            fontWeight: '800',
+                          }}
+                        />
+                      </View>
+                    </View>
+                    <Text style={{ color: '#67E8F9', fontSize: fs(12), fontWeight: '700', marginTop: s(8) }}>
+                      {(() => {
+                        const range = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
+                        const count = range.to - range.from + 1;
+                        return `${range.from}–${range.to} · ${count} number${count === 1 ? '' : 's'}`;
+                      })()}
+                    </Text>
+                  </Card>
+                ) : null}
 
                 {showSpeedControl ? (
                   <Card>

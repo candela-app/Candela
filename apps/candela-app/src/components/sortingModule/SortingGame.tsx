@@ -6,11 +6,17 @@ import {
   BubbleItem,
   BubblePosition,
   ALPHABETS,
-  NUMBERS,
   THERAPY_COLORS,
   checkOverlap,
   getMinDistancePercent,
   getContrastColor,
+  defaultBubbleSizePx,
+  getDeviceTier,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
+  sortingNumberSequence,
+  sortingBatchPlan,
+  clampSortingNumberRange,
   exportSessionCSV,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
@@ -22,6 +28,7 @@ import {
   SessionResultData,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 
@@ -36,13 +43,16 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
   // Settings & Results Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
 
   // Active Settings
   const [patientName, setPatientName] = useState<string>('Demo Patient');
   const [letterSize, setLetterSize] = useState<number>(1.8);
-  const [bubbleSize, setBubbleSize] = useState<number>(90);
+  const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'sorting'));
+  const [numberRangeFrom, setNumberRangeFrom] = useState(DEFAULT_SORTING_NUMBER_FROM);
+  const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
 
   // Temporary Settings state for Modal editing
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
@@ -146,18 +156,15 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     if (variant === 'lowercase') {
       return ALPHABETS.toLowerCase().split('');
     }
-    return NUMBERS.split('');
-  }, [variant]);
+    return sortingNumberSequence(numberRangeFrom, numberRangeTo);
+  }, [variant, numberRangeFrom, numberRangeTo]);
 
-  // Compute batch plan:
-  // Big Screens (>=1024px): 5-5-5-5-6 for alphabets (26), 5-5 for numbers (10)
-  // Tabs & Mobiles (<1024px): 4-4-4-4-4-4-2 for alphabets (26), 4-4-2 for numbers (10)
   const getBatchPlan = useCallback(() => {
     if (variant === 'numbers') {
-      return isMobileTab ? [4, 4, 2] : [5, 5];
+      return sortingBatchPlan(sequenceItems().length, getDeviceTier());
     }
     return isMobileTab ? [4, 4, 4, 4, 4, 4, 2] : [5, 5, 5, 5, 6];
-  }, [variant, isMobileTab]);
+  }, [variant, isMobileTab, sequenceItems]);
 
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -394,7 +401,6 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   };
 
   const allItems = sequenceItems();
-  const currentTargetSymbol = allItems[expectedIndex] || '';
 
   const avgReactionMs = reactionTimes.length
     ? Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length)
@@ -420,12 +426,6 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           >
             Click to Start
           </button>
-        </div>
-      ) : null}
-
-      {gameStarted ? (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-[#111827] px-4 py-2 rounded-xl">
-          <span className="text-white font-black text-2xl">{currentTargetSymbol}</span>
         </div>
       ) : null}
 
@@ -472,7 +472,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       <button
         type="button"
         onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-6 right-4 z-40 w-11 h-11 rounded-full bg-[#121626] text-white flex items-center justify-center cursor-pointer active:scale-95"
+        className="absolute bottom-6 right-4 z-40 w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300 hover:text-white"
         title="Settings menu"
       >
         <SlidersIcon className="w-5 h-5" />
@@ -494,6 +494,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },
           { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
           { label: 'Variant', value: <span className="text-emerald-400 font-bold capitalize">{variant}</span> },
+          ...(variant === 'numbers'
+            ? [{ label: 'Range', value: <span className="text-cyan-300 font-bold">{numberRangeFrom}–{numberRangeTo}</span> }]
+            : []),
         ]}
       />
 
@@ -505,6 +508,11 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           setPatientName(newSettings.patientName);
           setLetterSize(newSettings.letterSize);
           setBubbleSize(newSettings.bubbleSize);
+          if (newSettings.numberRangeFrom != null && newSettings.numberRangeTo != null) {
+            const range = clampSortingNumberRange(newSettings.numberRangeFrom, newSettings.numberRangeTo);
+            setNumberRangeFrom(range.from);
+            setNumberRangeTo(range.to);
+          }
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -515,7 +523,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         patientName={patientName}
         letterSize={letterSize}
         bubbleSize={bubbleSize}
-        sampleSymbol={variant === 'lowercase' ? 'a' : variant === 'numbers' ? '1' : 'A'}
+        sampleSymbol={variant === 'lowercase' ? 'a' : variant === 'numbers' ? String(numberRangeFrom) : 'A'}
+        showNumberRangeControl={variant === 'numbers'}
+        numberRangeFrom={numberRangeFrom}
+        numberRangeTo={numberRangeTo}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
   ALPHABETS,
-  NUMBERS,
   THERAPY_COLORS,
   BubbleItem,
   BubblePosition,
@@ -11,12 +10,20 @@ import {
   checkOverlap,
   getContrastColor,
   getMinDistancePercent,
+  getDeviceTier,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
+  sortingNumberSequence,
+  sortingBatchPlan,
+  clampSortingNumberRange,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
+import { SlidersIcon } from '../components/icons';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
+import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { useLayout } from '../lib/layout';
 import { speak } from '../lib/speech';
 
@@ -30,7 +37,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
   const [patientName, setPatientName] = useState(sessionDisplayName(session));
   const [letterSize, setLetterSize] = useState(1.8);
-  const [bubbleSize, setBubbleSize] = useState(90);
+  const [bubbleSize, setBubbleSize] = useState(() => (isTablet ? 100 : 90));
+  const [numberRangeFrom, setNumberRangeFrom] = useState(DEFAULT_SORTING_NUMBER_FROM);
+  const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
+  const { requestExit } = useGameSessionLock(onExit);
   const [notification, setNotification] = useState<string | null>(null);
   const [bubbles, setBubbles] = useState<BubbleItem[]>([]);
   const [expectedIndex, setExpectedIndex] = useState(0);
@@ -55,13 +65,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const sequenceItems = useCallback(() => {
     if (variant === 'uppercase') return ALPHABETS.split('');
     if (variant === 'lowercase') return ALPHABETS.toLowerCase().split('');
-    return NUMBERS.split('');
-  }, [variant]);
+    return sortingNumberSequence(numberRangeFrom, numberRangeTo);
+  }, [variant, numberRangeFrom, numberRangeTo]);
 
   const getBatchPlan = useCallback(() => {
-    if (variant === 'numbers') return isMobileTab ? [4, 4, 2] : [5, 5];
+    if (variant === 'numbers') return sortingBatchPlan(sequenceItems().length, getDeviceTier(width, height));
     return isMobileTab ? [4, 4, 4, 4, 4, 4, 2] : [5, 5, 5, 5, 6];
-  }, [variant, isMobileTab]);
+  }, [variant, isMobileTab, sequenceItems, width, height]);
 
   const spawnBatch = useCallback(
     (batchIdx: number, allItems: string[]) => {
@@ -193,7 +203,6 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   };
 
   const allItems = sequenceItems();
-  const target = allItems[expectedIndex] || '';
   const scaledBubble = bubbleSize;
   const letterPx = Math.round(16 * letterSize * (scaledBubble / 90));
 
@@ -212,9 +221,6 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           </Pressable>
         </View>
       ) : null}
-      <View style={{ position: 'absolute', top: s(48), alignSelf: 'center', zIndex: 10, backgroundColor: '#111827', paddingHorizontal: s(16), paddingVertical: s(8), borderRadius: s(12) }}>
-        <Text style={{ color: '#fff', fontWeight: '900', fontSize: fs(22) }}>{target}</Text>
-      </View>
       <Pressable
         onPress={() => {
           if (gameStarted) {
@@ -255,8 +261,22 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           </Pressable>
         ))}
       </Pressable>
-      <Pressable onPress={() => setIsMenuOpen(true)} style={{ position: 'absolute', bottom: s(24), right: s(16), width: s(44), height: s(44), borderRadius: 22, backgroundColor: '#121626', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#fff' }}>☰</Text>
+      <Pressable
+        onPress={() => setIsMenuOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Settings menu"
+        style={{
+          position: 'absolute',
+          bottom: s(24),
+          right: s(16),
+          width: s(44),
+          height: s(44),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'transparent',
+        }}
+      >
+        <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
@@ -265,6 +285,11 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           setPatientName(next.patientName);
           setLetterSize(next.letterSize);
           setBubbleSize(next.bubbleSize);
+          if (next.numberRangeFrom != null && next.numberRangeTo != null) {
+            const range = clampSortingNumberRange(next.numberRangeFrom, next.numberRangeTo);
+            setNumberRangeFrom(range.from);
+            setNumberRangeTo(range.to);
+          }
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
@@ -272,6 +297,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         patientName={patientName}
         letterSize={letterSize}
         bubbleSize={bubbleSize}
+        showNumberRangeControl={variant === 'numbers'}
+        numberRangeFrom={numberRangeFrom}
+        numberRangeTo={numberRangeTo}
       />
       {resultsData ? (
         <GameResultsModal
@@ -279,7 +307,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           data={resultsData}
           onClose={() => {
             setIsResultsOpen(false);
-            onExit?.();
+            requestExit();
           }}
           onReplay={() => {
             setIsResultsOpen(false);
@@ -290,12 +318,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onQuit={() => onExit?.()}
+        onQuit={() => requestExit()}
         onReset={() => startGame()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         settingsSummary={[
           { label: 'Patient', value: patientName },
           { label: 'Variant', value: variant },
+          ...(variant === 'numbers' ? [{ label: 'Range', value: `${numberRangeFrom}–${numberRangeTo}` }] : []),
         ]}
       />
     </View>

@@ -15,6 +15,9 @@ import {
   exitFullScreenSafe,
   resolveOrientation,
   resolveBeePathType,
+  DEFAULT_BEE_TARGET_DOT_COLOR,
+  beeHeadingDeg,
+  lerpHeadingDeg,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -25,6 +28,7 @@ import {
 } from './BeePathGenerator';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
@@ -46,6 +50,7 @@ const DEFAULT_SETTINGS: BeeTracingSettings = {
   beeSpeedSec: 5, // 5s Normal default
   pathComplexity: 'medium',
   colorTheme: 'dark', // Dark theme by default
+  targetDotColor: DEFAULT_BEE_TARGET_DOT_COLOR,
   audioEnabled: true,
   inputSensitivity: 'auto',
   roundsPerSet: 10, // Auto progress plays 10 rounds through the path sequence
@@ -73,6 +78,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     pathType: lockedPathType,
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
+  const [gameStarted, setGameStarted] = useState(false);
+  const [beeHeading, setBeeHeading] = useState(0);
+  useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
@@ -168,6 +176,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
       const ptIndex = Math.floor(progress * (generated.points.length - 1));
       const pt = generated.points[ptIndex] || generated.startPoint;
+      currentPathIndexRef.current = ptIndex;
       setBeePos(pt);
 
       if (progress < 1) {
@@ -185,8 +194,17 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
   // Re-init path ONLY when currentRoundNumber or explicit init is triggered
   useEffect(() => {
+    if (isSettingsOpen || !gameStarted) return;
     initRoundPath(currentRoundNumber);
-  }, [currentRoundNumber, initRoundPath]);
+  }, [currentRoundNumber, initRoundPath, isSettingsOpen, gameStarted]);
+
+  useEffect(() => {
+    if (!currentPath) return;
+    const lookAhead =
+      currentPath.pathType === 'spiral' || currentPath.pathType === 'curve' || currentPath.pathType === 'wave' ? 8 : 4;
+    const target = beeHeadingDeg(currentPath.points, currentPathIndexRef.current, lookAhead);
+    setBeeHeading((prev) => lerpHeadingDeg(prev, target, currentPath.pathType === 'spiral' ? 0.2 : 0.34));
+  }, [beePos, currentPath]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -447,6 +465,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       : settings.colorTheme === 'dark'
       ? '#9AA8B5'
       : '#4A5C66';
+  const targetDotColor = settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR;
   const isGuided = settings.tracingMode === 'guided';
 
   return (
@@ -464,6 +483,24 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       >
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </span>
+
+      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Bee Path Tracing</h2>
+          <button
+            onClick={() => setGameStarted(true)}
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+          >
+            Click to Start
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300"
+          >
+            Edit Clinical Settings
+          </button>
+        </div>
+      ) : null}
 
       {/* Main Interactive Canvas Area */}
       <main
@@ -526,53 +563,34 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
                   filter="url(#neon-glow)"
                 />
               )}
+
+              {currentPath.distractorPoint ? (
+                <circle
+                  cx={currentPath.distractorPoint.x}
+                  cy={currentPath.distractorPoint.y}
+                  r={16}
+                  fill={targetDotColor}
+                  opacity={0.35}
+                />
+              ) : null}
+              <circle
+                cx={currentPath.endPoint.x}
+                cy={currentPath.endPoint.y}
+                r={roundSuccessCelebration ? 26 : 18}
+                fill={targetDotColor}
+              />
             </svg>
-
-            {/* Start Target Indicator - Clean Glowing Start Dot */}
-            <div
-              className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center"
-              style={{ left: currentPath.startPoint.x, top: currentPath.startPoint.y }}
-            >
-              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.9)] animate-pulse border-2 border-amber-200" />
-              <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 mt-1 bg-slate-900/90 px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-                Start
-              </span>
-            </div>
-
-
-            {/* Target Flower (Destination) */}
-            <div
-              className={`absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center ${
-                roundSuccessCelebration ? 'scale-150 rotate-180 transition-transform duration-700' : ''
-              }`}
-              style={{ left: currentPath.endPoint.x, top: currentPath.endPoint.y }}
-            >
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-pink-500/20 border-2 border-pink-400 flex items-center justify-center text-2xl sm:text-3xl shadow-xl">
-                🌸
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-bold text-pink-300 mt-1 bg-slate-900/90 px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-                Flower
-              </span>
-            </div>
-
-            {/* Distractor Flower if branching path */}
-            {currentPath.distractorPoint && (
-              <div
-                className="absolute z-20 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none flex flex-col items-center"
-                style={{ left: currentPath.distractorPoint.x, top: currentPath.distractorPoint.y }}
-              >
-                <div className="w-10 h-10 rounded-full bg-gray-500/20 border border-gray-400 flex items-center justify-center text-xl">
-                  🌼
-                </div>
-              </div>
-            )}
 
             {/* Interactive Bee Sprite - Increased Size for Touch Ergonomics */}
             <div
-              className={`absolute z-30 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 pointer-events-none ${
+              className={`absolute z-30 transition-transform duration-75 pointer-events-none ${
                 isOffPathWobble ? 'animate-bounce' : ''
               } ${roundSuccessCelebration && currentPath.pathType !== 'spiral' ? 'animate-spin scale-150' : ''}`}
-              style={{ left: beePos.x, top: beePos.y }}
+              style={{
+                left: beePos.x,
+                top: beePos.y,
+                transform: `translate(-50%, -50%) rotate(${beeHeading}deg)`,
+              }}
             >
               <div className="relative flex items-center justify-center">
                 {/* Glowing Aura Filter */}
@@ -661,6 +679,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
             pathComplexity: (applied.pathComplexity as any) || prev.pathComplexity,
             beeSpeedSec: applied.beeSpeedSec || prev.beeSpeedSec,
             orientation: applied.orientation || prev.orientation,
+            targetDotColor: applied.targetDotColor || prev.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR,
           }));
           setCurrentRoundNumber(1);
           setRoundResults([]);
@@ -679,6 +698,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         pathComplexity={settings.pathComplexity}
         beeSpeedSec={settings.beeSpeedSec}
         orientation={settings.orientation}
+        targetDotColor={settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR}
       />
 
 
