@@ -259,6 +259,17 @@ export function PeripheralIcon({ size = 24, color = 'currentColor' }: IconProps)
   );
 }
 
+export function NumberSearchIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="11" cy="11" r="7" />
+      <Path d="m20 20-3.5-3.5" />
+      <Path d="M8 11h6" />
+      <Path d="M11 8v6" />
+    </Svg>
+  );
+}
+
 export function MobileTargetIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

@@ -10,11 +10,9 @@ import {
   DEFAULT_BASE_ANIMATION_DURATION,
   GameMode,
   SessionResultData,
-  checkOverlap,
   getDeviceTier,
-  getMinDistancePercent,
+  findNonOverlappingBubblePosition,
   getRandomSymbol,
-  getSlotFallbackPosition,
   reactionStatsFromMs,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   DEFAULT_BUBBLE_APPEARANCE,
@@ -176,30 +174,22 @@ export function RotatoryWheelGame({
     setPoppingActive(false);
     const newBubbles: BubbleItem[] = [];
     const positions: BubblePosition[] = [];
-    const containerSize = wheelPx;
-    const minDistance = getMinDistancePercent(bubbleSize, containerSize, 2);
+    const containerSize =
+      wheelPx > 40
+        ? wheelPx
+        : Math.min(width * 0.98, height * 0.98) || 500;
     const deviceTier = getDeviceTier(width, height);
     const bubblesPerRound = BUBBLES_PER_ROUND[deviceTier];
 
     for (let i = 0; i < bubblesPerRound; i += 1) {
       const symbol = getRandomSymbol(mode, variant);
-      let pos: BubblePosition = { x: 50, y: 50 };
-      let valid = false;
-      for (let attempt = 0; attempt < 80; attempt += 1) {
-        const a = Math.random() * 2 * Math.PI;
-        const maxR = containerSize / 2 - bubbleSize / 2 - 12;
-        const radius = Math.sqrt(Math.random()) * maxR;
-        const x = 50 + (radius * Math.cos(a)) / (containerSize / 100);
-        const y = 50 + (radius * Math.sin(a)) / (containerSize / 100);
-        pos = { x, y };
-        if (!checkOverlap(pos, positions, minDistance)) {
-          valid = true;
-          break;
-        }
-      }
-      if (!valid) {
-        pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize);
-      }
+      const pos = findNonOverlappingBubblePosition(positions, {
+        containerSize,
+        bubbleSize,
+        slotIndex: i,
+        totalSlots: bubblesPerRound,
+        gapPercent: 3.5,
+      });
       positions.push(pos);
       let bgColor = '';
       let colorName = '';
@@ -757,6 +747,7 @@ export function RotatoryWheelGame({
         showBubbleAppearancePicker
         bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : mode === 'numbers' ? '5' : variant === 'lowercase' ? 'a' : 'A'}
+        sessionLocked={isGameStarted && !isResultsOpen}
       />
       {resultsData ? (
         <GameResultsModal
@@ -782,6 +773,7 @@ export function RotatoryWheelGame({
         sessionInProgress={isGameStarted && !isResultsOpen}
         onReset={startLevel}
         resetButtonLabel="Reset Level"
+        onOpenSettings={() => setIsSettingsOpen(true)}
         settingsSummary={[
           { label: 'Patient', value: patientName },
           ...(mode === 'colors' ? [] : [{ label: 'Letter Size', value: String(letterSize) }]),
