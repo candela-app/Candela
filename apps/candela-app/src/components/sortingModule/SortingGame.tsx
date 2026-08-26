@@ -37,6 +37,7 @@ import {
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { SlidersIcon } from '../icons/VectorIcons';
 
 interface SortingGameProps {
@@ -436,24 +437,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       )}
 
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Sorting Module</h2>
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+        <ClickToStartOverlay
+          title="Sorting Module"
+          onStart={startGame}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        />
       ) : null}
 
       {/* GAME AREA */}
@@ -516,7 +505,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         onQuit={() => {
           if (onExit) onExit();
         }}
-        onReset={() => setGameStarted(false)}
+        onReset={() => {
+          setGameStarted(false);
+          setIsSettingsOpen(true);
+        }}
         resetButtonLabel="Reset Game"
         onOpenSettings={() => setIsSettingsOpen(true)}
         sessionInProgress={gameStarted && !isResultsOpen}
@@ -538,6 +530,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
         onApply={(newSettings) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setPatientName(newSettings.patientName);
           setLetterSize(newSettings.letterSize);
           setBubbleSize(newSettings.bubbleSize);
@@ -554,6 +547,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
           setIsSettingsOpen(false);
           requestFullScreenSafe();
+          if (wasPlaying) startGame();
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -566,6 +560,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}
+        sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>

@@ -17,6 +17,8 @@ interface MobileTargetSettingsModalProps {
   settings: MobileTargetSettings;
   onUpdateSettings: (newSettings: MobileTargetSettings) => void;
   isInitialLaunch?: boolean;
+  /** Mid-session apply shows an in-modal confirm first. */
+  sessionInProgress?: boolean;
 }
 
 export function getContrastTextColor(hexColor: string): '#000000' | '#FFFFFF' {
@@ -36,6 +38,7 @@ export function MobileTargetSettingsModal({
   settings,
   onUpdateSettings,
   isInitialLaunch = false,
+  sessionInProgress = false,
 }: MobileTargetSettingsModalProps) {
   // Temporary state for form controls
   const [tempPatientName, setTempPatientName] = useState<string>(settings.patientName);
@@ -59,6 +62,7 @@ export function MobileTargetSettingsModal({
   const [tempStimuliColor, setTempStimuliColor] = useState(
     settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR
   );
+  const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   // Sync state on open
   useEffect(() => {
@@ -76,12 +80,13 @@ export function MobileTargetSettingsModal({
         settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
       );
       setTempStimuliColor(settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR);
+      setConfirmApplyOpen(false);
     }
   }, [isOpen, settings]);
 
   if (!isOpen) return null;
 
-  const handleApply = () => {
+  const commitApply = () => {
     onUpdateSettings({
       patientName: tempPatientName,
       gameMode: settings.gameMode,
@@ -98,6 +103,50 @@ export function MobileTargetSettingsModal({
       stimuliColor: tempStimuliColor,
     });
     onClose();
+  };
+
+  const settingsHaveChanged = () => {
+    const next = {
+      patientName: tempPatientName,
+      speedPxPerSec: tempSpeed,
+      setDurationSec: tempSetDuration,
+      totalSets: tempTotalSets,
+      bubbleSize: tempBubbleSize,
+      letterSize: tempLetterSize,
+      movementAxis: tempMovementAxis,
+      hasBackground: tempBubbleAppearance === 'solid',
+      bubbleAppearance: tempBubbleAppearance,
+      therapyColors: tempTherapyColors,
+      stimuliColor: tempStimuliColor,
+    };
+    const baseline = {
+      patientName: settings.patientName,
+      speedPxPerSec: settings.speedPxPerSec,
+      setDurationSec: settings.setDurationSec,
+      totalSets: settings.totalSets,
+      bubbleSize: settings.bubbleSize || 96,
+      letterSize: settings.letterSize || 32,
+      movementAxis: settings.movementAxis || 'random',
+      hasBackground: resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground) === 'solid',
+      bubbleAppearance: resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground),
+      therapyColors: settings.therapyColors?.length
+        ? settings.therapyColors
+        : THERAPY_COLOR_ITEMS.map((item) => item.code),
+      stimuliColor: settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR,
+    };
+    return JSON.stringify(next) !== JSON.stringify(baseline);
+  };
+
+  const handleApply = () => {
+    if (sessionInProgress) {
+      if (!settingsHaveChanged()) {
+        onClose();
+        return;
+      }
+      setConfirmApplyOpen(true);
+      return;
+    }
+    commitApply();
   };
 
   // Sample Symbol Preview Text
@@ -133,7 +182,7 @@ export function MobileTargetSettingsModal({
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
     >
       <div
-        className="bg-[#1A1A1A] text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1250px] my-auto flex flex-col justify-between gap-6 p-6 sm:p-8 border border-gray-700/80 shadow-2xl opacity-100"
+        className="bg-[#1A1A1A] text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1250px] my-auto flex flex-col justify-between gap-6 p-6 sm:p-8 border border-gray-700/80 shadow-2xl opacity-100 relative"
         style={{ backgroundColor: '#1A1A1A' }}
       >
         {/* HEADER BAR */}
@@ -622,6 +671,43 @@ export function MobileTargetSettingsModal({
             <span className="text-base">✓</span>
           </button>
         </div>
+
+        {confirmApplyOpen ? (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-2xl sm:rounded-3xl"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
+              style={{ backgroundColor: '#1A1A1A' }}
+            >
+              <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
+              <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                Applying settings will end the current game and start a new one. Progress in this round will be lost.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmApplyOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmApplyOpen(false);
+                    commitApply();
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

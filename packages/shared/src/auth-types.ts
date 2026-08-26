@@ -84,6 +84,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   mobile_target: 'mobile_target',
   geoboard: 'geoboard',
   peripheral: 'peripheral_view',
+  number_search: 'number_search',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -94,4 +95,5 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   mobile_target: 'mobile_target',
   geoboard: 'geoboard',
   peripheral_view: 'peripheral',
+  number_search: 'number_search',
 };

@@ -53,6 +53,13 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'tv'],
   },
+  number_search: {
+    id: 'number_search',
+    name: 'Number Search',
+    description: 'Figure–ground visual search — find digits hidden in a crowded field of mixed letters.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'mobile'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -119,6 +126,9 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'left', name: 'Left Field' },
     { id: 'right', name: 'Right Field' },
     { id: 'both', name: 'Both Fields' },
+  ],
+  number_search: [
+    { id: 'standard', name: 'Find the Numbers' },
   ],
 };
 

@@ -470,10 +470,10 @@ export function GeoboardGame({
   );
 
   useEffect(() => {
-    if (gameState !== 'memorize') return;
+    if (gameState !== 'memorize' || isSettingsOpen) return;
     const timer = setInterval(() => setMemorizeTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState]);
+  }, [gameState, isSettingsOpen]);
 
   useEffect(() => {
     if (gameState !== 'memorize' || memorizeTimeLeft > 0) return;
@@ -669,10 +669,10 @@ export function GeoboardGame({
   }, [handleSkip]);
 
   useEffect(() => {
-    if (gameState !== 'play' || protocol.timeLimitSec <= 0) return;
+    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || isSettingsOpen) return;
     const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, protocol.timeLimitSec, trialIndex]);
+  }, [gameState, protocol.timeLimitSec, trialIndex, isSettingsOpen]);
 
   useEffect(() => {
     if (gameState !== 'play' || protocol.timeLimitSec <= 0 || timeLeft > 0) return;
@@ -872,9 +872,11 @@ export function GeoboardGame({
   };
 
   const handleApplySettings = (next: GeoboardProtocol) => {
+    const wasPlaying = gameState === 'memorize' || gameState === 'play' || gameState === 'feedback';
     const applied = lockBeginnerGeoboardProtocol({ ...next, boardId }, boardId);
     setProtocol(applied);
     setIsSettingsOpen(false);
+    if (wasPlaying) startSession(applied);
   };
 
   const handleCloseSettings = () => {
@@ -1301,6 +1303,7 @@ export function GeoboardGame({
         supportsLetterCase={board.supportsLetterCase}
         beginnerLineBoard={isBeginnerLineBoard(boardId)}
         patternCount={patternCount}
+        sessionInProgress={isPlayingPhase}
       />
 
       {resultsData ? (

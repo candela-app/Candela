@@ -77,4 +77,12 @@ export const MODULE_CARDS: ModuleCard[] = [
     accent: '#4338CA',
     bar: '#818CF8',
   },
+  {
+    uiId: 'number_search',
+    title: 'Number Search',
+    body: 'Find digits hidden in a crowded field of mixed letters',
+    badge: 'For All Devices',
+    accent: '#B45309',
+    bar: '#F59E0B',
+  },
 ];

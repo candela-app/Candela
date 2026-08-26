@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   SPEED_PRESETS,
   BUBBLE_SIZE_PRESETS,
@@ -38,6 +39,25 @@ import {
   PERIPHERAL_STIMULUS_COLORS,
   PERIPHERAL_TARGET_TIMEOUT_PRESETS,
 } from './peripheral-hive-logic';
+import {
+  clampNumberSearchLetterSize,
+  clampNumberSearchTargetDigits,
+  clampNumberSearchTimeLimitSec,
+  clampNumberSearchLayoutMode,
+  clampNumberSearchFieldCount,
+  DEFAULT_NUMBER_SEARCH_BG,
+  DEFAULT_NUMBER_SEARCH_CHAR_COLOR,
+  DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
+  DEFAULT_NUMBER_SEARCH_LAYOUT,
+  DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
+  NUMBER_SEARCH_BG_COLORS,
+  NUMBER_SEARCH_CHAR_COLORS,
+  NUMBER_SEARCH_LETTER_SIZE_PRESETS,
+  NUMBER_SEARCH_TARGET_DIGIT_PRESETS,
+  NUMBER_SEARCH_TIME_LIMIT_PRESETS,
+  NUMBER_SEARCH_FIELD_COUNT_PRESETS,
+  type NumberSearchLayoutMode,
+} from './number-search-logic';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
@@ -99,6 +119,12 @@ export interface AppliedClinicalSettings {
   fixationDotColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
+  /** Number Search: digits to find in the crowded field. */
+  targetDigitCount?: number;
+  /** Number Search: organised grid vs random scatter. */
+  numberSearchLayout?: NumberSearchLayoutMode;
+  /** Number Search: total field characters (0 = auto). */
+  numberSearchFieldCount?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -156,6 +182,7 @@ export interface ClinicalSettingsModalProps {
   numberRangeFrom?: number;
   numberRangeTo?: number;
   showPeripheralViewControls?: boolean;
+  showNumberSearchControls?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
   batchesPerSession?: number;
@@ -163,11 +190,22 @@ export interface ClinicalSettingsModalProps {
   fixationDotColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
+  /** Number Search: how many digits to inject into the crowded field. */
+  targetDigitCount?: number;
+  /** Number Search: organised grid vs random scatter. */
+  numberSearchLayout?: NumberSearchLayoutMode;
+  /** Number Search: total characters on field (0 = auto fill). */
+  numberSearchFieldCount?: number;
   /** Letter/number bubble fill picker. Hide for color-discrimination modes. */
   showStimuliColorPicker?: boolean;
   stimuliColor?: string;
   showBubbleAppearancePicker?: boolean;
   bubbleAppearance?: BubbleAppearance;
+  /**
+   * When true, Save & Apply first shows an in-modal confirm that applying
+   * will end the current round and start fresh. Continue calls onApply.
+   */
+  sessionLocked?: boolean;
 }
 
 /**
@@ -230,6 +268,7 @@ export function ClinicalSettingsModal({
   numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
   showPeripheralViewControls = false,
+  showNumberSearchControls = false,
   hexSizePx = 64,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
@@ -237,10 +276,14 @@ export function ClinicalSettingsModal({
   fixationDotColor = DEFAULT_PERIPHERAL_FIXATION_COLOR,
   peripheralTargetTimeoutSec = 0,
   peripheralBubbleType = DEFAULT_PERIPHERAL_BUBBLE_TYPE,
+  targetDigitCount = DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
+  numberSearchLayout = DEFAULT_NUMBER_SEARCH_LAYOUT,
+  numberSearchFieldCount = DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
   showStimuliColorPicker = false,
   stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
   showBubbleAppearancePicker = false,
   bubbleAppearance = DEFAULT_BUBBLE_APPEARANCE,
+  sessionLocked = false,
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -293,11 +336,31 @@ export function ClinicalSettingsModal({
   const [tempPeripheralBubbleType, setTempPeripheralBubbleType] = useState<PeripheralBubbleType>(
     peripheralBubbleType,
   );
+  const [tempTargetDigitCount, setTempTargetDigitCount] = useState<number>(targetDigitCount);
+  const [tempNumberSearchLayout, setTempNumberSearchLayout] = useState<NumberSearchLayoutMode>(
+    clampNumberSearchLayoutMode(numberSearchLayout),
+  );
+  const [tempNumberSearchFieldCount, setTempNumberSearchFieldCount] = useState<number>(
+    clampNumberSearchFieldCount(numberSearchFieldCount),
+  );
+  const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
+  const deviceTier = getDeviceTier();
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       setTempPatientName(patientName);
-      setTempLetterSize(showPeripheralViewControls ? clampPeripheralLetterSize(letterSize) : letterSize);
+      setTempLetterSize(
+        showPeripheralViewControls
+          ? clampPeripheralLetterSize(letterSize)
+          : showNumberSearchControls
+            ? clampNumberSearchLetterSize(letterSize)
+            : letterSize,
+      );
       setTempBubbleSize(bubbleSize);
       setTempSpeed(speed);
       setTempWheelColor(wheelColor);
@@ -341,6 +404,15 @@ export function ClinicalSettingsModal({
       setTempFixationDotColor(fixationDotColor);
       setTempPeripheralTargetTimeoutSec(clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec));
       setTempPeripheralBubbleType(peripheralBubbleType);
+      setTempTargetDigitCount(clampNumberSearchTargetDigits(targetDigitCount));
+      setTempNumberSearchLayout(clampNumberSearchLayoutMode(numberSearchLayout));
+      setTempNumberSearchFieldCount(clampNumberSearchFieldCount(numberSearchFieldCount));
+      if (showNumberSearchControls) {
+        setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
+        setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
+        setTempShapeColor(shapeColor || DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
+      }
+      setConfirmApplyOpen(false);
       requestFullScreenSafe();
     }
   }, [
@@ -390,20 +462,28 @@ export function ClinicalSettingsModal({
     fixationDotColor,
     peripheralTargetTimeoutSec,
     peripheralBubbleType,
+    targetDigitCount,
+    numberSearchLayout,
+    numberSearchFieldCount,
+    showPeripheralViewControls,
+    showNumberSearchControls,
   ]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalReady) return null;
 
   const beginnerLineBoard = showGeoboardControls && isBeginnerLineBoard(geoboardBoardId);
-  const deviceTier = getDeviceTier();
   const peripheralStimuliSteps = peripheralStimuliPresets(deviceTier);
   const peripheralStimuliMax = peripheralMaxStimuliCount(deviceTier);
 
-  const handleApply = () => {
+  const getAppliedPayload = (): AppliedClinicalSettings => {
     const numberRange = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
-    onApply({
+    return {
       patientName: tempPatientName,
-      letterSize: showPeripheralViewControls ? clampPeripheralLetterSize(tempLetterSize) : tempLetterSize,
+      letterSize: showPeripheralViewControls
+        ? clampPeripheralLetterSize(tempLetterSize)
+        : showNumberSearchControls
+          ? clampNumberSearchLetterSize(tempLetterSize)
+          : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -429,7 +509,9 @@ export function ClinicalSettingsModal({
       memorizeSec: tempMemorizeSec,
       transform: tempTransform,
       ocularity: tempOcularity,
-      timeLimitSec: tempTimeLimitSec,
+      timeLimitSec: showNumberSearchControls
+        ? clampNumberSearchTimeLimitSec(tempTimeLimitSec)
+        : tempTimeLimitSec,
       contrastSensitivity: tempContrastSensitivity,
       bgColor: tempBgColor,
       shapeColor: tempShapeColor,
@@ -447,7 +529,101 @@ export function ClinicalSettingsModal({
       fixationDotColor: tempFixationDotColor,
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
       peripheralBubbleType: tempPeripheralBubbleType,
-    });
+      targetDigitCount: showNumberSearchControls
+        ? clampNumberSearchTargetDigits(tempTargetDigitCount)
+        : tempTargetDigitCount,
+      numberSearchLayout: showNumberSearchControls
+        ? clampNumberSearchLayoutMode(tempNumberSearchLayout)
+        : tempNumberSearchLayout,
+      numberSearchFieldCount: showNumberSearchControls
+        ? clampNumberSearchFieldCount(tempNumberSearchFieldCount)
+        : tempNumberSearchFieldCount,
+    };
+  };
+
+  const getBaselinePayload = (): AppliedClinicalSettings => {
+    const numberRange = clampSortingNumberRange(numberRangeFrom, numberRangeTo);
+    return {
+      patientName,
+      letterSize: showPeripheralViewControls
+        ? clampPeripheralLetterSize(letterSize)
+        : showNumberSearchControls
+          ? clampNumberSearchLetterSize(letterSize)
+          : letterSize,
+      bubbleSize,
+      speed,
+      wheelColor,
+      tracingMode,
+      pathType,
+      toleranceBandPx: pathType === 'spiral' ? 12 : toleranceBandPx,
+      colorTheme,
+      audioEnabled,
+      roundsPerSet,
+      pathComplexity,
+      beeSpeedSec,
+      orientation,
+      pursuitMovementPattern,
+      pursuitTargetColor,
+      pursuitDecoyCount,
+      pursuitSpeedPxPerSec,
+      pursuitTrialTimeoutSec,
+      alphabetVariant,
+      bpm,
+      metronomeEnabled,
+      matrixTier,
+      memoryMode,
+      memorizeSec,
+      transform,
+      ocularity,
+      timeLimitSec: showNumberSearchControls
+        ? clampNumberSearchTimeLimitSec(timeLimitSec)
+        : timeLimitSec,
+      contrastSensitivity,
+      bgColor,
+      shapeColor,
+      penColor,
+      pegSizeScale,
+      targetDotColor,
+      numberRangeFrom: numberRange.from,
+      numberRangeTo: numberRange.to,
+      hexSizePx: clampHexSizePx(hexSizePx),
+      stimuliCount: clampStimuliCount(stimuliCount, deviceTier),
+      batchesPerSession: clampBatchesPerSession(batchesPerSession),
+      stimulusColor,
+      stimuliColor,
+      bubbleAppearance,
+      fixationDotColor,
+      peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec),
+      peripheralBubbleType,
+      targetDigitCount: showNumberSearchControls
+        ? clampNumberSearchTargetDigits(targetDigitCount)
+        : targetDigitCount,
+      numberSearchLayout: showNumberSearchControls
+        ? clampNumberSearchLayoutMode(numberSearchLayout)
+        : numberSearchLayout,
+      numberSearchFieldCount: showNumberSearchControls
+        ? clampNumberSearchFieldCount(numberSearchFieldCount)
+        : numberSearchFieldCount,
+    };
+  };
+
+  const settingsHaveChanged = () =>
+    JSON.stringify(getAppliedPayload()) !== JSON.stringify(getBaselinePayload());
+
+  const commitApply = () => {
+    onApply(getAppliedPayload());
+  };
+
+  const handleApply = () => {
+    if (sessionLocked) {
+      if (!settingsHaveChanged()) {
+        onClose();
+        return;
+      }
+      setConfirmApplyOpen(true);
+      return;
+    }
+    commitApply();
   };
 
 
@@ -461,14 +637,14 @@ export function ClinicalSettingsModal({
     { borderFill: '#0B1220', solidBorderWidth: 0 },
   );
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto backdrop-blur-md touch-pan-y custom-scrollbar animate-fade-in"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
+      className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto touch-pan-y custom-scrollbar animate-fade-in"
+      style={{ backgroundColor: '#06070D' }}
     >
       <div
-        className="bg-[#1A1A1A] text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1300px] h-auto my-auto flex flex-col justify-between gap-6 sm:gap-8 p-6 sm:p-8 md:p-10 border border-gray-700/80 shadow-2xl opacity-100 mb-12 sm:mb-8 animate-scale-up"
-        style={{ backgroundColor: '#1A1A1A' }}
+        className="text-white rounded-2xl sm:rounded-3xl w-[96vw] sm:w-[94vw] max-w-[1300px] h-auto my-auto flex flex-col justify-between gap-6 sm:gap-8 p-6 sm:p-8 md:p-10 border border-gray-700/80 shadow-2xl mb-12 sm:mb-8 animate-scale-up"
+        style={{ backgroundColor: '#1A1A1A', opacity: 1 }}
       >
         {/* HEADER BAR */}
         <div className="flex justify-between items-center border-b border-gray-800 pb-5">
@@ -483,11 +659,13 @@ export function ClinicalSettingsModal({
               <p className="text-sm text-gray-400 mt-1.5">
                 {showGeoboardControls
                   ? `Configure ${geoboardBoardName} before the session starts. Every pattern in this board runs in order.`
-                  : showPeripheralViewControls
-                    ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
-                    : showPursuitControls
-                      ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
-                      : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                  : showNumberSearchControls
+                    ? 'Configure glyph size, digit count, contrast colors, and optional session timer for figure–ground search.'
+                    : showPeripheralViewControls
+                      ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
+                      : showPursuitControls
+                        ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                        : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
               </p>
             </div>
           </div>
@@ -1401,6 +1579,227 @@ export function ClinicalSettingsModal({
               </div>
             </div>
           </div>
+        ) : showNumberSearchControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Live Field Preview</span>
+                <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">
+                  Engine + glyphs
+                </span>
+              </div>
+
+              <div
+                className="flex-1 flex justify-center items-center py-8 relative w-full min-h-[200px] rounded-2xl border border-slate-800 overflow-hidden"
+                style={{ backgroundColor: tempBgColor }}
+              >
+                <div className="flex gap-3 font-mono font-black select-none" style={{ color: tempShapeColor }}>
+                  {['A', '7', 'b', '3', 'm', '9'].map((ch) => (
+                    <span key={ch} style={{ fontSize: `${tempLetterSize}rem` }}>
+                      {ch}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Profile
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-amber-500 font-medium text-sm transition-all shadow-inner"
+                  style={{ backgroundColor: '#141414' }}
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Session Parameters
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Glyph Size
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {NUMBER_SEARCH_LETTER_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLetterSize === size
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Larger glyphs pack fewer characters — denser fields use smaller sizes.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Digits to Find
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {NUMBER_SEARCH_TARGET_DIGIT_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempTargetDigitCount(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempTargetDigitCount === n
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Character Layout
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { id: 'grid' as const, label: 'Organised grid', hint: 'Neat rows & columns' },
+                      { id: 'random' as const, label: 'Random scatter', hint: 'Scattered positions' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setTempNumberSearchLayout(opt.id)}
+                      className={`py-3 px-3 rounded-xl text-left transition-all border ${
+                        tempNumberSearchLayout === opt.id
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 border-transparent hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">{opt.label}</span>
+                      <span
+                        className={`block text-[10px] mt-0.5 ${
+                          tempNumberSearchLayout === opt.id ? 'text-slate-800' : 'text-gray-500'
+                        }`}
+                      >
+                        {opt.hint}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Field Character Count
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {NUMBER_SEARCH_FIELD_COUNT_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempNumberSearchFieldCount(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempNumberSearchFieldCount === n
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n === 0 ? 'Auto' : n}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Total letters + digits on screen. Auto fills as many as fit without overlap.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Session Time Limit
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {NUMBER_SEARCH_TIME_LIMIT_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempTimeLimitSec(sec)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempTimeLimitSec === sec
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {sec === 0 ? 'Off' : `${sec}s`}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Off = clear all digits at the child&apos;s pace. Timed rounds for advanced levels.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Engine Background
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {NUMBER_SEARCH_BG_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempBgColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
+                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code, color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC' }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Character Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {NUMBER_SEARCH_CHAR_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempShapeColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
+                        tempShapeColor === c.code ? 'border-amber-400 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code, color: c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24' ? '#0F172A' : '#F8FAFC' }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {extraStats}
+            </div>
+          </div>
         ) : showPeripheralViewControls ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -2016,7 +2415,7 @@ export function ClinicalSettingsModal({
             Cancel
           </button>
           <button
-            className="px-9 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center gap-2.5"
+            className="px-9 py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center gap-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-blue-600/30"
             onClick={handleApply}
           >
             <span>Save & Apply Settings</span>
@@ -2024,7 +2423,46 @@ export function ClinicalSettingsModal({
           </button>
         </div>
       </div>
-    </div>
+
+      {confirmApplyOpen ? (
+        <div
+          className="absolute inset-0 z-[20] flex items-center justify-center p-4 rounded-2xl"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
+            style={{ backgroundColor: '#1A1A1A' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
+            <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+              Applying settings will end the current game and start a new one. Progress in this round will be lost.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmApplyOpen(false)}
+                className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmApplyOpen(false);
+                  commitApply();
+                }}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>,
+    document.body,
   );
 }
 

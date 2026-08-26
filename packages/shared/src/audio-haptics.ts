@@ -87,6 +87,54 @@ export const playSuccessTone = playCorrectSoundAndHaptic;
 export const playErrorTone = playWrongSoundAndHaptic;
 
 /**
+ * Short whoosh / air-sweep for vanishing correct digits in number-search.
+ * Filtered noise with a fast gain drop (~180ms) + light haptic.
+ */
+export function playWhooshSoundAndHaptic(): void {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(40);
+    } catch (_) {}
+  }
+
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const duration = 0.18;
+    const sampleRate = ctx.sampleRate;
+    const frameCount = Math.floor(sampleRate * duration);
+    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      const t = i / frameCount;
+      const envelope = Math.pow(1 - t, 1.6);
+      data[i] = (Math.random() * 2 - 1) * envelope;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1800, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(420, ctx.currentTime + duration);
+    filter.Q.setValueAtTime(0.7, ctx.currentTime);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.28, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  } catch (_) {}
+}
+
+/**
  * Play a low dull thud sound (150 Hz -> 65 Hz)
  * and trigger a short triple pulse for miss presses (clicking empty wheel/game background).
  */

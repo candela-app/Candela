@@ -30,6 +30,7 @@ import {
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
@@ -507,24 +508,12 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       </span>
 
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Bee Path Tracing</h2>
-          <button
-            type="button"
-            onClick={() => setGameStarted(true)}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+        <ClickToStartOverlay
+          title="Bee Path Tracing"
+          onStart={() => setGameStarted(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        />
       ) : null}
 
       {/* Main Interactive Canvas Area */}
@@ -673,11 +662,12 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         onReset={() => {
           setCurrentRoundNumber(1);
           setRoundResults([]);
-          initRoundPath(1);
+          setGameStarted(false);
+          setIsSettingsOpen(true);
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         resetButtonLabel="Reset Level"
-        sessionInProgress={!isSettingsOpen && !isResultsOpen}
+        sessionInProgress={gameStarted && !isSettingsOpen && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient', value: settings.patientName },
           { label: 'Mode', value: settings.tracingMode },
@@ -692,6 +682,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(applied) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setSettings((prev) => ({
             ...prev,
             patientName: applied.patientName || prev.patientName,
@@ -709,6 +700,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
           setCurrentRoundNumber(1);
           setRoundResults([]);
           setIsSettingsOpen(false);
+          if (wasPlaying) setGameStarted(true);
         }}
         patientName={settings.patientName}
         letterSize={1.5}
@@ -724,6 +716,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         beeSpeedSec={settings.beeSpeedSec}
         orientation={settings.orientation}
         targetDotColor={settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR}
+        sessionLocked={gameStarted && !isResultsOpen}
       />
 
 
