@@ -325,10 +325,10 @@ export default function DoctorScreen() {
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
-          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} />
-          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} />
-          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} />
-          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} />
+          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} placeholderTextColor={colors.muted} />
           <Pressable
             onPress={() => void onCreatePatient()}
             disabled={saving}
@@ -348,6 +348,7 @@ export default function DoctorScreen() {
             </View>
             <TextInput
               placeholder="Search patient name, email..."
+              placeholderTextColor={colors.muted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               style={{ ...inputStyle, marginBottom: s(12), backgroundColor: '#F9FAFB' }}

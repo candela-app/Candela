@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
 type ToneKind = 'sine' | 'sawtooth' | 'triangle';
@@ -8,11 +8,11 @@ let audioReady = false;
 
 async function ensureAudioMode() {
   if (audioReady) return;
-  await Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
-    shouldDuckAndroid: true,
-    playThroughEarpieceAndroid: false,
+  await setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    shouldRouteThroughEarpiece: false,
+    interruptionMode: 'duckOthers',
   });
   audioReady = true;
 }
@@ -100,13 +100,25 @@ async function fileFor(name: string, builder: () => string) {
   return path;
 }
 
+function releasePlayer(player: AudioPlayer) {
+  try {
+    player.pause();
+    player.remove();
+  } catch {
+    // ignore
+  }
+}
+
 async function playFile(path: string) {
   await ensureAudioMode();
-  const { sound } = await Audio.Sound.createAsync({ uri: path }, { shouldPlay: true, volume: 0.85 });
-  sound.setOnPlaybackStatusUpdate((status) => {
-    if (!status.isLoaded || !status.didJustFinish) return;
-    void sound.unloadAsync();
+  const player = createAudioPlayer({ uri: path });
+  player.volume = 0.85;
+  const sub = player.addListener('playbackStatusUpdate', (status) => {
+    if (!status.didJustFinish) return;
+    sub.remove();
+    releasePlayer(player);
   });
+  player.play();
 }
 
 export async function playCorrectWoosh() {
@@ -154,8 +166,8 @@ export async function playMetronomeTick() {
 }
 
 const JOIN_POOL_SIZE = 3;
-let joinPool: Audio.Sound[] = [];
-let joinPoolReady: Promise<Audio.Sound[]> | null = null;
+let joinPool: AudioPlayer[] = [];
+let joinPoolReady: Promise<AudioPlayer[]> | null = null;
 let joinCursor = 0;
 
 async function loadJoinPool() {
@@ -165,11 +177,9 @@ async function loadJoinPool() {
     encodeWavSweep({ startHz: 988, endHz: 1318, durationMs: 160, kind: 'sine', gain: 0.4 }),
   );
   while (joinPool.length < JOIN_POOL_SIZE) {
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: path },
-      { shouldPlay: false, volume: 1, progressUpdateIntervalMillis: 250 },
-    );
-    joinPool.push(sound);
+    const player = createAudioPlayer({ uri: path });
+    player.volume = 1;
+    joinPool.push(player);
   }
   return joinPool;
 }
@@ -196,25 +206,26 @@ export async function playDotJoin() {
   try {
     const pool = await ensureJoinPool();
     if (pool.length === 0) return;
-    const sound = pool[joinCursor % pool.length];
+    const player = pool[joinCursor % pool.length];
     joinCursor += 1;
-    const status = await sound.getStatusAsync();
-    if (!status.isLoaded) {
+    if (!player.isLoaded) {
+      joinPool.forEach(releasePlayer);
       joinPool = [];
       joinPoolReady = null;
       const retry = await ensureJoinPool();
       const next = retry[0];
       if (!next) return;
-      await next.setPositionAsync(0);
-      await next.playAsync();
+      await next.seekTo(0);
+      next.play();
       return;
     }
-    if (status.isPlaying) {
-      await sound.stopAsync();
+    if (player.playing) {
+      player.pause();
     }
-    await sound.setPositionAsync(0);
-    await sound.playAsync();
+    await player.seekTo(0);
+    player.play();
   } catch {
+    joinPool.forEach(releasePlayer);
     joinPool = [];
     joinPoolReady = null;
   }
@@ -262,7 +273,7 @@ function encodeBeeBuzzLoop() {
   return bytesToBase64(new Uint8Array(buffer));
 }
 
-let beeBuzzSound: Audio.Sound | null = null;
+let beeBuzzSound: AudioPlayer | null = null;
 let beeBuzzStarting = false;
 let beeBuzzGeneration = 0;
 
@@ -275,20 +286,15 @@ export async function startBeeBuzz() {
     if (generation !== beeBuzzGeneration) return;
     const path = await fileFor('bee-buzz', encodeBeeBuzzLoop);
     if (generation !== beeBuzzGeneration) return;
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: path },
-      { shouldPlay: true, isLooping: true, volume: 0.55 },
-    );
+    const player = createAudioPlayer({ uri: path });
+    player.loop = true;
+    player.volume = 0.55;
     if (generation !== beeBuzzGeneration) {
-      try {
-        await sound.stopAsync();
-        await sound.unloadAsync();
-      } catch {
-        // ignore
-      }
+      releasePlayer(player);
       return;
     }
-    beeBuzzSound = sound;
+    player.play();
+    beeBuzzSound = player;
   } catch {
     // audio is optional on simulators
   } finally {
@@ -299,13 +305,8 @@ export async function startBeeBuzz() {
 export async function stopBeeBuzz() {
   beeBuzzGeneration += 1;
   beeBuzzStarting = false;
-  const sound = beeBuzzSound;
+  const player = beeBuzzSound;
   beeBuzzSound = null;
-  if (!sound) return;
-  try {
-    await sound.stopAsync();
-    await sound.unloadAsync();
-  } catch {
-    // ignore
-  }
+  if (!player) return;
+  releasePlayer(player);
 }

@@ -6,8 +6,14 @@ import {
   MobileTargetSetMetric,
   MobileTargetSessionResultData,
   THERAPY_COLOR_ITEMS,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
   playSuccessTone,
   playErrorTone,
+  reactionStatsFromMs,
+  isStimuliColorMixed,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  resolveBubbleAppearance,
 } from '@candela/shared';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
@@ -62,6 +68,7 @@ export function MobileTargetGame({
     letterSize: 32,
     hasBackground: false,
     therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
+    stimuliColor: DEFAULT_STIMULI_BUBBLE_COLOR,
   });
 
   // Speech Synthesis for Target Announcement
@@ -133,7 +140,7 @@ export function MobileTargetGame({
   // Refs for physics loop
   const canvasRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
-  const setStartTimeRef = useRef<number>(Date.now());
+  const setStartTimeRef = useRef<number>(performance.now());
   const bubblesRef = useRef<MovingBubble[]>([]);
   const wrongClicksSetRef = useRef<number>(0);
 
@@ -231,12 +238,16 @@ export function MobileTargetGame({
         targetCol = tColorObj.code;
         distractorCol = dColorObj.code;
         targetName = tColorObj.name;
-      } else {
+      } else if (isStimuliColorMixed(effSettings.stimuliColor)) {
         const c1 = Math.floor(Math.random() * palette.length);
         let c2 = Math.floor(Math.random() * palette.length);
         while (c2 === c1) c2 = Math.floor(Math.random() * palette.length);
         targetCol = palette[c1].code;
         distractorCol = palette[c2].code;
+      } else {
+        const solid = resolveStimuliBubbleColor(effSettings.stimuliColor, 0);
+        targetCol = solid;
+        distractorCol = solid;
       }
 
       setTargetItem({ value: targetVal, color: targetCol, name: targetName });
@@ -347,7 +358,7 @@ export function MobileTargetGame({
       setBubbles(initialBubbles);
       bubblesRef.current = initialBubbles;
       wrongClicksSetRef.current = 0;
-      setStartTimeRef.current = Date.now();
+      setStartTimeRef.current = performance.now();
     },
     [settings, generateShuffledPool]
   );
@@ -389,11 +400,9 @@ export function MobileTargetGame({
         setIsPlaying(false);
         const totalCorrect = updatedMetrics.length;
         const totalWrong = updatedMetrics.reduce((acc, m) => acc + m.wrongClicksCount, 0);
-        const validReactionTimes = updatedMetrics.map((m) => m.reactionTimeMs / 1000);
-        const avgReaction =
-          validReactionTimes.length > 0
-            ? validReactionTimes.reduce((a, b) => a + b, 0) / validReactionTimes.length
-            : 0;
+        const { avgSec: avgReaction } = reactionStatsFromMs(
+          updatedMetrics.map((m) => m.reactionTimeMs),
+        );
         const accuracy = Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100);
 
         let rating = 3;
@@ -581,7 +590,7 @@ export function MobileTargetGame({
     if (bubble.isTarget) {
       // Correct Tap -> Advance Set
       playSuccessTone();
-      const reactionMs = Date.now() - setStartTimeRef.current;
+      const reactionMs = performance.now() - setStartTimeRef.current;
       setCorrectCount((c) => c + 1);
       advanceToNextSet('correct', reactionMs);
     } else {
@@ -598,7 +607,7 @@ export function MobileTargetGame({
     setShowClickToStart(false);
     setIsPlaying(true);
     setIsPaused(false);
-    setStartTimeRef.current = Date.now();
+    setStartTimeRef.current = performance.now();
     speakTarget(
       settings.gameMode === 'colors'
         ? targetItem.name || targetItem.value
@@ -632,9 +641,13 @@ export function MobileTargetGame({
         <div className="absolute inset-0 bg-[radial-gradient(#1E2640_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />
 
         {bubbles.map((bubble) => {
-          const hasBg = settings.hasBackground === true;
-          const contrastTextColor = getContrastTextColor(bubble.color);
-          const textColor = hasBg ? contrastTextColor : bubble.color;
+          const appearance = resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
+          const paint = resolveBubblePaint(appearance, bubble.color, {
+            borderFill: '#121626',
+            solidBorderColor: '#FFFFFF',
+            solidBorderWidth: 3,
+          });
+          const textColor = paint.textColor;
 
           const radius = bubble.radius || (settings.bubbleSize || 96) / 2;
           const diameter = radius * 2;
@@ -656,8 +669,8 @@ export function MobileTargetGame({
                 transform: `translate3d(${bubble.x - radius}px, ${bubble.y - radius}px, 0)`,
                 width: `${diameter}px`,
                 height: `${diameter}px`,
-                backgroundColor: hasBg ? bubble.color : '#121626',
-                border: hasBg ? '3px solid #FFFFFF' : `4px solid ${bubble.color}`,
+                backgroundColor: paint.backgroundColor,
+                border: `${paint.borderWidth}px solid ${paint.borderColor}`,
                 boxShadow: 'none',
                 touchAction: 'none',
                 willChange: 'transform',
@@ -864,7 +877,7 @@ export function MobileTargetGame({
 
       {/* Click to Start overlay */}
       {showClickToStart && !showSettings && !showResults && (
-        <div className="fixed inset-0 z-40 bg-[#06070D]/98 flex flex-col items-center justify-center gap-4 px-4 select-none">
+        <div className="fixed inset-0 z-40 bg-[#06070D]/98 flex flex-col items-center justify-center gap-4 px-4 p-6 text-center select-none">
           <h2 className="text-2xl sm:text-3xl font-black text-white text-center">{gameTitle}</h2>
           <button
             type="button"
@@ -873,6 +886,13 @@ export function MobileTargetGame({
             title="Click to Start Therapy Session"
           >
             Click to Start
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
+          >
+            <span>⚙️ Edit Clinical Settings</span>
           </button>
         </div>
       )}
@@ -889,7 +909,13 @@ export function MobileTargetGame({
         settings={settings}
         onUpdateSettings={(newSettings) => {
           const nextColors = activeTherapyColors(newSettings.therapyColors).map((item) => item.code);
-          const next = { ...newSettings, therapyColors: nextColors };
+          const appearance = resolveBubbleAppearance(newSettings.bubbleAppearance, newSettings.hasBackground);
+          const next = {
+            ...newSettings,
+            therapyColors: nextColors,
+            bubbleAppearance: appearance,
+            hasBackground: appearance === 'solid',
+          };
           setSettings(next);
           setShowSettings(false);
           setIsPlaying(false);

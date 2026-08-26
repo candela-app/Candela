@@ -8,6 +8,7 @@ import { BeeTracingGame } from '@/components/beeTrackingModule/BeeTracingGame';
 import { PursuitGame } from '@/components/pursuitModule/PursuitGame';
 import { MobileTargetGame } from '@/components/mobileTargetModule/MobileTargetGame';
 import { GeoboardGame } from '@/components/geoboardModule/GeoboardGame';
+import { PeripheralViewGame } from '@/components/peripheralViewModule/PeripheralViewGame';
 import {
   EyeIcon,
   AnalyticsIcon,
@@ -20,19 +21,27 @@ import {
   GeoboardBoardId,
   GEOBOARD_BOARDS,
   GEOBOARD_BOARD_IDS,
-  getBoardPatterns,
   requestFullScreenSafe,
   UI_MODULE_TO_CATALOG,
   MODULE_LEVELS,
   resolveBeePathType,
   resolvePursuitPattern,
+  resolvePeripheralField,
   type PursuitMovementPattern,
+  type PeripheralField,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
+import { MODULE_CARDS } from '@/lib/shell';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard';
+const VARIANT_TILE =
+  'min-h-[140px] w-full rounded-2xl bg-white text-center flex justify-center items-center p-4 border-2 border-shell-border hover:border-shell-blue cursor-pointer transition-colors';
+
+const EMPTY_LEVELS =
+  'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
+
+type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view';
 
 function MainContent() {
   const router = useRouter();
@@ -92,6 +101,7 @@ function MainContent() {
   const [beePathType, setBeePathType] = useState<string>('straight');
   const [pursuitPattern, setPursuitPattern] = useState<PursuitMovementPattern>('linear_bounce');
   const [geoboardBoardId, setGeoboardBoardId] = useState<GeoboardBoardId>(1);
+  const [peripheralField, setPeripheralField] = useState<PeripheralField>('both');
 
   // Sync state from URL Query Params
   useEffect(() => {
@@ -140,6 +150,11 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('geoboard');
       setView('play_geoboard');
+    } else if (gameParam === 'peripheral_view' || gameParam === 'peripheral') {
+      setPeripheralField(resolvePeripheralField(variantParam));
+      setSelectedTherapy('vision');
+      setSelectedModule('peripheral');
+      setView('play_peripheral_view');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -291,6 +306,19 @@ function MainContent() {
     });
   };
 
+  const handleLaunchPeripheral = (field: PeripheralField) => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'peripheral',
+      game: 'peripheral_view',
+      mode: null,
+      variant: field,
+      board: null,
+    });
+  };
+
   const handleExitGame = () => {
     if (selectedModule) {
       updateQueryParams({
@@ -315,11 +343,11 @@ function MainContent() {
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view';
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
-      <div className="min-h-screen bg-[#F4F7FC] flex flex-col">
+      <div className="min-h-screen bg-page flex flex-col">
         <AppHeader />
         <PatientDashboardSkeleton />
       </div>
@@ -327,13 +355,7 @@ function MainContent() {
   }
 
   return (
-    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-[#F4F7FC] relative select-none touch-manipulation`}>
-      {!isPlayingGame && (
-        <>
-          <div className="fixed top-[-10vw] left-1/4 w-[500px] h-[500px] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
-          <div className="fixed bottom-[-10vw] right-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
-        </>
-      )}
+    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-page relative select-none touch-manipulation`}>
       {!isPlayingGame && (
         <AppHeader
           onBack={view === 'game' || view === 'analytics' ? handleBackToModules : undefined}
@@ -344,191 +366,81 @@ function MainContent() {
       {view === 'module' && (
         <>
         {/* MODULE HEADER WITH ANALYTICS ICON */}
-        <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-2 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Vision Therapy</h2>
-            <p className="text-sm text-gray-500 font-medium mt-0.5">Select a therapy module to begin</p>
+            <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
+            <p className="text-[13px] text-shell-muted font-medium mt-0.5">Select a therapy module to begin</p>
           </div>
           <button
             onClick={navigateToAnalytics}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-400 text-gray-700 hover:text-blue-600 font-semibold text-sm transition-all active:scale-95 group"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95"
             title="View Session Analytics"
           >
-            <AnalyticsIcon className="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform" />
+            <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
             <span className="hidden sm:inline">Analytics</span>
           </button>
         </div>
-        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
           {allowedModuleIds.size === 0 && (
-            <div className="sm:col-span-2 lg:col-span-4 bg-white rounded-3xl border border-gray-100 p-10 text-center">
-              <h3 className="text-xl font-bold text-gray-800">No modules prescribed yet</h3>
-              <p className="text-sm text-gray-500 mt-2">
+            <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+              <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
+              <p className="text-[13px] text-shell-muted mt-2">
                 Your doctor has not added any therapy modules. Check back after they prescribe one.
               </p>
             </div>
           )}
-          {/* Rotatory Module */}
-          {canPlayUiModule('wheel') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-blue-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-blue-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('wheel')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-blue-600 transition-colors">
-                Rotatory Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                Dynamic wheel tracking & visual pursuit exercises
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-colors shadow-2xs">
-              For Tabs
-            </span>
-          </div>
-          )}
-
-          {/* Sorting Module */}
-          {canPlayUiModule('sorting') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-purple-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-purple-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('sorting')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-purple-600 transition-colors">
-                Sorting Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                Visual discrimination & sequential recognition
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-colors shadow-2xs">
-              For Tabs & Mobile
-            </span>
-          </div>
-          )}
-
-          {/* Bee Path Tracing */}
-          {canPlayUiModule('tracing') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-amber-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-amber-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('tracing')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-orange-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-amber-600 transition-colors">
-                Bee Path Tracing
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                Smooth pursuit tracking & visual-motor path control
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600 transition-colors shadow-2xs">
-              For Touch & Stylus
-            </span>
-          </div>
-          )}
-
-          {/* Pursuit Module */}
-          {canPlayUiModule('pursuit') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-cyan-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-cyan-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('pursuit')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-cyan-600 transition-colors">
-                Pursuit Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                Continuous visual pursuit & selective attention tracking
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/80 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition-colors shadow-2xs">
-              For All Devices
-            </span>
-          </div>
-          )}
-
-          {/* Bubble Chase */}
-          {canPlayUiModule('mobile_target') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-emerald-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-emerald-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('mobile_target')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-emerald-600 transition-colors">
-                Bubble Chase
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                2-target bouncing pursuit & dark field tracking
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-colors shadow-2xs">
-              For Mobile & Tabs
-            </span>
-          </div>
-          )}
-
-          {canPlayUiModule('geoboard') && (
-          <div
-            className="relative overflow-hidden h-[175px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 text-center flex flex-col justify-between items-center p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-            onClick={() => handleSelectModule('geoboard')}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-            <div className="pt-1">
-              <h3 className="m-0 text-[20px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
-                Draw a Pattern
-              </h3>
-              <p className="text-xs text-gray-500 mt-1.5 font-medium leading-relaxed">
-                Hand-eye coordination & visual spatial recall patterns
-              </p>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
-              For All Devices
-            </span>
-          </div>
-          )}
+          {MODULE_CARDS.filter((card) => canPlayUiModule(card.uiId)).map((card) => (
+            <button
+              key={card.uiId}
+              type="button"
+              onClick={() => handleSelectModule(card.uiId)}
+              className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
+              <div className="pt-2">
+                <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
+                <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
+              </div>
+              <span
+                className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
+                style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
+              >
+                {card.badge}
+              </span>
+            </button>
+          ))}
         </main>
         </>
       )}
 
       {/* ANALYTICS PLACEHOLDER VIEW */}
       {view === 'analytics' && (
-        <main className="flex-1 flex flex-col items-center px-6 py-10 max-w-6xl mx-auto w-full">
-          {/* Analytics Header */}
-          <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <main className="flex-1 flex flex-col items-center px-4 sm:px-6 py-8 max-w-6xl mx-auto w-full">
+          <div className="w-full flex items-center gap-3 mb-8 self-start">
+            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center">
+              <AnalyticsIcon className="w-6 h-6" />
+            </div>
             <div>
-              <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <AnalyticsIcon className="w-6 h-6" />
-                </div>
-                Session Analytics
-              </h2>
-              <p className="text-sm text-gray-500 font-medium mt-1 ml-[52px]">
+              <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Session Analytics</h2>
+              <p className="text-[13px] text-shell-muted font-medium">
                 Review past session performance across all therapy modules
               </p>
             </div>
           </div>
 
-          {/* Placeholder Empty State */}
-          <div className="w-full flex-1 flex flex-col items-center justify-center text-center py-20">
-            <div className="w-24 h-24 rounded-3xl bg-blue-50 text-blue-400 flex items-center justify-center mb-6">
-              <AnalyticsIcon className="w-14 h-14" />
+          <div className="w-full flex-1 flex flex-col items-center justify-center text-center py-16">
+            <div className="w-[88px] h-[88px] rounded-3xl bg-[#EFF6FF] text-blue-400 flex items-center justify-center mb-4">
+              <AnalyticsIcon className="w-12 h-12" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">
-              No Session Data Yet
-            </h3>
-            <p className="text-gray-500 text-sm max-w-md leading-relaxed mb-8">
-              Complete therapy sessions to see your performance analytics here. Session results including accuracy, reaction times, and progress tracking will appear on this page.
+            <h3 className="text-lg font-bold text-shell-ink mb-2">No Session Data Yet</h3>
+            <p className="text-shell-muted text-[13px] max-w-md leading-relaxed mb-5">
+              Complete therapy sessions to see your performance analytics here.
             </p>
             <button
               onClick={() => updateQueryParams({ page: null, therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null })}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95 flex items-center gap-2"
+              className="px-5 py-3 bg-shell-blue hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all active:scale-95 flex items-center gap-2"
             >
-              <EyeIcon className="w-5 h-5" />
+              <EyeIcon className="w-[18px] h-[18px]" />
               <span>Start a Therapy Session</span>
             </button>
           </div>
@@ -538,66 +450,56 @@ function MainContent() {
       {/* GAME VARIANTS VIEW */}
       {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
         <>
-          <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-2">
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+          <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
+            <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">
               {selectedModule === 'wheel' && 'Rotatory Module'}
               {selectedModule === 'sorting' && 'Sorting Module'}
               {selectedModule === 'tracing' && 'Bee Path Tracing'}
               {selectedModule === 'pursuit' && 'Pursuit Module'}
               {selectedModule === 'mobile_target' && 'Bubble Chase'}
               {selectedModule === 'geoboard' && 'Draw a Pattern'}
+              {selectedModule === 'peripheral' && 'Peripheral View'}
             </h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">
+            <p className="text-[13px] text-shell-muted font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
               {selectedModule === 'sorting' && 'Select a sorting category to begin'}
-              {selectedModule === 'tracing' && 'Select a path geometry to begin'}
+              {selectedModule === 'tracing' && 'Select a path type to begin'}
               {selectedModule === 'pursuit' && 'Select a movement pattern to begin'}
               {selectedModule === 'mobile_target' && 'Select an exercise mode to begin'}
-              {selectedModule === 'geoboard' && 'Select a board. Every pattern in the board runs in order, then the session report opens.'}
+              {selectedModule === 'geoboard' && 'Select a board to begin'}
+              {selectedModule === 'peripheral' && 'Select a visual field · designed for landscape'}
             </p>
           </div>
 
           {selectedModule === 'wheel' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {isLevelAllowed('wheel', 'uppercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Rotatory</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Rotatory</p>
+                </button>
               )}
               {isLevelAllowed('wheel', 'lowercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Rotatory</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Rotatory</p>
+                </button>
               )}
               {isLevelAllowed('wheel', 'numbers') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchRotatory('numbers', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Rotatory</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('numbers', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Rotatory</p>
+                </button>
               )}
               {isLevelAllowed('wheel', 'colors') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-blue-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchRotatory('colors', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('colors', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant</p>
+                </button>
               )}
               {!isLevelAllowed('wheel', 'uppercase') &&
                 !isLevelAllowed('wheel', 'lowercase') &&
                 !isLevelAllowed('wheel', 'numbers') &&
                 !isLevelAllowed('wheel', 'colors') && (
-                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
-                    <p className="text-sm text-gray-500 mt-2">
+                  <div className={EMPTY_LEVELS}>
+                    <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                    <p className="text-[13px] text-shell-muted mt-2">
                       Your doctor has not enabled any specific levels for this module.
                     </p>
                   </div>
@@ -606,37 +508,28 @@ function MainContent() {
           )}
 
           {selectedModule === 'sorting' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {isLevelAllowed('sorting', 'uppercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchSorting('uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Alphabet Sorting</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Alphabet Sorting</p>
+                </button>
               )}
               {isLevelAllowed('sorting', 'lowercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchSorting('lowercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Alphabet Sorting</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('lowercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Alphabet Sorting</p>
+                </button>
               )}
               {isLevelAllowed('sorting', 'numbers') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-purple-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchSorting('numbers')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Sorting</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('numbers')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Sorting</p>
+                </button>
               )}
               {!isLevelAllowed('sorting', 'uppercase') &&
                 !isLevelAllowed('sorting', 'lowercase') &&
                 !isLevelAllowed('sorting', 'numbers') && (
-                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
-                    <p className="text-sm text-gray-500 mt-2">
+                  <div className={EMPTY_LEVELS}>
+                    <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                    <p className="text-[13px] text-shell-muted mt-2">
                       Your doctor has not enabled any specific levels for this module.
                     </p>
                   </div>
@@ -645,22 +538,18 @@ function MainContent() {
           )}
 
           {selectedModule === 'tracing' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.bee_tracing.map((level) =>
                 isLevelAllowed('tracing', level.id) ? (
-                  <div
-                    key={level.id}
-                    className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-amber-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                    onClick={() => handleLaunchBee(level.id)}
-                  >
-                    <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">{level.name}</p>
-                  </div>
+                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchBee(level.id)}>
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
                 ) : null,
               )}
               {MODULE_LEVELS.bee_tracing.every((level) => !isLevelAllowed('tracing', level.id)) && (
-                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                  <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
-                  <p className="text-sm text-gray-500 mt-2">
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
                     Your doctor has not enabled any specific levels for this module.
                   </p>
                 </div>
@@ -669,22 +558,18 @@ function MainContent() {
           )}
 
           {selectedModule === 'pursuit' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.pursuit.map((level) =>
                 isLevelAllowed('pursuit', level.id) ? (
-                  <div
-                    key={level.id}
-                    className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-cyan-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                    onClick={() => handleLaunchPursuit(level.id)}
-                  >
-                    <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">{level.name}</p>
-                  </div>
+                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchPursuit(level.id)}>
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
                 ) : null,
               )}
               {MODULE_LEVELS.pursuit.every((level) => !isLevelAllowed('pursuit', level.id)) && (
-                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                  <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
-                  <p className="text-sm text-gray-500 mt-2">
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
                     Your doctor has not enabled any specific levels for this module.
                   </p>
                 </div>
@@ -693,46 +578,34 @@ function MainContent() {
           )}
 
           {selectedModule === 'mobile_target' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {isLevelAllowed('mobile_target', 'uppercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Uppercase Bubble Chase</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Bubble Chase</p>
+                </button>
               )}
               {isLevelAllowed('mobile_target', 'lowercase') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Lowercase Bubble Chase</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Bubble Chase</p>
+                </button>
               )}
               {isLevelAllowed('mobile_target', 'numbers') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Numeric Bubble Chase</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Bubble Chase</p>
+                </button>
               )}
               {isLevelAllowed('mobile_target', 'colors') && (
-                <div
-                  className="h-[160px] w-full rounded-[16px] bg-white shadow-md hover:shadow-xl text-center flex justify-center items-center p-4 border-2 border-transparent hover:border-emerald-500 cursor-pointer transform hover:-translate-y-1 transition-all duration-200"
-                  onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}
-                >
-                  <p className="m-0 text-[22px] font-semibold text-[#1A1A1A]">Color Discriminant Bubble Chase</p>
-                </div>
+                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}>
+                  <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant Bubble Chase</p>
+                </button>
               )}
               {!isLevelAllowed('mobile_target', 'uppercase') &&
                 !isLevelAllowed('mobile_target', 'lowercase') &&
                 !isLevelAllowed('mobile_target', 'numbers') &&
                 !isLevelAllowed('mobile_target', 'colors') && (
-                  <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                    <h3 className="text-xl font-bold text-gray-800">No levels assigned yet</h3>
-                    <p className="text-sm text-gray-500 mt-2">
+                  <div className={EMPTY_LEVELS}>
+                    <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                    <p className="text-[13px] text-shell-muted mt-2">
                       Your doctor has not enabled any specific levels for this module.
                     </p>
                   </div>
@@ -741,55 +614,45 @@ function MainContent() {
           )}
 
           {selectedModule === 'geoboard' && (
-            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).length === 0 ? (
-                <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-10 text-center w-full">
-                  <h3 className="text-xl font-bold text-gray-800">No boards assigned yet</h3>
-                  <p className="text-sm text-gray-500 mt-2">
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No boards assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
                     Your doctor has not enabled any specific boards for this module.
                   </p>
                 </div>
               ) : (
-                GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) => {
-                  const board = GEOBOARD_BOARDS[id];
-                  const patternCount = getBoardPatterns(id).length;
+                GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) => (
+                  <button type="button" key={id} className={VARIANT_TILE} onClick={() => handleLaunchGeoboard(id)}>
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{GEOBOARD_BOARDS[id].shortLabel}</p>
+                  </button>
+                ))
+              )}
+            </main>
+          )}
 
-                  return (
-                    <div
-                      key={id}
-                      className="relative overflow-hidden min-h-[190px] w-full rounded-[22px] bg-white shadow-sm hover:shadow-xl hover:shadow-teal-500/20 flex flex-col justify-between p-6 border border-gray-100 hover:border-teal-300/80 cursor-pointer transform hover:-translate-y-1.5 transition-all duration-300 group"
-                      onClick={() => handleLaunchGeoboard(id)}
-                    >
-                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-500 opacity-70 group-hover:opacity-100 group-hover:h-2 transition-all duration-300" />
-                      <div className="pt-1">
-                        <div className="flex items-center gap-2.5 mb-2">
-                          <span className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center font-black text-sm shrink-0 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors">
-                            {String(id).padStart(2, '0')}
-                          </span>
-                          <h3 className="m-0 text-[19px] font-bold text-[#1A1A1A] group-hover:text-teal-600 transition-colors">
-                            {board.shortLabel}
-                          </h3>
-                        </div>
-                        <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                          {board.description}
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                          {board.focus}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between mt-4">
-                        <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/80 group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors shadow-2xs">
-                          {patternCount} patterns
-                        </span>
-                        {board.supportsLetterCase && (
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                            Aa toggle
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+          {selectedModule === 'peripheral' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.peripheral_view.map((level) =>
+                isLevelAllowed('peripheral', level.id) ? (
+                  <button
+                    type="button"
+                    key={level.id}
+                    className={VARIANT_TILE}
+                    onClick={() => handleLaunchPeripheral(level.id as PeripheralField)}
+                  >
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
+                ) : null,
+              )}
+              {MODULE_LEVELS.peripheral_view.every((level) => !isLevelAllowed('peripheral', level.id)) && (
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
               )}
             </main>
           )}
@@ -827,6 +690,10 @@ function MainContent() {
 
       {view === 'play_geoboard' && canPlayUiModule('geoboard') && isLevelAllowed('geoboard', geoboardBoardId) && (
         <GeoboardGame boardId={geoboardBoardId} onExit={handleExitGame} />
+      )}
+
+      {view === 'play_peripheral_view' && canPlayUiModule('peripheral') && isLevelAllowed('peripheral', peripheralField) && (
+        <PeripheralViewGame field={peripheralField} onExit={handleExitGame} />
       )}
     </div>
   );

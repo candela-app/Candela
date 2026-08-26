@@ -83,6 +83,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   pursuit: 'pursuit',
   mobile_target: 'mobile_target',
   geoboard: 'geoboard',
+  peripheral: 'peripheral_view',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -92,4 +93,5 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   pursuit: 'pursuit',
   mobile_target: 'mobile_target',
   geoboard: 'geoboard',
+  peripheral_view: 'peripheral',
 };

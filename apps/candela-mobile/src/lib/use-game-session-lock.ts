@@ -10,6 +10,11 @@ export function useGameSessionLock(onExit?: () => void) {
   const navigation = useNavigation();
   const [allowExit, setAllowExit] = useState(false);
   const allowExitRef = useRef(false);
+  const onExitRef = useRef(onExit);
+
+  useEffect(() => {
+    onExitRef.current = onExit;
+  }, [onExit]);
 
   useEffect(() => {
     allowExitRef.current = allowExit;
@@ -39,8 +44,9 @@ export function useGameSessionLock(onExit?: () => void) {
   }, []);
 
   useEffect(() => {
-    if (allowExit) onExit?.();
-  }, [allowExit, onExit]);
+    if (!allowExit) return;
+    onExitRef.current?.();
+  }, [allowExit]);
 
   return { requestExit: () => setAllowExit(true) };
 }

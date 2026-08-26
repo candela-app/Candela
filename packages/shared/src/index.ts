@@ -10,3 +10,4 @@ export * from './pursuit-motion-logic';
 export * from './auth-types';
 export * from './referral-code';
 export * from './geoboard-logic';
+export * from './peripheral-hive-logic';

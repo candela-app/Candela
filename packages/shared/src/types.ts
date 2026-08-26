@@ -4,6 +4,10 @@ export type DeviceTier = 'mobile' | 'tablet' | 'tv';
 export type AlphabetVariant = 'uppercase' | 'lowercase';
 export type SortingVariant = 'uppercase' | 'lowercase' | 'numbers';
 
+/** Solid fill vs colored outline (letter matches border when bordered). */
+export type BubbleAppearance = 'solid' | 'border';
+export const DEFAULT_BUBBLE_APPEARANCE: BubbleAppearance = 'solid';
+
 export interface ColorItem {
   name: string;
   code: string;
@@ -50,6 +54,31 @@ export interface SessionResultData {
   avgReactionSec: number;
 }
 
+/** Single target attempt — used for analytics / AI pipelines. */
+export type PeripheralTrialOutcome = 'correct' | 'wrong' | 'timeout' | 'miss';
+
+export interface PeripheralTrialRecord {
+  batchIndex: number;
+  targetLetter: string;
+  outcome: PeripheralTrialOutcome;
+  /** Ms from target onset; null when not applicable. */
+  reactionMs: number | null;
+  /** Ms from session start when the attempt occurred. */
+  atMs: number;
+}
+
+export interface PeripheralSessionResultData extends SessionResultData {
+  peripheralField: 'left' | 'right' | 'both';
+  batchesConfigured: number;
+  stimuliPerBatchConfigured: number;
+  stimuliPresentedTotal: number;
+  targetTimeoutSec: number;
+  bubbleType: 'solid' | 'boundary';
+  deviceTier: DeviceTier;
+  trials: PeripheralTrialRecord[];
+  medianReactionSec: number;
+}
+
 export interface RotatoryWheelSettings {
   bubbleCount: number;
   rotationDuration: number;
@@ -58,6 +87,10 @@ export interface RotatoryWheelSettings {
   patientName: string;
   wheelColor: string;
   therapyColors: string[];
+  /** Letter/number bubble fill: hex or `mixed`. Ignored in colors mode. */
+  stimuliColor?: string;
+  /** Solid fill vs colored outline. */
+  bubbleAppearance?: BubbleAppearance;
 }
 
 export interface SortingGameSettings {
@@ -66,6 +99,10 @@ export interface SortingGameSettings {
   patientName: string;
   numberRangeFrom?: number;
   numberRangeTo?: number;
+  /** Bubble fill: hex or `mixed` (therapy palette cycle). */
+  stimuliColor?: string;
+  /** Solid fill vs colored outline. */
+  bubbleAppearance?: BubbleAppearance;
 }
 
 // --- Bee Path Tracing Module Types ---
@@ -107,6 +144,8 @@ export interface RoundResultData {
   baselineTimeSec: number;
   deviationCount: number;
   avgRecoveryTimeSec: number;
+  /** Ms from round ready (post-demo) until first valid bee grab. */
+  reactionTimeMs?: number;
   tracedPoints: PathPoint[];
   targetPoints: PathPoint[];
   idealSvgPathD: string;
@@ -133,7 +172,8 @@ export type TherapyModuleId =
   | 'bee_tracing'
   | 'pursuit'
   | 'mobile_target'
-  | 'geoboard';
+  | 'geoboard'
+  | 'peripheral_view';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;
@@ -209,6 +249,10 @@ export interface MobileTargetSettings {
   movementAxis?: 'horizontal' | 'vertical' | 'random';
   hasBackground?: boolean; // true = filled bubble background, false = outline / no background
   therapyColors?: string[]; // enabled hex colors for color-discriminant mode
+  /** Letter/number bubble fill: hex or `mixed`. Ignored in colors mode. */
+  stimuliColor?: string;
+  /** Prefer over hasBackground when set: solid | border. */
+  bubbleAppearance?: BubbleAppearance;
 }
 
 export interface MobileTargetSetMetric {
