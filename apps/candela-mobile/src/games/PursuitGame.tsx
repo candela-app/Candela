@@ -336,6 +336,7 @@ export function PursuitGame({
         pursuitSpeedPxPerSec={settings.speedPxPerSec}
         pursuitTrialTimeoutSec={settings.trialTimeoutSec}
         onApply={(applied: AppliedClinicalSettings) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setSettings((prev) => ({
             ...prev,
             patientName: applied.patientName || prev.patientName,
@@ -349,7 +350,9 @@ export function PursuitGame({
           setIsSettingsOpen(false);
           trialMetricsRef.current = [];
           setCurrentTrialIndex(0);
+          if (wasPlaying) setGameStarted(true);
         }}
+        sessionLocked={gameStarted && !isResultsOpen}
       />
       {sessionResults ? (
         <PursuitResultsModal

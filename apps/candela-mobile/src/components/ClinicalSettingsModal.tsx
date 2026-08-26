@@ -1,7 +1,63 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SPEED_PRESETS, THERAPY_COLOR_ITEMS, DEFAULT_SORTING_NUMBER_FROM, DEFAULT_SORTING_NUMBER_TO, MAX_SORTING_NUMBER_COUNT, clampSortingNumberRange, clampBatchesPerSession, clampHexSizePx, clampPeripheralLetterSize, clampPeripheralTargetTimeoutSec, clampStimuliCount, DEFAULT_BUBBLE_APPEARANCE, DEFAULT_PERIPHERAL_BG_COLOR, DEFAULT_PERIPHERAL_BUBBLE_TYPE, DEFAULT_PERIPHERAL_FIXATION_COLOR, DEFAULT_PERIPHERAL_STIMULUS_COLOR, DEFAULT_STIMULI_BUBBLE_COLOR, getDeviceTier, hexVertices, peripheralHexPaint, peripheralLetterColor, peripheralLetterFontPx, peripheralMaxStimuliCount, peripheralStimuliPresets, PERIPHERAL_BATCH_PRESETS, PERIPHERAL_BG_COLORS, PERIPHERAL_DEFAULT_BATCHES, PERIPHERAL_HEX_SIZE_PRESETS, PERIPHERAL_LETTER_SIZE_PRESETS, PERIPHERAL_STIMULUS_COLORS, PERIPHERAL_TARGET_TIMEOUT_PRESETS, resolveBubblePaint, resolveStimuliBubbleColor, STIMULI_BUBBLE_COLOR_OPTIONS, STIMULI_COLOR_MIXED, type BubbleAppearance, type PeripheralBubbleType } from '@candela/shared/rn';
+import {
+  SPEED_PRESETS,
+  THERAPY_COLOR_ITEMS,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
+  MAX_SORTING_NUMBER_COUNT,
+  clampSortingNumberRange,
+  clampBatchesPerSession,
+  clampHexSizePx,
+  clampPeripheralLetterSize,
+  clampPeripheralTargetTimeoutSec,
+  clampStimuliCount,
+  clampNumberSearchFieldCount,
+  clampNumberSearchLayoutMode,
+  clampNumberSearchLetterSize,
+  clampNumberSearchTargetDigits,
+  clampNumberSearchTimeLimitSec,
+  DEFAULT_BUBBLE_APPEARANCE,
+  DEFAULT_NUMBER_SEARCH_BG,
+  DEFAULT_NUMBER_SEARCH_CHAR_COLOR,
+  DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
+  DEFAULT_NUMBER_SEARCH_LAYOUT,
+  DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
+  DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC,
+  DEFAULT_PERIPHERAL_BG_COLOR,
+  DEFAULT_PERIPHERAL_BUBBLE_TYPE,
+  DEFAULT_PERIPHERAL_FIXATION_COLOR,
+  DEFAULT_PERIPHERAL_STIMULUS_COLOR,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
+  getDeviceTier,
+  hexVertices,
+  NUMBER_SEARCH_BG_COLORS,
+  NUMBER_SEARCH_CHAR_COLORS,
+  NUMBER_SEARCH_FIELD_COUNT_PRESETS,
+  NUMBER_SEARCH_LETTER_SIZE_PRESETS,
+  NUMBER_SEARCH_TARGET_DIGIT_PRESETS,
+  NUMBER_SEARCH_TIME_LIMIT_PRESETS,
+  peripheralHexPaint,
+  peripheralLetterColor,
+  peripheralLetterFontPx,
+  peripheralMaxStimuliCount,
+  peripheralStimuliPresets,
+  PERIPHERAL_BATCH_PRESETS,
+  PERIPHERAL_BG_COLORS,
+  PERIPHERAL_DEFAULT_BATCHES,
+  PERIPHERAL_HEX_SIZE_PRESETS,
+  PERIPHERAL_LETTER_SIZE_PRESETS,
+  PERIPHERAL_STIMULUS_COLORS,
+  PERIPHERAL_TARGET_TIMEOUT_PRESETS,
+  resolveBubblePaint,
+  resolveStimuliBubbleColor,
+  STIMULI_BUBBLE_COLOR_OPTIONS,
+  STIMULI_COLOR_MIXED,
+  type BubbleAppearance,
+  type NumberSearchLayoutMode,
+  type PeripheralBubbleType,
+} from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
 import Svg, { Polygon, Text as SvgText } from 'react-native-svg';
 import { useLayout } from '../lib/layout';
@@ -38,8 +94,14 @@ export interface AppliedClinicalSettings {
   bubbleAppearance?: BubbleAppearance;
   fixationDotColor?: string;
   bgColor?: string;
+  /** Number Search glyph / character color */
+  shapeColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
+  targetDigitCount?: number;
+  timeLimitSec?: number;
+  numberSearchLayout?: NumberSearchLayoutMode;
+  numberSearchFieldCount?: number;
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
@@ -197,14 +259,21 @@ export function ClinicalSettingsModal({
   numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
   showPeripheralViewControls = false,
+  showNumberSearchControls = false,
+  sessionLocked = false,
   hexSizePx = 64,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
   stimulusColor = DEFAULT_PERIPHERAL_STIMULUS_COLOR,
   fixationDotColor = DEFAULT_PERIPHERAL_FIXATION_COLOR,
   bgColor = DEFAULT_PERIPHERAL_BG_COLOR,
+  shapeColor = DEFAULT_NUMBER_SEARCH_CHAR_COLOR,
   peripheralTargetTimeoutSec = 0,
   peripheralBubbleType = DEFAULT_PERIPHERAL_BUBBLE_TYPE,
+  targetDigitCount = DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
+  timeLimitSec = DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC,
+  numberSearchLayout = DEFAULT_NUMBER_SEARCH_LAYOUT,
+  numberSearchFieldCount = DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -245,14 +314,21 @@ export function ClinicalSettingsModal({
   numberRangeFrom?: number;
   numberRangeTo?: number;
   showPeripheralViewControls?: boolean;
+  showNumberSearchControls?: boolean;
+  sessionLocked?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
   batchesPerSession?: number;
   stimulusColor?: string;
   fixationDotColor?: string;
   bgColor?: string;
+  shapeColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
+  targetDigitCount?: number;
+  timeLimitSec?: number;
+  numberSearchLayout?: NumberSearchLayoutMode;
+  numberSearchFieldCount?: number;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, width, height } = useLayout();
@@ -291,6 +367,12 @@ export function ClinicalSettingsModal({
   const [tempBgColor, setTempBgColor] = useState(bgColor);
   const [tempPeripheralTargetTimeoutSec, setTempPeripheralTargetTimeoutSec] = useState(peripheralTargetTimeoutSec);
   const [tempPeripheralBubbleType, setTempPeripheralBubbleType] = useState<PeripheralBubbleType>(peripheralBubbleType);
+  const [tempShapeColor, setTempShapeColor] = useState(shapeColor);
+  const [tempTargetDigitCount, setTempTargetDigitCount] = useState(targetDigitCount);
+  const [tempTimeLimitSec, setTempTimeLimitSec] = useState(timeLimitSec);
+  const [tempNumberSearchLayout, setTempNumberSearchLayout] = useState<NumberSearchLayoutMode>(numberSearchLayout);
+  const [tempNumberSearchFieldCount, setTempNumberSearchFieldCount] = useState(numberSearchFieldCount);
+  const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -327,8 +409,19 @@ export function ClinicalSettingsModal({
     setTempPeripheralBubbleType(peripheralBubbleType);
     setTempStimuliColor(stimuliColor);
     setTempBubbleAppearance(bubbleAppearance);
+    setTempShapeColor(shapeColor);
+    setTempTargetDigitCount(clampNumberSearchTargetDigits(targetDigitCount));
+    setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
+    setTempNumberSearchLayout(clampNumberSearchLayoutMode(numberSearchLayout));
+    setTempNumberSearchFieldCount(clampNumberSearchFieldCount(numberSearchFieldCount));
+    setConfirmApplyOpen(false);
     if (showPeripheralViewControls) {
       setTempLetterSize(clampPeripheralLetterSize(letterSize));
+    }
+    if (showNumberSearchControls) {
+      setTempLetterSize(clampNumberSearchLetterSize(letterSize));
+      setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
+      setTempShapeColor(shapeColor || DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
     }
     setTempTherapyColors((prev) => {
       if (
@@ -344,11 +437,15 @@ export function ClinicalSettingsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const apply = () => {
+  const getAppliedPayload = (): AppliedClinicalSettings => {
     const numberRange = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
-    onApply({
+    return {
       patientName: tempPatientName,
-      letterSize: tempLetterSize,
+      letterSize: showPeripheralViewControls
+        ? clampPeripheralLetterSize(tempLetterSize)
+        : showNumberSearchControls
+          ? clampNumberSearchLetterSize(tempLetterSize)
+          : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -377,12 +474,87 @@ export function ClinicalSettingsModal({
       stimulusColor: tempStimulusColor,
       fixationDotColor: tempFixationDotColor,
       bgColor: tempBgColor,
+      shapeColor: tempShapeColor,
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
       peripheralBubbleType: tempPeripheralBubbleType,
-    });
+      targetDigitCount: clampNumberSearchTargetDigits(tempTargetDigitCount),
+      timeLimitSec: clampNumberSearchTimeLimitSec(tempTimeLimitSec),
+      numberSearchLayout: clampNumberSearchLayoutMode(tempNumberSearchLayout),
+      numberSearchFieldCount: clampNumberSearchFieldCount(tempNumberSearchFieldCount),
+    };
   };
 
-  const isBubbleGame = !showBeeTracingControls && !showPursuitControls && !showPeripheralViewControls;
+  const getBaselinePayload = (): AppliedClinicalSettings => {
+    const numberRange = clampSortingNumberRange(numberRangeFrom, numberRangeTo);
+    return {
+      patientName,
+      letterSize: showPeripheralViewControls
+        ? clampPeripheralLetterSize(letterSize)
+        : showNumberSearchControls
+          ? clampNumberSearchLetterSize(letterSize)
+          : letterSize,
+      bubbleSize,
+      speed,
+      wheelColor,
+      tracingMode,
+      pathType,
+      toleranceBandPx: pathType === 'spiral' ? 12 : toleranceBandPx,
+      colorTheme,
+      audioEnabled,
+      roundsPerSet,
+      pathComplexity,
+      beeSpeedSec,
+      orientation,
+      pursuitMovementPattern,
+      pursuitTargetColor,
+      pursuitDecoyCount,
+      pursuitSpeedPxPerSec,
+      pursuitTrialTimeoutSec,
+      therapyColors,
+      stimuliColor,
+      bubbleAppearance,
+      numberRangeFrom: numberRange.from,
+      numberRangeTo: numberRange.to,
+      hexSizePx: clampHexSizePx(hexSizePx),
+      stimuliCount: clampStimuliCount(stimuliCount, deviceTier),
+      batchesPerSession: clampBatchesPerSession(batchesPerSession),
+      stimulusColor,
+      fixationDotColor,
+      bgColor,
+      shapeColor,
+      peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec),
+      peripheralBubbleType,
+      targetDigitCount: clampNumberSearchTargetDigits(targetDigitCount),
+      timeLimitSec: clampNumberSearchTimeLimitSec(timeLimitSec),
+      numberSearchLayout: clampNumberSearchLayoutMode(numberSearchLayout),
+      numberSearchFieldCount: clampNumberSearchFieldCount(numberSearchFieldCount),
+    };
+  };
+
+  const settingsHaveChanged = () =>
+    JSON.stringify(getAppliedPayload()) !== JSON.stringify(getBaselinePayload());
+
+  const commitApply = () => {
+    onApply(getAppliedPayload());
+  };
+
+  const apply = () => {
+    if (sessionLocked) {
+      if (!settingsHaveChanged()) {
+        onClose();
+        return;
+      }
+      setConfirmApplyOpen(true);
+      return;
+    }
+    commitApply();
+  };
+
+  const isBubbleGame =
+    !showBeeTracingControls &&
+    !showPursuitControls &&
+    !showPeripheralViewControls &&
+    !showNumberSearchControls;
   const previewSize = Math.min(tempBubbleSize, 130);
   const previewStimuliHex = showStimuliColorPicker
     ? resolveStimuliBubbleColor(tempStimuliColor, 0)
@@ -457,9 +629,11 @@ export function ClinicalSettingsModal({
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
                   {showPursuitControls
                     ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
-                    : showPeripheralViewControls
-                      ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
-                      : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                    : showNumberSearchControls
+                      ? 'Configure glyph size, digit count, layout density, and high-contrast field colors.'
+                      : showPeripheralViewControls
+                        ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
+                        : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
                 </Text>
               </View>
               <Pressable
@@ -1400,6 +1574,233 @@ export function ClinicalSettingsModal({
               </>
             ) : null}
 
+            {showNumberSearchControls ? (
+              <>
+                <Card>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    LIVE FIELD PREVIEW
+                  </Text>
+                  <View
+                    style={{
+                      minHeight: s(140),
+                      borderRadius: s(16),
+                      borderWidth: 1,
+                      borderColor: '#1F2937',
+                      backgroundColor: tempBgColor,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: s(10),
+                      marginBottom: s(12),
+                    }}
+                  >
+                    {['A', '7', 'b', '3', 'm', '9'].map((ch) => (
+                      <Text
+                        key={ch}
+                        style={{
+                          color: tempShapeColor,
+                          fontSize: Math.round(16 * tempLetterSize),
+                          fontWeight: '900',
+                        }}
+                      >
+                        {ch}
+                      </Text>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginBottom: s(6) }}>
+                    PATIENT PROFILE
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#6B7280"
+                    style={{
+                      backgroundColor: '#141414',
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                      borderRadius: s(12),
+                      color: '#fff',
+                      paddingHorizontal: s(14),
+                      paddingVertical: s(12),
+                      fontSize: fs(14),
+                      fontWeight: '600',
+                    }}
+                  />
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    SESSION PARAMETERS
+                  </Text>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Glyph Size
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {NUMBER_SEARCH_LETTER_SIZE_PRESETS.map((size) => (
+                      <Chip
+                        key={size}
+                        label={String(size)}
+                        active={tempLetterSize === size}
+                        onPress={() => setTempLetterSize(size)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Digits to Find
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {NUMBER_SEARCH_TARGET_DIGIT_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempTargetDigitCount === n}
+                        onPress={() => setTempTargetDigitCount(n)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Character Layout
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: s(8), marginBottom: s(12) }}>
+                    {(
+                      [
+                        { id: 'grid' as const, label: 'Organised grid' },
+                        { id: 'random' as const, label: 'Random scatter' },
+                      ] as const
+                    ).map((opt) => (
+                      <Pressable
+                        key={opt.id}
+                        onPress={() => setTempNumberSearchLayout(opt.id)}
+                        style={{
+                          flex: 1,
+                          padding: s(12),
+                          borderRadius: s(12),
+                          backgroundColor: tempNumberSearchLayout === opt.id ? '#F59E0B' : '#1F2937',
+                          borderWidth: 1,
+                          borderColor: tempNumberSearchLayout === opt.id ? '#FBBF24' : 'transparent',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: tempNumberSearchLayout === opt.id ? '#0F172A' : '#D1D5DB',
+                            fontSize: fs(12),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Field Character Count
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {NUMBER_SEARCH_FIELD_COUNT_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={n === 0 ? 'Auto' : String(n)}
+                        active={tempNumberSearchFieldCount === n}
+                        onPress={() => setTempNumberSearchFieldCount(n)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Session Time Limit
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {NUMBER_SEARCH_TIME_LIMIT_PRESETS.map((sec) => (
+                      <Chip
+                        key={sec}
+                        label={sec === 0 ? 'Off' : `${sec}s`}
+                        active={tempTimeLimitSec === sec}
+                        onPress={() => setTempTimeLimitSec(sec)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Engine Background
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {NUMBER_SEARCH_BG_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempBgColor(c.code)}
+                        style={{
+                          minWidth: s(44),
+                          height: s(36),
+                          paddingHorizontal: s(10),
+                          borderRadius: s(12),
+                          marginRight: s(8),
+                          marginBottom: s(8),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempBgColor === c.code ? '#fff' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
+                            fontSize: fs(10),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Character Color
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {NUMBER_SEARCH_CHAR_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempShapeColor(c.code)}
+                        style={{
+                          minWidth: s(44),
+                          height: s(36),
+                          paddingHorizontal: s(10),
+                          borderRadius: s(12),
+                          marginRight: s(8),
+                          marginBottom: s(8),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempShapeColor === c.code ? '#FBBF24' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
+                                ? '#0F172A'
+                                : '#F8FAFC',
+                            fontSize: fs(10),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
+              </>
+            ) : null}
+
             <View
               style={{
                 flexDirection: 'row',
@@ -1433,11 +1834,77 @@ export function ClinicalSettingsModal({
                   backgroundColor: '#2563EB',
                 }}
               >
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>Save & Apply Settings  ✓</Text>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>
+                  Save & Apply Settings  ✓
+                </Text>
               </Pressable>
             </View>
           </View>
         </ScrollView>
+
+        {confirmApplyOpen ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.72)',
+              justifyContent: 'center',
+              paddingHorizontal: s(24),
+              zIndex: 50,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: '#1A1A1A',
+                borderRadius: s(20),
+                borderWidth: 1,
+                borderColor: '#374151',
+                padding: s(20),
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
+                Start a fresh game?
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
+                Applying settings will end the current game and start a new one. Progress in this round will be lost.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: s(10) }}>
+                <Pressable
+                  onPress={() => setConfirmApplyOpen(false)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#222',
+                    borderWidth: 1,
+                    borderColor: '#374151',
+                    borderRadius: s(12),
+                    paddingVertical: s(12),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setConfirmApplyOpen(false);
+                    commitApply();
+                  }}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#B91C1C',
+                    borderRadius: s(12),
+                    paddingVertical: s(12),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
     </Modal>
   );

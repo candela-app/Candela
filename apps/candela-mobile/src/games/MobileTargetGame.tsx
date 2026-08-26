@@ -739,6 +739,7 @@ export function MobileTargetGame({
         showBubbleAppearancePicker
         bubbleAppearance={resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)}
         onApply={(next) => {
+          const wasPlaying = !showResults && !showClickToStart;
           const nextColors = activeTherapyColors(next.therapyColors).map((item) => item.code);
           const appearance = next.bubbleAppearance ?? resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
           const nextSettings: MobileTargetSettings = {
@@ -754,8 +755,13 @@ export function MobileTargetGame({
           setSettings(nextSettings);
           setShowSettings(false);
           setShowClickToStart(true);
+          setIsPlaying(false);
           generateSetPair(0, nextSettings.gameMode, nextSettings.alphabetVariant, nextSettings, false);
+          if (wasPlaying) {
+            setCurrentSetIndex(0);
+          }
         }}
+        sessionLocked={!showResults && !showClickToStart && isPlaying}
       />
       {sessionResult ? (
         <GameResultsModal isOpen={showResults} data={sessionResult} onClose={requestExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />

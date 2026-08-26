@@ -21,6 +21,7 @@ import {
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { PursuitResultsModal } from './PursuitResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
@@ -372,6 +373,16 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     setCurrentTrialIndex(0);
     setIsBlockPaused(false);
     setIsResultsOpen(false);
+    setGameStarted(false);
+    setIsSettingsOpen(true);
+  };
+
+  const handleReplay = () => {
+    trialMetricsRef.current = [];
+    setCurrentTrialIndex(0);
+    setIsBlockPaused(false);
+    setIsResultsOpen(false);
+    setGameStarted(true);
   };
 
   const handleApplyClinicalSettings = (applied: AppliedClinicalSettings) => {
@@ -402,24 +413,12 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   return (
     <div ref={containerRef} className={styles.gameContainer}>
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Pursuit</h2>
-          <button
-            type="button"
-            onClick={() => setGameStarted(true)}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+        <ClickToStartOverlay
+          title="Pursuit"
+          onStart={() => setGameStarted(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        />
       ) : null}
       {!isBlockPaused && !isResultsOpen ? (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 text-white font-bold pointer-events-none">
@@ -530,7 +529,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         onQuit={onExit}
         onReset={handleReset}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        sessionInProgress={!isSettingsOpen && !isResultsOpen}
+        sessionInProgress={gameStarted && !isSettingsOpen && !isResultsOpen}
         settingsSummary={settingsSummary}
       />
 
@@ -548,6 +547,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         pursuitDecoyCount={settings.decoyCount}
         pursuitSpeedPxPerSec={settings.speedPxPerSec}
         pursuitTrialTimeoutSec={settings.trialTimeoutSec}
+        sessionLocked={gameStarted && !isResultsOpen}
       />
 
       {/* SESSION RESULTS MODAL */}
@@ -558,7 +558,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
             setIsResultsOpen(false);
             onExit();
           }}
-          onReplay={handleReset}
+          onReplay={handleReplay}
           data={sessionResults}
         />
       )}

@@ -45,6 +45,10 @@ export default function RootLayout() {
               name="play/peripheral"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
+            <Stack.Screen
+              name="play/number-search"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
           </Stack>
         </AuthProvider>
       </SafeAreaProvider>

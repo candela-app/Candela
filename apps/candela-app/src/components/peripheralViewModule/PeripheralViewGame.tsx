@@ -42,6 +42,8 @@ import {
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
+import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { ChevronUpIcon, ReplayIcon, SlidersIcon, VolumeIcon } from '../icons/VectorIcons';
 import { useAuth } from '@/lib/auth-context';
 import styles from './PeripheralViewGame.module.css';
@@ -68,6 +70,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
@@ -508,7 +511,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
     setIsHeaderExpanded(false);
     setGameStarted(false);
     clearBoard();
-    setIsSettingsOpen(false);
+    setIsSettingsOpen(true);
   };
 
   const openSettings = () => {
@@ -539,11 +542,13 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
       ) : null}
 
       {isLandscape && !gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className={styles.startGate}>
-          <h2 className={styles.startTitle}>
-            Peripheral View · {peripheralFieldLabel(field)}
-          </h2>
-          <p className={styles.startHint}>Tap the triangle to start · keep eyes on center</p>
+        <ClickToStartOverlay
+          title={`Peripheral View · ${peripheralFieldLabel(field)}`}
+          hint="Tap the triangle to start · keep eyes on center"
+          onStart={startGame}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        >
           <button
             type="button"
             onClick={startGame}
@@ -576,14 +581,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
               />
             </svg>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>Edit Clinical Settings</span>
-          </button>
-        </div>
+        </ClickToStartOverlay>
       ) : null}
 
       <div
@@ -798,6 +796,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         isOpen={isSettingsOpen && (!sizeReady || isLandscape)}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings: AppliedClinicalSettings) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setPatientName(newSettings.patientName);
           if (newSettings.hexSizePx != null) setHexSizePx(clampHexSizePx(newSettings.hexSizePx));
           if (newSettings.stimuliCount != null) {
@@ -817,6 +816,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
           requestFullScreenSafe();
+          if (wasPlaying) startGame();
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -831,6 +831,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         peripheralTargetTimeoutSec={targetTimeoutSec}
         peripheralBubbleType={bubbleType}
         sampleSymbol="A"
+        sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>
@@ -847,6 +848,15 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
             </div>
           </div>
         }
+      />
+
+      <MidGameSettingsLockedDialog
+        isOpen={settingsLockedOpen}
+        onCancel={() => setSettingsLockedOpen(false)}
+        onReset={() => {
+          setSettingsLockedOpen(false);
+          resetSession();
+        }}
       />
 
       {resultsData ? (

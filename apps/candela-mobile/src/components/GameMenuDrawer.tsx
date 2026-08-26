@@ -19,6 +19,7 @@ export function GameMenuDrawer({
   extraControls,
   settingsSummary,
   sessionInProgress = true,
+  lockSettingsWhilePlaying = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -29,17 +30,21 @@ export function GameMenuDrawer({
   extraControls?: ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
   sessionInProgress?: boolean;
+  /** When true, Clinical Settings is blocked mid-session. Default false — confirm happens on Apply. */
+  lockSettingsWhilePlaying?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, width } = useLayout();
   const drawerWidth = Math.min(340, width * 0.88);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setConfirmReset(false);
       setConfirmQuit(false);
+      setSettingsLockedOpen(false);
     }
   }, [isOpen]);
 
@@ -83,6 +88,10 @@ export function GameMenuDrawer({
           {onOpenSettings ? (
             <Pressable
               onPress={() => {
+                if (sessionInProgress && lockSettingsWhilePlaying) {
+                  setSettingsLockedOpen(true);
+                  return;
+                }
                 onClose();
                 onOpenSettings();
               }}
@@ -107,6 +116,18 @@ export function GameMenuDrawer({
           </ScrollView>
         </View>
       </View>
+      <ResetConfirmDialog
+        visible={settingsLockedOpen}
+        title="Settings locked"
+        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
+        cancelLabel="Keep playing"
+        confirmLabel={resetButtonLabel}
+        onCancel={() => setSettingsLockedOpen(false)}
+        onConfirm={() => {
+          setSettingsLockedOpen(false);
+          setConfirmReset(true);
+        }}
+      />
       <ResetConfirmDialog
         visible={confirmReset}
         confirmLabel={resetButtonLabel}

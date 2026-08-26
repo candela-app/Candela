@@ -20,6 +20,8 @@ import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
+import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
 interface MobileTargetGameProps {
@@ -121,6 +123,7 @@ export function MobileTargetGame({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(true);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
@@ -795,17 +798,17 @@ export function MobileTargetGame({
             {isPaused ? <PlayIcon className="w-3.5 h-3.5" /> : <PauseIcon className="w-3.5 h-3.5" />}
             <span>{isPaused ? 'Play' : 'Pause'}</span>
           </button>
-          <button
-            onClick={() => {
-              setIsAssistiveTouchOpen(false);
-              setIsPaused(true);
-              setShowSettings(true);
-            }}
-            className="w-full py-2.5 px-3 rounded-2xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700/80 flex items-center justify-center gap-2 text-xs font-bold"
-          >
-            <SlidersIcon className="w-4 h-4" />
-            <span>Settings</span>
-          </button>
+        <button
+          onClick={() => {
+            setIsAssistiveTouchOpen(false);
+            setIsPaused(true);
+            setShowSettings(true);
+          }}
+          className="w-full py-2.5 px-3 rounded-2xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700/80 flex items-center justify-center gap-2 text-xs font-bold"
+        >
+          <SlidersIcon className="w-4 h-4" />
+          <span>Settings</span>
+        </button>
           <button
             onClick={() => setConfirmReset(true)}
             className="w-full py-2 rounded-2xl bg-gray-800/90 hover:bg-gray-700 text-xs font-bold text-gray-200 transition-colors border border-gray-700 text-center"
@@ -877,24 +880,12 @@ export function MobileTargetGame({
 
       {/* Click to Start overlay */}
       {showClickToStart && !showSettings && !showResults && (
-        <div className="fixed inset-0 z-40 bg-[#06070D]/98 flex flex-col items-center justify-center gap-4 px-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white text-center">{gameTitle}</h2>
-          <button
-            type="button"
-            onClick={handleStartGameFromOverlay}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+        <ClickToStartOverlay
+          title={gameTitle}
+          onStart={handleStartGameFromOverlay}
+          onOpenSettings={() => setShowSettings(true)}
+          onExit={onExit}
+        />
       )}
 
       {/* MODALS */}
@@ -924,6 +915,7 @@ export function MobileTargetGame({
           generateSetPair(0, next.gameMode, next.alphabetVariant, next);
         }}
         isInitialLaunch={!isPlaying && currentSetIndex === 0}
+        sessionInProgress={!showResults && !showClickToStart && isPlaying}
       />
 
       <MobileTargetResultsModal
@@ -957,6 +949,16 @@ export function MobileTargetGame({
         onCancel={() => setConfirmReset(false)}
         onConfirm={() => {
           setConfirmReset(false);
+          setIsAssistiveTouchOpen(false);
+          handleRestartSession();
+        }}
+      />
+      <MidGameSettingsLockedDialog
+        isOpen={settingsLockedOpen}
+        onCancel={() => setSettingsLockedOpen(false)}
+        resetLabel="Restart Session"
+        onReset={() => {
+          setSettingsLockedOpen(false);
           setIsAssistiveTouchOpen(false);
           handleRestartSession();
         }}

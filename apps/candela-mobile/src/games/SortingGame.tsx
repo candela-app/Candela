@@ -311,6 +311,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(next) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setPatientName(next.patientName);
           setLetterSize(next.letterSize);
           setBubbleSize(next.bubbleSize);
@@ -324,6 +325,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
+          if (wasPlaying) startGame();
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -335,6 +337,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}
+        sessionLocked={gameStarted && !isResultsOpen}
       />
       {resultsData ? (
         <GameResultsModal

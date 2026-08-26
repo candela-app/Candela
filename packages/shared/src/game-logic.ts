@@ -108,22 +108,112 @@ export function checkOverlap(
 }
 
 /**
- * Deterministically places a bubble into one of N angular slots when 80 random retries fail.
+ * Deterministically places a bubble into one of N angular slots when random retries fail.
  */
 export function getSlotFallbackPosition(
   slotIndex: number,
   totalSlots: number,
   containerSize: number,
-  bubbleSize: number
+  bubbleSize: number,
+  ringFactor: number = 0.65
 ): BubblePosition {
-  const maxR = containerSize / 2 - bubbleSize / 2 - 12;
-  const radius = maxR * 0.65; // Place on 65% radius ring to avoid center & outer edge
+  const maxR = Math.max(1, containerSize / 2 - bubbleSize / 2 - 12);
+  const radius = maxR * ringFactor;
   const angle = (2 * Math.PI * slotIndex) / Math.max(1, totalSlots);
 
   const x = 50 + (radius * Math.cos(angle)) / (containerSize / 100);
   const y = 50 + (radius * Math.sin(angle)) / (containerSize / 100);
 
   return { x, y };
+}
+
+/**
+ * Place a bubble center in %-space with no overlap.
+ * Tries random samples, then ring slots, then a slight outward nudge.
+ */
+export function findNonOverlappingBubblePosition(
+  existingPositions: BubblePosition[],
+  options: {
+    containerSize: number;
+    bubbleSize: number;
+    slotIndex: number;
+    totalSlots: number;
+    /** Extra gap between bubble edges, in % of container. Default 3. */
+    gapPercent?: number;
+    randomAttempts?: number;
+  }
+): BubblePosition {
+  const {
+    containerSize,
+    bubbleSize,
+    slotIndex,
+    totalSlots,
+    gapPercent = 3,
+    randomAttempts = 120,
+  } = options;
+
+  const safeSize =
+    containerSize > 0
+      ? containerSize
+      : typeof window !== 'undefined'
+        ? Math.min(window.innerWidth * 0.98, window.innerHeight * 0.98)
+        : 500;
+
+  const minDistance = getMinDistancePercent(bubbleSize, safeSize, gapPercent);
+  const maxR = Math.max(1, safeSize / 2 - bubbleSize / 2 - 12);
+
+  for (let attempt = 0; attempt < randomAttempts; attempt++) {
+    const angle = Math.random() * 2 * Math.PI;
+    const radius = Math.sqrt(Math.random()) * maxR;
+    const pos = {
+      x: 50 + (radius * Math.cos(angle)) / (safeSize / 100),
+      y: 50 + (radius * Math.sin(angle)) / (safeSize / 100),
+    };
+    if (!checkOverlap(pos, existingPositions, minDistance)) {
+      return pos;
+    }
+  }
+
+  // Try several rings / slot offsets so fallback never lands on an occupied seat
+  const rings = [0.55, 0.65, 0.75, 0.82];
+  for (const ring of rings) {
+    for (let offset = 0; offset < totalSlots; offset++) {
+      const pos = getSlotFallbackPosition(
+        (slotIndex + offset) % Math.max(1, totalSlots),
+        totalSlots,
+        safeSize,
+        bubbleSize,
+        ring,
+      );
+      if (!checkOverlap(pos, existingPositions, minDistance)) {
+        return pos;
+      }
+    }
+  }
+
+  // Last resort: start from preferred slot and push radially outward until clear
+  let pos = getSlotFallbackPosition(slotIndex, totalSlots, safeSize, bubbleSize, 0.7);
+  for (let step = 0; step < 24; step++) {
+    if (!checkOverlap(pos, existingPositions, minDistance)) return pos;
+    const dx = pos.x - 50;
+    const dy = pos.y - 50;
+    const len = Math.hypot(dx, dy) || 1;
+    pos = {
+      x: pos.x + (dx / len) * (minDistance * 0.35),
+      y: pos.y + (dy / len) * (minDistance * 0.35),
+    };
+    // Keep roughly inside the wheel
+    const distFromCenter = Math.hypot(pos.x - 50, pos.y - 50);
+    const maxPct = (maxR / (safeSize / 100));
+    if (distFromCenter > maxPct) {
+      pos = {
+        x: 50 + ((pos.x - 50) / distFromCenter) * maxPct * 0.92,
+        y: 50 + ((pos.y - 50) / distFromCenter) * maxPct * 0.92,
+      };
+    }
+  }
+
+  return pos;
 }
 
 export function getRandomSymbol(mode: GameMode, variant: 'uppercase' | 'lowercase' = 'uppercase'): string {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { GeoboardSessionResultData, SessionResultData } from '@candela/shared/rn';
+import type { GeoboardSessionResultData, NumberSearchSessionResultData, SessionResultData } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
 
@@ -40,12 +40,18 @@ export function GameResultsModal({
 
   const isGeoboard = 'boardId' in data && 'leftHalfAccuracy' in data;
   const geo = isGeoboard ? (data as GeoboardSessionResultData) : null;
+  const isNumberSearch = 'digitsFound' in data && 'endedBy' in data;
+  const numberSearch = isNumberSearch ? (data as NumberSearchSessionResultData) : null;
 
   const metrics: { label: string; value: string; color: string }[] = [
     { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
     { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
     { label: 'Avg Reaction', value: `${Math.round(data.avgReactionSec * 1000)}ms`, color: '#FBBF24' },
-    { label: isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped', value: String(data.stimuliCount), color: '#C084FC' },
+    {
+      label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : 'Bubbles Popped',
+      value: isNumberSearch ? String(numberSearch?.digitsFound ?? data.correct) : String(data.stimuliCount),
+      color: '#C084FC',
+    },
     { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
     { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
   ];
@@ -160,6 +166,44 @@ export function GameResultsModal({
                     <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700' }}>{geo.penColorName}</Text>
                   </View>
                 ) : null}
+              </View>
+            ) : null}
+
+            {numberSearch ? (
+              <View
+                style={{
+                  borderRadius: s(16),
+                  borderWidth: 1,
+                  borderColor: 'rgba(245,158,11,0.3)',
+                  backgroundColor: 'rgba(69,26,3,0.35)',
+                  padding: s(14),
+                  marginBottom: s(16),
+                  gap: s(10),
+                }}
+              >
+                <Text style={{ color: '#FBBF24', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
+                  NUMBER SEARCH
+                </Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(12) }}>
+                  {numberSearch.digitsFound} of {numberSearch.targetDigitsConfigured} digits found
+                  {numberSearch.endedBy === 'timeout' ? ' · timed out' : ' · cleared'}
+                  {numberSearch.timeLimitSec > 0 ? ` · limit ${numberSearch.timeLimitSec}s` : ' · untimed'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: s(8) }}>
+                  {[
+                    { label: 'Found', value: numberSearch.digitsFound, color: '#34D399' },
+                    { label: 'Left', value: numberSearch.digitsRemaining, color: '#FBBF24' },
+                    { label: 'Wrong', value: numberSearch.wrong, color: '#FB7185' },
+                  ].map((item) => (
+                    <View
+                      key={item.label}
+                      style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', borderRadius: s(12), padding: s(8), alignItems: 'center' }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
+                      <Text style={{ color: item.color, fontSize: fs(18), fontWeight: '900' }}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             ) : null}
 

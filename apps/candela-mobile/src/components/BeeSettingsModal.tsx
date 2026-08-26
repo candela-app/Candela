@@ -81,15 +81,18 @@ export function BeeSettingsModal({
   onClose,
   settings,
   onApply,
+  sessionInProgress = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   settings: BeeTracingSettings;
   onApply: (next: BeeTracingSettings) => void;
+  sessionInProgress?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, isTablet } = useLayout();
   const [draft, setDraft] = useState<BeeTracingSettings>(settings);
+  const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -97,10 +100,39 @@ export function BeeSettingsModal({
         ...settings,
         toleranceBandPx: settings.toleranceBandPx <= 12 ? 12 : 24,
       });
+      setConfirmApplyOpen(false);
     }
   }, [isOpen, settings]);
 
   const patch = (next: Partial<BeeTracingSettings>) => setDraft((prev) => ({ ...prev, ...next }));
+
+  const commitApply = () =>
+    onApply({
+      ...draft,
+      toleranceBandPx: draft.pathType === 'spiral' ? 12 : draft.toleranceBandPx,
+    });
+  const settingsHaveChanged = () => {
+    const next = {
+      ...draft,
+      toleranceBandPx: draft.pathType === 'spiral' ? 12 : draft.toleranceBandPx,
+    };
+    const baseline = {
+      ...settings,
+      toleranceBandPx: settings.pathType === 'spiral' ? 12 : settings.toleranceBandPx <= 12 ? 12 : 24,
+    };
+    return JSON.stringify(next) !== JSON.stringify(baseline);
+  };
+  const handleApply = () => {
+    if (sessionInProgress) {
+      if (!settingsHaveChanged()) {
+        onClose();
+        return;
+      }
+      setConfirmApplyOpen(true);
+      return;
+    }
+    commitApply();
+  };
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -360,12 +392,7 @@ export function BeeSettingsModal({
                 <Text style={{ color: '#D1D5DB', fontWeight: '700', fontSize: fs(13) }}>Cancel</Text>
               </Pressable>
               <Pressable
-                onPress={() =>
-                  onApply({
-                    ...draft,
-                    toleranceBandPx: draft.pathType === 'spiral' ? 12 : draft.toleranceBandPx,
-                  })
-                }
+                onPress={handleApply}
                 style={{
                   paddingHorizontal: s(18),
                   paddingVertical: s(12),
@@ -378,6 +405,69 @@ export function BeeSettingsModal({
             </View>
           </View>
         </ScrollView>
+        {confirmApplyOpen ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.72)',
+              justifyContent: 'center',
+              paddingHorizontal: s(24),
+              zIndex: 50,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: '#1A1A1A',
+                borderRadius: s(20),
+                borderWidth: 1,
+                borderColor: '#374151',
+                padding: s(20),
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
+                Start a fresh game?
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
+                Applying settings will end the current game and start a new one. Progress in this round will be lost.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: s(10) }}>
+                <Pressable
+                  onPress={() => setConfirmApplyOpen(false)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#222',
+                    borderWidth: 1,
+                    borderColor: '#374151',
+                    borderRadius: s(12),
+                    paddingVertical: s(12),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setConfirmApplyOpen(false);
+                    commitApply();
+                  }}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#B91C1C',
+                    borderRadius: s(12),
+                    paddingVertical: s(12),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
     </Modal>
   );

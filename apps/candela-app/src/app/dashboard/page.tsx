@@ -9,6 +9,7 @@ import { PursuitGame } from '@/components/pursuitModule/PursuitGame';
 import { MobileTargetGame } from '@/components/mobileTargetModule/MobileTargetGame';
 import { GeoboardGame } from '@/components/geoboardModule/GeoboardGame';
 import { PeripheralViewGame } from '@/components/peripheralViewModule/PeripheralViewGame';
+import { NumberSearchGame } from '@/components/numberSearchModule/NumberSearchGame';
 import {
   EyeIcon,
   AnalyticsIcon,
@@ -41,7 +42,7 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view';
+type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search';
 
 function MainContent() {
   const router = useRouter();
@@ -155,6 +156,10 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('peripheral');
       setView('play_peripheral_view');
+    } else if (gameParam === 'number_search') {
+      setSelectedTherapy('vision');
+      setSelectedModule('number_search');
+      setView('play_number_search');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -319,6 +324,19 @@ function MainContent() {
     });
   };
 
+  const handleLaunchNumberSearch = () => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'number_search',
+      game: 'number_search',
+      mode: null,
+      variant: 'standard',
+      board: null,
+    });
+  };
+
   const handleExitGame = () => {
     if (selectedModule) {
       updateQueryParams({
@@ -343,7 +361,7 @@ function MainContent() {
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search';
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
@@ -459,6 +477,7 @@ function MainContent() {
               {selectedModule === 'mobile_target' && 'Bubble Chase'}
               {selectedModule === 'geoboard' && 'Draw a Pattern'}
               {selectedModule === 'peripheral' && 'Peripheral View'}
+              {selectedModule === 'number_search' && 'Number Search'}
             </h2>
             <p className="text-[13px] text-shell-muted font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
@@ -468,6 +487,7 @@ function MainContent() {
               {selectedModule === 'mobile_target' && 'Select an exercise mode to begin'}
               {selectedModule === 'geoboard' && 'Select a board to begin'}
               {selectedModule === 'peripheral' && 'Select a visual field · designed for landscape'}
+              {selectedModule === 'number_search' && 'Find digits in a crowded letter field'}
             </p>
           </div>
 
@@ -656,6 +676,31 @@ function MainContent() {
               )}
             </main>
           )}
+
+          {selectedModule === 'number_search' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.number_search.map((level) =>
+                isLevelAllowed('number_search', level.id) ? (
+                  <button
+                    type="button"
+                    key={level.id}
+                    className={VARIANT_TILE}
+                    onClick={handleLaunchNumberSearch}
+                  >
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
+                ) : null,
+              )}
+              {MODULE_LEVELS.number_search.every((level) => !isLevelAllowed('number_search', level.id)) && (
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
         </>
       )}
 
@@ -694,6 +739,10 @@ function MainContent() {
 
       {view === 'play_peripheral_view' && canPlayUiModule('peripheral') && isLevelAllowed('peripheral', peripheralField) && (
         <PeripheralViewGame field={peripheralField} onExit={handleExitGame} />
+      )}
+
+      {view === 'play_number_search' && canPlayUiModule('number_search') && isLevelAllowed('number_search', 'standard') && (
+        <NumberSearchGame onExit={handleExitGame} />
       )}
     </div>
   );

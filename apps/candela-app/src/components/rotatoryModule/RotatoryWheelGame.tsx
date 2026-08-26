@@ -10,11 +10,9 @@ import {
   SPEED_PRESETS,
   BUBBLES_PER_ROUND,
   DEFAULT_BASE_ANIMATION_DURATION,
-  checkOverlap,
-  getMinDistancePercent,
   defaultBubbleSizePx,
   getDeviceTier,
-  getSlotFallbackPosition,
+  findNonOverlappingBubblePosition,
   getRandomSymbol,
   getContrastColor,
   exportSessionCSV,
@@ -38,6 +36,8 @@ import {
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
@@ -72,6 +72,7 @@ export function RotatoryWheelGame({
   // Settings, Click to Start & Results Modal State
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
@@ -324,11 +325,18 @@ export function RotatoryWheelGame({
     const positions: BubblePosition[] = [];
 
     const rawContainer = bubbleContainerRef.current;
-    const containerSize = rawContainer
+    const measured = rawContainer
       ? Math.min(rawContainer.clientWidth, rawContainer.clientHeight)
-      : 500;
+      : 0;
+    // When the wheel is hidden (settings open) the ref is empty — estimate from viewport
+    // so %-space min-distance matches the on-screen 98vh wheel.
+    const containerSize =
+      measured > 40
+        ? measured
+        : typeof window !== 'undefined'
+          ? Math.min(window.innerWidth * 0.98, window.innerHeight * 0.98)
+          : 500;
 
-    const minDistance = getMinDistancePercent(bubbleSize, containerSize, 2);
     const deviceTier = getDeviceTier(
       typeof window !== 'undefined' ? window.innerWidth : undefined,
       typeof window !== 'undefined' ? window.innerHeight : undefined
@@ -337,28 +345,13 @@ export function RotatoryWheelGame({
 
     for (let i = 0; i < bubblesPerRound; i++) {
       const symbol = getRandomSymbol(mode, variant);
-      let pos: BubblePosition = { x: 50, y: 50 };
-      let valid = false;
-
-      for (let attempt = 0; attempt < 80; attempt++) {
-        const angle = Math.random() * 2 * Math.PI;
-        const maxR = containerSize / 2 - bubbleSize / 2 - 12;
-        const radius = Math.sqrt(Math.random()) * maxR;
-
-        const x = 50 + (radius * Math.cos(angle)) / (containerSize / 100);
-        const y = 50 + (radius * Math.sin(angle)) / (containerSize / 100);
-
-        pos = { x, y };
-        if (!checkOverlap(pos, positions, minDistance)) {
-          valid = true;
-          break;
-        }
-      }
-
-      // Guaranteed Slot Fallback: if all 80 attempts fail, place deterministically
-      if (!valid) {
-        pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize);
-      }
+      const pos = findNonOverlappingBubblePosition(positions, {
+        containerSize,
+        bubbleSize,
+        slotIndex: i,
+        totalSlots: bubblesPerRound,
+        gapPercent: 3.5,
+      });
 
       positions.push(pos);
       let bgColor = '';
@@ -547,30 +540,20 @@ export function RotatoryWheelGame({
       )}
 
       {!isGameStarted && !isSettingsOpen && !isResultsOpen && (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">
-            {mode === 'colors'
+        <ClickToStartOverlay
+          title={
+            mode === 'colors'
               ? 'Color Discriminant Wheel'
               : variant === 'lowercase'
                 ? 'Lowercase Alphabets'
-                : 'Uppercase Alphabets'}
-          </h2>
-          <button
-            onClick={handleStartGame}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-
-          {/* Sub-action: Edit Settings */}
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+                : mode === 'numbers'
+                  ? 'Numeric Rotatory'
+                  : 'Uppercase Alphabets'
+          }
+          onStart={handleStartGame}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        />
       )}
 
       {/* BOTTOM RIGHT FLOATING CONTROLS GROUP (ULTRA-COMPACT & UNMUTED IDLE OPACITY) */}
@@ -735,6 +718,10 @@ export function RotatoryWheelGame({
           <button
             onClick={() => {
               setIsAssistiveTouchOpen(false);
+              if (isGameStarted && !isResultsOpen) {
+                setSettingsLockedOpen(true);
+                return;
+              }
               setIsPaused(true);
               if (typeof window !== 'undefined' && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
@@ -847,6 +834,7 @@ export function RotatoryWheelGame({
       )}
 
       {/* CENTER: ROTATING WHEEL (MAXIMIZED FULL SCREEN DIAMETER EDGE-TO-EDGE) */}
+      {!isSettingsOpen ? (
       <main className="relative w-full h-full min-h-screen flex items-center justify-center p-0 overflow-hidden">
         <div className="absolute w-[98vh] h-[98vh] max-w-[98vw] max-h-[98vw] rounded-full bg-blue-500/10 pointer-events-none" />
 
@@ -855,7 +843,7 @@ export function RotatoryWheelGame({
           className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center cursor-pointer shrink-0 animate-rotate-wheel"
           style={{
             animationDuration: `${animationDurationSeconds}s`,
-            animationPlayState: isPaused ? 'paused' : 'running',
+            animationPlayState: isPaused || isSettingsOpen ? 'paused' : 'running',
             backgroundColor: wheelColor,
           }}
           onClick={handleWheelClick}
@@ -898,6 +886,7 @@ export function RotatoryWheelGame({
           </div>
         </div>
       </main>
+      ) : null}
 
       {/* SHARED OFFCANVAS MENU (WITHOUT DUPLICATE OPEN SETTINGS BUTTON) */}
       <GameMenuDrawer
@@ -907,7 +896,15 @@ export function RotatoryWheelGame({
           if (onExit) onExit();
         }}
         sessionInProgress={isGameStarted && !isResultsOpen}
-        onReset={startLevel}
+        onReset={() => {
+          setIsGameStarted(false);
+          setIsPaused(true);
+          setIsSettingsOpen(true);
+          if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
+        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         resetButtonLabel="Reset Level"
         extraControls={
           <div className="flex flex-col gap-2">
@@ -996,6 +993,22 @@ export function RotatoryWheelGame({
         showBubbleAppearancePicker
         bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
+        sessionLocked={isGameStarted && !isResultsOpen}
+      />
+
+      <MidGameSettingsLockedDialog
+        isOpen={settingsLockedOpen}
+        onCancel={() => setSettingsLockedOpen(false)}
+        resetLabel="Reset Level"
+        onReset={() => {
+          setSettingsLockedOpen(false);
+          setIsGameStarted(false);
+          setIsPaused(true);
+          setIsSettingsOpen(true);
+          if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
+        }}
       />
 
       {/* GAME RESULTS MODAL */}

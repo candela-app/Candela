@@ -36,6 +36,8 @@ import {
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
+import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
+import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { CheckIcon, ClearIcon, SkipIcon, SlidersIcon, UndoIcon } from '../icons/VectorIcons';
 import styles from './GeoboardGame.module.css';
 
@@ -188,6 +190,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const [uiHighContrast, setUiHighContrast] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   useGameSessionLock(true);
   const [fatigueWarning, setFatigueWarning] = useState<boolean>(false);
 
@@ -337,10 +340,10 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
 
   // Memorize countdown
   useEffect(() => {
-    if (gameState !== 'memorize') return;
+    if (gameState !== 'memorize' || isSettingsOpen) return;
     const timer = setInterval(() => setMemorizeTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState]);
+  }, [gameState, isSettingsOpen]);
 
   useEffect(() => {
     if (gameState !== 'memorize' || memorizeTimeLeft > 0) return;
@@ -560,10 +563,10 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   }, [handleSkip]);
 
   useEffect(() => {
-    if (gameState !== 'play' || protocol.timeLimitSec <= 0) return;
+    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || isSettingsOpen) return;
     const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, protocol.timeLimitSec, trialIndex]);
+  }, [gameState, protocol.timeLimitSec, trialIndex, isSettingsOpen]);
 
   useEffect(() => {
     if (gameState !== 'play' || protocol.timeLimitSec <= 0 || timeLeft > 0) return;
@@ -697,6 +700,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   // --- Settings ----------------------------------------------------------
 
   const handleApplySettings = (applied: AppliedClinicalSettings) => {
+    const wasPlaying = gameState === 'memorize' || gameState === 'play' || gameState === 'feedback';
     const next: GeoboardProtocol = {
       ...protocol,
       boardId,
@@ -720,6 +724,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
     const locked = lockBeginnerGeoboardProtocol(next, boardId);
     setProtocol(locked);
     setIsSettingsOpen(false);
+    if (wasPlaying) startSession(locked);
   };
 
   const handleCloseSettings = () => {
@@ -841,7 +846,11 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
           >
             A
           </button>
-          <button onClick={() => setIsSettingsOpen(true)} className={styles.iconBtn} title="Clinician protocol settings">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className={styles.iconBtn}
+            title="Clinician protocol settings"
+          >
             <SlidersIcon className="w-5 h-5" />
           </button>
           <button onClick={() => setIsMenuOpen(true)} className={styles.iconBtn} title="Session menu">
@@ -851,24 +860,12 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
       </header>
 
       {gameState === 'settings' && !isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">{board.shortLabel}</h2>
-          <button
-            type="button"
-            onClick={() => startSession(protocol)}
-            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
-            title="Click to Start Therapy Session"
-          >
-            Click to Start
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
-          >
-            <span>⚙️ Edit Clinical Settings</span>
-          </button>
-        </div>
+        <ClickToStartOverlay
+          title={board.shortLabel}
+          onStart={() => startSession(protocol)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={onExit}
+        />
       )}
 
       {isPlayingPhase && currentPattern && (
@@ -1063,7 +1060,8 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         }}
         onReset={() => {
           setIsMenuOpen(false);
-          startSession(protocol);
+          setGameState('settings');
+          setIsSettingsOpen(true);
         }}
         onOpenSettings={() => {
           setIsMenuOpen(false);
@@ -1115,6 +1113,18 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         shapeColor={protocol.shapeColor}
         penColor={protocol.penColor}
         pegSizeScale={protocol.pegSizeScale ?? 1}
+        sessionLocked={isPlayingPhase}
+      />
+
+      <MidGameSettingsLockedDialog
+        isOpen={settingsLockedOpen}
+        onCancel={() => setSettingsLockedOpen(false)}
+        resetLabel="Restart Board"
+        onReset={() => {
+          setSettingsLockedOpen(false);
+          setGameState('settings');
+          setIsSettingsOpen(true);
+        }}
       />
 
       {gameState === 'results' && resultsData && (

@@ -79,6 +79,16 @@ export interface PeripheralSessionResultData extends SessionResultData {
   medianReactionSec: number;
 }
 
+export interface NumberSearchSessionResultData extends SessionResultData {
+  targetDigitsConfigured: number;
+  digitsFound: number;
+  digitsRemaining: number;
+  timeLimitSec: number;
+  endedBy: 'cleared' | 'timeout';
+  deviceTier: DeviceTier;
+  medianReactionSec: number;
+}
+
 export interface RotatoryWheelSettings {
   bubbleCount: number;
   rotationDuration: number;
@@ -173,7 +183,8 @@ export type TherapyModuleId =
   | 'pursuit'
   | 'mobile_target'
   | 'geoboard'
-  | 'peripheral_view';
+  | 'peripheral_view'
+  | 'number_search';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;

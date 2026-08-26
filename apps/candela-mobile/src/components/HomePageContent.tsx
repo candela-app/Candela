@@ -13,6 +13,7 @@ import {
   PuzzleIcon,
   RocketIcon,
   RotatoryIcon,
+  NumberSearchIcon,
   SlidersIcon,
   SparklesIcon,
   TargetIcon,
@@ -84,6 +85,15 @@ const MODULES = [
     accent: '#4338CA',
     bg: '#EEF2FF',
     Icon: PeripheralIcon,
+  },
+  {
+    id: 'number_search',
+    title: 'Number Search',
+    body: 'Find digits hidden in a crowded field of mixed letters.',
+    badge: 'For All Devices',
+    accent: '#B45309',
+    bg: '#FFFBEB',
+    Icon: NumberSearchIcon,
   },
 ] as const;
 

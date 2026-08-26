@@ -723,7 +723,9 @@ export function BeeTracingGame({
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
+        sessionInProgress={gameStarted && !isResultsOpen}
         onApply={(next) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setSettings({
             ...next,
             pathType: lockedPathType,
@@ -732,6 +734,7 @@ export function BeeTracingGame({
           setIsSettingsOpen(false);
           setCurrentRoundNumber(1);
           setRoundResults([]);
+          if (wasPlaying) setGameStarted(true);
         }}
       />
       <BeeResultsModal

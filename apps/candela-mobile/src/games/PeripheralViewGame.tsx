@@ -919,6 +919,7 @@ export function PeripheralViewGame({
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {
+          const wasPlaying = gameStarted && !isResultsOpen;
           setPatientName(newSettings.patientName);
           if (newSettings.hexSizePx != null) setHexSizePx(clampHexSizePx(newSettings.hexSizePx));
           if (newSettings.stimuliCount != null) {
@@ -935,6 +936,7 @@ export function PeripheralViewGame({
           }
           if (newSettings.peripheralBubbleType) setBubbleType(newSettings.peripheralBubbleType);
           setIsSettingsOpen(false);
+          if (wasPlaying) startGame();
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -949,6 +951,7 @@ export function PeripheralViewGame({
         peripheralTargetTimeoutSec={targetTimeoutSec}
         peripheralBubbleType={bubbleType}
         sampleSymbol="A"
+        sessionLocked={gameStarted && !isResultsOpen}
       />
 
       {resultsData ? (
