@@ -8,7 +8,14 @@ import {
   MobileTargetSetMetric,
   MobileTargetSettings,
   THERAPY_COLOR_ITEMS,
-  getContrastColor,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
+  isStimuliColorMixed,
+  reactionStatsFromMs,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  resolveBubbleAppearance,
+  stimuliColorLabel,
+  bubbleAppearanceLabel,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
@@ -72,6 +79,7 @@ export function MobileTargetGame({
     letterSize: 32,
     hasBackground: false,
     therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
+    stimuliColor: DEFAULT_STIMULI_BUBBLE_COLOR,
   });
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [targetItem, setTargetItem] = useState<{ value: string; color: string; name?: string }>({
@@ -95,7 +103,7 @@ export function MobileTargetGame({
   const [sessionResult, setSessionResult] = useState<MobileTargetSessionResultData | null>(null);
   const [bounds, setBounds] = useState({ w: 360, h: 640 });
   const bubblesRef = useRef<MovingBubble[]>([]);
-  const setStartTimeRef = useRef(Date.now());
+  const setStartTimeRef = useRef(performance.now());
   const wrongClicksSetRef = useRef(0);
   const shuffledPoolRef = useRef<string[]>([]);
 
@@ -168,12 +176,16 @@ export function MobileTargetGame({
         targetCol = tColorObj.code;
         distractorCol = dColorObj.code;
         targetName = tColorObj.name;
-      } else {
+      } else if (isStimuliColorMixed(effSettings.stimuliColor)) {
         const c1 = Math.floor(Math.random() * palette.length);
         let c2 = Math.floor(Math.random() * palette.length);
         while (c2 === c1 && palette.length > 1) c2 = Math.floor(Math.random() * palette.length);
         targetCol = palette[c1].code;
         distractorCol = palette[c2].code;
+      } else {
+        const solid = resolveStimuliBubbleColor(effSettings.stimuliColor, 0);
+        targetCol = solid;
+        distractorCol = solid;
       }
       setTargetItem({ value: targetVal, color: targetCol, name: targetName });
       if (shouldSpeak) announceChaseTarget(mode, targetVal, targetName);
@@ -235,7 +247,7 @@ export function MobileTargetGame({
       setBubbles(initialBubbles);
       bubblesRef.current = initialBubbles;
       wrongClicksSetRef.current = 0;
-      setStartTimeRef.current = Date.now();
+      setStartTimeRef.current = performance.now();
     },
     [settings, generateShuffledPool, bounds],
   );
@@ -272,8 +284,9 @@ export function MobileTargetGame({
         setIsPlaying(false);
         const totalCorrect = updatedMetrics.length;
         const totalWrong = updatedMetrics.reduce((acc, m) => acc + m.wrongClicksCount, 0);
-        const avgReaction =
-          updatedMetrics.reduce((a, m) => a + m.reactionTimeMs / 1000, 0) / Math.max(1, updatedMetrics.length);
+        const { avgSec: avgReaction } = reactionStatsFromMs(
+          updatedMetrics.map((m) => m.reactionTimeMs),
+        );
         const accuracy = Math.round((totalCorrect / Math.max(1, totalCorrect + totalWrong)) * 100);
         setSessionResult({
           patientName: settings.patientName,
@@ -413,7 +426,12 @@ export function MobileTargetGame({
       >
         {bubbles.map((bubble) => {
           const size = bubble.radius * 2;
-          const filled = settings.hasBackground === true;
+          const appearance = resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
+          const paint = resolveBubblePaint(appearance, bubble.color, {
+            borderFill: '#121626',
+            solidBorderColor: '#FFFFFF',
+            solidBorderWidth: 3,
+          });
           return (
             <Pressable
               key={bubble.id}
@@ -422,7 +440,7 @@ export function MobileTargetGame({
                 if (bubble.isTarget) {
                   void hapticCorrect();
                   setCorrectCount((c) => c + 1);
-                  advanceToNextSet('correct', Date.now() - setStartTimeRef.current);
+                  advanceToNextSet('correct', performance.now() - setStartTimeRef.current);
                 } else {
                   void hapticWrong();
                   setWrongCount((w) => w + 1);
@@ -436,9 +454,9 @@ export function MobileTargetGame({
                 width: size,
                 height: size,
                 borderRadius: size / 2,
-                backgroundColor: filled ? bubble.color : '#121626',
-                borderWidth: filled ? 3 : 4,
-                borderColor: filled ? '#FFFFFF' : bubble.color,
+                backgroundColor: paint.backgroundColor,
+                borderWidth: paint.borderWidth,
+                borderColor: paint.borderColor,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -446,7 +464,7 @@ export function MobileTargetGame({
               {isColors ? null : (
                 <Text
                   style={{
-                    color: filled ? getContrastColor(bubble.color) : bubble.color,
+                    color: paint.textColor,
                     fontWeight: '900',
                     fontSize: settings.letterSize || 32,
                   }}
@@ -714,16 +732,24 @@ export function MobileTargetGame({
         bubbleSize={settings.bubbleSize || 96}
         sampleSymbol={settings.gameMode === 'colors' ? '' : settings.gameMode === 'numbers' ? '7' : settings.alphabetVariant === 'lowercase' ? 'a' : 'A'}
         showTherapyColorPicker={settings.gameMode === 'colors'}
+        showStimuliColorPicker={settings.gameMode !== 'colors'}
         showLetterSizeControl={settings.gameMode !== 'colors'}
         therapyColors={settings.therapyColors}
+        stimuliColor={settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR}
+        showBubbleAppearancePicker
+        bubbleAppearance={resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)}
         onApply={(next) => {
           const nextColors = activeTherapyColors(next.therapyColors).map((item) => item.code);
+          const appearance = next.bubbleAppearance ?? resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
           const nextSettings: MobileTargetSettings = {
             ...settings,
             patientName: next.patientName,
             letterSize: Math.round(next.letterSize * 16),
             bubbleSize: next.bubbleSize,
             therapyColors: nextColors,
+            stimuliColor: next.stimuliColor ?? settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR,
+            bubbleAppearance: appearance,
+            hasBackground: appearance === 'solid',
           };
           setSettings(nextSettings);
           setShowSettings(false);
@@ -749,6 +775,13 @@ export function MobileTargetGame({
         }}
         settingsSummary={[
           { label: 'Patient', value: settings.patientName },
+          ...(settings.gameMode === 'colors'
+            ? []
+            : [{ label: 'Stimuli Color', value: stimuliColorLabel(settings.stimuliColor) }]),
+          {
+            label: 'Bubble Style',
+            value: bubbleAppearanceLabel(resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)),
+          },
         ]}
       />
       <ResetConfirmDialog

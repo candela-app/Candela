@@ -31,11 +31,12 @@ import {
   playSuccessSoundAndHaptic,
   playMissPressSoundAndHaptic,
   getDeviceTier,
+  reactionStatsFromMs,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
-import { ArrowLeftIcon, ArrowRightIcon, SlidersIcon } from '../icons/VectorIcons';
+import { CheckIcon, ClearIcon, SkipIcon, SlidersIcon, UndoIcon } from '../icons/VectorIcons';
 import styles from './GeoboardGame.module.css';
 
 // TODO: device-config — grid dimensions become part of the device profile later.
@@ -188,7 +189,6 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
   useGameSessionLock(true);
-  const [isAssistiveOpen, setIsAssistiveOpen] = useState<boolean>(false);
   const [fatigueWarning, setFatigueWarning] = useState<boolean>(false);
 
   // Drawing interaction refs — kept out of state so pointer moves stay cheap.
@@ -426,7 +426,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         correct: correctCount,
         wrong: wrongCount,
         accuracy,
-        avgReactionSec: parseFloat((avg((t) => t.reactionTimeMs) / 1000).toFixed(2)),
+        avgReactionSec: reactionStatsFromMs(finalTrials.map((t) => t.reactionTimeMs)).avgSec,
         stimulusType: board.stimulusType,
         boardId,
         boardName: board.name,
@@ -811,11 +811,6 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
     </g>
   );
 
-  const openFromDock = (action: () => void) => () => {
-    setIsAssistiveOpen(false);
-    action();
-  };
-
   return (
     <div
       ref={layoutRef}
@@ -856,16 +851,22 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
       </header>
 
       {gameState === 'settings' && !isSettingsOpen && (
-        <div className={styles.setupContainer}>
-          <h1 className={styles.setupTitle}>{board.shortLabel}</h1>
-          <p className={styles.setupSub}>
-            {board.description} This board runs {patternCount} patterns in order, then opens the session report.
-          </p>
-          <button onClick={() => startSession(protocol)} className={styles.startBtn}>
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">{board.shortLabel}</h2>
+          <button
+            type="button"
+            onClick={() => startSession(protocol)}
+            className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+            title="Click to Start Therapy Session"
+          >
             Click to Start
           </button>
-          <button onClick={() => setIsSettingsOpen(true)} className={styles.iconBtn} style={{ marginTop: 12 }}>
-            Edit Clinical Settings
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
+          >
+            <span>⚙️ Edit Clinical Settings</span>
           </button>
         </div>
       )}
@@ -955,113 +956,58 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
               </div>
             </div>
 
-            {/* Pull-tab lives in the gap between the two boards, on the right.
-                The panel itself is position:fixed so opening it never shoves
-                the answer board down. */}
-            <div className={styles.assistiveDock}>
-              {isAssistiveOpen && (
-                <div className={styles.assistivePanel} role="dialog" aria-label="Session controls">
-                  <div className={styles.assistivePanelHeader}>
-                    <span>{board.shortLabel}</span>
-                    <button
-                      type="button"
-                      onClick={() => setIsAssistiveOpen(false)}
-                      className={styles.assistiveClose}
-                      aria-label="Close controls"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {isPlayingPhase && currentPattern && (
-                    <div className={styles.assistiveMeta}>
-                      <span className={styles.assistiveMetaRow}>
-                        <span>Pattern</span>
-                        <strong>
-                          {trialIndex + 1} of {playlist.length}
-                        </strong>
-                      </span>
-                      <span className={styles.assistiveMetaRow}>
-                        <span>Now drawing</span>
-                        <strong>{currentPattern.name}</strong>
-                      </span>
-                      <span className={styles.assistiveMetaRow}>
-                        <span>Grid dots</span>
-                        <strong>
-                          {answerDotsVisible.filter(Boolean).length} / {DOT_COUNT}
-                        </strong>
-                      </span>
-                      {protocol.transform !== 'duplicate' && (
-                        <span className={styles.assistiveMetaRow}>
-                          <span>Transform</span>
-                          <strong>{transformLabel}</strong>
-                        </span>
-                      )}
-                      {protocol.timeLimitSec > 0 && (
-                        <span className={styles.assistiveMetaRow}>
-                          <span>Time left</span>
-                          <strong>{timeLeft}s</strong>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
+            {/* Icon toolbar between boards — same placement/icons as mobile. */}
+            <div className={styles.playToolbar} role="toolbar" aria-label="Board actions">
+              {gameState === 'play' ? (
+                <>
                   <button
                     type="button"
-                    onClick={() => setUiHighContrast(!uiHighContrast)}
-                    className={`${styles.assistiveItem} ${uiHighContrast ? styles.assistiveItemOn : ''}`}
-                    aria-pressed={uiHighContrast}
+                    onClick={handleUndo}
+                    className={styles.toolbarBtn}
+                    disabled={!hasInk}
+                    aria-label="Undo"
+                    title="Undo"
                   >
-                    <span>High Contrast</span>
-                    <span className={styles.assistiveState}>{uiHighContrast ? 'On' : 'Off'}</span>
+                    <UndoIcon className="w-5 h-5" />
                   </button>
-
                   <button
                     type="button"
-                    onClick={openFromDock(() => setIsSettingsOpen(true))}
-                    className={styles.assistiveItem}
+                    onClick={handleClear}
+                    className={styles.toolbarBtn}
+                    disabled={!hasInk}
+                    aria-label="Clear"
+                    title="Clear"
                   >
-                    <span className={styles.assistiveItemLabel}>
-                      <SlidersIcon className="w-4 h-4" />
-                      Clinical Settings
-                    </span>
+                    <ClearIcon className="w-5 h-5" />
                   </button>
-
-                  <button type="button" onClick={openFromDock(() => setIsMenuOpen(true))} className={styles.assistiveItem}>
-                    <span>Session Menu</span>
-                  </button>
-
                   <button
                     type="button"
-                    onClick={openFromDock(() => setIsMenuOpen(true))}
-                    className={`${styles.assistiveItem} ${styles.assistiveItemExit}`}
+                    onClick={() => handleSkip(false)}
+                    className={styles.toolbarBtn}
+                    aria-label="Skip"
+                    title="Skip"
                   >
-                    <span>Quit via Menu</span>
+                    <SkipIcon className="w-5 h-5" />
                   </button>
-
-                  {isPlayingPhase && <p className={styles.assistiveHint}>{drawingHint}</p>}
-                </div>
-              )}
-
+                  <button
+                    type="button"
+                    onClick={handleDone}
+                    className={styles.toolbarBtn}
+                    aria-label="Done"
+                    title="Done"
+                  >
+                    <CheckIcon className="w-5 h-5" />
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
-                onClick={() => setIsAssistiveOpen((prev) => !prev)}
-                className={`${styles.assistiveHandle} ${isAssistiveOpen ? styles.assistiveHandleOpen : ''}`}
-                aria-expanded={isAssistiveOpen}
-                aria-label={isAssistiveOpen ? 'Hide session controls' : 'Show session controls'}
-                title={isAssistiveOpen ? 'Hide controls' : 'Pull for controls'}
+                onClick={() => setIsMenuOpen(true)}
+                className={styles.toolbarBtn}
+                aria-label="Settings menu"
+                title="Settings menu"
               >
-                {isAssistiveOpen ? (
-                  <ArrowRightIcon className="w-5 h-5" />
-                ) : (
-                  <ArrowLeftIcon className="w-5 h-5" />
-                )}
-
-                {isPlayingPhase && protocol.timeLimitSec > 0 && (
-                  <span className={`${styles.orbTimer} ${timeLeft <= 10 ? styles.orbTimerLow : ''}`}>
-                    {timeLeft}
-                  </span>
-                )}
+                <SlidersIcon className="w-5 h-5" />
               </button>
             </div>
 
@@ -1104,23 +1050,6 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
               </div>
             </div>
           </div>
-
-          {gameState === 'play' && (
-            <div className={styles.actionRow}>
-              <button onClick={handleUndo} className={`${styles.btn} ${styles.btnUndo}`} disabled={!hasInk}>
-                Undo Stroke
-              </button>
-              <button onClick={handleClear} className={`${styles.btn} ${styles.btnClear}`} disabled={!hasInk}>
-                Clear Board
-              </button>
-              <button onClick={() => handleSkip(false)} className={`${styles.btn} ${styles.btnClear}`}>
-                Skip
-              </button>
-              <button onClick={handleDone} className={`${styles.btn} ${styles.btnSubmit}`}>
-                Done
-              </button>
-            </div>
-          )}
 
           <p className={styles.hintText}>{drawingHint}</p>
         </main>

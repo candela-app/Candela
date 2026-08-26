@@ -17,6 +17,7 @@ import {
   resolveBeePathType,
   resolveOrientation,
   DEFAULT_BEE_TARGET_DOT_COLOR,
+  reactionStatsFromMs,
   type GeneratedPath,
 } from '@candela/shared/rn';
 import { BeeResultsModal } from '../components/BeeResultsModal';
@@ -146,7 +147,9 @@ export function BeeTracingGame({
   const [roundSuccessCelebration, setRoundSuccessCelebration] = useState(false);
   const [bounds, setBounds] = useState({ w: 360, h: 640 });
   const currentPathIndexRef = useRef(0);
-  const roundStartTimeRef = useRef(Date.now());
+  const roundStartTimeRef = useRef(performance.now());
+  const reactionReadyAtRef = useRef<number | null>(null);
+  const roundReactionMsRef = useRef<number | null>(null);
   const beePosRef = useRef(beePos);
   const tracingRef = useRef(false);
   const pathRef = useRef<GeneratedPath | null>(null);
@@ -264,6 +267,8 @@ export function BeeTracingGame({
     setBeePos(generated.startPoint);
     beePosRef.current = generated.startPoint;
     currentPathIndexRef.current = 0;
+    reactionReadyAtRef.current = null;
+    roundReactionMsRef.current = null;
     const duration = Math.max(250, settingsRef.current.beeSpeedSec * 1000);
     const startTime = Date.now();
     const animate = () => {
@@ -286,6 +291,8 @@ export function BeeTracingGame({
         setBeePos(generated.startPoint);
         beePosRef.current = generated.startPoint;
         setDemoTrail(generated.points);
+        reactionReadyAtRef.current = performance.now();
+        roundReactionMsRef.current = null;
         showToast('Demo complete! Now trace the path!');
       }
     };
@@ -328,8 +335,14 @@ export function BeeTracingGame({
       roundSuccessRef.current = false;
       currentPathIndexRef.current = 0;
       if (generated.pathType === 'spiral') beeScale.setValue(1);
-      roundStartTimeRef.current = Date.now();
-      if (settings.tracingMode === 'guided') runGuidedDemo(generated);
+      roundStartTimeRef.current = performance.now();
+      roundReactionMsRef.current = null;
+      if (settings.tracingMode === 'guided') {
+        reactionReadyAtRef.current = null;
+        runGuidedDemo(generated);
+      } else {
+        reactionReadyAtRef.current = performance.now();
+      }
     },
     [settings.pathType, settings.tracingMode, settings.pathComplexity, settings.orientation, settings.beeSpeedSec, lockPortrait],
   );
@@ -348,7 +361,10 @@ export function BeeTracingGame({
     setRoundSuccessCelebration(true);
     void hapticCorrect();
     showToast('Flower Reached! Great Job!');
-    const completionTimeSec = Math.max(1, Math.round((Date.now() - roundStartTimeRef.current) / 1000));
+    const completionTimeSec = Math.max(
+      1,
+      Math.round((performance.now() - roundStartTimeRef.current) / 1000),
+    );
     const corridorPx = Math.max(settings.toleranceBandPx, INVISIBLE_CORRIDOR_PX);
     const metrics = evaluateTracingMetrics(userTracePoints, currentPath.points, corridorPx, userTimestamps);
     const roundData: RoundResultData = {
@@ -360,6 +376,7 @@ export function BeeTracingGame({
       baselineTimeSec: currentPath.baselineTimeSec,
       deviationCount: metrics.deviationCount,
       avgRecoveryTimeSec: metrics.avgRecoveryTimeSec,
+      reactionTimeMs: roundReactionMsRef.current ?? undefined,
       tracedPoints: userTracePoints,
       targetPoints: currentPath.points,
       idealSvgPathD: currentPath.svgPathD,
@@ -396,6 +413,9 @@ export function BeeTracingGame({
         const distToStart = Math.hypot(x - path.startPoint.x, y - path.startPoint.y);
         const isStart = currentPathIndexRef.current === 0;
         if (distToBee <= BEE_GRAB_RADIUS || (isStart && distToStart <= BEE_GRAB_RADIUS)) {
+          if (roundReactionMsRef.current == null && reactionReadyAtRef.current != null) {
+            roundReactionMsRef.current = Math.max(0, Math.round(performance.now() - reactionReadyAtRef.current));
+          }
           tracingRef.current = true;
           setIsTracing(true);
           setBeeHeld(true);
@@ -410,6 +430,9 @@ export function BeeTracingGame({
         const currentPt = { x, y };
         if (!tracingRef.current) {
           if (Math.hypot(x - beePosRef.current.x, y - beePosRef.current.y) <= BEE_GRAB_RADIUS) {
+            if (roundReactionMsRef.current == null && reactionReadyAtRef.current != null) {
+              roundReactionMsRef.current = Math.max(0, Math.round(performance.now() - reactionReadyAtRef.current));
+            }
             tracingRef.current = true;
             setIsTracing(true);
             setBeeHeld(true);
@@ -490,7 +513,11 @@ export function BeeTracingGame({
       correct: roundResults.length,
       wrong: totalDeviations,
       accuracy: avgAcc,
-      avgReactionSec: totalDuration / Math.max(1, roundResults.length),
+      avgReactionSec: reactionStatsFromMs(
+        roundResults
+          .map((r) => r.reactionTimeMs)
+          .filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms)),
+      ).avgSec,
       pathType: String(settings.pathType),
       tracingMode: settings.tracingMode,
       colorTheme: settings.colorTheme,

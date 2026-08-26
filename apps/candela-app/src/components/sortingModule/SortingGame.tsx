@@ -6,7 +6,6 @@ import {
   BubbleItem,
   BubblePosition,
   ALPHABETS,
-  THERAPY_COLORS,
   checkOverlap,
   getMinDistancePercent,
   getContrastColor,
@@ -14,6 +13,7 @@ import {
   getDeviceTier,
   DEFAULT_SORTING_NUMBER_FROM,
   DEFAULT_SORTING_NUMBER_TO,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
   sortingNumberSequence,
   sortingBatchPlan,
   clampSortingNumberRange,
@@ -26,6 +26,13 @@ import {
   requestFullScreenSafe,
   ClinicalSettingsModal,
   SessionResultData,
+  reactionStatsFromMs,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  stimuliColorLabel,
+  bubbleAppearanceLabel,
+  DEFAULT_BUBBLE_APPEARANCE,
+  type BubbleAppearance,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
@@ -53,6 +60,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'sorting'));
   const [numberRangeFrom, setNumberRangeFrom] = useState(DEFAULT_SORTING_NUMBER_FROM);
   const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
+  const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
+  const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
 
   // Temporary Settings state for Modal editing
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
@@ -83,6 +92,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
   const containerRef = useRef<HTMLDivElement>(null);
   const indianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const reactionTimesRef = useRef<number[]>([]);
+  const targetShownAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const detectDevice = () => {
@@ -266,15 +277,18 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         newBubbles.push({
           id: `sort-bubble-${symbol}-${batchIdx}-${i}-${Math.random()}`,
           symbol,
-          color: THERAPY_COLORS[(startIdx + i) % THERAPY_COLORS.length],
+          color: resolveStimuliBubbleColor(stimuliColor, startIdx + i),
           x: pos.x,
           y: pos.y,
         });
       });
 
       setBubbles(newBubbles);
+      const shownAt = performance.now();
+      targetShownAtRef.current = shownAt;
+      setTargetShownAt(shownAt);
     },
-    [getBatchPlan, bubbleSize]
+    [getBatchPlan, bubbleSize, stimuliColor]
   );
 
   const startGame = () => {
@@ -287,6 +301,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     const now = performance.now();
     setStartTime(now);
     setTargetShownAt(now);
+    targetShownAtRef.current = now;
+    reactionTimesRef.current = [];
+    setReactionTimes([]);
 
     const allItems = sequenceItems();
     spawnBatch(0, allItems);
@@ -302,10 +319,15 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     if (clickedBubble.symbol === targetSymbol) {
       playCorrectSoundAndHaptic();
 
-      if (targetShownAt) {
-        setReactionTimes((prev) => [...prev, performance.now() - targetShownAt]);
+      const shownAt = targetShownAtRef.current;
+      const reactionMs = shownAt != null ? performance.now() - shownAt : null;
+      if (reactionMs != null) {
+        reactionTimesRef.current = [...reactionTimesRef.current, reactionMs];
+        setReactionTimes(reactionTimesRef.current);
       }
-      setTargetShownAt(performance.now());
+      const nextShown = performance.now();
+      targetShownAtRef.current = nextShown;
+      setTargetShownAt(nextShown);
 
       setCorrectCount((prev) => prev + 1);
 
@@ -332,9 +354,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
             playSuccessSoundAndHaptic();
 
             const totalDuration = startTime ? (performance.now() - startTime) / 1000 : 0;
-            const avgReact = reactionTimes.length
-              ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length / 1000
-              : 0;
+            const { avgSec } = reactionStatsFromMs(reactionTimesRef.current);
 
             const finalData: SessionResultData = {
               patientName,
@@ -349,7 +369,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               correct: correctCount + 1,
               wrong: wrongCount,
               accuracy: Math.round(((correctCount + 1) / (clicks + 1)) * 100),
-              avgReactionSec: parseFloat(avgReact.toFixed(2)),
+              avgReactionSec: avgSec,
             };
 
             setResultsData(finalData);
@@ -426,6 +446,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           >
             Click to Start
           </button>
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
+          >
+            <span>⚙️ Edit Clinical Settings</span>
+          </button>
         </div>
       ) : null}
 
@@ -440,7 +467,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
             {bubbles.map((bubble) => {
               const isPopping = poppingIds.has(bubble.id);
               const isWrong = wrongIds.has(bubble.id);
-              const textColor = getContrastColor(bubble.color || '#FFFFFF');
+              const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
+                borderFill: 'transparent',
+                solidBorderWidth: 0,
+              });
               return (
                 <div
                   key={bubble.id}
@@ -453,8 +483,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
                     width: `${bubbleSize}px`,
                     height: `${bubbleSize}px`,
                     fontSize: `${letterSize}rem`,
-                    backgroundColor: bubble.color,
-                    color: textColor,
+                    backgroundColor: paint.backgroundColor,
+                    border: `${paint.borderWidth}px solid ${paint.borderColor}`,
+                    color: paint.textColor,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -493,6 +524,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           { label: 'Patient', value: patientName },
           { label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> },
           { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
+          { label: 'Stimuli Color', value: stimuliColorLabel(stimuliColor) },
+          { label: 'Bubble Style', value: bubbleAppearanceLabel(bubbleAppearance) },
           { label: 'Variant', value: <span className="text-emerald-400 font-bold capitalize">{variant}</span> },
           ...(variant === 'numbers'
             ? [{ label: 'Range', value: <span className="text-cyan-300 font-bold">{numberRangeFrom}–{numberRangeTo}</span> }]
@@ -513,6 +546,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
             setNumberRangeFrom(range.from);
             setNumberRangeTo(range.to);
           }
+          if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
+          if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -524,6 +559,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         letterSize={letterSize}
         bubbleSize={bubbleSize}
         sampleSymbol={variant === 'lowercase' ? 'a' : variant === 'numbers' ? String(numberRangeFrom) : 'A'}
+        showStimuliColorPicker
+        stimuliColor={stimuliColor}
+        showBubbleAppearancePicker
+        bubbleAppearance={bubbleAppearance}
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}

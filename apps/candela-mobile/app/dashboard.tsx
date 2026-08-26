@@ -30,6 +30,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'pursuit', title: 'Pursuit Module', body: 'Continuous visual pursuit & selective attention tracking', badge: 'For All Devices', accent: '#0891B2', bar: '#22D3EE' },
   { uiId: 'mobile_target', title: 'Bubble Chase', body: '2-target bouncing pursuit & dark field tracking', badge: 'For Mobile & Tabs', accent: '#059669', bar: '#34D399' },
   { uiId: 'geoboard', title: 'Draw a Pattern', body: 'Hand-eye coordination & visual spatial recall patterns', badge: 'For All Devices', accent: '#0D9488', bar: '#14B8A6' },
+  { uiId: 'peripheral', title: 'Peripheral View', body: 'Hex-hive peripheral field awareness — left, right, or both', badge: 'Landscape only', accent: '#4338CA', bar: '#818CF8' },
 ];
 
 export default function DashboardScreen() {
@@ -111,6 +112,9 @@ export default function DashboardScreen() {
   };
   const launchPursuit = (pattern: string) => {
     router.push(`/play/pursuit?pattern=${pattern}` as never);
+  };
+  const launchPeripheral = (field: string) => {
+    router.push(`/play/peripheral?field=${field}` as never);
   };
 
   const backToModules = () => router.replace('/dashboard');
@@ -277,6 +281,24 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
           {levels.length === 0 ? noLevelsCard('No boards assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'peripheral' && canPlayUiModule('peripheral')) {
+    const levels = MODULE_LEVELS.peripheral_view
+      .filter((level) => isLevelAllowed('peripheral', level.id))
+      .map((level) => variantCard(level.name, () => launchPeripheral(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Peripheral View</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Select a visual field · designed for landscape
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
       </View>
     );

@@ -221,10 +221,10 @@ export default function AdminScreen() {
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create doctor</Text>
-          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} />
-          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} />
-          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} />
-          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} />
+          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} placeholderTextColor={colors.muted} />
+          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} placeholderTextColor={colors.muted} />
           <Pressable
             onPress={() => void onCreateDoctor()}
             disabled={saving}
@@ -251,6 +251,7 @@ export default function AdminScreen() {
           </Pressable>
           <TextInput
             placeholder="Target DocID"
+            placeholderTextColor={colors.muted}
             value={transferCode}
             onChangeText={(v) => setTransferCode(v.toUpperCase())}
             maxLength={6}
@@ -330,6 +331,7 @@ export default function AdminScreen() {
 
         <TextInput
           placeholder="Filter by DocID (current or previous)"
+          placeholderTextColor={colors.muted}
           value={docIdFilter}
           onChangeText={(v) => setDocIdFilter(v.toUpperCase())}
           autoCapitalize="characters"
@@ -382,7 +384,7 @@ export default function AdminScreen() {
             <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>Email Address</Text>
             <TextInput value={editEmail} onChangeText={setEditEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} />
             <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>New Password (optional)</Text>
-            <TextInput value={editPassword} onChangeText={setEditPassword} secureTextEntry style={inputStyle} placeholder="Leave empty to keep existing password" />
+            <TextInput value={editPassword} onChangeText={setEditPassword} secureTextEntry style={inputStyle} placeholder="Leave empty to keep existing password" placeholderTextColor={colors.muted} />
             <View style={{ flexDirection: 'row', gap: s(10), marginTop: s(8) }}>
               <Pressable onPress={() => setEditDoctor(null)} style={{ flex: 1, backgroundColor: '#F3F4F6', borderRadius: s(12), padding: s(14), alignItems: 'center' }}>
                 <Text style={{ fontWeight: '700', color: '#374151' }}>Cancel</Text>

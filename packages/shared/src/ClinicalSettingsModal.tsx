@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { requestFullScreenSafe, clampSortingNumberRange } from './game-logic';
-import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
 import {
   SPEED_PRESETS,
   BUBBLE_SIZE_PRESETS,
@@ -8,11 +6,43 @@ import {
   DEFAULT_BEE_TARGET_DOT_COLOR,
   DEFAULT_SORTING_NUMBER_FROM,
   DEFAULT_SORTING_NUMBER_TO,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
   MAX_SORTING_NUMBER_COUNT,
+  STIMULI_BUBBLE_COLOR_OPTIONS,
+  STIMULI_COLOR_MIXED,
 } from './constants';
+import { requestFullScreenSafe, clampSortingNumberRange, getContrastColor, getDeviceTier, resolveBubblePaint, resolveStimuliBubbleColor } from './game-logic';
+import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
+import {
+  clampBatchesPerSession,
+  clampHexSizePx,
+  clampPeripheralLetterSize,
+  clampPeripheralTargetTimeoutSec,
+  clampStimuliCount,
+  DEFAULT_PERIPHERAL_FIXATION_COLOR,
+  DEFAULT_PERIPHERAL_BUBBLE_TYPE,
+  DEFAULT_PERIPHERAL_LETTER_SIZE,
+  DEFAULT_PERIPHERAL_STIMULUS_COLOR,
+  DEFAULT_PERIPHERAL_BG_COLOR,
+  hexPointsAttribute,
+  peripheralHexPaint,
+  peripheralLetterColor,
+  peripheralLetterFontPx,
+  peripheralMaxStimuliCount,
+  peripheralStimuliPresets,
+  PERIPHERAL_BATCH_PRESETS,
+  PERIPHERAL_BG_COLORS,
+  PERIPHERAL_DEFAULT_BATCHES,
+  PERIPHERAL_HEX_SIZE_PRESETS,
+  PERIPHERAL_LETTER_SIZE_PRESETS,
+  PERIPHERAL_STIMULUS_COLORS,
+  PERIPHERAL_TARGET_TIMEOUT_PRESETS,
+} from './peripheral-hive-logic';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
+  BubbleAppearance,
+  DEFAULT_BUBBLE_APPEARANCE,
   DeviceOrientation,
   GeoboardBoardId,
   GeoboardMatrixTier,
@@ -20,6 +50,7 @@ import {
   PursuitMovementPattern,
   PursuitTargetColor,
 } from './types';
+import type { PeripheralBubbleType } from './peripheral-hive-logic';
 
 export interface AppliedClinicalSettings {
   patientName: string;
@@ -58,6 +89,16 @@ export interface AppliedClinicalSettings {
   targetDotColor?: string;
   numberRangeFrom?: number;
   numberRangeTo?: number;
+  hexSizePx?: number;
+  stimuliCount?: number;
+  batchesPerSession?: number;
+  stimulusColor?: string;
+  /** Letter/number bubble fill (hex or `mixed`). Not for color-discrimination. */
+  stimuliColor?: string;
+  bubbleAppearance?: BubbleAppearance;
+  fixationDotColor?: string;
+  peripheralTargetTimeoutSec?: number;
+  peripheralBubbleType?: PeripheralBubbleType;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -114,6 +155,19 @@ export interface ClinicalSettingsModalProps {
   showNumberRangeControl?: boolean;
   numberRangeFrom?: number;
   numberRangeTo?: number;
+  showPeripheralViewControls?: boolean;
+  hexSizePx?: number;
+  stimuliCount?: number;
+  batchesPerSession?: number;
+  stimulusColor?: string;
+  fixationDotColor?: string;
+  peripheralTargetTimeoutSec?: number;
+  peripheralBubbleType?: PeripheralBubbleType;
+  /** Letter/number bubble fill picker. Hide for color-discrimination modes. */
+  showStimuliColorPicker?: boolean;
+  stimuliColor?: string;
+  showBubbleAppearancePicker?: boolean;
+  bubbleAppearance?: BubbleAppearance;
 }
 
 /**
@@ -175,6 +229,18 @@ export function ClinicalSettingsModal({
   showNumberRangeControl = false,
   numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
+  showPeripheralViewControls = false,
+  hexSizePx = 64,
+  stimuliCount = 16,
+  batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
+  stimulusColor = DEFAULT_PERIPHERAL_STIMULUS_COLOR,
+  fixationDotColor = DEFAULT_PERIPHERAL_FIXATION_COLOR,
+  peripheralTargetTimeoutSec = 0,
+  peripheralBubbleType = DEFAULT_PERIPHERAL_BUBBLE_TYPE,
+  showStimuliColorPicker = false,
+  stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
+  showBubbleAppearancePicker = false,
+  bubbleAppearance = DEFAULT_BUBBLE_APPEARANCE,
 }: ClinicalSettingsModalProps) {
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
@@ -214,11 +280,24 @@ export function ClinicalSettingsModal({
   const [tempTargetDotColor, setTempTargetDotColor] = useState<string>(targetDotColor);
   const [tempNumberRangeFrom, setTempNumberRangeFrom] = useState<number>(numberRangeFrom);
   const [tempNumberRangeTo, setTempNumberRangeTo] = useState<number>(numberRangeTo);
+  const [tempHexSizePx, setTempHexSizePx] = useState<number>(hexSizePx);
+  const [tempStimuliCount, setTempStimuliCount] = useState<number>(stimuliCount);
+  const [tempBatchesPerSession, setTempBatchesPerSession] = useState<number>(batchesPerSession);
+  const [tempStimulusColor, setTempStimulusColor] = useState<string>(stimulusColor);
+  const [tempStimuliColor, setTempStimuliColor] = useState<string>(stimuliColor);
+  const [tempBubbleAppearance, setTempBubbleAppearance] = useState<BubbleAppearance>(bubbleAppearance);
+  const [tempFixationDotColor, setTempFixationDotColor] = useState<string>(fixationDotColor);
+  const [tempPeripheralTargetTimeoutSec, setTempPeripheralTargetTimeoutSec] = useState<number>(
+    peripheralTargetTimeoutSec,
+  );
+  const [tempPeripheralBubbleType, setTempPeripheralBubbleType] = useState<PeripheralBubbleType>(
+    peripheralBubbleType,
+  );
 
   useEffect(() => {
     if (isOpen) {
       setTempPatientName(patientName);
-      setTempLetterSize(letterSize);
+      setTempLetterSize(showPeripheralViewControls ? clampPeripheralLetterSize(letterSize) : letterSize);
       setTempBubbleSize(bubbleSize);
       setTempSpeed(speed);
       setTempWheelColor(wheelColor);
@@ -253,6 +332,15 @@ export function ClinicalSettingsModal({
       setTempTargetDotColor(targetDotColor);
       setTempNumberRangeFrom(numberRangeFrom);
       setTempNumberRangeTo(numberRangeTo);
+      setTempHexSizePx(hexSizePx);
+      setTempStimuliCount(clampStimuliCount(stimuliCount, deviceTier));
+      setTempBatchesPerSession(batchesPerSession);
+      setTempStimulusColor(stimulusColor);
+      setTempStimuliColor(stimuliColor);
+      setTempBubbleAppearance(bubbleAppearance);
+      setTempFixationDotColor(fixationDotColor);
+      setTempPeripheralTargetTimeoutSec(clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec));
+      setTempPeripheralBubbleType(peripheralBubbleType);
       requestFullScreenSafe();
     }
   }, [
@@ -293,17 +381,29 @@ export function ClinicalSettingsModal({
     targetDotColor,
     numberRangeFrom,
     numberRangeTo,
+    hexSizePx,
+    stimuliCount,
+    batchesPerSession,
+    stimulusColor,
+    stimuliColor,
+    bubbleAppearance,
+    fixationDotColor,
+    peripheralTargetTimeoutSec,
+    peripheralBubbleType,
   ]);
 
   if (!isOpen) return null;
 
   const beginnerLineBoard = showGeoboardControls && isBeginnerLineBoard(geoboardBoardId);
+  const deviceTier = getDeviceTier();
+  const peripheralStimuliSteps = peripheralStimuliPresets(deviceTier);
+  const peripheralStimuliMax = peripheralMaxStimuliCount(deviceTier);
 
   const handleApply = () => {
     const numberRange = clampSortingNumberRange(tempNumberRangeFrom, tempNumberRangeTo);
     onApply({
       patientName: tempPatientName,
-      letterSize: tempLetterSize,
+      letterSize: showPeripheralViewControls ? clampPeripheralLetterSize(tempLetterSize) : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -338,10 +438,28 @@ export function ClinicalSettingsModal({
       targetDotColor: tempTargetDotColor,
       numberRangeFrom: numberRange.from,
       numberRangeTo: numberRange.to,
+      hexSizePx: clampHexSizePx(tempHexSizePx),
+      stimuliCount: clampStimuliCount(tempStimuliCount, deviceTier),
+      batchesPerSession: clampBatchesPerSession(tempBatchesPerSession),
+      stimulusColor: tempStimulusColor,
+      stimuliColor: tempStimuliColor,
+      bubbleAppearance: tempBubbleAppearance,
+      fixationDotColor: tempFixationDotColor,
+      peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
+      peripheralBubbleType: tempPeripheralBubbleType,
     });
   };
 
 
+
+  const previewStimuliHex = showStimuliColorPicker
+    ? resolveStimuliBubbleColor(tempStimuliColor, 0)
+    : '#2F80FF';
+  const bubblePreviewPaint = resolveBubblePaint(
+    showBubbleAppearancePicker || showStimuliColorPicker ? tempBubbleAppearance : 'solid',
+    previewStimuliHex,
+    { borderFill: '#0B1220', solidBorderWidth: 0 },
+  );
 
   return (
     <div
@@ -365,7 +483,11 @@ export function ClinicalSettingsModal({
               <p className="text-sm text-gray-400 mt-1.5">
                 {showGeoboardControls
                   ? `Configure ${geoboardBoardName} before the session starts. Every pattern in this board runs in order.`
-                  : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                  : showPeripheralViewControls
+                    ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
+                    : showPursuitControls
+                      ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                      : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
               </p>
             </div>
           </div>
@@ -1279,6 +1401,288 @@ export function ClinicalSettingsModal({
               </div>
             </div>
           </div>
+        ) : showPeripheralViewControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-cyan-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Live Hex Preview</span>
+                <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">
+                  Matches play hex
+                </span>
+              </div>
+
+              <div
+                className="flex-1 flex justify-center items-center py-6 relative w-full min-h-[220px] rounded-2xl border border-slate-800"
+                style={{
+                  backgroundColor: tempBgColor,
+                  backgroundImage:
+                    'repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(148,163,184,0.06) 19px), repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(148,163,184,0.06) 19px)',
+                }}
+              >
+                {(() => {
+                  const hexR = Math.max(40, Math.min(58, clampHexSizePx(tempHexSizePx) * 0.9));
+                  const letterPx = peripheralLetterFontPx(clampHexSizePx(tempHexSizePx), tempLetterSize);
+                  const letterColor = peripheralLetterColor({
+                    bubbleType: tempPeripheralBubbleType,
+                    stimulusColor: tempStimulusColor,
+                  });
+                  const previewPaint = peripheralHexPaint({
+                    bubbleType: tempPeripheralBubbleType,
+                    isActive: true,
+                    stimulusColor: tempStimulusColor,
+                  });
+                  return (
+                    <svg width={hexR * 2.4} height={hexR * 2.4} viewBox={`0 0 ${hexR * 2.4} ${hexR * 2.4}`} aria-hidden>
+                      <polygon
+                        points={hexPointsAttribute(hexR * 1.2, hexR * 1.2, hexR)}
+                        fill={previewPaint.fill}
+                        stroke={previewPaint.stroke}
+                        strokeWidth={previewPaint.strokeWidth}
+                        strokeLinejoin="round"
+                      />
+                      <text
+                        x={hexR * 1.2}
+                        y={hexR * 1.2}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill={letterColor}
+                        fontWeight={900}
+                        fontSize={letterPx}
+                        style={{ userSelect: 'none' }}
+                      >
+                        {sampleSymbol}
+                      </text>
+                    </svg>
+                  );
+                })()}
+              </div>
+
+              <div className="flex gap-4 text-xs sm:text-sm text-slate-300 font-mono px-5 py-2.5 rounded-full border border-slate-700 bg-slate-950/80 self-center">
+                <span>
+                  Hex <strong className="text-cyan-300">{clampHexSizePx(tempHexSizePx)}px</strong>
+                </span>
+                <span className="text-slate-600">·</span>
+                <span>
+                  Stimuli <strong className="text-cyan-300">{clampStimuliCount(tempStimuliCount, deviceTier)}</strong>
+                  <span className="text-slate-600"> · </span>
+                  <span className="text-slate-500">max {peripheralStimuliMax}</span>
+                </span>
+                <span className="text-slate-600">·</span>
+                <span>
+                  Letter <strong className="text-cyan-300">{clampPeripheralLetterSize(tempLetterSize)}</strong>
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-500 font-medium text-sm transition-all shadow-inner"
+                  style={{ backgroundColor: '#141414' }}
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-blue-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Hive & Color Controls</span>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Hex Size</span>
+                  <span className="font-black text-cyan-300 font-mono">{clampHexSizePx(tempHexSizePx)}px</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {PERIPHERAL_HEX_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempHexSizePx(size)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        clampHexSizePx(tempHexSizePx) === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Stimuli / Batch</span>
+                  <span className="font-black text-cyan-300 font-mono">{clampStimuliCount(tempStimuliCount, deviceTier)}</span>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {peripheralStimuliSteps.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempStimuliCount(n)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        clampStimuliCount(tempStimuliCount, deviceTier) === n
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Batches / Session</span>
+                  <span className="font-black text-cyan-300 font-mono">
+                    {clampBatchesPerSession(tempBatchesPerSession)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {PERIPHERAL_BATCH_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempBatchesPerSession(n)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        clampBatchesPerSession(tempBatchesPerSession) === n
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  <span>Letter Size</span>
+                  <span className="font-black text-cyan-300 font-mono">{clampPeripheralLetterSize(tempLetterSize)}</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {PERIPHERAL_LETTER_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        clampPeripheralLetterSize(tempLetterSize) === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Target Timer
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {PERIPHERAL_TARGET_TIMEOUT_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempPeripheralTargetTimeoutSec(sec)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempPeripheralTargetTimeoutSec === sec
+                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {sec === 0 ? 'Off' : `${sec}s`}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Off keeps the current target until you find a match. Timed mode counts a miss and advances the target.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Bubble Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { label: 'Solid', val: 'solid' as const },
+                    { label: 'Boundary', val: 'boundary' as const },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setTempPeripheralBubbleType(opt.val)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        tempPeripheralBubbleType === opt.val
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Engine Background
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PERIPHERAL_BG_COLORS.map((c) => (
+                    <button
+                      key={`bg-${c.code}`}
+                      type="button"
+                      title={c.name}
+                      onClick={() => setTempBgColor(c.code)}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        tempBgColor.toLowerCase() === c.code.toLowerCase()
+                          ? 'border-white scale-110'
+                          : 'border-slate-600 opacity-90 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code }}
+                    />
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2">Play-area color behind the hive.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Stimulus Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PERIPHERAL_STIMULUS_COLORS.map((c) => (
+                    <button
+                      key={`stim-${c.code}`}
+                      type="button"
+                      title={c.name}
+                      onClick={() => setTempStimulusColor(c.code)}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        tempStimulusColor === c.code ? 'border-white scale-110' : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {extraStats}
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch w-full">
             <div className="lg:col-span-4 flex flex-col">
@@ -1306,8 +1710,9 @@ export function ClinicalSettingsModal({
                       width: `${tempBubbleSize}px`,
                       height: `${tempBubbleSize}px`,
                       fontSize: `${tempLetterSize}rem`,
-                      backgroundColor: '#2F80FF',
-                      color: '#FFFFFF',
+                      backgroundColor: bubblePreviewPaint.backgroundColor,
+                      border: `${bubblePreviewPaint.borderWidth}px solid ${bubblePreviewPaint.borderColor}`,
+                      color: bubblePreviewPaint.textColor,
                     }}
                   >
                     <span>{sampleSymbol}</span>
@@ -1354,6 +1759,7 @@ export function ClinicalSettingsModal({
               </div>
               ) : null}
 
+              {!showPeripheralViewControls ? (
               <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg flex-1">
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
@@ -1379,6 +1785,7 @@ export function ClinicalSettingsModal({
                 </div>
                 <p className="text-[11px] text-slate-500">Tablets default to 100px. Phones keep the smaller size.</p>
               </div>
+              ) : null}
             </div>
 
 
@@ -1468,6 +1875,104 @@ export function ClinicalSettingsModal({
                     {SPEED_PRESETS.map((val) => (
                       <span key={val}>{val}</span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* BUBBLE STYLE — solid fill vs colored border */}
+              {showBubbleAppearancePicker && (
+                <div
+                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider block mb-1.5">
+                    Bubble Style
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-3">
+                    Solid fills the bubble. Border keeps an outline with the letter in the same color.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['solid', 'border'] as BubbleAppearance[]).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setTempBubbleAppearance(opt)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          tempBubbleAppearance === opt
+                            ? 'bg-blue-600 border-blue-400 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {opt === 'solid' ? 'Solid' : 'Border'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STIMULI COLOR — letter/number bubbles (not color-discrimination) */}
+              {showStimuliColorPicker && (
+                <div
+                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider block mb-1.5">
+                    Stimuli Color
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-3">
+                    Bubble fill for letters/numbers. White reduces color confusion; Mixed keeps therapy-grade variety.
+                  </p>
+                  <div className="flex flex-wrap gap-2.5 items-start">
+                    {STIMULI_BUBBLE_COLOR_OPTIONS.map((c) => {
+                      const active =
+                        tempStimuliColor !== STIMULI_COLOR_MIXED &&
+                        tempStimuliColor.toLowerCase() === c.code.toLowerCase();
+                      return (
+                        <button
+                          key={c.code}
+                          type="button"
+                          title={c.name}
+                          onClick={() => setTempStimuliColor(c.code)}
+                          className={`flex flex-col items-center gap-1 w-11 ${active ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                        >
+                          <span
+                            className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                              active ? 'border-white scale-110' : c.code.toLowerCase() === '#ffffff' ? 'border-slate-500' : 'border-transparent'
+                            }`}
+                            style={{ backgroundColor: c.code }}
+                          />
+                          <span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-gray-500'}`}>
+                            {c.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      title="Mixed"
+                      onClick={() => setTempStimuliColor(STIMULI_COLOR_MIXED)}
+                      className={`flex flex-col items-center gap-1 w-12 ${
+                        tempStimuliColor === STIMULI_COLOR_MIXED ? 'opacity-100' : 'opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <span
+                        className={`w-9 h-9 rounded-full overflow-hidden border-2 grid grid-cols-2 grid-rows-2 ${
+                          tempStimuliColor === STIMULI_COLOR_MIXED ? 'border-white scale-110' : 'border-slate-600'
+                        }`}
+                      >
+                        <span style={{ backgroundColor: '#FFD600' }} />
+                        <span style={{ backgroundColor: '#00F0FF' }} />
+                        <span style={{ backgroundColor: '#FF3D00' }} />
+                        <span style={{ backgroundColor: '#00E676' }} />
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold ${
+                          tempStimuliColor === STIMULI_COLOR_MIXED ? 'text-white' : 'text-gray-500'
+                        }`}
+                      >
+                        Mixed
+                      </span>
+                    </button>
                   </div>
                 </div>
               )}

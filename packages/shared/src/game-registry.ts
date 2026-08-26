@@ -46,6 +46,13 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile', 'tablet'],
   },
+  peripheral_view: {
+    id: 'peripheral_view',
+    name: 'Peripheral View',
+    description: 'Hex-hive peripheral field awareness — pop A–Z stimuli on left, right, or both sides.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'tv'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -107,6 +114,11 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: '3', name: 'Geometric Shapes' },
     { id: '4', name: 'Numbers' },
     { id: '5', name: 'Compound Figures' },
+  ],
+  peripheral_view: [
+    { id: 'left', name: 'Left Field' },
+    { id: 'right', name: 'Right Field' },
+    { id: 'both', name: 'Both Fields' },
   ],
 };
 

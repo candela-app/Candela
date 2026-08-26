@@ -71,8 +71,8 @@ export default function LoginPage() {
 
   if (loading || session || redirecting) {
     return (
-      <div className="min-h-screen bg-[#F4F7FC] flex items-center justify-center">
-        <p className="text-sm font-semibold text-gray-500">Loading…</p>
+      <div className="min-h-screen bg-page flex items-center justify-center">
+        <p className="text-sm font-semibold text-shell-muted">Loading…</p>
       </div>
     );
   }
@@ -94,7 +94,7 @@ export default function LoginPage() {
       <GoogleSignInButton disabled={submitting} busy={googleBusy} onAccessToken={onGoogle} />
       <p className="text-sm text-gray-500 mt-6 text-center">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-blue-600 font-semibold hover:underline">
+        <Link href="/signup" className="text-shell-blue font-semibold hover:underline">
           Sign up
         </Link>
       </p>

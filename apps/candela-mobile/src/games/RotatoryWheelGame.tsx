@@ -11,11 +11,18 @@ import {
   GameMode,
   SessionResultData,
   checkOverlap,
-  getContrastColor,
   getDeviceTier,
   getMinDistancePercent,
   getRandomSymbol,
   getSlotFallbackPosition,
+  reactionStatsFromMs,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
+  DEFAULT_BUBBLE_APPEARANCE,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  stimuliColorLabel,
+  bubbleAppearanceLabel,
+  type BubbleAppearance,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
@@ -53,7 +60,8 @@ export function RotatoryWheelGame({
   const [letterSize, setLetterSize] = useState(2.5);
   const [bubbleSize, setBubbleSize] = useState(() => (isTablet ? 100 : 80));
   const [wheelColor, setWheelColor] = useState('#000000');
-  const [customColors] = useState(['#FFFFFF', '#2F80FF', '#FF3B30']);
+  const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
+  const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [isGameStarted, setIsGameStarted] = useState(false);
@@ -200,7 +208,7 @@ export function RotatoryWheelGame({
         bgColor = colorObj.code;
         colorName = colorObj.name;
       } else {
-        bgColor = customColors[i % customColors.length];
+        bgColor = resolveStimuliBubbleColor(stimuliColor, i);
       }
       newBubbles.push({
         id: `bubble-${i}-${Date.now()}-${Math.random()}`,
@@ -213,7 +221,7 @@ export function RotatoryWheelGame({
     }
     setBubbles(newBubbles);
     setTimeout(() => chooseNextTarget(newBubbles, mode), 300);
-  }, [mode, variant, bubbleSize, customColors, chooseNextTarget, wheelPx, width, height]);
+  }, [mode, variant, bubbleSize, stimuliColor, chooseNextTarget, wheelPx, width, height]);
 
   useEffect(() => {
     resetStats();
@@ -223,8 +231,7 @@ export function RotatoryWheelGame({
   const finishSession = (currentMode: GameMode) => {
     const st = statsRef.current.startTime;
     const totalTime = st ? (performance.now() - st) / 1000 : 0;
-    const rTimes = statsRef.current.reactionTimes;
-    const avgReact = rTimes.length ? rTimes.reduce((a, b) => a + b, 0) / rTimes.length / 1000 : 0;
+    const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
     const finalData: SessionResultData = {
       patientName,
       sessionId: Math.floor(1000 + Math.random() * 9000),
@@ -241,7 +248,7 @@ export function RotatoryWheelGame({
         statsRef.current.clicks > 0
           ? Math.round((statsRef.current.correctCount / statsRef.current.clicks) * 100)
           : 100,
-      avgReactionSec: parseFloat(avgReact.toFixed(2)),
+      avgReactionSec: avgReact,
     };
     setResultsData(finalData);
     setIsResultsOpen(true);
@@ -411,6 +418,10 @@ export function RotatoryWheelGame({
           {bubbles.map((bubble) => {
             const popping = poppingIds.has(bubble.id);
             const wrong = wrongIds.has(bubble.id);
+            const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
+              borderFill: 'transparent',
+              solidBorderWidth: 0,
+            });
             return (
               <Pressable
                 key={bubble.id}
@@ -424,14 +435,16 @@ export function RotatoryWheelGame({
                   marginLeft: -scaledBubble / 2,
                   marginTop: -scaledBubble / 2,
                   borderRadius: scaledBubble / 2,
-                  backgroundColor: bubble.color,
+                  backgroundColor: paint.backgroundColor,
+                  borderWidth: paint.borderWidth,
+                  borderColor: paint.borderColor,
                   alignItems: 'center',
                   justifyContent: 'center',
                   opacity: popping ? 0.2 : 1,
                   transform: [{ scale: popping ? 0.4 : wrong ? 1.08 : 1 }, { rotate: `${-angle}deg` }],
                 }}
               >
-                <Text style={{ color: getContrastColor(bubble.color || '#fff'), fontWeight: '900', fontSize: letterPx }}>
+                <Text style={{ color: paint.textColor, fontWeight: '900', fontSize: letterPx }}>
                   {mode === 'colors' ? '' : bubble.symbol}
                 </Text>
               </Pressable>
@@ -715,6 +728,8 @@ export function RotatoryWheelGame({
           setBubbleSize(next.bubbleSize);
           if (next.speed !== undefined) setSpeed(next.speed);
           if (next.wheelColor !== undefined) setWheelColor(next.wheelColor);
+          if (next.stimuliColor !== undefined) setStimuliColor(next.stimuliColor);
+          if (next.bubbleAppearance !== undefined) setBubbleAppearance(next.bubbleAppearance);
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
@@ -737,6 +752,10 @@ export function RotatoryWheelGame({
         wheelColor={wheelColor}
         showWheelColorControl
         showLetterSizeControl={mode !== 'colors'}
+        showStimuliColorPicker={mode !== 'colors'}
+        stimuliColor={stimuliColor}
+        showBubbleAppearancePicker
+        bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : mode === 'numbers' ? '5' : variant === 'lowercase' ? 'a' : 'A'}
       />
       {resultsData ? (
@@ -767,6 +786,10 @@ export function RotatoryWheelGame({
           { label: 'Patient', value: patientName },
           ...(mode === 'colors' ? [] : [{ label: 'Letter Size', value: String(letterSize) }]),
           { label: 'Bubble Size', value: String(bubbleSize) },
+          ...(mode === 'colors'
+            ? []
+            : [{ label: 'Stimuli Color', value: stimuliColorLabel(stimuliColor) }]),
+          { label: 'Bubble Style', value: bubbleAppearanceLabel(bubbleAppearance) },
           {
             label: 'Wheel Color',
             value: (

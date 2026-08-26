@@ -5,8 +5,16 @@
 @tailwind utilities;
 
 :root {
+  /* Shell tokens — match mobile apps/candela-mobile/src/lib/theme.ts */
   --bg-main: #F4F7FC;
+  --page: #F4F7FC;
   --bg-card: #FFFFFF;
+  --shell-ink: #1A1A1A;
+  --shell-text: #111827;
+  --shell-muted: #6B7280;
+  --shell-border: #E5E7EB;
+  --shell-blue: #2563EB;
+  --shell-red: #DC2626;
   --bg-wheel: #000000;
   --font-main: 'Poppins', system-ui, sans-serif;
   --font-display: 'Poppins', system-ui, sans-serif;

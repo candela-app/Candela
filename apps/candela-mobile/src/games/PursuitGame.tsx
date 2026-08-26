@@ -12,6 +12,7 @@ import {
   getMovementPath,
   pursuitPatternName,
   resolvePursuitPattern,
+  reactionStatsFromMs,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
@@ -83,8 +84,7 @@ export function PursuitGame({
     const allTrials = trialMetricsRef.current;
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const accuracy = Math.round((correctCount / Math.max(1, allTrials.length)) * 100);
-    const avgReactionSec =
-      allTrials.length > 0 ? allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / allTrials.length / 1000 : 0;
+    const { avgSec: avgReactionSec } = reactionStatsFromMs(allTrials.map((t) => t.reactionTimeMs));
     const avgTrackingErrorPx =
       allTrials.length > 0 ? Math.round(allTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / allTrials.length) : 0;
     const avgAnticipation =
@@ -144,13 +144,13 @@ export function PursuitGame({
         setTimeout(() => {
           setIsBlockPaused(false);
           seedRef.current = Math.random() * 100 + trialIdx;
-          setTrialStartTime(Date.now());
+          setTrialStartTime(performance.now());
           setElapsedSec(0);
         }, 1500);
         return;
       }
       seedRef.current = Math.random() * 100 + trialIdx;
-      setTrialStartTime(Date.now());
+      setTrialStartTime(performance.now());
       setElapsedSec(0);
     },
     [isBlockPaused, completeSession],
@@ -214,7 +214,7 @@ export function PursuitGame({
 
   const handleTrialEnd = (outcome: 'correct' | 'incorrect' | 'timeout', tapPos: { x: number; y: number }) => {
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
-    const now = Date.now();
+    const now = performance.now();
     const reactionTimeMs = trialStartTime ? Math.max(100, now - trialStartTime) : settings.trialTimeoutSec * 1000;
     const ts = targetStateRef.current;
     const trackingErrorPx =

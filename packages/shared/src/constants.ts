@@ -28,6 +28,17 @@ export const THERAPY_COLOR_ITEMS: ColorItem[] = [
 
 export const THERAPY_COLORS: string[] = THERAPY_COLOR_ITEMS.map((item) => item.code);
 
+/**
+ * Bubble fill for letter/number games (not color-discrimination).
+ * `mixed` cycles therapy-grade colors; otherwise a single hex (White default).
+ */
+export const STIMULI_COLOR_MIXED = 'mixed';
+export const DEFAULT_STIMULI_BUBBLE_COLOR = '#FFFFFF';
+export const STIMULI_BUBBLE_COLOR_OPTIONS: ColorItem[] = [
+  { name: 'White', code: '#FFFFFF' },
+  ...THERAPY_COLOR_ITEMS,
+];
+
 export const ALPHABETS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const NUMBERS = '0123456789';
 

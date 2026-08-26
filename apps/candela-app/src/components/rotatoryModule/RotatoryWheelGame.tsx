@@ -27,6 +27,14 @@ import {
   exitFullScreenSafe,
   ClinicalSettingsModal,
   SessionResultData,
+  reactionStatsFromMs,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
+  DEFAULT_BUBBLE_APPEARANCE,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  stimuliColorLabel,
+  bubbleAppearanceLabel,
+  type BubbleAppearance,
 } from '@candela/shared';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
@@ -58,7 +66,8 @@ export function RotatoryWheelGame({
   const [letterSize, setLetterSize] = useState<number>(2.5);
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'rotatory'));
   const [wheelColor, setWheelColor] = useState<string>('#000000');
-  const [customColors] = useState<string[]>(['#FFFFFF', '#2F80FF', '#FF3B30']);
+  const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
+  const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
 
   // Settings, Click to Start & Results Modal State
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
@@ -240,10 +249,7 @@ export function RotatoryWheelGame({
       if (remainingSymbols.length === 0) {
         const st = statsRef.current.startTime;
         const totalTime = st ? (performance.now() - st) / 1000 : 0;
-        const rTimes = statsRef.current.reactionTimes;
-        const avgReact = rTimes.length
-          ? rTimes.reduce((a, b) => a + b, 0) / rTimes.length / 1000
-          : 0;
+        const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
 
         exportSessionCSV({
           patientName,
@@ -263,7 +269,7 @@ export function RotatoryWheelGame({
                   (statsRef.current.correctCount / statsRef.current.clicks) * 100
                 )
               : 100,
-          avgReactionSec: parseFloat(avgReact.toFixed(2)),
+          avgReactionSec: avgReact,
         });
         return;
       }
@@ -364,7 +370,7 @@ export function RotatoryWheelGame({
         bgColor = colorObj.code;
         colorName = colorObj.name;
       } else {
-        bgColor = customColors[i % customColors.length];
+        bgColor = resolveStimuliBubbleColor(stimuliColor, i);
       }
 
       newBubbles.push({
@@ -382,7 +388,7 @@ export function RotatoryWheelGame({
     setTimeout(() => {
       chooseNextTarget(newBubbles, mode);
     }, 300);
-  }, [mode, variant, bubbleSize, customColors, chooseNextTarget]);
+  }, [mode, variant, bubbleSize, stimuliColor, chooseNextTarget]);
 
   useEffect(() => {
     resetStats();
@@ -421,10 +427,7 @@ export function RotatoryWheelGame({
             playSuccessSoundAndHaptic();
             const st = statsRef.current.startTime;
             const totalTime = st ? (performance.now() - st) / 1000 : 0;
-            const rTimes = statsRef.current.reactionTimes;
-            const avgReact = rTimes.length
-              ? rTimes.reduce((a, b) => a + b, 0) / rTimes.length / 1000
-              : 0;
+            const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
 
             const finalData: SessionResultData = {
               patientName,
@@ -444,7 +447,7 @@ export function RotatoryWheelGame({
                       (statsRef.current.correctCount / statsRef.current.clicks) * 100
                     )
                   : 100,
-              avgReactionSec: parseFloat(avgReact.toFixed(2)),
+              avgReactionSec: avgReact,
             };
 
             setResultsData(finalData);
@@ -861,7 +864,10 @@ export function RotatoryWheelGame({
             {bubbles.map((bubble) => {
               const isPopping = poppingIds.has(bubble.id);
               const isWrong = wrongIds.has(bubble.id);
-              const textColor = getContrastColor(bubble.color || '#FFFFFF');
+              const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
+                borderFill: 'transparent',
+                solidBorderWidth: 0,
+              });
               return (
                 <div
                   key={bubble.id}
@@ -874,8 +880,9 @@ export function RotatoryWheelGame({
                     width: `${bubbleSize}px`,
                     height: `${bubbleSize}px`,
                     fontSize: `${letterSize}rem`,
-                    backgroundColor: bubble.color,
-                    color: textColor,
+                    backgroundColor: paint.backgroundColor,
+                    border: `${paint.borderWidth}px solid ${paint.borderColor}`,
+                    color: paint.textColor,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -928,6 +935,10 @@ export function RotatoryWheelGame({
             ? []
             : [{ label: 'Letter Size', value: <span className="text-blue-400 font-bold">{letterSize}</span> }]),
           { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
+          ...(mode === 'colors'
+            ? []
+            : [{ label: 'Stimuli Color', value: stimuliColorLabel(stimuliColor) }]),
+          { label: 'Bubble Style', value: bubbleAppearanceLabel(bubbleAppearance) },
           {
             label: 'Wheel Color',
             value: (
@@ -954,6 +965,8 @@ export function RotatoryWheelGame({
           setBubbleSize(newSettings.bubbleSize);
           if (newSettings.speed !== undefined) setSpeed(newSettings.speed);
           if (newSettings.wheelColor !== undefined) setWheelColor(newSettings.wheelColor);
+          if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
+          if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -978,6 +991,10 @@ export function RotatoryWheelGame({
         showSpeedControl={true}
         showWheelColorControl={true}
         showLetterSizeControl={mode !== 'colors'}
+        showStimuliColorPicker={mode !== 'colors'}
+        stimuliColor={stimuliColor}
+        showBubbleAppearancePicker
+        bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
       />
 

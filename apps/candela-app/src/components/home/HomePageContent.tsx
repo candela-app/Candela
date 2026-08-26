@@ -6,6 +6,7 @@ import {
   TargetIcon,
   MobileTargetIcon,
   GeoboardIcon,
+  PeripheralIcon,
   SlidersIcon,
   AnalyticsIcon,
   MonitorIcon,
@@ -219,6 +220,32 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
                 For All Devices
               </span>
               <div className="text-xs font-bold text-teal-600 flex items-center gap-1 group-hover:gap-2 transition-all">
+                <span>Launch</span>
+                <ArrowRightIcon className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            onClick={() => onSelectModule ? onSelectModule('peripheral') : onOpenDashboard()}
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-indigo-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <PeripheralIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                Peripheral View
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
+                Hex-hive peripheral field awareness — pop A–Z on left, right, or both sides.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                For Tabs & Desktop
+              </span>
+              <div className="text-xs font-bold text-indigo-600 flex items-center gap-1 group-hover:gap-2 transition-all">
                 <span>Launch</span>
                 <ArrowRightIcon className="w-3.5 h-3.5" />
               </div>
