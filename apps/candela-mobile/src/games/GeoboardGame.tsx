@@ -26,6 +26,7 @@ import {
   type GeoboardProtocol,
   type GeoboardSessionResultData,
   type GeoboardTrialMetric,
+  reactionStatsFromMs,
 } from '@candela/shared/rn';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
@@ -543,7 +544,7 @@ export function GeoboardGame({
         correct: correctCount,
         wrong: wrongCount,
         accuracy,
-        avgReactionSec: parseFloat((avg((t) => t.reactionTimeMs) / 1000).toFixed(2)),
+        avgReactionSec: reactionStatsFromMs(finalTrials.map((t) => t.reactionTimeMs)).avgSec,
         stimulusType: board.stimulusType,
         boardId,
         boardName: board.name,

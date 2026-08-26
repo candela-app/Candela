@@ -1,11 +1,15 @@
-import { BubblePosition, GameMode, ColorItem, SessionResultData, DeviceTier } from './types';
+import { BubblePosition, GameMode, ColorItem, SessionResultData, DeviceTier, BubbleAppearance, DEFAULT_BUBBLE_APPEARANCE } from './types';
 import {
   ALPHABETS,
   NUMBERS,
   BRIGHT_COLORS,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
   PHONE_BUBBLE_SIZE_PX,
   PHONE_SORTING_BUBBLE_SIZE_PX,
+  STIMULI_BUBBLE_COLOR_OPTIONS,
+  STIMULI_COLOR_MIXED,
   TABLET_BUBBLE_SIZE_PX,
+  THERAPY_COLORS,
   DEFAULT_SORTING_NUMBER_FROM,
   DEFAULT_SORTING_NUMBER_TO,
   MAX_SORTING_NUMBER_COUNT,
@@ -147,6 +151,99 @@ export function getContrastColor(hexColor: string): string {
   const b = parseInt(cleanHex.slice(4, 6), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+/** Resolve letter/number bubble fill. `mixed` cycles therapy-grade colors; default is white. */
+export function resolveStimuliBubbleColor(
+  selection: string | undefined,
+  index: number,
+  mixedPalette: string[] = THERAPY_COLORS,
+): string {
+  const mode = selection ?? DEFAULT_STIMULI_BUBBLE_COLOR;
+  if (mode === STIMULI_COLOR_MIXED) {
+    return mixedPalette[index % Math.max(1, mixedPalette.length)] ?? DEFAULT_STIMULI_BUBBLE_COLOR;
+  }
+  return mode;
+}
+
+export function isStimuliColorMixed(selection: string | undefined): boolean {
+  return selection === STIMULI_COLOR_MIXED;
+}
+
+export function stimuliColorLabel(selection: string | undefined): string {
+  const mode = selection ?? DEFAULT_STIMULI_BUBBLE_COLOR;
+  if (mode === STIMULI_COLOR_MIXED) return 'Mixed';
+  const hit = STIMULI_BUBBLE_COLOR_OPTIONS.find(
+    (c) => c.code.toLowerCase() === mode.toLowerCase(),
+  );
+  return hit?.name ?? mode;
+}
+
+export type BubblePaint = {
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: number;
+  textColor: string;
+};
+
+/**
+ * Solid = filled bubble + contrast letter.
+ * Border = outline in stimuli color + letter in that same color.
+ */
+export function resolveBubblePaint(
+  appearance: BubbleAppearance | undefined,
+  stimuliHex: string,
+  options?: { borderFill?: string; solidBorderColor?: string; solidBorderWidth?: number },
+): BubblePaint {
+  const mode = appearance ?? DEFAULT_BUBBLE_APPEARANCE;
+  if (mode === 'border') {
+    return {
+      backgroundColor: options?.borderFill ?? 'transparent',
+      borderColor: stimuliHex,
+      borderWidth: 4,
+      textColor: stimuliHex,
+    };
+  }
+  return {
+    backgroundColor: stimuliHex,
+    borderColor: options?.solidBorderColor ?? 'transparent',
+    borderWidth: options?.solidBorderWidth ?? 0,
+    textColor: getContrastColor(stimuliHex),
+  };
+}
+
+export function bubbleAppearanceLabel(appearance: BubbleAppearance | undefined): string {
+  return (appearance ?? DEFAULT_BUBBLE_APPEARANCE) === 'border' ? 'Border' : 'Solid';
+}
+
+/** Prefer explicit appearance; fall back to legacy hasBackground (true=solid). */
+export function resolveBubbleAppearance(
+  appearance?: BubbleAppearance,
+  hasBackground?: boolean,
+): BubbleAppearance {
+  if (appearance === 'solid' || appearance === 'border') return appearance;
+  if (hasBackground === true) return 'solid';
+  if (hasBackground === false) return 'border';
+  return DEFAULT_BUBBLE_APPEARANCE;
+}
+
+/** Average / median reaction time from millisecond samples (correct responses only). */
+export function reactionStatsFromMs(reactionMs: number[]): {
+  avgSec: number;
+  medianSec: number;
+  count: number;
+} {
+  if (reactionMs.length === 0) return { avgSec: 0, medianSec: 0, count: 0 };
+  const avgMs = reactionMs.reduce((a, b) => a + b, 0) / reactionMs.length;
+  const sorted = [...reactionMs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const medianMs =
+    sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return {
+    avgSec: parseFloat((avgMs / 1000).toFixed(3)),
+    medianSec: parseFloat((medianMs / 1000).toFixed(3)),
+    count: reactionMs.length,
+  };
 }
 
 export function exportSessionCSV(data: SessionResultData): void {

@@ -17,6 +17,7 @@ import {
   ClinicalSettingsModal,
   resolvePursuitPattern,
   pursuitPatternName,
+  reactionStatsFromMs,
 } from '@candela/shared';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
@@ -140,7 +141,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
           setIsBlockPaused(false);
           updateLockedContainerBounds();
           seedRef.current = Math.random() * 100 + trialIdx;
-          setTrialStartTime(Date.now());
+          setTrialStartTime(performance.now());
           setElapsedSec(0);
         }, 1500);
         return;
@@ -148,7 +149,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
       updateLockedContainerBounds();
       seedRef.current = Math.random() * 100 + trialIdx;
-      setTrialStartTime(Date.now());
+      setTrialStartTime(performance.now());
       setElapsedSec(0);
     },
     [isBlockPaused, updateLockedContainerBounds]
@@ -248,7 +249,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   ) => {
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
 
-    const now = Date.now();
+    const now = performance.now();
     const reactionTimeMs = trialStartTime ? Math.max(100, now - trialStartTime) : settings.trialTimeoutSec * 1000;
 
     const trackingErrorPx =
@@ -294,10 +295,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const accuracy = Math.round((correctCount / Math.max(1, allTrials.length)) * 100);
 
-    const avgReactionSec =
-      allTrials.length > 0
-        ? allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / allTrials.length / 1000
-        : 0;
+    const { avgSec: avgReactionSec } = reactionStatsFromMs(allTrials.map((t) => t.reactionTimeMs));
 
     const avgTrackingErrorPx =
       allTrials.length > 0
@@ -404,16 +402,22 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   return (
     <div ref={containerRef} className={styles.gameContainer}>
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center">
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Pursuit</h2>
           <button
+            type="button"
             onClick={() => setGameStarted(true)}
             className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+            title="Click to Start Therapy Session"
           >
             Click to Start
           </button>
-          <button onClick={() => setIsSettingsOpen(true)} className="text-sm font-extrabold text-gray-300">
-            Edit Clinical Settings
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
+          >
+            <span>⚙️ Edit Clinical Settings</span>
           </button>
         </div>
       ) : null}

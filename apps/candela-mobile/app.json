@@ -39,7 +39,8 @@
         {
           "initialOrientation": "DEFAULT"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "updates": {
       "enabled": false

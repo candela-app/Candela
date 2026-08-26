@@ -375,6 +375,28 @@ export function HomeIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
   );
 }
 
+export function LogOutIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" x2="9" y1="12" y2="12" />
+    </svg>
+  );
+}
+
 export function LayoutDashboardIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
   return (
     <svg
@@ -447,6 +469,35 @@ export function GeoboardIcon({ className = 'w-6 h-6', size, ...props }: IconProp
       <circle cx="12" cy="16" r="1" fill="currentColor" />
       <circle cx="16" cy="16" r="1" fill="currentColor" />
       <path d="M8 8l4 4 4-4" />
+    </svg>
+  );
+}
+
+export function PeripheralIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
     </svg>
   );
 }
@@ -723,6 +774,85 @@ export function ReplayIcon({ className = 'w-4 h-4', size, ...props }: IconProps)
   );
 }
 
+export function UndoIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 2.9L3 13" />
+    </svg>
+  );
+}
 
+export function ClearIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
 
+export function SkipIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" stroke="none" />
+      <line x1="19" x2="19" y1="5" y2="19" />
+    </svg>
+  );
+}
 
+export function CheckIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 20}
+      height={size || 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}

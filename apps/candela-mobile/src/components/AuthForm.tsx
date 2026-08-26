@@ -84,6 +84,7 @@ export function Field({
         autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
         autoComplete={autoComplete}
         secureTextEntry={secureTextEntry}
+        placeholderTextColor={colors.muted}
         style={{
           borderWidth: 1,
           borderColor: colors.border,
@@ -123,6 +124,7 @@ export function PasswordField({
           autoComplete={autoComplete}
           autoCapitalize="none"
           secureTextEntry={!visible}
+          placeholderTextColor={colors.muted}
           style={{
             borderWidth: 1,
             borderColor: colors.border,

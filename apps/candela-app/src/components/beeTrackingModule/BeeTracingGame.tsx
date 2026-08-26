@@ -18,6 +18,7 @@ import {
   DEFAULT_BEE_TARGET_DOT_COLOR,
   beeHeadingDeg,
   lerpHeadingDeg,
+  reactionStatsFromMs,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -108,7 +109,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
   // Session Start Time
   const sessionStartTimeRef = useRef<number>(Date.now());
-  const roundStartTimeRef = useRef<number>(Date.now());
+  const roundStartTimeRef = useRef<number>(performance.now());
+  const reactionReadyAtRef = useRef<number | null>(null);
+  const roundReactionMsRef = useRef<number | null>(null);
   const currentPathIndexRef = useRef<number>(0);
   const roundSuccessRef = useRef(false);
 
@@ -153,11 +156,15 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       setIsOffPathWobble(false);
       setHasDemoPlayed(false); // Reset demo played flag for new round
       currentPathIndexRef.current = 0; // Reset sequential path progress index
-      roundStartTimeRef.current = Date.now();
+      roundStartTimeRef.current = performance.now();
+      roundReactionMsRef.current = null;
 
       if (settings.tracingMode === 'guided') {
+        reactionReadyAtRef.current = null;
         // Start guided demo playback on round start
         runGuidedDemo(generated);
+      } else {
+        reactionReadyAtRef.current = performance.now();
       }
     },
     [settings.pathType, settings.tracingMode, settings.pathComplexity, settings.orientation]
@@ -167,6 +174,8 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   // Guided demo auto-movement
   const runGuidedDemo = (generated: GeneratedPath) => {
     setIsGuidedDemoRunning(true);
+    reactionReadyAtRef.current = null;
+    roundReactionMsRef.current = null;
     const duration = settings.beeSpeedSec * 1000;
     const startTime = Date.now();
 
@@ -185,6 +194,8 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         setIsGuidedDemoRunning(false);
         setHasDemoPlayed(true); // Demo complete -> button changes to 'Replay Demo'
         setBeePos(generated.startPoint);
+        reactionReadyAtRef.current = performance.now();
+        roundReactionMsRef.current = null;
         showToast('Demo complete! Now trace the path!');
       }
     };
@@ -248,6 +259,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     }
 
     if (canGrabBee) {
+      if (roundReactionMsRef.current == null && reactionReadyAtRef.current != null) {
+        roundReactionMsRef.current = Math.max(0, Math.round(performance.now() - reactionReadyAtRef.current));
+      }
       setIsTracing(true);
       if (isStartOfRound) {
         currentPathIndexRef.current = 0;
@@ -349,7 +363,10 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
     showToast('🎉 Flower Reached! Great Job!');
 
-    const completionTimeSec = Math.max(1, Math.round((Date.now() - roundStartTimeRef.current) / 1000));
+    const completionTimeSec = Math.max(
+      1,
+      Math.round((performance.now() - roundStartTimeRef.current) / 1000),
+    );
     const corridorPx = Math.max(settings.toleranceBandPx, INVISIBLE_CORRIDOR_PX);
     const metrics = evaluateTracingMetrics(
       userTracePoints,
@@ -367,6 +384,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       baselineTimeSec: currentPath.baselineTimeSec,
       deviationCount: metrics.deviationCount,
       avgRecoveryTimeSec: metrics.avgRecoveryTimeSec,
+      reactionTimeMs: roundReactionMsRef.current ?? undefined,
       tracedPoints: userTracePoints,
       targetPoints: currentPath.points,
       idealSvgPathD: currentPath.svgPathD,
@@ -423,7 +441,11 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       correct: roundResults.length,
       wrong: totalDeviations,
       accuracy: avgAcc,
-      avgReactionSec: totalDuration / Math.max(1, roundResults.length),
+      avgReactionSec: reactionStatsFromMs(
+        roundResults
+          .map((r) => r.reactionTimeMs)
+          .filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms)),
+      ).avgSec,
       pathType: settings.pathType,
       tracingMode: settings.tracingMode,
       colorTheme: settings.colorTheme,
@@ -485,19 +507,22 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       </span>
 
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
-        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center">
+        <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Bee Path Tracing</h2>
           <button
+            type="button"
             onClick={() => setGameStarted(true)}
             className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+            title="Click to Start Therapy Session"
           >
             Click to Start
           </button>
           <button
+            type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300"
+            className="text-xs sm:text-sm font-extrabold text-gray-300 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900/60 hover:bg-gray-800/90 border border-gray-700/80 shadow-md z-10"
           >
-            Edit Clinical Settings
+            <span>⚙️ Edit Clinical Settings</span>
           </button>
         </div>
       ) : null}

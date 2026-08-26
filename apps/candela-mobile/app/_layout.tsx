@@ -41,6 +41,10 @@ export default function RootLayout() {
               name="play/mobile-target"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
+            <Stack.Screen
+              name="play/peripheral"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
           </Stack>
         </AuthProvider>
       </SafeAreaProvider>

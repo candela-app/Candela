@@ -144,6 +144,7 @@ export function DocIdRequestCard() {
             value={code}
             onChangeText={(v) => setCode(v.toUpperCase())}
             placeholder="DocID"
+            placeholderTextColor={colors.muted}
             maxLength={6}
             autoCapitalize="characters"
             style={{
@@ -157,6 +158,7 @@ export function DocIdRequestCard() {
               fontWeight: '800',
               letterSpacing: 4,
               textTransform: 'uppercase',
+              color: colors.text,
               backgroundColor: colors.white,
             }}
           />

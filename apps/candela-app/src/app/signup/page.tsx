@@ -73,8 +73,8 @@ export default function SignupPage() {
 
   if (loading || session || redirecting) {
     return (
-      <div className="min-h-screen bg-[#F4F7FC] flex items-center justify-center">
-        <p className="text-sm font-semibold text-gray-500">Loading…</p>
+      <div className="min-h-screen bg-page flex items-center justify-center">
+        <p className="text-sm font-semibold text-shell-muted">Loading…</p>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export default function SignupPage() {
       <GoogleSignInButton disabled={submitting} busy={googleBusy} onAccessToken={onGoogle} />
       <p className="text-sm text-gray-500 mt-6 text-center">
         Already have an account?{' '}
-        <Link href="/login" className="text-blue-600 font-semibold hover:underline">
+        <Link href="/login" className="text-shell-blue font-semibold hover:underline">
           Sign in
         </Link>
       </p>

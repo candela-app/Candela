@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { MobileTargetSettings, THERAPY_COLOR_ITEMS } from '@candela/shared';
+import {
+  MobileTargetSettings,
+  THERAPY_COLOR_ITEMS,
+  DEFAULT_STIMULI_BUBBLE_COLOR,
+  STIMULI_BUBBLE_COLOR_OPTIONS,
+  STIMULI_COLOR_MIXED,
+  resolveStimuliBubbleColor,
+  resolveBubblePaint,
+  resolveBubbleAppearance,
+  type BubbleAppearance,
+} from '@candela/shared';
 
 interface MobileTargetSettingsModalProps {
   isOpen: boolean;
@@ -40,8 +50,14 @@ export function MobileTargetSettingsModal({
   const [tempHasBackground, setTempHasBackground] = useState<boolean>(
     settings.hasBackground ?? false
   );
+  const [tempBubbleAppearance, setTempBubbleAppearance] = useState<BubbleAppearance>(
+    resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)
+  );
   const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(
     settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
+  );
+  const [tempStimuliColor, setTempStimuliColor] = useState(
+    settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR
   );
 
   // Sync state on open
@@ -55,9 +71,11 @@ export function MobileTargetSettingsModal({
       setTempLetterSize(settings.letterSize || 32);
       setTempMovementAxis(settings.movementAxis || 'random');
       setTempHasBackground(settings.hasBackground ?? false);
+      setTempBubbleAppearance(resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground));
       setTempTherapyColors(
         settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
       );
+      setTempStimuliColor(settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR);
     }
   }, [isOpen, settings]);
 
@@ -74,8 +92,10 @@ export function MobileTargetSettingsModal({
       bubbleSize: tempBubbleSize,
       letterSize: tempLetterSize,
       movementAxis: tempMovementAxis,
-      hasBackground: tempHasBackground,
+      hasBackground: tempBubbleAppearance === 'solid',
+      bubbleAppearance: tempBubbleAppearance,
       therapyColors: tempTherapyColors,
+      stimuliColor: tempStimuliColor,
     });
     onClose();
   };
@@ -93,12 +113,19 @@ export function MobileTargetSettingsModal({
       : 'A';
 
   const previewColor =
-    THERAPY_COLOR_ITEMS.find((item) =>
-      tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase())
-    )?.code || '#00F0FF';
-  const previewFilled = tempHasBackground;
-  const previewBg = previewFilled ? previewColor : '#121626';
-  const previewTextColor = previewFilled ? getContrastTextColor(previewColor) : previewColor;
+    settings.gameMode === 'colors'
+      ? THERAPY_COLOR_ITEMS.find((item) =>
+          tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase())
+        )?.code || '#00F0FF'
+      : resolveStimuliBubbleColor(tempStimuliColor, 0);
+  const previewFilled = tempBubbleAppearance === 'solid';
+  const previewPaint = resolveBubblePaint(tempBubbleAppearance, previewColor, {
+    borderFill: '#121626',
+    solidBorderColor: '#FFFFFF',
+    solidBorderWidth: 3,
+  });
+  const previewBg = previewPaint.backgroundColor;
+  const previewTextColor = previewPaint.textColor;
 
   return (
     <div
@@ -155,8 +182,8 @@ export function MobileTargetSettingsModal({
                   style={{
                     width: `${tempBubbleSize}px`,
                     height: `${tempBubbleSize}px`,
-                    backgroundColor: previewBg,
-                    border: previewFilled ? '3px solid #FFFFFF' : `4px solid ${previewColor}`,
+                    backgroundColor: previewPaint.backgroundColor,
+                    border: `${previewPaint.borderWidth}px solid ${previewPaint.borderColor}`,
                     boxShadow: 'none',
                   }}
                 >
@@ -165,7 +192,7 @@ export function MobileTargetSettingsModal({
                       className="font-black"
                       style={{
                         fontSize: `${tempLetterSize}px`,
-                        color: previewTextColor,
+                        color: previewPaint.textColor,
                       }}
                     >
                       {sampleSymbol}
@@ -322,55 +349,70 @@ export function MobileTargetSettingsModal({
 
           {/* COLUMN 3: BACKGROUND STYLE, SPEED & PATIENT PROFILE */}
           <div className="flex flex-col gap-5 justify-between">
-            {/* BUBBLE BACKGROUND STYLE RADIO BUTTONS */}
+            {/* BUBBLE STYLE — solid vs border */}
             <div
               className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
               style={{ backgroundColor: '#242424' }}
             >
               <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                 <span className="text-xs font-extrabold text-gray-200 uppercase tracking-wider">
-                  Bubble Fill / Background
+                  Bubble Style
                 </span>
                 <span className="font-black text-emerald-400 font-mono text-xs uppercase">
-                  {tempHasBackground ? 'With Background' : 'No Background'}
+                  {tempBubbleAppearance === 'solid' ? 'Solid' : 'Border'}
                 </span>
               </div>
+              <p className="text-xs text-gray-400">
+                Solid fills the bubble. Border keeps an outline with the letter in the same color.
+              </p>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <label
-                  onClick={() => setTempHasBackground(false)}
+                  onClick={() => {
+                    setTempBubbleAppearance('border');
+                    setTempHasBackground(false);
+                  }}
                   className={`flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
-                    !tempHasBackground
+                    tempBubbleAppearance === 'border'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
                       : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                   }`}
                 >
                   <input
                     type="radio"
-                    name="bubbleBackgroundOption"
-                    checked={!tempHasBackground}
-                    onChange={() => setTempHasBackground(false)}
+                    name="bubbleAppearanceOption"
+                    checked={tempBubbleAppearance === 'border'}
+                    onChange={() => {
+                      setTempBubbleAppearance('border');
+                      setTempHasBackground(false);
+                    }}
                     className="accent-emerald-500 w-4 h-4 cursor-pointer"
                   />
-                  <span>⭕ No Background</span>
+                  <span>⭕ Border</span>
                 </label>
 
                 <label
-                  onClick={() => setTempHasBackground(true)}
+                  onClick={() => {
+                    setTempBubbleAppearance('solid');
+                    setTempHasBackground(true);
+                  }}
                   className={`flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
-                    tempHasBackground
+                    tempBubbleAppearance === 'solid'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
                       : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                   }`}
                 >
                   <input
                     type="radio"
-                    name="bubbleBackgroundOption"
-                    checked={tempHasBackground}
-                    onChange={() => setTempHasBackground(true)}
+                    name="bubbleAppearanceOption"
+                    checked={tempBubbleAppearance === 'solid'}
+                    onChange={() => {
+                      setTempBubbleAppearance('solid');
+                      setTempHasBackground(true);
+                    }}
                     className="accent-emerald-500 w-4 h-4 cursor-pointer"
                   />
-                  <span>🟢 With Background</span>
+                  <span>🟢 Solid</span>
                 </label>
               </div>
             </div>
@@ -439,6 +481,74 @@ export function MobileTargetSettingsModal({
             </div>
           </div>
         </div>
+
+        {settings.gameMode !== 'colors' ? (
+          <div
+            className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
+            style={{ backgroundColor: '#242424' }}
+          >
+            <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+              <span className="text-xs font-extrabold text-gray-200 uppercase tracking-wider">
+                Stimuli Color
+              </span>
+            </div>
+            <p className="text-xs text-gray-400">
+              Bubble fill for letters/numbers. White reduces color confusion; Mixed keeps therapy-grade variety.
+            </p>
+            <div className="flex flex-wrap gap-2.5 items-start">
+              {STIMULI_BUBBLE_COLOR_OPTIONS.map((c) => {
+                const active =
+                  tempStimuliColor !== STIMULI_COLOR_MIXED &&
+                  tempStimuliColor.toLowerCase() === c.code.toLowerCase();
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    title={c.name}
+                    onClick={() => setTempStimuliColor(c.code)}
+                    className={`flex flex-col items-center gap-1 w-11 ${active ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                  >
+                    <span
+                      className={`w-9 h-9 rounded-full border-2 ${
+                        active ? 'border-white scale-110' : c.code.toLowerCase() === '#ffffff' ? 'border-slate-500' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: c.code }}
+                    />
+                    <span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-gray-500'}`}>
+                      {c.name}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                title="Mixed"
+                onClick={() => setTempStimuliColor(STIMULI_COLOR_MIXED)}
+                className={`flex flex-col items-center gap-1 w-12 ${
+                  tempStimuliColor === STIMULI_COLOR_MIXED ? 'opacity-100' : 'opacity-80 hover:opacity-100'
+                }`}
+              >
+                <span
+                  className={`w-9 h-9 rounded-full overflow-hidden border-2 grid grid-cols-2 grid-rows-2 ${
+                    tempStimuliColor === STIMULI_COLOR_MIXED ? 'border-white scale-110' : 'border-slate-600'
+                  }`}
+                >
+                  <span style={{ backgroundColor: '#FFD600' }} />
+                  <span style={{ backgroundColor: '#00F0FF' }} />
+                  <span style={{ backgroundColor: '#FF3D00' }} />
+                  <span style={{ backgroundColor: '#00E676' }} />
+                </span>
+                <span
+                  className={`text-[9px] font-bold ${
+                    tempStimuliColor === STIMULI_COLOR_MIXED ? 'text-white' : 'text-gray-500'
+                  }`}
+                >
+                  Mixed
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {settings.gameMode === 'colors' ? (
           <div

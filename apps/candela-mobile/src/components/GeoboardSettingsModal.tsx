@@ -188,7 +188,7 @@ export function GeoboardSettingsModal({
                 value={draft.patientName}
                 onChangeText={(patientName) => patch({ patientName })}
                 placeholder="Enter patient name..."
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#9CA3AF"
                 style={{
                   backgroundColor: '#141414',
                   color: '#fff',

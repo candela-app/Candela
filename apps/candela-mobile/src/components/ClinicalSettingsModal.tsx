@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SPEED_PRESETS, THERAPY_COLOR_ITEMS, DEFAULT_SORTING_NUMBER_FROM, DEFAULT_SORTING_NUMBER_TO, MAX_SORTING_NUMBER_COUNT, clampSortingNumberRange } from '@candela/shared/rn';
+import { SPEED_PRESETS, THERAPY_COLOR_ITEMS, DEFAULT_SORTING_NUMBER_FROM, DEFAULT_SORTING_NUMBER_TO, MAX_SORTING_NUMBER_COUNT, clampSortingNumberRange, clampBatchesPerSession, clampHexSizePx, clampPeripheralLetterSize, clampPeripheralTargetTimeoutSec, clampStimuliCount, DEFAULT_BUBBLE_APPEARANCE, DEFAULT_PERIPHERAL_BG_COLOR, DEFAULT_PERIPHERAL_BUBBLE_TYPE, DEFAULT_PERIPHERAL_FIXATION_COLOR, DEFAULT_PERIPHERAL_STIMULUS_COLOR, DEFAULT_STIMULI_BUBBLE_COLOR, getDeviceTier, hexVertices, peripheralHexPaint, peripheralLetterColor, peripheralLetterFontPx, peripheralMaxStimuliCount, peripheralStimuliPresets, PERIPHERAL_BATCH_PRESETS, PERIPHERAL_BG_COLORS, PERIPHERAL_DEFAULT_BATCHES, PERIPHERAL_HEX_SIZE_PRESETS, PERIPHERAL_LETTER_SIZE_PRESETS, PERIPHERAL_STIMULUS_COLORS, PERIPHERAL_TARGET_TIMEOUT_PRESETS, resolveBubblePaint, resolveStimuliBubbleColor, STIMULI_BUBBLE_COLOR_OPTIONS, STIMULI_COLOR_MIXED, type BubbleAppearance, type PeripheralBubbleType } from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
+import Svg, { Polygon, Text as SvgText } from 'react-native-svg';
 import { useLayout } from '../lib/layout';
 
 export interface AppliedClinicalSettings {
@@ -28,6 +29,17 @@ export interface AppliedClinicalSettings {
   therapyColors?: string[];
   numberRangeFrom?: number;
   numberRangeTo?: number;
+  hexSizePx?: number;
+  stimuliCount?: number;
+  batchesPerSession?: number;
+  stimulusColor?: string;
+  /** Letter/number bubble fill (hex or `mixed`). Not used for color-discrimination. */
+  stimuliColor?: string;
+  bubbleAppearance?: BubbleAppearance;
+  fixationDotColor?: string;
+  bgColor?: string;
+  peripheralTargetTimeoutSec?: number;
+  peripheralBubbleType?: PeripheralBubbleType;
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
@@ -59,6 +71,8 @@ const PURSUIT_TIMEOUTS = [
   { label: '5s', val: 5 },
   { label: '6s', val: 6 },
 ];
+const HEX_SIZE_STEPS = [...PERIPHERAL_HEX_SIZE_PRESETS];
+const BATCHES_STEPS = [...PERIPHERAL_BATCH_PRESETS];
 
 function nearestStep(values: number[], n: number) {
   return values.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), values[0]);
@@ -174,10 +188,23 @@ export function ClinicalSettingsModal({
   pursuitTrialTimeoutSec = 0,
   showTherapyColorPicker = false,
   therapyColors = DEFAULT_THERAPY_COLORS,
+  showStimuliColorPicker = false,
+  stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
+  showBubbleAppearancePicker = false,
+  bubbleAppearance = DEFAULT_BUBBLE_APPEARANCE,
   showLetterSizeControl = true,
   showNumberRangeControl = false,
   numberRangeFrom = DEFAULT_SORTING_NUMBER_FROM,
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
+  showPeripheralViewControls = false,
+  hexSizePx = 64,
+  stimuliCount = 16,
+  batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
+  stimulusColor = DEFAULT_PERIPHERAL_STIMULUS_COLOR,
+  fixationDotColor = DEFAULT_PERIPHERAL_FIXATION_COLOR,
+  bgColor = DEFAULT_PERIPHERAL_BG_COLOR,
+  peripheralTargetTimeoutSec = 0,
+  peripheralBubbleType = DEFAULT_PERIPHERAL_BUBBLE_TYPE,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -208,13 +235,30 @@ export function ClinicalSettingsModal({
   pursuitTrialTimeoutSec?: number;
   showTherapyColorPicker?: boolean;
   therapyColors?: string[];
+  /** Letter/number bubble fill picker (White default + therapy colors + Mixed). Hide for color-discrimination modes. */
+  showStimuliColorPicker?: boolean;
+  stimuliColor?: string;
+  showBubbleAppearancePicker?: boolean;
+  bubbleAppearance?: BubbleAppearance;
   showLetterSizeControl?: boolean;
   showNumberRangeControl?: boolean;
   numberRangeFrom?: number;
   numberRangeTo?: number;
+  showPeripheralViewControls?: boolean;
+  hexSizePx?: number;
+  stimuliCount?: number;
+  batchesPerSession?: number;
+  stimulusColor?: string;
+  fixationDotColor?: string;
+  bgColor?: string;
+  peripheralTargetTimeoutSec?: number;
+  peripheralBubbleType?: PeripheralBubbleType;
 }) {
   const insets = useSafeAreaInsets();
-  const { fs, s } = useLayout();
+  const { fs, s, width, height } = useLayout();
+  const deviceTier = getDeviceTier(width, height);
+  const stimuliSteps = useMemo(() => [...peripheralStimuliPresets(deviceTier)], [deviceTier]);
+  const stimuliMax = peripheralMaxStimuliCount(deviceTier);
   const [tempPatientName, setTempPatientName] = useState(patientName);
   const [tempLetterSize, setTempLetterSize] = useState(letterSize);
   const [tempBubbleSize, setTempBubbleSize] = useState(bubbleSize);
@@ -235,8 +279,18 @@ export function ClinicalSettingsModal({
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
   const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(therapyColors);
+  const [tempStimuliColor, setTempStimuliColor] = useState(stimuliColor);
+  const [tempBubbleAppearance, setTempBubbleAppearance] = useState<BubbleAppearance>(bubbleAppearance);
   const [tempNumberRangeFrom, setTempNumberRangeFrom] = useState(numberRangeFrom);
   const [tempNumberRangeTo, setTempNumberRangeTo] = useState(numberRangeTo);
+  const [tempHexSizePx, setTempHexSizePx] = useState(hexSizePx);
+  const [tempStimuliCount, setTempStimuliCount] = useState(stimuliCount);
+  const [tempBatchesPerSession, setTempBatchesPerSession] = useState(batchesPerSession);
+  const [tempStimulusColor, setTempStimulusColor] = useState(stimulusColor);
+  const [tempFixationDotColor, setTempFixationDotColor] = useState(fixationDotColor);
+  const [tempBgColor, setTempBgColor] = useState(bgColor);
+  const [tempPeripheralTargetTimeoutSec, setTempPeripheralTargetTimeoutSec] = useState(peripheralTargetTimeoutSec);
+  const [tempPeripheralBubbleType, setTempPeripheralBubbleType] = useState<PeripheralBubbleType>(peripheralBubbleType);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -263,6 +317,19 @@ export function ClinicalSettingsModal({
     setTempTimeout(pursuitTrialTimeoutSec);
     setTempNumberRangeFrom(numberRangeFrom);
     setTempNumberRangeTo(numberRangeTo);
+    setTempHexSizePx(hexSizePx);
+    setTempStimuliCount(clampStimuliCount(stimuliCount, deviceTier));
+    setTempBatchesPerSession(batchesPerSession);
+    setTempStimulusColor(stimulusColor);
+    setTempFixationDotColor(fixationDotColor);
+    setTempBgColor(bgColor);
+    setTempPeripheralTargetTimeoutSec(clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec));
+    setTempPeripheralBubbleType(peripheralBubbleType);
+    setTempStimuliColor(stimuliColor);
+    setTempBubbleAppearance(bubbleAppearance);
+    if (showPeripheralViewControls) {
+      setTempLetterSize(clampPeripheralLetterSize(letterSize));
+    }
     setTempTherapyColors((prev) => {
       if (
         prev.length === therapyColors.length &&
@@ -300,13 +367,42 @@ export function ClinicalSettingsModal({
       pursuitSpeedPxPerSec: tempPursuitSpeed,
       pursuitTrialTimeoutSec: tempTimeout,
       therapyColors: tempTherapyColors,
+      stimuliColor: tempStimuliColor,
+      bubbleAppearance: tempBubbleAppearance,
       numberRangeFrom: numberRange.from,
       numberRangeTo: numberRange.to,
+      hexSizePx: clampHexSizePx(tempHexSizePx),
+      stimuliCount: clampStimuliCount(tempStimuliCount, deviceTier),
+      batchesPerSession: clampBatchesPerSession(tempBatchesPerSession),
+      stimulusColor: tempStimulusColor,
+      fixationDotColor: tempFixationDotColor,
+      bgColor: tempBgColor,
+      peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
+      peripheralBubbleType: tempPeripheralBubbleType,
     });
   };
 
-  const isBubbleGame = !showBeeTracingControls && !showPursuitControls;
+  const isBubbleGame = !showBeeTracingControls && !showPursuitControls && !showPeripheralViewControls;
   const previewSize = Math.min(tempBubbleSize, 130);
+  const previewStimuliHex = showStimuliColorPicker
+    ? resolveStimuliBubbleColor(tempStimuliColor, 0)
+    : '#2F80FF';
+  const bubblePreviewPaint = resolveBubblePaint(
+    showBubbleAppearancePicker || showStimuliColorPicker ? tempBubbleAppearance : 'solid',
+    previewStimuliHex,
+    { borderFill: '#0D0D0D', solidBorderWidth: 0 },
+  );
+  const peripheralHexR = Math.max(36, Math.min(54, clampHexSizePx(tempHexSizePx) * 0.85));
+  const peripheralLetterPx = peripheralLetterFontPx(clampHexSizePx(tempHexSizePx), tempLetterSize);
+  const previewPaint = peripheralHexPaint({
+    bubbleType: tempPeripheralBubbleType,
+    isActive: true,
+    stimulusColor: tempStimulusColor,
+  });
+  const peripheralLetterColorValue = peripheralLetterColor({
+    bubbleType: tempPeripheralBubbleType,
+    stimulusColor: tempStimulusColor,
+  });
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -361,7 +457,9 @@ export function ClinicalSettingsModal({
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
                   {showPursuitControls
                     ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
-                    : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                    : showPeripheralViewControls
+                      ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
+                      : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
                 </Text>
               </View>
               <Pressable
@@ -405,12 +503,14 @@ export function ClinicalSettingsModal({
                         width: previewSize,
                         height: previewSize,
                         borderRadius: previewSize / 2,
-                        backgroundColor: '#2F80FF',
+                        backgroundColor: bubblePreviewPaint.backgroundColor,
+                        borderWidth: bubblePreviewPaint.borderWidth,
+                        borderColor: bubblePreviewPaint.borderColor,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: Math.round(16 * tempLetterSize) }}>
+                      <Text style={{ color: bubblePreviewPaint.textColor, fontWeight: '800', fontSize: Math.round(16 * tempLetterSize) }}>
                         {sampleSymbol}
                       </Text>
                     </View>
@@ -453,6 +553,7 @@ export function ClinicalSettingsModal({
                 </Card>
                 ) : null}
 
+                {!showPeripheralViewControls ? (
                 <Card>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
                     <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
@@ -462,6 +563,7 @@ export function ClinicalSettingsModal({
                   </View>
                   <StepSlider values={BUBBLE_SIZES} value={tempBubbleSize} onChange={setTempBubbleSize} />
                 </Card>
+                ) : null}
 
                 <Card>
                   <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
@@ -471,7 +573,7 @@ export function ClinicalSettingsModal({
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
                     placeholder="Enter patient name..."
-                    placeholderTextColor="#6B7280"
+                    placeholderTextColor="#9CA3AF"
                     style={{
                       backgroundColor: '#141414',
                       color: '#fff',
@@ -606,6 +708,98 @@ export function ClinicalSettingsModal({
                   </Card>
                 ) : null}
 
+                {showBubbleAppearancePicker ? (
+                  <Card>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
+                      BUBBLE STYLE
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(10) }}>
+                      Solid fills the bubble. Border keeps an outline with the letter in the same color.
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                      <Chip
+                        label="Solid"
+                        active={tempBubbleAppearance === 'solid'}
+                        onPress={() => setTempBubbleAppearance('solid')}
+                      />
+                      <Chip
+                        label="Border"
+                        active={tempBubbleAppearance === 'border'}
+                        onPress={() => setTempBubbleAppearance('border')}
+                      />
+                    </View>
+                  </Card>
+                ) : null}
+
+                {showStimuliColorPicker ? (
+                  <Card>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
+                      STIMULI COLOR
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(10) }}>
+                      Bubble fill for letters/numbers. White reduces color confusion; Mixed keeps therapy-grade variety.
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                      {STIMULI_BUBBLE_COLOR_OPTIONS.map((item) => {
+                        const active =
+                          tempStimuliColor !== STIMULI_COLOR_MIXED &&
+                          tempStimuliColor.toLowerCase() === item.code.toLowerCase();
+                        return (
+                          <Pressable
+                            key={item.code}
+                            onPress={() => setTempStimuliColor(item.code)}
+                            style={{ width: s(46), alignItems: 'center', gap: s(4) }}
+                          >
+                            <View
+                              style={{
+                                width: s(34),
+                                height: s(34),
+                                borderRadius: s(17),
+                                backgroundColor: item.code,
+                                borderWidth: active ? 2 : 1,
+                                borderColor: active ? '#FFFFFF' : item.code.toLowerCase() === '#ffffff' ? '#9CA3AF' : '#4B5563',
+                              }}
+                            />
+                            <Text style={{ color: active ? '#fff' : '#9CA3AF', fontSize: fs(9), fontWeight: '800' }}>
+                              {item.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                      <Pressable
+                        onPress={() => setTempStimuliColor(STIMULI_COLOR_MIXED)}
+                        style={{ width: s(52), alignItems: 'center', gap: s(4) }}
+                      >
+                        <View
+                          style={{
+                            width: s(34),
+                            height: s(34),
+                            borderRadius: s(17),
+                            overflow: 'hidden',
+                            borderWidth: tempStimuliColor === STIMULI_COLOR_MIXED ? 2 : 1,
+                            borderColor: tempStimuliColor === STIMULI_COLOR_MIXED ? '#FFFFFF' : '#4B5563',
+                            flexDirection: 'row',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {['#FFD600', '#00F0FF', '#FF3D00', '#00E676'].map((c) => (
+                            <View key={c} style={{ width: '50%', height: '50%', backgroundColor: c }} />
+                          ))}
+                        </View>
+                        <Text
+                          style={{
+                            color: tempStimuliColor === STIMULI_COLOR_MIXED ? '#fff' : '#9CA3AF',
+                            fontSize: fs(9),
+                            fontWeight: '800',
+                          }}
+                        >
+                          Mixed
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </Card>
+                ) : null}
+
                 {showTherapyColorPicker ? (
                   <Card>
                     <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
@@ -670,12 +864,261 @@ export function ClinicalSettingsModal({
               </>
             ) : null}
 
+            {showPeripheralViewControls ? (
+              <>
+                <View
+                  style={{
+                    backgroundColor: '#0D0D0D',
+                    borderRadius: s(16),
+                    borderWidth: 1,
+                    borderColor: '#1F2937',
+                    padding: s(16),
+                    alignItems: 'center',
+                    marginBottom: s(12),
+                    minHeight: s(200),
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: s(8) }}>
+                    <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: '#22D3EE' }} />
+                    <Text style={{ color: '#67E8F9', fontSize: fs(11), fontWeight: '800', letterSpacing: 1.4 }}>
+                      LIVE HEX PREVIEW
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: s(16), backgroundColor: tempBgColor, borderRadius: s(12), width: '100%' }}>
+                    <Svg width={peripheralHexR * 2.4} height={peripheralHexR * 2.4}>
+                      <Polygon
+                        points={hexVertices(peripheralHexR * 1.2, peripheralHexR * 1.2, peripheralHexR)
+                          .map((p) => `${p.x},${p.y}`)
+                          .join(' ')}
+                        fill={previewPaint.fill}
+                        stroke={previewPaint.stroke}
+                        strokeWidth={previewPaint.strokeWidth}
+                        strokeLinejoin="round"
+                      />
+                      <SvgText
+                        x={peripheralHexR * 1.2}
+                        y={peripheralHexR * 1.2 + peripheralLetterPx * 0.35}
+                        fill={peripheralLetterColorValue}
+                        fontSize={peripheralLetterPx}
+                        fontWeight="900"
+                        textAnchor="middle"
+                      >
+                        {sampleSymbol}
+                      </SvgText>
+                    </Svg>
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      backgroundColor: '#141414',
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: '#1F2937',
+                      paddingHorizontal: s(16),
+                      paddingVertical: s(8),
+                      gap: s(12),
+                    }}
+                  >
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
+                      Hex: <Text style={{ color: '#67E8F9', fontWeight: '800' }}>{clampHexSizePx(tempHexSizePx)}px</Text>
+                    </Text>
+                    <Text style={{ color: '#4B5563' }}>|</Text>
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
+                      Stimuli:{' '}
+                      <Text style={{ color: '#67E8F9', fontWeight: '800' }}>
+                        {clampStimuliCount(tempStimuliCount, deviceTier)}
+                      </Text>
+                      <Text style={{ color: '#64748B', fontSize: fs(10) }}> (max {stimuliMax})</Text>
+                    </Text>
+                    <Text style={{ color: '#4B5563' }}>|</Text>
+                    <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
+                      Letter:{' '}
+                      <Text style={{ color: '#67E8F9', fontWeight: '800' }}>
+                        {clampPeripheralLetterSize(tempLetterSize)}
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      LETTER SIZE
+                    </Text>
+                    <Text style={{ color: '#67E8F9', fontSize: fs(16), fontWeight: '900' }}>
+                      {clampPeripheralLetterSize(tempLetterSize)}
+                    </Text>
+                  </View>
+                  <StepSlider
+                    values={[...PERIPHERAL_LETTER_SIZE_PRESETS]}
+                    value={clampPeripheralLetterSize(tempLetterSize)}
+                    onChange={setTempLetterSize}
+                  />
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                    TARGET TIMER
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {PERIPHERAL_TARGET_TIMEOUT_PRESETS.map((sec) => (
+                      <Chip
+                        key={sec}
+                        label={sec === 0 ? 'Off' : `${sec}s`}
+                        active={tempPeripheralTargetTimeoutSec === sec}
+                        onPress={() => setTempPeripheralTargetTimeoutSec(sec)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#6B7280', fontSize: fs(11), marginTop: s(6) }}>
+                    Off keeps the target until you find a match. Timed mode counts a miss and advances the target.
+                  </Text>
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                    BUBBLE TYPE
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    <Chip
+                      label="Solid"
+                      active={tempPeripheralBubbleType === 'solid'}
+                      onPress={() => setTempPeripheralBubbleType('solid')}
+                    />
+                    <Chip
+                      label="Boundary"
+                      active={tempPeripheralBubbleType === 'boundary'}
+                      onPress={() => setTempPeripheralBubbleType('boundary')}
+                    />
+                  </View>
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                    PATIENT PROFILE
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#9CA3AF"
+                    style={{
+                      backgroundColor: '#141414',
+                      color: '#fff',
+                      borderRadius: s(12),
+                      padding: s(12),
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                    }}
+                  />
+                </Card>
+
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      HEX SIZE
+                    </Text>
+                    <Text style={{ color: '#67E8F9', fontSize: fs(16), fontWeight: '900' }}>
+                      {clampHexSizePx(tempHexSizePx)}px
+                    </Text>
+                  </View>
+                  <StepSlider
+                    values={HEX_SIZE_STEPS}
+                    value={nearestStep(HEX_SIZE_STEPS, tempHexSizePx)}
+                    onChange={setTempHexSizePx}
+                  />
+                </Card>
+
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      STIMULI / BATCH
+                    </Text>
+                    <Text style={{ color: '#67E8F9', fontSize: fs(16), fontWeight: '900' }}>
+                      {clampStimuliCount(tempStimuliCount, deviceTier)}
+                    </Text>
+                  </View>
+                  <StepSlider
+                    values={stimuliSteps}
+                    value={nearestStep(stimuliSteps, tempStimuliCount)}
+                    onChange={setTempStimuliCount}
+                  />
+                  <Text style={{ color: '#64748B', fontSize: fs(11), marginTop: s(4) }}>
+                    Device max {stimuliMax} per batch (phone · tablet · desktop presets differ).
+                  </Text>
+                </Card>
+
+                <Card>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                    <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                      BATCHES / SESSION
+                    </Text>
+                    <Text style={{ color: '#67E8F9', fontSize: fs(16), fontWeight: '900' }}>
+                      {clampBatchesPerSession(tempBatchesPerSession)}
+                    </Text>
+                  </View>
+                  <StepSlider
+                    values={BATCHES_STEPS}
+                    value={nearestStep(BATCHES_STEPS, tempBatchesPerSession)}
+                    onChange={setTempBatchesPerSession}
+                  />
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                    ENGINE BACKGROUND
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {PERIPHERAL_BG_COLORS.map((c) => (
+                      <Pressable
+                        key={`bg-${c.code}`}
+                        onPress={() => setTempBgColor(c.code)}
+                        style={{
+                          width: s(36),
+                          height: s(36),
+                          borderRadius: 999,
+                          backgroundColor: c.code,
+                          marginRight: s(8),
+                          marginBottom: s(8),
+                          borderWidth: tempBgColor.toLowerCase() === c.code.toLowerCase() ? 3 : 1,
+                          borderColor: tempBgColor.toLowerCase() === c.code.toLowerCase() ? '#fff' : '#374151',
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginTop: s(8), marginBottom: s(8) }}>
+                    STIMULUS COLOR
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {PERIPHERAL_STIMULUS_COLORS.map((c) => (
+                      <Pressable
+                        key={`stim-${c.code}`}
+                        onPress={() => setTempStimulusColor(c.code)}
+                        style={{
+                          width: s(36),
+                          height: s(36),
+                          borderRadius: 999,
+                          backgroundColor: c.code,
+                          marginRight: s(8),
+                          marginBottom: s(8),
+                          borderWidth: tempStimulusColor === c.code ? 3 : 0,
+                          borderColor: '#fff',
+                        }}
+                      />
+                    ))}
+                  </View>
+                </Card>
+              </>
+            ) : null}
+
             {showBeeTracingControls ? (
               <>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Patient name</Text>
                 <TextInput
                   value={tempPatientName}
                   onChangeText={setTempPatientName}
+                  placeholder="Enter patient name..."
+                  placeholderTextColor="#9CA3AF"
                   style={{
                     backgroundColor: '#141414',
                     color: '#fff',
@@ -768,7 +1211,7 @@ export function ClinicalSettingsModal({
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
                     placeholder="Enter patient name..."
-                    placeholderTextColor="#6B7280"
+                    placeholderTextColor="#9CA3AF"
                     style={{
                       backgroundColor: '#141414',
                       color: '#fff',

@@ -9,6 +9,7 @@ import {
   GeoboardIcon,
   MobileTargetIcon,
   MonitorIcon,
+  PeripheralIcon,
   PuzzleIcon,
   RocketIcon,
   RotatoryIcon,
@@ -74,6 +75,15 @@ const MODULES = [
     accent: '#0D9488',
     bg: '#F0FDFA',
     Icon: GeoboardIcon,
+  },
+  {
+    id: 'peripheral',
+    title: 'Peripheral View',
+    body: 'Hex-hive peripheral field awareness — pop A–Z on left, right, or both sides.',
+    badge: 'Landscape only',
+    accent: '#4338CA',
+    bg: '#EEF2FF',
+    Icon: PeripheralIcon,
   },
 ] as const;
 

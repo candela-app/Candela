@@ -14,10 +14,17 @@ module.exports = {
         poppins: ['Poppins', 'sans-serif'],
       },
       colors: {
-        'bg-main': '#EAF4FF',
-        'candela-blue': '#0084FF',
+        'bg-main': '#F4F7FC',
+        page: '#F4F7FC',
+        'shell-ink': '#1A1A1A',
+        'shell-text': '#111827',
+        'shell-muted': '#6B7280',
+        'shell-border': '#E5E7EB',
+        'shell-blue': '#2563EB',
+        'shell-red': '#DC2626',
+        'candela-blue': '#2563EB',
         'candela-dark': '#1A1A1A',
-        'candela-secondary': '#5F6F81',
+        'candela-secondary': '#6B7280',
       },
       keyframes: {
         rotateWheel: {
