@@ -634,7 +634,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onQuit={onExit}
+        onQuit={() => onExit?.()}
         onReset={() => {
           endingRef.current = true;
           if (mismatchTimerRef.current) clearTimeout(mismatchTimerRef.current);
