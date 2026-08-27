@@ -19,7 +19,10 @@ export interface GameMenuDrawerProps {
   extraControls?: React.ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
   sessionInProgress?: boolean;
-  /** When true, Open Settings is blocked mid-session. Default false — Apply confirm is handled in settings. */
+  /**
+   * When true (default), Open Settings is blocked mid-session — reset first.
+   * Set false only to allow opening (Apply still confirms via sessionLocked).
+   */
   lockSettingsWhilePlaying?: boolean;
 }
 
@@ -33,7 +36,7 @@ export function GameMenuDrawer({
   extraControls,
   settingsSummary,
   sessionInProgress = true,
-  lockSettingsWhilePlaying = false,
+  lockSettingsWhilePlaying = true,
 }: GameMenuDrawerProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);

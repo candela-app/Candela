@@ -89,6 +89,32 @@ import {
   type PatternMatchHardness,
   type PatternMatchStimulusMode,
 } from './pattern-match-logic';
+import {
+  clampLocationMemoryActiveCells,
+  clampLocationMemoryExploreSec,
+  clampLocationMemoryGridSize,
+  clampLocationMemoryLetterSize,
+  clampLocationMemoryRecallSec,
+  clampLocationMemoryRounds,
+  DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS,
+  DEFAULT_LOCATION_MEMORY_BG,
+  DEFAULT_LOCATION_MEMORY_CHAR_COLOR,
+  DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
+  DEFAULT_LOCATION_MEMORY_GRID_SIZE,
+  DEFAULT_LOCATION_MEMORY_RECALL_SEC,
+  DEFAULT_LOCATION_MEMORY_ROUNDS,
+  LOCATION_MEMORY_BG_COLORS,
+  LOCATION_MEMORY_CHAR_COLORS,
+  LOCATION_MEMORY_EXPLORE_SEC_PRESETS,
+  LOCATION_MEMORY_GRID_SIZE_PRESETS,
+  LOCATION_MEMORY_LETTER_SIZE_PRESETS,
+  LOCATION_MEMORY_RECALL_SEC_PRESETS,
+  LOCATION_MEMORY_ROUNDS_PRESETS,
+  locationMemoryActiveCellOptions,
+  locationMemoryExploreLabel,
+  locationMemoryGridLabel,
+  locationMemoryRecallLabel,
+} from './location-memory-logic';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
@@ -150,22 +176,32 @@ export interface AppliedClinicalSettings {
   fixationDotColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
-  /** Number Search: digits to find in the crowded field. */
+  /** Crowded Search: digits to find in the crowded field. */
   targetDigitCount?: number;
-  /** Number Search: organised grid vs random scatter. */
+  /** Crowded Search: organised grid vs random scatter. */
   numberSearchLayout?: NumberSearchLayoutMode;
-  /** Number Search: total field characters (0 = auto). */
+  /** Crowded Search: total field characters (0 = auto). */
   numberSearchFieldCount?: number;
-  /** Pattern Match: digit code length (2–4). */
+  /** Hold the Code: digit code length (2–4). */
   patternMatchCodeLength?: number;
-  /** Pattern Match: flash duration ms (0 = always visible). */
+  /** Hold the Code: flash duration ms (0 = always visible). */
   patternMatchFlashMs?: number;
-  /** Pattern Match: cells in the search field. */
+  /** Hold the Code: cells in the search field. */
   patternMatchCellCount?: number;
-  /** Pattern Match: distractor difficulty. */
+  /** Hold the Code: distractor difficulty. */
   patternMatchHardness?: PatternMatchHardness;
-  /** Pattern Match: encode→search boards per session (1–5). */
+  /** Hold the Code: encode→search boards per session (1–5). */
   patternMatchRounds?: number;
+  /** Location Memory: numbered cells on the grid. */
+  locationMemoryActiveCells?: number;
+  /** Location Memory: boards per session. */
+  locationMemoryRounds?: number;
+  /** Location Memory: explore phase seconds (0 = unlimited). */
+  locationMemoryExploreSec?: number;
+  /** Location Memory: per-target recall seconds (0 = off). */
+  locationMemoryRecallSec?: number;
+  /** Location Memory: board size N for N×N (2–4). */
+  locationMemoryGridSize?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -225,6 +261,7 @@ export interface ClinicalSettingsModalProps {
   showPeripheralViewControls?: boolean;
   showNumberSearchControls?: boolean;
   showPatternMatchControls?: boolean;
+  showLocationMemoryControls?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
   batchesPerSession?: number;
@@ -232,24 +269,30 @@ export interface ClinicalSettingsModalProps {
   fixationDotColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
-  /** Number Search: how many digits to inject into the crowded field. */
+  /** Crowded Search: how many digits to inject into the crowded field. */
   targetDigitCount?: number;
-  /** Number Search: organised grid vs random scatter. */
+  /** Crowded Search: organised grid vs random scatter. */
   numberSearchLayout?: NumberSearchLayoutMode;
-  /** Number Search: total characters on field (0 = auto fill). */
+  /** Crowded Search: total characters on field (0 = auto fill). */
   numberSearchFieldCount?: number;
-  /** Pattern Match: digit code length. */
+  /** Hold the Code: digit code length. */
   patternMatchCodeLength?: number;
-  /** Pattern Match: encoding flash ms (0 = stay on). */
+  /** Hold the Code: encoding flash ms (0 = stay on). */
   patternMatchFlashMs?: number;
-  /** Pattern Match: field cell count. */
+  /** Hold the Code: field cell count. */
   patternMatchCellCount?: number;
-  /** Pattern Match: near-miss hardness. */
+  /** Hold the Code: near-miss hardness. */
   patternMatchHardness?: PatternMatchHardness;
-  /** Pattern Match: boards to clear before results (1–5). */
+  /** Hold the Code: boards to clear before results (1–5). */
   patternMatchRounds?: number;
-  /** Pattern Match: digits vs compound alphanumeric preview/play mode. */
+  /** Hold the Code: digits vs compound alphanumeric preview/play mode. */
   patternMatchStimulusMode?: PatternMatchStimulusMode;
+  /** Location Memory: active numbered cells. */
+  locationMemoryActiveCells?: number;
+  locationMemoryRounds?: number;
+  locationMemoryExploreSec?: number;
+  locationMemoryRecallSec?: number;
+  locationMemoryGridSize?: number;
   /** Letter/number bubble fill picker. Hide for color-discrimination modes. */
   showStimuliColorPicker?: boolean;
   stimuliColor?: string;
@@ -324,6 +367,7 @@ export function ClinicalSettingsModal({
   showPeripheralViewControls = false,
   showNumberSearchControls = false,
   showPatternMatchControls = false,
+  showLocationMemoryControls = false,
   hexSizePx = 64,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
@@ -340,6 +384,11 @@ export function ClinicalSettingsModal({
   patternMatchHardness = DEFAULT_PATTERN_MATCH_HARDNESS,
   patternMatchRounds = DEFAULT_PATTERN_MATCH_ROUNDS,
   patternMatchStimulusMode = DEFAULT_PATTERN_MATCH_STIMULUS,
+  locationMemoryActiveCells = DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS,
+  locationMemoryRounds = DEFAULT_LOCATION_MEMORY_ROUNDS,
+  locationMemoryExploreSec = DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
+  locationMemoryRecallSec = DEFAULT_LOCATION_MEMORY_RECALL_SEC,
+  locationMemoryGridSize = DEFAULT_LOCATION_MEMORY_GRID_SIZE,
   showStimuliColorPicker = false,
   stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
   showBubbleAppearancePicker = false,
@@ -419,6 +468,21 @@ export function ClinicalSettingsModal({
   const [tempPatternMatchRounds, setTempPatternMatchRounds] = useState<number>(
     clampPatternMatchRounds(patternMatchRounds),
   );
+  const [tempLocationMemoryActiveCells, setTempLocationMemoryActiveCells] = useState<number>(
+    clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize),
+  );
+  const [tempLocationMemoryRounds, setTempLocationMemoryRounds] = useState<number>(
+    clampLocationMemoryRounds(locationMemoryRounds),
+  );
+  const [tempLocationMemoryExploreSec, setTempLocationMemoryExploreSec] = useState<number>(
+    clampLocationMemoryExploreSec(locationMemoryExploreSec),
+  );
+  const [tempLocationMemoryRecallSec, setTempLocationMemoryRecallSec] = useState<number>(
+    clampLocationMemoryRecallSec(locationMemoryRecallSec),
+  );
+  const [tempLocationMemoryGridSize, setTempLocationMemoryGridSize] = useState<number>(
+    clampLocationMemoryGridSize(locationMemoryGridSize),
+  );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const deviceTier = getDeviceTier();
@@ -488,6 +552,13 @@ export function ClinicalSettingsModal({
       setTempPatternMatchCellCount(clampPatternMatchCellCount(patternMatchCellCount));
       setTempPatternMatchHardness(clampPatternMatchHardness(patternMatchHardness));
       setTempPatternMatchRounds(clampPatternMatchRounds(patternMatchRounds));
+      setTempLocationMemoryGridSize(clampLocationMemoryGridSize(locationMemoryGridSize));
+      setTempLocationMemoryActiveCells(
+        clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize),
+      );
+      setTempLocationMemoryRounds(clampLocationMemoryRounds(locationMemoryRounds));
+      setTempLocationMemoryExploreSec(clampLocationMemoryExploreSec(locationMemoryExploreSec));
+      setTempLocationMemoryRecallSec(clampLocationMemoryRecallSec(locationMemoryRecallSec));
       if (showNumberSearchControls) {
         setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
         setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
@@ -498,6 +569,11 @@ export function ClinicalSettingsModal({
         setTempTimeLimitSec(clampPatternMatchTimeLimitSec(timeLimitSec));
         setTempBgColor(bgColor || DEFAULT_PATTERN_MATCH_BG);
         setTempShapeColor(shapeColor || DEFAULT_PATTERN_MATCH_CHAR_COLOR);
+      }
+      if (showLocationMemoryControls) {
+        setTempLetterSize(clampLocationMemoryLetterSize(letterSize));
+        setTempBgColor(bgColor || DEFAULT_LOCATION_MEMORY_BG);
+        setTempShapeColor(shapeColor || DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
       }
       setConfirmApplyOpen(false);
       requestFullScreenSafe();
@@ -557,9 +633,15 @@ export function ClinicalSettingsModal({
     patternMatchCellCount,
     patternMatchHardness,
     patternMatchRounds,
+    locationMemoryActiveCells,
+    locationMemoryRounds,
+    locationMemoryExploreSec,
+    locationMemoryRecallSec,
+    locationMemoryGridSize,
     showPeripheralViewControls,
     showNumberSearchControls,
     showPatternMatchControls,
+    showLocationMemoryControls,
   ]);
 
   if (!isOpen || !portalReady) return null;
@@ -578,6 +660,8 @@ export function ClinicalSettingsModal({
           ? clampNumberSearchLetterSize(tempLetterSize)
           : showPatternMatchControls
             ? clampPatternMatchLetterSize(tempLetterSize)
+            : showLocationMemoryControls
+              ? clampLocationMemoryLetterSize(tempLetterSize)
             : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
@@ -650,6 +734,21 @@ export function ClinicalSettingsModal({
       patternMatchRounds: showPatternMatchControls
         ? clampPatternMatchRounds(tempPatternMatchRounds)
         : tempPatternMatchRounds,
+      locationMemoryActiveCells: showLocationMemoryControls
+        ? clampLocationMemoryActiveCells(tempLocationMemoryActiveCells, tempLocationMemoryGridSize)
+        : tempLocationMemoryActiveCells,
+      locationMemoryRounds: showLocationMemoryControls
+        ? clampLocationMemoryRounds(tempLocationMemoryRounds)
+        : tempLocationMemoryRounds,
+      locationMemoryExploreSec: showLocationMemoryControls
+        ? clampLocationMemoryExploreSec(tempLocationMemoryExploreSec)
+        : tempLocationMemoryExploreSec,
+      locationMemoryRecallSec: showLocationMemoryControls
+        ? clampLocationMemoryRecallSec(tempLocationMemoryRecallSec)
+        : tempLocationMemoryRecallSec,
+      locationMemoryGridSize: showLocationMemoryControls
+        ? clampLocationMemoryGridSize(tempLocationMemoryGridSize)
+        : tempLocationMemoryGridSize,
     };
   };
 
@@ -663,6 +762,8 @@ export function ClinicalSettingsModal({
           ? clampNumberSearchLetterSize(letterSize)
           : showPatternMatchControls
             ? clampPatternMatchLetterSize(letterSize)
+            : showLocationMemoryControls
+              ? clampLocationMemoryLetterSize(letterSize)
             : letterSize,
       bubbleSize,
       speed,
@@ -735,6 +836,21 @@ export function ClinicalSettingsModal({
       patternMatchRounds: showPatternMatchControls
         ? clampPatternMatchRounds(patternMatchRounds)
         : patternMatchRounds,
+      locationMemoryActiveCells: showLocationMemoryControls
+        ? clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize)
+        : locationMemoryActiveCells,
+      locationMemoryRounds: showLocationMemoryControls
+        ? clampLocationMemoryRounds(locationMemoryRounds)
+        : locationMemoryRounds,
+      locationMemoryExploreSec: showLocationMemoryControls
+        ? clampLocationMemoryExploreSec(locationMemoryExploreSec)
+        : locationMemoryExploreSec,
+      locationMemoryRecallSec: showLocationMemoryControls
+        ? clampLocationMemoryRecallSec(locationMemoryRecallSec)
+        : locationMemoryRecallSec,
+      locationMemoryGridSize: showLocationMemoryControls
+        ? clampLocationMemoryGridSize(locationMemoryGridSize)
+        : locationMemoryGridSize,
     };
   };
 
@@ -794,6 +910,8 @@ export function ClinicalSettingsModal({
                     ? 'Configure glyph size, digit count, contrast colors, and optional session timer for figure–ground search.'
                     : showPatternMatchControls
                       ? 'Configure code length, flash encoding, field size, and distractor hardness for pattern memory.'
+                      : showLocationMemoryControls
+                        ? 'Configure explore time, recall timing, active cells, and contrast for spatial location memory.'
                       : showPeripheralViewControls
                         ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
                         : showPursuitControls
@@ -2202,6 +2320,249 @@ export function ClinicalSettingsModal({
                             : '#F8FAFC',
                       }}
                       title={c.name}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {extraStats}
+            </div>
+          </div>
+        ) : showLocationMemoryControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Grid Preview
+              </div>
+              <div
+                className="grid gap-2 p-4 rounded-2xl border border-slate-800 min-h-[200px]"
+                style={{
+                  backgroundColor: tempBgColor,
+                  gridTemplateColumns: `repeat(${tempLocationMemoryGridSize}, minmax(0, 1fr))`,
+                }}
+              >
+                {Array.from({ length: tempLocationMemoryGridSize * tempLocationMemoryGridSize }, (_, i) => i + 1).map(
+                  (n) => {
+                    const highlight = n === Math.ceil((tempLocationMemoryGridSize * tempLocationMemoryGridSize) / 2);
+                    return (
+                      <div
+                        key={n}
+                        className="aspect-square rounded-xl border border-slate-600 flex items-center justify-center font-mono font-black"
+                        style={{
+                          color: tempShapeColor,
+                          fontSize: `${tempLetterSize * 1.1}rem`,
+                          backgroundColor: highlight ? 'rgba(30,41,59,0.85)' : 'rgba(15,23,42,0.45)',
+                          borderColor: highlight ? 'rgba(251,191,36,0.75)' : undefined,
+                        }}
+                      >
+                        {highlight ? n : '?'}
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Profile
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-amber-500 font-medium text-sm"
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Session Parameters
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Grid Size
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {LOCATION_MEMORY_GRID_SIZE_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => {
+                        setTempLocationMemoryGridSize(n);
+                        setTempLocationMemoryActiveCells((prev) =>
+                          clampLocationMemoryActiveCells(prev, n),
+                        );
+                      }}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLocationMemoryGridSize === n
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {locationMemoryGridLabel(n)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Active Cells
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {locationMemoryActiveCellOptions(tempLocationMemoryGridSize).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempLocationMemoryActiveCells(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLocationMemoryActiveCells === n
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Explore Time
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {LOCATION_MEMORY_EXPLORE_SEC_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempLocationMemoryExploreSec(sec)}
+                      className={`py-2.5 rounded-xl text-[11px] font-bold transition-all ${
+                        tempLocationMemoryExploreSec === sec
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {locationMemoryExploreLabel(sec)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Recall / Target
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {LOCATION_MEMORY_RECALL_SEC_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempLocationMemoryRecallSec(sec)}
+                      className={`py-2.5 rounded-xl text-[11px] font-bold transition-all ${
+                        tempLocationMemoryRecallSec === sec
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {locationMemoryRecallLabel(sec)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Rounds
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {LOCATION_MEMORY_ROUNDS_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempLocationMemoryRounds(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLocationMemoryRounds === n
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Glyph Size
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {LOCATION_MEMORY_LETTER_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLetterSize === size
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Background
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {LOCATION_MEMORY_BG_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempBgColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold ${
+                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80'
+                      }`}
+                      style={{
+                        backgroundColor: c.code,
+                        color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Number Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {LOCATION_MEMORY_CHAR_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempShapeColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold ${
+                        tempShapeColor === c.code ? 'border-amber-400 scale-105' : 'border-transparent opacity-80'
+                      }`}
+                      style={{
+                        backgroundColor: c.code,
+                        color:
+                          c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
+                            ? '#0F172A'
+                            : '#F8FAFC',
+                      }}
                     >
                       {c.name}
                     </button>

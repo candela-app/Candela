@@ -55,16 +55,24 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   },
   number_search: {
     id: 'number_search',
-    name: 'Number Search',
+    name: 'Crowded Search',
     description: 'Figure–ground visual search — find digits hidden in a crowded field of mixed letters.',
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'mobile'],
   },
   pattern_match: {
     id: 'pattern_match',
-    name: 'Pattern Match',
+    name: 'Hold the Code',
     description:
-      'Visual memory & digit-sequence discrimination — hold a flashed code and tap every exact match in a near-miss field.',
+      'Visual memory & code discrimination — hold a flashed code and tap every exact match in a near-miss field.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'mobile'],
+  },
+  location_memory: {
+    id: 'location_memory',
+    name: 'Location Memory',
+    description:
+      'Spatial number-location memory — explore a grid one cell at a time, then recall where each number was.',
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'mobile'],
   },
@@ -136,11 +144,16 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'both', name: 'Both Fields' },
   ],
   number_search: [
-    { id: 'standard', name: 'Find the Numbers' },
+    { id: 'standard', name: 'Crowded Search' },
   ],
   pattern_match: [
-    { id: 'standard', name: 'Hold the Code' },
+    { id: 'standard', name: 'Standard' },
     { id: 'compound', name: 'Compound' },
+  ],
+  location_memory: [
+    { id: 'practice', name: 'Practice' },
+    { id: 'standard', name: 'Full Grid' },
+    { id: 'match', name: 'Match Pairs' },
   ],
 };
 

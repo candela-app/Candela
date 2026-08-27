@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -78,7 +79,7 @@ export class DoctorController {
     @Body() body: AddPrescriptionDto,
   ) {
     if (!body?.moduleId || !isTherapyModuleId(body.moduleId)) {
-      throw new NotFoundException('Unknown therapy module');
+      throw new BadRequestException(`Unknown therapy module: ${body?.moduleId ?? '(missing)'}`);
     }
     const patient = await this.auth.addPrescription(user.id, patientId, body.moduleId, body.levels);
     if (!patient) {

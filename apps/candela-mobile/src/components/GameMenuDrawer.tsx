@@ -19,7 +19,7 @@ export function GameMenuDrawer({
   extraControls,
   settingsSummary,
   sessionInProgress = true,
-  lockSettingsWhilePlaying = false,
+  lockSettingsWhilePlaying = true,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -30,7 +30,10 @@ export function GameMenuDrawer({
   extraControls?: ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
   sessionInProgress?: boolean;
-  /** When true, Clinical Settings is blocked mid-session. Default false — confirm happens on Apply. */
+  /**
+   * When true (default), Clinical Settings cannot be opened mid-session —
+   * reset the game first. Set false only to allow opening (Apply still confirms via sessionLocked).
+   */
   lockSettingsWhilePlaying?: boolean;
 }) {
   const insets = useSafeAreaInsets();

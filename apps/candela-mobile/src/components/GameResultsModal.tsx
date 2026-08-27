@@ -182,7 +182,7 @@ export function GameResultsModal({
                 }}
               >
                 <Text style={{ color: '#FBBF24', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
-                  NUMBER SEARCH
+                  CROWDED SEARCH
                 </Text>
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12) }}>
                   {numberSearch.digitsFound} of {numberSearch.targetDigitsConfigured} digits found

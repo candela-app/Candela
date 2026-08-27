@@ -178,7 +178,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         patientName: cfg.patientName,
         sessionId: Date.now(),
         date: new Date().toISOString(),
-        gameName: 'Number Search',
+        gameName: 'Crowded Search',
         stimuliCount: stats.digitsConfigured,
         letterSize: cfg.letterSize,
         speed: cfg.timeLimitSec > 0 ? `${cfg.timeLimitSec}s` : 'Untimed',
@@ -401,7 +401,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
 
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
-          title="Number Search"
+          title="Crowded Search"
           hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps."
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}

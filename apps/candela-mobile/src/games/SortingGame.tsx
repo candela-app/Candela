@@ -359,6 +359,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         onQuit={() => requestExit()}
         onReset={() => startGame()}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient', value: patientName },
           { label: 'Variant', value: variant },

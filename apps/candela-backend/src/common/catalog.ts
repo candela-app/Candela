@@ -8,6 +8,7 @@ export const ALL_MODULE_IDS = [
   'peripheral_view',
   'number_search',
   'pattern_match',
+  'location_memory',
 ] as const;
 
 export type TherapyModuleId = (typeof ALL_MODULE_IDS)[number];

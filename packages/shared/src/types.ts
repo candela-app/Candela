@@ -99,8 +99,23 @@ export interface PatternMatchSessionResultData extends SessionResultData {
   timeLimitSec: number;
   roundsConfigured: number;
   roundsCompleted: number;
-  /** digits = Hold the Code; compound = alphanumeric */
+  /** digits = Standard level; compound = alphanumeric */
   stimulusMode: 'digits' | 'compound';
+  endedBy: 'cleared' | 'timeout';
+  deviceTier: DeviceTier;
+  medianReactionSec: number;
+}
+
+export interface LocationMemorySessionResultData extends SessionResultData {
+  activeCellsConfigured: number;
+  targetsConfigured: number;
+  targetsFound: number;
+  exploreSec: number;
+  recallSecPerTarget: number;
+  roundsConfigured: number;
+  roundsCompleted: number;
+  /** recall = explore then find; pairs = flip-to-match */
+  playMode: 'recall' | 'pairs';
   endedBy: 'cleared' | 'timeout';
   deviceTier: DeviceTier;
   medianReactionSec: number;
@@ -202,7 +217,8 @@ export type TherapyModuleId =
   | 'geoboard'
   | 'peripheral_view'
   | 'number_search'
-  | 'pattern_match';
+  | 'pattern_match'
+  | 'location_memory';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;

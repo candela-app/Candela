@@ -18,6 +18,14 @@ import {
   clampNumberSearchLetterSize,
   clampNumberSearchTargetDigits,
   clampNumberSearchTimeLimitSec,
+  clampPatternMatchCellCount,
+  clampPatternMatchCodeLength,
+  clampPatternMatchFlashMs,
+  clampPatternMatchHardness,
+  clampPatternMatchLetterSize,
+  clampPatternMatchRounds,
+  clampPatternMatchStimulusMode,
+  clampPatternMatchTimeLimitSec,
   DEFAULT_BUBBLE_APPEARANCE,
   DEFAULT_NUMBER_SEARCH_BG,
   DEFAULT_NUMBER_SEARCH_CHAR_COLOR,
@@ -25,6 +33,14 @@ import {
   DEFAULT_NUMBER_SEARCH_LAYOUT,
   DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
   DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC,
+  DEFAULT_PATTERN_MATCH_BG,
+  DEFAULT_PATTERN_MATCH_CELL_COUNT,
+  DEFAULT_PATTERN_MATCH_CHAR_COLOR,
+  DEFAULT_PATTERN_MATCH_CODE_LENGTH,
+  DEFAULT_PATTERN_MATCH_FLASH_MS,
+  DEFAULT_PATTERN_MATCH_HARDNESS,
+  DEFAULT_PATTERN_MATCH_ROUNDS,
+  DEFAULT_PATTERN_MATCH_STIMULUS,
   DEFAULT_PERIPHERAL_BG_COLOR,
   DEFAULT_PERIPHERAL_BUBBLE_TYPE,
   DEFAULT_PERIPHERAL_FIXATION_COLOR,
@@ -38,6 +54,41 @@ import {
   NUMBER_SEARCH_LETTER_SIZE_PRESETS,
   NUMBER_SEARCH_TARGET_DIGIT_PRESETS,
   NUMBER_SEARCH_TIME_LIMIT_PRESETS,
+  PATTERN_MATCH_BG_COLORS,
+  PATTERN_MATCH_CELL_COUNT_PRESETS,
+  PATTERN_MATCH_CHAR_COLORS,
+  PATTERN_MATCH_CODE_LENGTH_PRESETS,
+  PATTERN_MATCH_FLASH_MS_PRESETS,
+  PATTERN_MATCH_LETTER_SIZE_PRESETS,
+  PATTERN_MATCH_ROUNDS_PRESETS,
+  PATTERN_MATCH_TIME_LIMIT_PRESETS,
+  patternMatchFlashLabel,
+  patternMatchHardnessLabel,
+  patternMatchPreviewCodes,
+  clampLocationMemoryActiveCells,
+  clampLocationMemoryExploreSec,
+  clampLocationMemoryGridSize,
+  clampLocationMemoryLetterSize,
+  clampLocationMemoryRecallSec,
+  clampLocationMemoryRounds,
+  DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS,
+  DEFAULT_LOCATION_MEMORY_BG,
+  DEFAULT_LOCATION_MEMORY_CHAR_COLOR,
+  DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
+  DEFAULT_LOCATION_MEMORY_GRID_SIZE,
+  DEFAULT_LOCATION_MEMORY_RECALL_SEC,
+  DEFAULT_LOCATION_MEMORY_ROUNDS,
+  LOCATION_MEMORY_BG_COLORS,
+  LOCATION_MEMORY_CHAR_COLORS,
+  LOCATION_MEMORY_EXPLORE_SEC_PRESETS,
+  LOCATION_MEMORY_GRID_SIZE_PRESETS,
+  LOCATION_MEMORY_LETTER_SIZE_PRESETS,
+  LOCATION_MEMORY_RECALL_SEC_PRESETS,
+  LOCATION_MEMORY_ROUNDS_PRESETS,
+  locationMemoryActiveCellOptions,
+  locationMemoryExploreLabel,
+  locationMemoryGridLabel,
+  locationMemoryRecallLabel,
   peripheralHexPaint,
   peripheralLetterColor,
   peripheralLetterFontPx,
@@ -56,6 +107,8 @@ import {
   STIMULI_COLOR_MIXED,
   type BubbleAppearance,
   type NumberSearchLayoutMode,
+  type PatternMatchHardness,
+  type PatternMatchStimulusMode,
   type PeripheralBubbleType,
 } from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
@@ -94,7 +147,7 @@ export interface AppliedClinicalSettings {
   bubbleAppearance?: BubbleAppearance;
   fixationDotColor?: string;
   bgColor?: string;
-  /** Number Search glyph / character color */
+  /** Crowded Search glyph / character color */
   shapeColor?: string;
   peripheralTargetTimeoutSec?: number;
   peripheralBubbleType?: PeripheralBubbleType;
@@ -102,6 +155,17 @@ export interface AppliedClinicalSettings {
   timeLimitSec?: number;
   numberSearchLayout?: NumberSearchLayoutMode;
   numberSearchFieldCount?: number;
+  /** Hold the Code */
+  patternMatchCodeLength?: number;
+  patternMatchFlashMs?: number;
+  patternMatchCellCount?: number;
+  patternMatchHardness?: PatternMatchHardness;
+  patternMatchRounds?: number;
+  locationMemoryActiveCells?: number;
+  locationMemoryRounds?: number;
+  locationMemoryExploreSec?: number;
+  locationMemoryRecallSec?: number;
+  locationMemoryGridSize?: number;
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
@@ -260,6 +324,8 @@ export function ClinicalSettingsModal({
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
   showPeripheralViewControls = false,
   showNumberSearchControls = false,
+  showPatternMatchControls = false,
+  showLocationMemoryControls = false,
   sessionLocked = false,
   hexSizePx = 64,
   stimuliCount = 16,
@@ -274,6 +340,17 @@ export function ClinicalSettingsModal({
   timeLimitSec = DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC,
   numberSearchLayout = DEFAULT_NUMBER_SEARCH_LAYOUT,
   numberSearchFieldCount = DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
+  patternMatchCodeLength = DEFAULT_PATTERN_MATCH_CODE_LENGTH,
+  patternMatchFlashMs = DEFAULT_PATTERN_MATCH_FLASH_MS,
+  patternMatchCellCount = DEFAULT_PATTERN_MATCH_CELL_COUNT,
+  patternMatchHardness = DEFAULT_PATTERN_MATCH_HARDNESS,
+  patternMatchRounds = DEFAULT_PATTERN_MATCH_ROUNDS,
+  patternMatchStimulusMode = DEFAULT_PATTERN_MATCH_STIMULUS,
+  locationMemoryActiveCells = DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS,
+  locationMemoryRounds = DEFAULT_LOCATION_MEMORY_ROUNDS,
+  locationMemoryExploreSec = DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
+  locationMemoryRecallSec = DEFAULT_LOCATION_MEMORY_RECALL_SEC,
+  locationMemoryGridSize = DEFAULT_LOCATION_MEMORY_GRID_SIZE,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -315,6 +392,8 @@ export function ClinicalSettingsModal({
   numberRangeTo?: number;
   showPeripheralViewControls?: boolean;
   showNumberSearchControls?: boolean;
+  showPatternMatchControls?: boolean;
+  showLocationMemoryControls?: boolean;
   sessionLocked?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
@@ -329,6 +408,17 @@ export function ClinicalSettingsModal({
   timeLimitSec?: number;
   numberSearchLayout?: NumberSearchLayoutMode;
   numberSearchFieldCount?: number;
+  patternMatchCodeLength?: number;
+  patternMatchFlashMs?: number;
+  patternMatchCellCount?: number;
+  patternMatchHardness?: PatternMatchHardness;
+  patternMatchRounds?: number;
+  patternMatchStimulusMode?: PatternMatchStimulusMode;
+  locationMemoryActiveCells?: number;
+  locationMemoryRounds?: number;
+  locationMemoryExploreSec?: number;
+  locationMemoryRecallSec?: number;
+  locationMemoryGridSize?: number;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, width, height } = useLayout();
@@ -372,6 +462,36 @@ export function ClinicalSettingsModal({
   const [tempTimeLimitSec, setTempTimeLimitSec] = useState(timeLimitSec);
   const [tempNumberSearchLayout, setTempNumberSearchLayout] = useState<NumberSearchLayoutMode>(numberSearchLayout);
   const [tempNumberSearchFieldCount, setTempNumberSearchFieldCount] = useState(numberSearchFieldCount);
+  const [tempPatternMatchCodeLength, setTempPatternMatchCodeLength] = useState(
+    clampPatternMatchCodeLength(patternMatchCodeLength),
+  );
+  const [tempPatternMatchFlashMs, setTempPatternMatchFlashMs] = useState(
+    clampPatternMatchFlashMs(patternMatchFlashMs),
+  );
+  const [tempPatternMatchCellCount, setTempPatternMatchCellCount] = useState(
+    clampPatternMatchCellCount(patternMatchCellCount),
+  );
+  const [tempPatternMatchHardness, setTempPatternMatchHardness] = useState<PatternMatchHardness>(
+    clampPatternMatchHardness(patternMatchHardness),
+  );
+  const [tempPatternMatchRounds, setTempPatternMatchRounds] = useState(
+    clampPatternMatchRounds(patternMatchRounds),
+  );
+  const [tempLocationMemoryActiveCells, setTempLocationMemoryActiveCells] = useState(
+    clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize),
+  );
+  const [tempLocationMemoryRounds, setTempLocationMemoryRounds] = useState(
+    clampLocationMemoryRounds(locationMemoryRounds),
+  );
+  const [tempLocationMemoryExploreSec, setTempLocationMemoryExploreSec] = useState(
+    clampLocationMemoryExploreSec(locationMemoryExploreSec),
+  );
+  const [tempLocationMemoryRecallSec, setTempLocationMemoryRecallSec] = useState(
+    clampLocationMemoryRecallSec(locationMemoryRecallSec),
+  );
+  const [tempLocationMemoryGridSize, setTempLocationMemoryGridSize] = useState(
+    clampLocationMemoryGridSize(locationMemoryGridSize),
+  );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   useEffect(() => {
@@ -411,9 +531,25 @@ export function ClinicalSettingsModal({
     setTempBubbleAppearance(bubbleAppearance);
     setTempShapeColor(shapeColor);
     setTempTargetDigitCount(clampNumberSearchTargetDigits(targetDigitCount));
-    setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
+    setTempTimeLimitSec(
+      showPatternMatchControls
+        ? clampPatternMatchTimeLimitSec(timeLimitSec)
+        : clampNumberSearchTimeLimitSec(timeLimitSec),
+    );
     setTempNumberSearchLayout(clampNumberSearchLayoutMode(numberSearchLayout));
     setTempNumberSearchFieldCount(clampNumberSearchFieldCount(numberSearchFieldCount));
+    setTempPatternMatchCodeLength(clampPatternMatchCodeLength(patternMatchCodeLength));
+    setTempPatternMatchFlashMs(clampPatternMatchFlashMs(patternMatchFlashMs));
+    setTempPatternMatchCellCount(clampPatternMatchCellCount(patternMatchCellCount));
+    setTempPatternMatchHardness(clampPatternMatchHardness(patternMatchHardness));
+    setTempPatternMatchRounds(clampPatternMatchRounds(patternMatchRounds));
+    setTempLocationMemoryGridSize(clampLocationMemoryGridSize(locationMemoryGridSize));
+    setTempLocationMemoryActiveCells(
+      clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize),
+    );
+    setTempLocationMemoryRounds(clampLocationMemoryRounds(locationMemoryRounds));
+    setTempLocationMemoryExploreSec(clampLocationMemoryExploreSec(locationMemoryExploreSec));
+    setTempLocationMemoryRecallSec(clampLocationMemoryRecallSec(locationMemoryRecallSec));
     setConfirmApplyOpen(false);
     if (showPeripheralViewControls) {
       setTempLetterSize(clampPeripheralLetterSize(letterSize));
@@ -422,6 +558,16 @@ export function ClinicalSettingsModal({
       setTempLetterSize(clampNumberSearchLetterSize(letterSize));
       setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
       setTempShapeColor(shapeColor || DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
+    }
+    if (showPatternMatchControls) {
+      setTempLetterSize(clampPatternMatchLetterSize(letterSize));
+      setTempBgColor(bgColor || DEFAULT_PATTERN_MATCH_BG);
+      setTempShapeColor(shapeColor || DEFAULT_PATTERN_MATCH_CHAR_COLOR);
+    }
+    if (showLocationMemoryControls) {
+      setTempLetterSize(clampLocationMemoryLetterSize(letterSize));
+      setTempBgColor(bgColor || DEFAULT_LOCATION_MEMORY_BG);
+      setTempShapeColor(shapeColor || DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
     }
     setTempTherapyColors((prev) => {
       if (
@@ -445,7 +591,11 @@ export function ClinicalSettingsModal({
         ? clampPeripheralLetterSize(tempLetterSize)
         : showNumberSearchControls
           ? clampNumberSearchLetterSize(tempLetterSize)
-          : tempLetterSize,
+          : showPatternMatchControls
+            ? clampPatternMatchLetterSize(tempLetterSize)
+            : showLocationMemoryControls
+              ? clampLocationMemoryLetterSize(tempLetterSize)
+            : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -478,9 +628,41 @@ export function ClinicalSettingsModal({
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
       peripheralBubbleType: tempPeripheralBubbleType,
       targetDigitCount: clampNumberSearchTargetDigits(tempTargetDigitCount),
-      timeLimitSec: clampNumberSearchTimeLimitSec(tempTimeLimitSec),
+      timeLimitSec: showPatternMatchControls
+        ? clampPatternMatchTimeLimitSec(tempTimeLimitSec)
+        : clampNumberSearchTimeLimitSec(tempTimeLimitSec),
       numberSearchLayout: clampNumberSearchLayoutMode(tempNumberSearchLayout),
       numberSearchFieldCount: clampNumberSearchFieldCount(tempNumberSearchFieldCount),
+      patternMatchCodeLength: showPatternMatchControls
+        ? clampPatternMatchCodeLength(tempPatternMatchCodeLength)
+        : tempPatternMatchCodeLength,
+      patternMatchFlashMs: showPatternMatchControls
+        ? clampPatternMatchFlashMs(tempPatternMatchFlashMs)
+        : tempPatternMatchFlashMs,
+      patternMatchCellCount: showPatternMatchControls
+        ? clampPatternMatchCellCount(tempPatternMatchCellCount)
+        : tempPatternMatchCellCount,
+      patternMatchHardness: showPatternMatchControls
+        ? clampPatternMatchHardness(tempPatternMatchHardness)
+        : tempPatternMatchHardness,
+      patternMatchRounds: showPatternMatchControls
+        ? clampPatternMatchRounds(tempPatternMatchRounds)
+        : tempPatternMatchRounds,
+      locationMemoryActiveCells: showLocationMemoryControls
+        ? clampLocationMemoryActiveCells(tempLocationMemoryActiveCells, tempLocationMemoryGridSize)
+        : tempLocationMemoryActiveCells,
+      locationMemoryRounds: showLocationMemoryControls
+        ? clampLocationMemoryRounds(tempLocationMemoryRounds)
+        : tempLocationMemoryRounds,
+      locationMemoryExploreSec: showLocationMemoryControls
+        ? clampLocationMemoryExploreSec(tempLocationMemoryExploreSec)
+        : tempLocationMemoryExploreSec,
+      locationMemoryRecallSec: showLocationMemoryControls
+        ? clampLocationMemoryRecallSec(tempLocationMemoryRecallSec)
+        : tempLocationMemoryRecallSec,
+      locationMemoryGridSize: showLocationMemoryControls
+        ? clampLocationMemoryGridSize(tempLocationMemoryGridSize)
+        : tempLocationMemoryGridSize,
     };
   };
 
@@ -492,7 +674,11 @@ export function ClinicalSettingsModal({
         ? clampPeripheralLetterSize(letterSize)
         : showNumberSearchControls
           ? clampNumberSearchLetterSize(letterSize)
-          : letterSize,
+          : showPatternMatchControls
+            ? clampPatternMatchLetterSize(letterSize)
+            : showLocationMemoryControls
+              ? clampLocationMemoryLetterSize(letterSize)
+            : letterSize,
       bubbleSize,
       speed,
       wheelColor,
@@ -525,9 +711,41 @@ export function ClinicalSettingsModal({
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec),
       peripheralBubbleType,
       targetDigitCount: clampNumberSearchTargetDigits(targetDigitCount),
-      timeLimitSec: clampNumberSearchTimeLimitSec(timeLimitSec),
+      timeLimitSec: showPatternMatchControls
+        ? clampPatternMatchTimeLimitSec(timeLimitSec)
+        : clampNumberSearchTimeLimitSec(timeLimitSec),
       numberSearchLayout: clampNumberSearchLayoutMode(numberSearchLayout),
       numberSearchFieldCount: clampNumberSearchFieldCount(numberSearchFieldCount),
+      patternMatchCodeLength: showPatternMatchControls
+        ? clampPatternMatchCodeLength(patternMatchCodeLength)
+        : patternMatchCodeLength,
+      patternMatchFlashMs: showPatternMatchControls
+        ? clampPatternMatchFlashMs(patternMatchFlashMs)
+        : patternMatchFlashMs,
+      patternMatchCellCount: showPatternMatchControls
+        ? clampPatternMatchCellCount(patternMatchCellCount)
+        : patternMatchCellCount,
+      patternMatchHardness: showPatternMatchControls
+        ? clampPatternMatchHardness(patternMatchHardness)
+        : patternMatchHardness,
+      patternMatchRounds: showPatternMatchControls
+        ? clampPatternMatchRounds(patternMatchRounds)
+        : patternMatchRounds,
+      locationMemoryActiveCells: showLocationMemoryControls
+        ? clampLocationMemoryActiveCells(locationMemoryActiveCells, locationMemoryGridSize)
+        : locationMemoryActiveCells,
+      locationMemoryRounds: showLocationMemoryControls
+        ? clampLocationMemoryRounds(locationMemoryRounds)
+        : locationMemoryRounds,
+      locationMemoryExploreSec: showLocationMemoryControls
+        ? clampLocationMemoryExploreSec(locationMemoryExploreSec)
+        : locationMemoryExploreSec,
+      locationMemoryRecallSec: showLocationMemoryControls
+        ? clampLocationMemoryRecallSec(locationMemoryRecallSec)
+        : locationMemoryRecallSec,
+      locationMemoryGridSize: showLocationMemoryControls
+        ? clampLocationMemoryGridSize(locationMemoryGridSize)
+        : locationMemoryGridSize,
     };
   };
 
@@ -554,7 +772,9 @@ export function ClinicalSettingsModal({
     !showBeeTracingControls &&
     !showPursuitControls &&
     !showPeripheralViewControls &&
-    !showNumberSearchControls;
+    !showNumberSearchControls &&
+    !showPatternMatchControls &&
+    !showLocationMemoryControls;
   const previewSize = Math.min(tempBubbleSize, 130);
   const previewStimuliHex = showStimuliColorPicker
     ? resolveStimuliBubbleColor(tempStimuliColor, 0)
@@ -629,7 +849,11 @@ export function ClinicalSettingsModal({
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
                   {showPursuitControls
                     ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
-                    : showNumberSearchControls
+                    : showPatternMatchControls
+                      ? 'Configure code length, flash encoding, field size, and near-miss hardness.'
+                      : showLocationMemoryControls
+                        ? 'Configure explore time, recall timing, active cells, and contrast colors.'
+                      : showNumberSearchControls
                       ? 'Configure glyph size, digit count, layout density, and high-contrast field colors.'
                       : showPeripheralViewControls
                         ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
@@ -1570,6 +1794,449 @@ export function ClinicalSettingsModal({
                   <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(8) }}>
                     Off keeps the trial running until the target or a decoy is tapped.
                   </Text>
+                </Card>
+              </>
+            ) : null}
+
+            {showLocationMemoryControls ? (
+              <>
+                <Card>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    GRID PREVIEW · {locationMemoryGridLabel(tempLocationMemoryGridSize)}
+                  </Text>
+                  {(() => {
+                    const n = tempLocationMemoryGridSize;
+                    const gap = s(6);
+                    const pad = s(12);
+                    const maxInner = Math.min(width - s(96), s(260));
+                    const cellW = Math.floor(
+                      Math.max(s(36), (maxInner - gap * Math.max(0, n - 1)) / Math.max(1, n)),
+                    );
+                    const gridWidth = cellW * n + gap * Math.max(0, n - 1);
+                    const total = n * n;
+                    const highlight = Math.ceil(total / 2);
+                    const rows = Array.from({ length: n }, (_, row) =>
+                      Array.from({ length: n }, (_, col) => row * n + col + 1),
+                    );
+                    return (
+                      <View style={{ width: '100%', alignItems: 'center' }}>
+                        <View
+                          style={{
+                            backgroundColor: tempBgColor,
+                            padding: pad,
+                            borderRadius: s(16),
+                            borderWidth: 1,
+                            borderColor: '#1F2937',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <View style={{ width: gridWidth, gap }}>
+                            {rows.map((row, rowIdx) => (
+                              <View
+                                key={`lm-preview-row-${rowIdx}`}
+                                style={{
+                                  flexDirection: 'row',
+                                  width: gridWidth,
+                                  gap,
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                {row.map((cellNum) => {
+                                  const isOpen = cellNum === highlight;
+                                  return (
+                                    <View
+                                      key={cellNum}
+                                      style={{
+                                        width: cellW,
+                                        height: cellW,
+                                        borderRadius: s(10),
+                                        borderWidth: isOpen ? 3 : 2,
+                                        borderColor: isOpen ? '#FACC15' : '#CBD5E1',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: isOpen ? '#FACC15' : '#FFFFFF',
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color: '#0F172A',
+                                          fontWeight: '900',
+                                          fontSize: Math.max(
+                                            10,
+                                            Math.round(cellW * 0.28 * tempLetterSize),
+                                          ),
+                                        }}
+                                      >
+                                        {isOpen ? String(cellNum) : '?'}
+                                      </Text>
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginTop: s(12), marginBottom: s(6) }}>
+                    PATIENT PROFILE
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#6B7280"
+                    style={{
+                      backgroundColor: '#141414',
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                      borderRadius: s(12),
+                      color: '#fff',
+                      paddingHorizontal: s(14),
+                      paddingVertical: s(12),
+                      fontSize: fs(14),
+                      fontWeight: '600',
+                    }}
+                  />
+                </Card>
+                <Card>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    SESSION PARAMETERS
+                  </Text>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Grid Size</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_GRID_SIZE_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={locationMemoryGridLabel(n)}
+                        active={tempLocationMemoryGridSize === n}
+                        onPress={() => {
+                          setTempLocationMemoryGridSize(n);
+                          setTempLocationMemoryActiveCells((prev) =>
+                            clampLocationMemoryActiveCells(prev, n),
+                          );
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Active Cells</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {locationMemoryActiveCellOptions(tempLocationMemoryGridSize).map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempLocationMemoryActiveCells === n}
+                        onPress={() => setTempLocationMemoryActiveCells(n)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Explore Time</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_EXPLORE_SEC_PRESETS.map((sec) => (
+                      <Chip key={sec} label={locationMemoryExploreLabel(sec)} active={tempLocationMemoryExploreSec === sec} onPress={() => setTempLocationMemoryExploreSec(sec)} />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Recall / Target</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_RECALL_SEC_PRESETS.map((sec) => (
+                      <Chip key={sec} label={locationMemoryRecallLabel(sec)} active={tempLocationMemoryRecallSec === sec} onPress={() => setTempLocationMemoryRecallSec(sec)} />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Rounds</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_ROUNDS_PRESETS.map((n) => (
+                      <Chip key={n} label={String(n)} active={tempLocationMemoryRounds === n} onPress={() => setTempLocationMemoryRounds(n)} />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Glyph Size</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_LETTER_SIZE_PRESETS.map((size) => (
+                      <Chip key={size} label={String(size)} active={tempLetterSize === size} onPress={() => setTempLetterSize(size)} />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Background</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                    {LOCATION_MEMORY_BG_COLORS.map((c) => (
+                      <Pressable key={c.code} onPress={() => setTempBgColor(c.code)} style={{ width: s(56), height: s(36), borderRadius: s(10), backgroundColor: c.code, borderWidth: 2, borderColor: tempBgColor === c.code ? '#fff' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC', fontSize: fs(9), fontWeight: '800' }}>{c.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>Number Color</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    {LOCATION_MEMORY_CHAR_COLORS.map((c) => (
+                      <Pressable key={c.code} onPress={() => setTempShapeColor(c.code)} style={{ width: s(56), height: s(36), borderRadius: s(10), backgroundColor: c.code, borderWidth: 2, borderColor: tempShapeColor === c.code ? '#FBBF24' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24' ? '#0F172A' : '#F8FAFC', fontSize: fs(9), fontWeight: '800' }}>{c.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
+              </>
+            ) : null}
+
+            {showPatternMatchControls ? (
+              <>
+                <Card>
+                  <Text style={{ color: '#FB7185', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    LIVE CODE PREVIEW
+                    {clampPatternMatchStimulusMode(patternMatchStimulusMode) === 'compound'
+                      ? ' · Compound'
+                      : ' · Digit'}
+                  </Text>
+                  {(() => {
+                    const preview = patternMatchPreviewCodes(
+                      tempPatternMatchCodeLength,
+                      patternMatchStimulusMode,
+                    );
+                    return (
+                      <View
+                        style={{
+                          minHeight: s(140),
+                          borderRadius: s(16),
+                          borderWidth: 1,
+                          borderColor: '#1F2937',
+                          backgroundColor: tempBgColor,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: s(12),
+                          marginBottom: s(12),
+                          padding: s(16),
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: tempShapeColor,
+                            fontSize: Math.round(22 * tempLetterSize),
+                            fontWeight: '900',
+                            letterSpacing: 8,
+                          }}
+                        >
+                          {preview.target}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: s(8) }}>
+                          {preview.field.slice(0, 3).map((c) => (
+                            <View
+                              key={c}
+                              style={{
+                                borderWidth: 1,
+                                borderColor: '#475569',
+                                borderRadius: s(8),
+                                paddingHorizontal: s(8),
+                                paddingVertical: s(4),
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: tempShapeColor,
+                                  fontSize: Math.round(12 * tempLetterSize),
+                                  fontWeight: '800',
+                                  letterSpacing: 2,
+                                }}
+                              >
+                                {c}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })()}
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginBottom: s(6) }}>
+                    PATIENT PROFILE
+                  </Text>
+                  <TextInput
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    placeholder="Enter patient name..."
+                    placeholderTextColor="#6B7280"
+                    style={{
+                      backgroundColor: '#141414',
+                      borderWidth: 1,
+                      borderColor: '#374151',
+                      borderRadius: s(12),
+                      color: '#fff',
+                      paddingHorizontal: s(14),
+                      paddingVertical: s(12),
+                      fontSize: fs(14),
+                      fontWeight: '600',
+                    }}
+                  />
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#FB7185', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    SESSION PARAMETERS
+                  </Text>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Code Length
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {PATTERN_MATCH_CODE_LENGTH_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempPatternMatchCodeLength === n}
+                        onPress={() => setTempPatternMatchCodeLength(n)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Flash Encoding
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {PATTERN_MATCH_FLASH_MS_PRESETS.map((ms) => (
+                      <Chip
+                        key={ms}
+                        label={patternMatchFlashLabel(ms)}
+                        active={tempPatternMatchFlashMs === ms}
+                        onPress={() => setTempPatternMatchFlashMs(ms)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Field Size
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {PATTERN_MATCH_CELL_COUNT_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempPatternMatchCellCount === n}
+                        onPress={() => setTempPatternMatchCellCount(n)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Hardness
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {(['easy', 'medium', 'hard'] as PatternMatchHardness[]).map((h) => (
+                      <Chip
+                        key={h}
+                        label={patternMatchHardnessLabel(h)}
+                        active={tempPatternMatchHardness === h}
+                        onPress={() => setTempPatternMatchHardness(h)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Rounds
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {PATTERN_MATCH_ROUNDS_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempPatternMatchRounds === n}
+                        onPress={() => setTempPatternMatchRounds(n)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Glyph Size
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {PATTERN_MATCH_LETTER_SIZE_PRESETS.map((size) => (
+                      <Chip
+                        key={size}
+                        label={String(size)}
+                        active={tempLetterSize === size}
+                        onPress={() => setTempLetterSize(size)}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Time Limit
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(4) }}>
+                    {PATTERN_MATCH_TIME_LIMIT_PRESETS.map((sec) => (
+                      <Chip
+                        key={sec}
+                        label={sec <= 0 ? 'Off' : `${sec}s`}
+                        active={tempTimeLimitSec === sec}
+                        onPress={() => setTempTimeLimitSec(sec)}
+                      />
+                    ))}
+                  </View>
+                </Card>
+
+                <Card>
+                  <Text style={{ color: '#FB7185', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    FIELD COLORS
+                  </Text>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Background
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                    {PATTERN_MATCH_BG_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempBgColor(c.code)}
+                        style={{
+                          width: s(56),
+                          height: s(36),
+                          borderRadius: s(10),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempBgColor === c.code ? '#FB7185' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
+                            fontSize: fs(9),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Code Color
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    {PATTERN_MATCH_CHAR_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempShapeColor(c.code)}
+                        style={{
+                          width: s(56),
+                          height: s(36),
+                          borderRadius: s(10),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempShapeColor === c.code ? '#FB7185' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
+                                ? '#0F172A'
+                                : '#F8FAFC',
+                            fontSize: fs(9),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </Card>
               </>
             ) : null}

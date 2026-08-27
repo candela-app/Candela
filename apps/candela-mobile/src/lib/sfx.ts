@@ -143,6 +143,17 @@ export async function playWrongWoosh() {
   }
 }
 
+export async function playOpenTap() {
+  try {
+    const path = await fileFor('open-tap', () =>
+      encodeWavSweep({ startHz: 620, endHz: 280, durationMs: 90, kind: 'triangle', gain: 0.24 }),
+    );
+    await playFile(path);
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
 export async function playMissThud() {
   try {
     const path = await fileFor('miss', () =>

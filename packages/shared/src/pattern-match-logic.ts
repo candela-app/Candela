@@ -1,8 +1,9 @@
 import { ALPHABETS, NUMBERS } from './constants';
 
 /**
- * Pattern Match (Code Hold) — visual memory + digit-sequence discrimination.
+ * Hold the Code — visual memory + code discrimination.
  * Flash a target code, then tap every exact match in a near-miss field.
+ * Levels: standard (digits) and compound (alphanumeric).
  */
 
 export const DEFAULT_PATTERN_MATCH_BG = '#0B0F14';
@@ -42,7 +43,7 @@ export const DEFAULT_PATTERN_MATCH_TIME_LIMIT_SEC = 0;
 export type PatternMatchHardness = 'easy' | 'medium' | 'hard';
 export const DEFAULT_PATTERN_MATCH_HARDNESS: PatternMatchHardness = 'medium';
 
-/** Digits-only (Hold the Code) vs mixed letters+digits (Compound). */
+/** Digits-only (Standard) vs mixed letters+digits (Compound). */
 export type PatternMatchStimulusMode = 'digits' | 'compound';
 export const DEFAULT_PATTERN_MATCH_STIMULUS: PatternMatchStimulusMode = 'digits';
 
@@ -130,7 +131,7 @@ export function clampPatternMatchStimulusMode(value: unknown): PatternMatchStimu
 /** Map MODULE_LEVELS.pattern_match ids → stimulus mode. */
 export function patternMatchStimulusFromLevelId(levelId: string | null | undefined): PatternMatchStimulusMode {
   if (levelId === 'compound') return 'compound';
-  return 'digits'; // standard / Hold the Code
+  return 'digits'; // standard
 }
 
 /** Fixed preview codes for clinical settings live preview (not random). */
