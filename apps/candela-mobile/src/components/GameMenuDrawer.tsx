@@ -19,7 +19,6 @@ export function GameMenuDrawer({
   extraControls,
   settingsSummary,
   sessionInProgress = true,
-  lockSettingsWhilePlaying = true,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -31,8 +30,8 @@ export function GameMenuDrawer({
   settingsSummary: ClinicalSettingSummaryItem[];
   sessionInProgress?: boolean;
   /**
-   * When true (default), Clinical Settings cannot be opened mid-session —
-   * reset the game first. Set false only to allow opening (Apply still confirms via sessionLocked).
+   * @deprecated Mid-game apply confirmation lives in ClinicalSettingsModal (sessionLocked).
+   * Opening settings mid-session is always allowed.
    */
   lockSettingsWhilePlaying?: boolean;
 }) {
@@ -41,13 +40,11 @@ export function GameMenuDrawer({
   const drawerWidth = Math.min(340, width * 0.88);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setConfirmReset(false);
       setConfirmQuit(false);
-      setSettingsLockedOpen(false);
     }
   }, [isOpen]);
 
@@ -82,19 +79,12 @@ export function GameMenuDrawer({
           >
             <Text style={[menuBtnText, { color: '#fff' }]}>Quit Game</Text>
           </Pressable>
-          <Pressable
-            onPress={() => setConfirmReset(true)}
-            style={menuBtn}
-          >
+          <Pressable onPress={() => setConfirmReset(true)} style={menuBtn}>
             <Text style={menuBtnText}>{resetButtonLabel}</Text>
           </Pressable>
           {onOpenSettings ? (
             <Pressable
               onPress={() => {
-                if (sessionInProgress && lockSettingsWhilePlaying) {
-                  setSettingsLockedOpen(true);
-                  return;
-                }
                 onClose();
                 onOpenSettings();
               }}
@@ -119,18 +109,6 @@ export function GameMenuDrawer({
           </ScrollView>
         </View>
       </View>
-      <ResetConfirmDialog
-        visible={settingsLockedOpen}
-        title="Settings locked"
-        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
-        cancelLabel="Keep playing"
-        confirmLabel={resetButtonLabel}
-        onCancel={() => setSettingsLockedOpen(false)}
-        onConfirm={() => {
-          setSettingsLockedOpen(false);
-          setConfirmReset(true);
-        }}
-      />
       <ResetConfirmDialog
         visible={confirmReset}
         confirmLabel={resetButtonLabel}

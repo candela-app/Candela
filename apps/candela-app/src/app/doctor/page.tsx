@@ -3,10 +3,14 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
-import { GAME_CATALOG, MODULE_LEVELS, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared';
+import { GAME_CATALOG, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import { SearchIcon, XIcon } from '@/components/icons/VectorIcons';
+import {
+  FloatingLabelInput,
+  FloatingLabelPasswordInput,
+} from '@/components/ui/FloatingLabelInput';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -169,7 +173,10 @@ export default function DoctorPage() {
     }
     const patientId = selected.id;
     const patientName = selected.name;
-    const currentLevels = selected.prescribedLevels?.[moduleId] || [];
+    const currentLevels =
+      moduleId === 'direction_sense'
+        ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[moduleId] || [])
+        : selected.prescribedLevels?.[moduleId] || [];
     const newLevels = enabled
       ? Array.from(new Set([...currentLevels, levelId]))
       : currentLevels.filter((id) => id !== levelId);
@@ -286,10 +293,16 @@ export default function DoctorPage() {
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Create patient</h2>
           <form onSubmit={onCreatePatient} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Password (min 8)" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+            <FloatingLabelInput label="Name" value={name} onChange={setName} required />
+            <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required />
+            <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required />
+            <FloatingLabelPasswordInput
+              label="Password (min 8)"
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={8}
+            />
             <button type="submit" disabled={saving} className="sm:col-span-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-60">
               {saving ? 'Creating…' : 'Create patient'}
             </button>
@@ -308,26 +321,25 @@ export default function DoctorPage() {
             </div>
 
             <div className="relative mb-3">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                <SearchIcon className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
+              <FloatingLabelInput
+                label="Search patient name, email..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search patient name, email..."
-                className="w-full pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100/80 focus:bg-white rounded-xl border border-gray-200/80 focus:border-blue-500 text-xs font-medium outline-none transition-all placeholder:text-gray-400"
+                onChange={setSearchQuery}
+                endAdornment={
+                  searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                      title="Clear search"
+                    >
+                      <XIcon className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <SearchIcon className="w-4 h-4 text-gray-400" />
+                  )
+                }
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
-                  title="Clear search"
-                >
-                  <XIcon className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
 
             {patients.length === 0 && <p className="text-sm text-gray-500 py-2">No patients yet.</p>}
@@ -373,7 +385,10 @@ export default function DoctorPage() {
                   {MODULES.map((mod) => {
                     const on = selected.prescribedModuleIds.includes(mod.id);
                     const levels = MODULE_LEVELS[mod.id] || [];
-                    const selectedLevels = selected.prescribedLevels?.[mod.id] || [];
+                    const selectedLevels =
+                      mod.id === 'direction_sense'
+                        ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[mod.id] || [])
+                        : selected.prescribedLevels?.[mod.id] || [];
 
                     return (
                       <div key={mod.id} className="rounded-2xl border border-gray-100 p-4">

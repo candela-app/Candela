@@ -21,6 +21,7 @@ import {
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
+  wheelColorLabel,
   type BubbleAppearance,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
@@ -48,6 +49,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
+  const [wheelColor, setWheelColor] = useState('#000000');
   const { requestExit } = useGameSessionLock(onExit);
   const [notification, setNotification] = useState<string | null>(null);
   const [bubbles, setBubbles] = useState<BubbleItem[]>([]);
@@ -228,7 +230,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const letterPx = Math.round(16 * letterSize * (scaledBubble / 90));
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0A0A12' }}>
+    <View style={{ flex: 1, backgroundColor: wheelColor }}>
       {notification ? (
         <View style={{ position: 'absolute', top: s(48), right: s(16), zIndex: 40, backgroundColor: '#059669', padding: s(12), borderRadius: s(14) }}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>✓ {notification}</Text>
@@ -251,7 +253,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           }
         }}
         onLayout={(e) => setPlayArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: wheelColor }}
       >
         {bubbles.map((bubble) => {
           const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
@@ -322,6 +324,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           }
           if (next.stimuliColor !== undefined) setStimuliColor(next.stimuliColor);
           if (next.bubbleAppearance !== undefined) setBubbleAppearance(next.bubbleAppearance);
+          if (next.wheelColor !== undefined) setWheelColor(next.wheelColor);
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
@@ -334,6 +337,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         stimuliColor={stimuliColor}
         showBubbleAppearancePicker
         bubbleAppearance={bubbleAppearance}
+        showWheelColorControl
+        wheelColor={wheelColor}
+        wheelColorTitle="Background Color"
+        wheelColorHint="Background color of the sorting playfield."
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}
@@ -365,6 +372,24 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           { label: 'Variant', value: variant },
           { label: 'Stimuli Color', value: stimuliColorLabel(stimuliColor) },
           { label: 'Bubble Style', value: bubbleAppearanceLabel(bubbleAppearance) },
+          {
+            label: 'Background',
+            value: (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: wheelColor,
+                    borderWidth: 1,
+                    borderColor: '#4B5563',
+                  }}
+                />
+                <Text style={{ color: '#D1D5DB', fontSize: 11 }}>{wheelColorLabel(wheelColor)}</Text>
+              </View>
+            ),
+          },
           ...(variant === 'numbers' ? [{ label: 'Range', value: `${numberRangeFrom}–${numberRangeTo}` }] : []),
         ]}
       />

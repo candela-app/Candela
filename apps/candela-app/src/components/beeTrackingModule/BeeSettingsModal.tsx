@@ -7,6 +7,7 @@ import {
   ColorTheme,
   InputSensitivity,
 } from '@candela/shared';
+import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
 
 interface BeeSettingsModalProps {
   isOpen: boolean;
@@ -46,18 +47,12 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
 
         <div className="space-y-5 text-sm">
           {/* Patient Name */}
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1.5">
-              Patient / User Name
-            </label>
-            <input
-              type="text"
-              value={settings.patientName}
-              onChange={(e) => onUpdateSettings({ patientName: e.target.value })}
-              placeholder="Demo Patient"
-              className="w-full rounded-xl bg-white/5 border border-white/15 px-4 py-2.5 text-white placeholder-gray-500 focus:border-amber-400 focus:outline-none transition-colors"
-            />
-          </div>
+          <FloatingLabelInput
+            label="Patient / User Name"
+            value={settings.patientName}
+            onChange={(patientName) => onUpdateSettings({ patientName })}
+            variant="dark"
+          />
 
           {/* Tracing Mode Selection */}
           <div>

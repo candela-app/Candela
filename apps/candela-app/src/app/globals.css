@@ -155,3 +155,58 @@ html, body {
 .animate-slide-in-up {
   animation: slideInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Kill Chrome/Safari autofill blue fill on floating label inputs */
+@keyframes floatingLabelAutofill {
+  from {
+    opacity: 0.99;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.floating-label-input:-webkit-autofill,
+.floating-label-input:-webkit-autofill:hover,
+.floating-label-input:-webkit-autofill:focus,
+.floating-label-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: var(--shell-text) !important;
+  caret-color: var(--shell-text);
+  transition: background-color 99999s ease-out 0s;
+  animation-name: floatingLabelAutofill;
+  animation-duration: 0.001s;
+}
+
+.floating-label-input--dark:-webkit-autofill,
+.floating-label-input--dark:-webkit-autofill:hover,
+.floating-label-input--dark:-webkit-autofill:focus,
+.floating-label-input--dark:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #141414 inset !important;
+  box-shadow: 0 0 0 1000px #141414 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+}
+
+/* CSS fallback: float label when Chrome autofills before React state catches up */
+.floating-label-field:has(.floating-label-input:-webkit-autofill) .floating-label-notch,
+.floating-label-field:has(.floating-label-input:not(:placeholder-shown)) .floating-label-notch,
+.floating-label-field:has(.floating-label-input:focus) .floating-label-notch {
+  top: 0 !important;
+  transform: translateY(-50%) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em;
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+  background-color: #ffffff;
+  color: var(--shell-blue);
+}
+
+.floating-label-field:has(.floating-label-input--dark:-webkit-autofill) .floating-label-notch,
+.floating-label-field:has(.floating-label-input--dark:not(:placeholder-shown)) .floating-label-notch,
+.floating-label-field:has(.floating-label-input--dark:focus) .floating-label-notch {
+  background-color: #141414;
+  color: #fbbf24;
+}

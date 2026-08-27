@@ -114,6 +114,15 @@ const MODULES = [
     bg: '#FFFBEB',
     Icon: PatternMatchIcon,
   },
+  {
+    id: 'direction_sense',
+    title: 'Direction Sense',
+    body: 'Face & Flip: pick the 90° turn. Straighten: spin the letter to match.',
+    badge: 'For All Devices',
+    accent: '#0284C7',
+    bg: '#F0F9FF',
+    Icon: TargetIcon,
+  },
 ] as const;
 
 export function HomePageContent({

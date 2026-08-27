@@ -64,6 +64,22 @@ export const TABLET_BUBBLE_SIZE_PX = 100;
 export const PHONE_SORTING_BUBBLE_SIZE_PX = 90;
 export const BUBBLE_SIZE_PRESETS = [60, 80, 100, 120];
 
+/** Preset wheel backgrounds for rotatory / sorting clinical settings. */
+export const WHEEL_COLOR_PRESETS: ColorItem[] = [
+  { name: 'Black', code: '#000000' },
+  { name: 'Midnight', code: '#0B1B3A' },
+  { name: 'Charcoal', code: '#1A1A1A' },
+  { name: 'Slate', code: '#111827' },
+  { name: 'Ink', code: '#0D0D0D' },
+  { name: 'Royal Blue', code: '#1E3A8A' },
+];
+
+export function wheelColorLabel(hex: string | undefined): string {
+  if (!hex) return 'Black';
+  const match = WHEEL_COLOR_PRESETS.find((c) => c.code.toLowerCase() === hex.toLowerCase());
+  return match?.name ?? hex;
+}
+
 export const DEFAULT_BEE_TARGET_DOT_COLOR = '#E56B9A';
 export const BEE_TARGET_DOT_COLORS: ColorItem[] = [
   { name: 'Pink', code: '#E56B9A' },

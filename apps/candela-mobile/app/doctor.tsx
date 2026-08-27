@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, MODULE_LEVELS, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { GAME_CATALOG, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { CheckIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import {
+  FloatingLabelInput,
+  FloatingLabelPasswordInput,
+} from '../src/components/FloatingLabelInput';
 import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
@@ -178,7 +182,10 @@ export default function DoctorScreen() {
     const key = `lvl:${patientId}:${moduleId}:${levelId}`;
     if (inFlightRef.current.has(key)) return;
     inFlightRef.current.add(key);
-    const currentLevels = selected.prescribedLevels?.[moduleId] || [];
+    const currentLevels =
+      moduleId === 'direction_sense'
+        ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[moduleId] || [])
+        : selected.prescribedLevels?.[moduleId] || [];
     const newLevels = enabled ? Array.from(new Set([...currentLevels, levelId])) : currentLevels.filter((id) => id !== levelId);
     const previousLevels = { ...selected.prescribedLevels };
     setError('');
@@ -207,18 +214,6 @@ export default function DoctorScreen() {
       }, 400);
     }
   }
-
-  const inputStyle = {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: s(12),
-    paddingHorizontal: s(14),
-    paddingVertical: s(12),
-    fontSize: fs(14),
-    marginBottom: s(10),
-    backgroundColor: colors.white,
-    color: colors.text,
-  };
 
   if (loading || dataLoading || !session || session.user.role !== 'doctor') {
     return (
@@ -325,10 +320,10 @@ export default function DoctorScreen() {
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
-          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} placeholderTextColor={colors.muted} />
+          <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
+          <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <FloatingLabelPasswordInput label="Password (min 8)" value={password} onChangeText={setPassword} />
           <Pressable
             onPress={() => void onCreatePatient()}
             disabled={saving}
@@ -346,12 +341,11 @@ export default function DoctorScreen() {
                 {patients.length}
               </Text>
             </View>
-            <TextInput
-              placeholder="Search patient name, email..."
-              placeholderTextColor={colors.muted}
+            <FloatingLabelInput
+              label="Search patient name, email..."
               value={searchQuery}
               onChangeText={setSearchQuery}
-              style={{ ...inputStyle, marginBottom: s(12), backgroundColor: '#F9FAFB' }}
+              style={{ marginBottom: s(12) }}
             />
             {patients.length === 0 ? <Text style={{ color: colors.muted }}>No patients yet.</Text> : null}
             {patients.length > 0 && filteredPatients.length === 0 ? (
@@ -388,7 +382,10 @@ export default function DoctorScreen() {
                 {MODULES.map((mod) => {
                   const on = selected.prescribedModuleIds.includes(mod.id);
                   const levels = MODULE_LEVELS[mod.id] || [];
-                  const selectedLevels = selected.prescribedLevels?.[mod.id] || [];
+                  const selectedLevels =
+                    mod.id === 'direction_sense'
+                      ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[mod.id] || [])
+                      : selected.prescribedLevels?.[mod.id] || [];
                   return (
                     <View key={mod.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(14), padding: s(12), marginBottom: s(8) }}>
                       <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>

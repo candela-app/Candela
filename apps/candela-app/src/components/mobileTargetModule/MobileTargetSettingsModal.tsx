@@ -10,6 +10,7 @@ import {
   resolveBubbleAppearance,
   type BubbleAppearance,
 } from '@candela/shared';
+import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
 
 interface MobileTargetSettingsModalProps {
   isOpen: boolean;
@@ -466,21 +467,16 @@ export function MobileTargetSettingsModal({
               </div>
             </div>
 
-            {/* PATIENT PROFILE */}
+            {/* PATIENT NAME */}
             <div
               className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
               style={{ backgroundColor: '#242424' }}
             >
-              <label className="text-xs font-extrabold text-gray-200 uppercase tracking-wider">
-                Patient Profile
-              </label>
-              <input
-                type="text"
-                className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-emerald-500 font-medium text-sm transition-all shadow-inner"
-                style={{ backgroundColor: '#141414' }}
+              <FloatingLabelInput
+                label="Patient Name"
                 value={tempPatientName}
-                placeholder="Enter patient name..."
-                onChange={(e) => setTempPatientName(e.target.value)}
+                onChange={setTempPatientName}
+                variant="dark"
               />
             </div>
 

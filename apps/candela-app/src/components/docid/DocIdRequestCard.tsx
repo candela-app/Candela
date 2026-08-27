@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import type { DocIdRequestResult } from '@candela/shared';
+import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
 import { FormEvent, useState } from 'react';
 
 export function DocIdRequestCard() {
@@ -73,7 +74,7 @@ export function DocIdRequestCard() {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600">DocID</p>
+            <p className="text-[11px] font-semibold tracking-wide text-shell-blue">DocID</p>
             {linked ? (
               <p className="text-sm text-gray-700 mt-1">
                 Linked to <span className="font-mono font-bold text-blue-700">{patient.referralCode}</span>
@@ -124,14 +125,14 @@ export function DocIdRequestCard() {
             </div>
           ) : (
             <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <input
-                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-mono font-bold tracking-widest uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                placeholder="DocID"
+              <FloatingLabelInput
+                label="DocID"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onChange={(v) => setCode(v.toUpperCase())}
                 minLength={6}
                 maxLength={6}
                 required
+                className="flex-1 min-w-[10rem] [&_input]:font-mono [&_input]:font-bold [&_input]:tracking-widest [&_input]:uppercase"
               />
               <button
                 type="submit"

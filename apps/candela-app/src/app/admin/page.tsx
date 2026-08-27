@@ -7,6 +7,10 @@ import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
 import { EditIcon, TrashIcon, XIcon } from '@/components/icons/VectorIcons';
+import {
+  FloatingLabelInput,
+  FloatingLabelPasswordInput,
+} from '@/components/ui/FloatingLabelInput';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -252,10 +256,16 @@ export default function AdminPage() {
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Create doctor</h2>
           <form onSubmit={onCreateDoctor} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input className="rounded-xl border border-gray-200 px-4 py-3 text-sm" placeholder="Password (min 8)" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+            <FloatingLabelInput label="Name" value={name} onChange={setName} required />
+            <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required />
+            <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required />
+            <FloatingLabelPasswordInput
+              label="Password (min 8)"
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={8}
+            />
             <button type="submit" disabled={saving} className="sm:col-span-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-60 cursor-pointer">
               {saving ? 'Creating…' : 'Create doctor'}
             </button>
@@ -281,14 +291,14 @@ export default function AdminPage() {
                 </option>
               ))}
             </select>
-            <input
-              className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-mono font-bold tracking-widest uppercase"
-              placeholder="Target DocID"
+            <FloatingLabelInput
+              label="Target DocID"
               value={transferCode}
-              onChange={(e) => setTransferCode(e.target.value.toUpperCase())}
+              onChange={(v) => setTransferCode(v.toUpperCase())}
               minLength={6}
               maxLength={6}
               required
+              className="[&_input]:font-mono [&_input]:font-bold [&_input]:tracking-widest [&_input]:uppercase"
             />
             <button
               type="submit"
@@ -349,11 +359,11 @@ export default function AdminPage() {
         <section className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-lg font-bold text-gray-900">Patients managed by doctors</h2>
-            <input
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-mono uppercase"
-              placeholder="Filter by DocID (current or previous)"
+            <FloatingLabelInput
+              label="Filter by DocID"
               value={docIdFilter}
-              onChange={(e) => setDocIdFilter(e.target.value.toUpperCase())}
+              onChange={(v) => setDocIdFilter(v.toUpperCase())}
+              className="sm:max-w-xs [&_input]:font-mono [&_input]:uppercase"
             />
           </div>
           {[...Array.from(grouped.byDoctor.entries())].map(([id, group]) => (
@@ -424,51 +434,21 @@ export default function AdminPage() {
             {editError && <p className="text-sm text-red-600 font-medium mb-4">{editError}</p>}
 
             <form onSubmit={onUpdateDoctor} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Doctor Name</label>
-                <input
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Doctor Name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone Number</label>
-                <input
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Phone"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Email Address</label>
-                <input
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Email"
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">New Password (optional)</label>
-                <input
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Leave empty to keep existing password"
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  minLength={8}
-                />
-              </div>
+              <FloatingLabelInput label="Doctor Name" value={editName} onChange={setEditName} required />
+              <FloatingLabelInput label="Phone Number" value={editPhone} onChange={setEditPhone} required />
+              <FloatingLabelInput
+                label="Email Address"
+                type="email"
+                value={editEmail}
+                onChange={setEditEmail}
+                required
+              />
+              <FloatingLabelPasswordInput
+                label="New Password (optional)"
+                value={editPassword}
+                onChange={setEditPassword}
+                minLength={8}
+              />
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                 <button

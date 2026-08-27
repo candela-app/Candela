@@ -76,6 +76,14 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'mobile'],
   },
+  direction_sense: {
+    id: 'direction_sense',
+    name: 'Direction Sense',
+    description:
+      'Spatial rotation — see a letter and a rotate arrow, then pick the matching 90° turn.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'mobile'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -154,6 +162,11 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'practice', name: 'Practice' },
     { id: 'standard', name: 'Full Grid' },
     { id: 'match', name: 'Match Pairs' },
+  ],
+  direction_sense: [
+    { id: 'face', name: 'Face' },
+    { id: 'flip', name: 'Flip' },
+    { id: 'straighten', name: 'Straighten' },
   ],
 };
 

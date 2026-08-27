@@ -33,10 +33,10 @@ import {
   getDeviceTier,
   reactionStatsFromMs,
 } from '@candela/shared';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
-import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { CheckIcon, ClearIcon, SkipIcon, SlidersIcon, UndoIcon } from '../icons/VectorIcons';
 import styles from './GeoboardGame.module.css';
@@ -138,6 +138,7 @@ interface GeoboardGameProps {
 }
 
 export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
+  const { session } = useAuth();
   const board = GEOBOARD_BOARDS[boardId];
 
   const [gameState, setGameState] = useState<GeoboardGameState>('settings');
@@ -145,7 +146,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const [protocol, setProtocol] = useState<GeoboardProtocol>(() =>
     lockBeginnerGeoboardProtocol(
       {
-        patientName: 'Demo Patient',
+        patientName: sessionDisplayName(session),
         boardId,
         alphabetVariant: 'uppercase',
         bpm: 60,
@@ -167,6 +168,12 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
       boardId,
     ),
   );
+
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setProtocol((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
+  }, [session?.user?.name]);
 
   // Fixed playlist for the chosen board, resolved when the session starts.
   const [playlist, setPlaylist] = useState<GeoboardPattern[]>([]);
@@ -190,7 +197,6 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const [uiHighContrast, setUiHighContrast] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   useGameSessionLock(true);
   const [fatigueWarning, setFatigueWarning] = useState<boolean>(false);
 
@@ -1114,17 +1120,6 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         penColor={protocol.penColor}
         pegSizeScale={protocol.pegSizeScale ?? 1}
         sessionLocked={isPlayingPhase}
-      />
-
-      <MidGameSettingsLockedDialog
-        isOpen={settingsLockedOpen}
-        onCancel={() => setSettingsLockedOpen(false)}
-        resetLabel="Restart Board"
-        onReset={() => {
-          setSettingsLockedOpen(false);
-          setGameState('settings');
-          setIsSettingsOpen(true);
-        }}
       />
 
       {gameState === 'results' && resultsData && (

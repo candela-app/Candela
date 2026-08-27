@@ -42,7 +42,6 @@ import {
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
-import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { ChevronUpIcon, ReplayIcon, SlidersIcon, VolumeIcon } from '../icons/VectorIcons';
 import { useAuth } from '@/lib/auth-context';
@@ -70,7 +69,6 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
@@ -848,15 +846,6 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
             </div>
           </div>
         }
-      />
-
-      <MidGameSettingsLockedDialog
-        isOpen={settingsLockedOpen}
-        onCancel={() => setSettingsLockedOpen(false)}
-        onReset={() => {
-          setSettingsLockedOpen(false);
-          resetSession();
-        }}
       />
 
       {resultsData ? (
