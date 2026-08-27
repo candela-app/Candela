@@ -10,3 +10,4 @@ export * from './referral-code';
 export * from './geoboard-logic';
 export * from './peripheral-hive-logic';
 export * from './number-search-logic';
+export * from './pattern-match-logic';

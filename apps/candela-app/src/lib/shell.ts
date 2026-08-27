@@ -85,4 +85,12 @@ export const MODULE_CARDS: ModuleCard[] = [
     accent: '#B45309',
     bar: '#F59E0B',
   },
+  {
+    uiId: 'pattern_match',
+    title: 'Pattern Match',
+    body: 'Hold a flashed digit code and tap every exact match',
+    badge: 'For All Devices',
+    accent: '#BE123C',
+    bar: '#FB7185',
+  },
 ];

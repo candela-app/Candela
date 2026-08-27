@@ -58,6 +58,37 @@ import {
   NUMBER_SEARCH_FIELD_COUNT_PRESETS,
   type NumberSearchLayoutMode,
 } from './number-search-logic';
+import {
+  clampPatternMatchCellCount,
+  clampPatternMatchCodeLength,
+  clampPatternMatchFlashMs,
+  clampPatternMatchHardness,
+  clampPatternMatchLetterSize,
+  clampPatternMatchRounds,
+  clampPatternMatchTimeLimitSec,
+  DEFAULT_PATTERN_MATCH_BG,
+  DEFAULT_PATTERN_MATCH_CELL_COUNT,
+  DEFAULT_PATTERN_MATCH_CHAR_COLOR,
+  DEFAULT_PATTERN_MATCH_CODE_LENGTH,
+  DEFAULT_PATTERN_MATCH_FLASH_MS,
+  DEFAULT_PATTERN_MATCH_HARDNESS,
+  DEFAULT_PATTERN_MATCH_ROUNDS,
+  PATTERN_MATCH_BG_COLORS,
+  PATTERN_MATCH_CELL_COUNT_PRESETS,
+  PATTERN_MATCH_CHAR_COLORS,
+  PATTERN_MATCH_CODE_LENGTH_PRESETS,
+  PATTERN_MATCH_FLASH_MS_PRESETS,
+  PATTERN_MATCH_LETTER_SIZE_PRESETS,
+  PATTERN_MATCH_ROUNDS_PRESETS,
+  PATTERN_MATCH_TIME_LIMIT_PRESETS,
+  patternMatchFlashLabel,
+  patternMatchHardnessLabel,
+  patternMatchPreviewCodes,
+  clampPatternMatchStimulusMode,
+  DEFAULT_PATTERN_MATCH_STIMULUS,
+  type PatternMatchHardness,
+  type PatternMatchStimulusMode,
+} from './pattern-match-logic';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
@@ -125,6 +156,16 @@ export interface AppliedClinicalSettings {
   numberSearchLayout?: NumberSearchLayoutMode;
   /** Number Search: total field characters (0 = auto). */
   numberSearchFieldCount?: number;
+  /** Pattern Match: digit code length (2–4). */
+  patternMatchCodeLength?: number;
+  /** Pattern Match: flash duration ms (0 = always visible). */
+  patternMatchFlashMs?: number;
+  /** Pattern Match: cells in the search field. */
+  patternMatchCellCount?: number;
+  /** Pattern Match: distractor difficulty. */
+  patternMatchHardness?: PatternMatchHardness;
+  /** Pattern Match: encode→search boards per session (1–5). */
+  patternMatchRounds?: number;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -183,6 +224,7 @@ export interface ClinicalSettingsModalProps {
   numberRangeTo?: number;
   showPeripheralViewControls?: boolean;
   showNumberSearchControls?: boolean;
+  showPatternMatchControls?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
   batchesPerSession?: number;
@@ -196,6 +238,18 @@ export interface ClinicalSettingsModalProps {
   numberSearchLayout?: NumberSearchLayoutMode;
   /** Number Search: total characters on field (0 = auto fill). */
   numberSearchFieldCount?: number;
+  /** Pattern Match: digit code length. */
+  patternMatchCodeLength?: number;
+  /** Pattern Match: encoding flash ms (0 = stay on). */
+  patternMatchFlashMs?: number;
+  /** Pattern Match: field cell count. */
+  patternMatchCellCount?: number;
+  /** Pattern Match: near-miss hardness. */
+  patternMatchHardness?: PatternMatchHardness;
+  /** Pattern Match: boards to clear before results (1–5). */
+  patternMatchRounds?: number;
+  /** Pattern Match: digits vs compound alphanumeric preview/play mode. */
+  patternMatchStimulusMode?: PatternMatchStimulusMode;
   /** Letter/number bubble fill picker. Hide for color-discrimination modes. */
   showStimuliColorPicker?: boolean;
   stimuliColor?: string;
@@ -269,6 +323,7 @@ export function ClinicalSettingsModal({
   numberRangeTo = DEFAULT_SORTING_NUMBER_TO,
   showPeripheralViewControls = false,
   showNumberSearchControls = false,
+  showPatternMatchControls = false,
   hexSizePx = 64,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
@@ -279,6 +334,12 @@ export function ClinicalSettingsModal({
   targetDigitCount = DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
   numberSearchLayout = DEFAULT_NUMBER_SEARCH_LAYOUT,
   numberSearchFieldCount = DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
+  patternMatchCodeLength = DEFAULT_PATTERN_MATCH_CODE_LENGTH,
+  patternMatchFlashMs = DEFAULT_PATTERN_MATCH_FLASH_MS,
+  patternMatchCellCount = DEFAULT_PATTERN_MATCH_CELL_COUNT,
+  patternMatchHardness = DEFAULT_PATTERN_MATCH_HARDNESS,
+  patternMatchRounds = DEFAULT_PATTERN_MATCH_ROUNDS,
+  patternMatchStimulusMode = DEFAULT_PATTERN_MATCH_STIMULUS,
   showStimuliColorPicker = false,
   stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
   showBubbleAppearancePicker = false,
@@ -342,6 +403,21 @@ export function ClinicalSettingsModal({
   );
   const [tempNumberSearchFieldCount, setTempNumberSearchFieldCount] = useState<number>(
     clampNumberSearchFieldCount(numberSearchFieldCount),
+  );
+  const [tempPatternMatchCodeLength, setTempPatternMatchCodeLength] = useState<number>(
+    clampPatternMatchCodeLength(patternMatchCodeLength),
+  );
+  const [tempPatternMatchFlashMs, setTempPatternMatchFlashMs] = useState<number>(
+    clampPatternMatchFlashMs(patternMatchFlashMs),
+  );
+  const [tempPatternMatchCellCount, setTempPatternMatchCellCount] = useState<number>(
+    clampPatternMatchCellCount(patternMatchCellCount),
+  );
+  const [tempPatternMatchHardness, setTempPatternMatchHardness] = useState<PatternMatchHardness>(
+    clampPatternMatchHardness(patternMatchHardness),
+  );
+  const [tempPatternMatchRounds, setTempPatternMatchRounds] = useState<number>(
+    clampPatternMatchRounds(patternMatchRounds),
   );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -407,10 +483,21 @@ export function ClinicalSettingsModal({
       setTempTargetDigitCount(clampNumberSearchTargetDigits(targetDigitCount));
       setTempNumberSearchLayout(clampNumberSearchLayoutMode(numberSearchLayout));
       setTempNumberSearchFieldCount(clampNumberSearchFieldCount(numberSearchFieldCount));
+      setTempPatternMatchCodeLength(clampPatternMatchCodeLength(patternMatchCodeLength));
+      setTempPatternMatchFlashMs(clampPatternMatchFlashMs(patternMatchFlashMs));
+      setTempPatternMatchCellCount(clampPatternMatchCellCount(patternMatchCellCount));
+      setTempPatternMatchHardness(clampPatternMatchHardness(patternMatchHardness));
+      setTempPatternMatchRounds(clampPatternMatchRounds(patternMatchRounds));
       if (showNumberSearchControls) {
         setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
         setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
         setTempShapeColor(shapeColor || DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
+      }
+      if (showPatternMatchControls) {
+        setTempLetterSize(clampPatternMatchLetterSize(letterSize));
+        setTempTimeLimitSec(clampPatternMatchTimeLimitSec(timeLimitSec));
+        setTempBgColor(bgColor || DEFAULT_PATTERN_MATCH_BG);
+        setTempShapeColor(shapeColor || DEFAULT_PATTERN_MATCH_CHAR_COLOR);
       }
       setConfirmApplyOpen(false);
       requestFullScreenSafe();
@@ -465,8 +552,14 @@ export function ClinicalSettingsModal({
     targetDigitCount,
     numberSearchLayout,
     numberSearchFieldCount,
+    patternMatchCodeLength,
+    patternMatchFlashMs,
+    patternMatchCellCount,
+    patternMatchHardness,
+    patternMatchRounds,
     showPeripheralViewControls,
     showNumberSearchControls,
+    showPatternMatchControls,
   ]);
 
   if (!isOpen || !portalReady) return null;
@@ -483,7 +576,9 @@ export function ClinicalSettingsModal({
         ? clampPeripheralLetterSize(tempLetterSize)
         : showNumberSearchControls
           ? clampNumberSearchLetterSize(tempLetterSize)
-          : tempLetterSize,
+          : showPatternMatchControls
+            ? clampPatternMatchLetterSize(tempLetterSize)
+            : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -511,7 +606,9 @@ export function ClinicalSettingsModal({
       ocularity: tempOcularity,
       timeLimitSec: showNumberSearchControls
         ? clampNumberSearchTimeLimitSec(tempTimeLimitSec)
-        : tempTimeLimitSec,
+        : showPatternMatchControls
+          ? clampPatternMatchTimeLimitSec(tempTimeLimitSec)
+          : tempTimeLimitSec,
       contrastSensitivity: tempContrastSensitivity,
       bgColor: tempBgColor,
       shapeColor: tempShapeColor,
@@ -538,6 +635,21 @@ export function ClinicalSettingsModal({
       numberSearchFieldCount: showNumberSearchControls
         ? clampNumberSearchFieldCount(tempNumberSearchFieldCount)
         : tempNumberSearchFieldCount,
+      patternMatchCodeLength: showPatternMatchControls
+        ? clampPatternMatchCodeLength(tempPatternMatchCodeLength)
+        : tempPatternMatchCodeLength,
+      patternMatchFlashMs: showPatternMatchControls
+        ? clampPatternMatchFlashMs(tempPatternMatchFlashMs)
+        : tempPatternMatchFlashMs,
+      patternMatchCellCount: showPatternMatchControls
+        ? clampPatternMatchCellCount(tempPatternMatchCellCount)
+        : tempPatternMatchCellCount,
+      patternMatchHardness: showPatternMatchControls
+        ? clampPatternMatchHardness(tempPatternMatchHardness)
+        : tempPatternMatchHardness,
+      patternMatchRounds: showPatternMatchControls
+        ? clampPatternMatchRounds(tempPatternMatchRounds)
+        : tempPatternMatchRounds,
     };
   };
 
@@ -549,7 +661,9 @@ export function ClinicalSettingsModal({
         ? clampPeripheralLetterSize(letterSize)
         : showNumberSearchControls
           ? clampNumberSearchLetterSize(letterSize)
-          : letterSize,
+          : showPatternMatchControls
+            ? clampPatternMatchLetterSize(letterSize)
+            : letterSize,
       bubbleSize,
       speed,
       wheelColor,
@@ -577,7 +691,9 @@ export function ClinicalSettingsModal({
       ocularity,
       timeLimitSec: showNumberSearchControls
         ? clampNumberSearchTimeLimitSec(timeLimitSec)
-        : timeLimitSec,
+        : showPatternMatchControls
+          ? clampPatternMatchTimeLimitSec(timeLimitSec)
+          : timeLimitSec,
       contrastSensitivity,
       bgColor,
       shapeColor,
@@ -604,6 +720,21 @@ export function ClinicalSettingsModal({
       numberSearchFieldCount: showNumberSearchControls
         ? clampNumberSearchFieldCount(numberSearchFieldCount)
         : numberSearchFieldCount,
+      patternMatchCodeLength: showPatternMatchControls
+        ? clampPatternMatchCodeLength(patternMatchCodeLength)
+        : patternMatchCodeLength,
+      patternMatchFlashMs: showPatternMatchControls
+        ? clampPatternMatchFlashMs(patternMatchFlashMs)
+        : patternMatchFlashMs,
+      patternMatchCellCount: showPatternMatchControls
+        ? clampPatternMatchCellCount(patternMatchCellCount)
+        : patternMatchCellCount,
+      patternMatchHardness: showPatternMatchControls
+        ? clampPatternMatchHardness(patternMatchHardness)
+        : patternMatchHardness,
+      patternMatchRounds: showPatternMatchControls
+        ? clampPatternMatchRounds(patternMatchRounds)
+        : patternMatchRounds,
     };
   };
 
@@ -661,11 +792,13 @@ export function ClinicalSettingsModal({
                   ? `Configure ${geoboardBoardName} before the session starts. Every pattern in this board runs in order.`
                   : showNumberSearchControls
                     ? 'Configure glyph size, digit count, contrast colors, and optional session timer for figure–ground search.'
-                    : showPeripheralViewControls
-                      ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
-                      : showPursuitControls
-                        ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
-                        : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
+                    : showPatternMatchControls
+                      ? 'Configure code length, flash encoding, field size, and distractor hardness for pattern memory.'
+                      : showPeripheralViewControls
+                        ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
+                        : showPursuitControls
+                          ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                          : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
               </p>
             </div>
           </div>
@@ -1789,6 +1922,285 @@ export function ClinicalSettingsModal({
                         tempShapeColor === c.code ? 'border-amber-400 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
                       }`}
                       style={{ backgroundColor: c.code, color: c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24' ? '#0F172A' : '#F8FAFC' }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {extraStats}
+            </div>
+          </div>
+        ) : showPatternMatchControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-rose-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Live Code Preview</span>
+                <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">
+                  {clampPatternMatchStimulusMode(patternMatchStimulusMode) === 'compound'
+                    ? 'Compound sample'
+                    : 'Digit sample'}
+                </span>
+              </div>
+
+              {(() => {
+                const preview = patternMatchPreviewCodes(
+                  tempPatternMatchCodeLength,
+                  patternMatchStimulusMode,
+                );
+                return (
+                  <div
+                    className="flex-1 flex flex-col justify-center items-center gap-4 py-8 relative w-full min-h-[200px] rounded-2xl border border-slate-800 overflow-hidden"
+                    style={{ backgroundColor: tempBgColor }}
+                  >
+                    <div
+                      className="font-mono font-black tracking-[0.35em] select-none"
+                      style={{ color: tempShapeColor, fontSize: `${tempLetterSize * 1.4}rem` }}
+                    >
+                      {preview.target}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 opacity-70">
+                      {preview.field.slice(0, 3).map((c) => (
+                        <span
+                          key={c}
+                          className="font-mono font-bold px-2 py-1 rounded-lg border border-slate-600"
+                          style={{ color: tempShapeColor, fontSize: `${tempLetterSize * 0.7}rem` }}
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Patient Profile
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-rose-500 font-medium text-sm transition-all shadow-inner"
+                  style={{ backgroundColor: '#141414' }}
+                  value={tempPatientName}
+                  placeholder="Enter patient name..."
+                  onChange={(e) => setTempPatientName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-rose-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Session Parameters
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Code Length
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PATTERN_MATCH_CODE_LENGTH_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempPatternMatchCodeLength(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempPatternMatchCodeLength === n
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n} digits
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Flash Encoding
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {PATTERN_MATCH_FLASH_MS_PRESETS.map((ms) => (
+                    <button
+                      key={ms}
+                      type="button"
+                      onClick={() => setTempPatternMatchFlashMs(ms)}
+                      className={`py-2.5 rounded-xl text-[11px] font-bold transition-all ${
+                        tempPatternMatchFlashMs === ms
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {patternMatchFlashLabel(ms)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Always on = discrimination only. Timed flash loads visual memory.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Field Size
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {PATTERN_MATCH_CELL_COUNT_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempPatternMatchCellCount(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempPatternMatchCellCount === n
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Distractor Hardness
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['easy', 'medium', 'hard'] as PatternMatchHardness[]).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setTempPatternMatchHardness(h)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempPatternMatchHardness === h
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {patternMatchHardnessLabel(h)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Code Size
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {PATTERN_MATCH_LETTER_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempLetterSize === size
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Rounds per Session
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {PATTERN_MATCH_ROUNDS_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempPatternMatchRounds(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempPatternMatchRounds === n
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Clear this many boards (new code each round) before results. Default is 1.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Time Limit
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {PATTERN_MATCH_TIME_LIMIT_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempTimeLimitSec(sec)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempTimeLimitSec === sec
+                          ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {sec === 0 ? 'Off' : `${sec}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Engine Background
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PATTERN_MATCH_BG_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempBgColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
+                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: c.code,
+                        color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
+                      }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Character Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PATTERN_MATCH_CHAR_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setTempShapeColor(c.code)}
+                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
+                        tempShapeColor === c.code ? 'border-rose-400 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: c.code,
+                        color:
+                          c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
+                            ? '#0F172A'
+                            : '#F8FAFC',
+                      }}
                       title={c.name}
                     >
                       {c.name}

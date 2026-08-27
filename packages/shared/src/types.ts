@@ -89,6 +89,23 @@ export interface NumberSearchSessionResultData extends SessionResultData {
   medianReactionSec: number;
 }
 
+export interface PatternMatchSessionResultData extends SessionResultData {
+  targetCode: string;
+  codeLength: number;
+  matchesConfigured: number;
+  matchesFound: number;
+  matchesRemaining: number;
+  flashMs: number;
+  timeLimitSec: number;
+  roundsConfigured: number;
+  roundsCompleted: number;
+  /** digits = Hold the Code; compound = alphanumeric */
+  stimulusMode: 'digits' | 'compound';
+  endedBy: 'cleared' | 'timeout';
+  deviceTier: DeviceTier;
+  medianReactionSec: number;
+}
+
 export interface RotatoryWheelSettings {
   bubbleCount: number;
   rotationDuration: number;
@@ -184,7 +201,8 @@ export type TherapyModuleId =
   | 'mobile_target'
   | 'geoboard'
   | 'peripheral_view'
-  | 'number_search';
+  | 'number_search'
+  | 'pattern_match';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;
