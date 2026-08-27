@@ -27,7 +27,7 @@ import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { ReplayIcon, SlidersIcon } from '../components/icons';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
 import { startBeeBuzz, stopBeeBuzz } from '../lib/sfx';
-import { useAuth } from '../lib/auth-context';
+import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 
 const PATH_WIDTH_NARROW = 12;
@@ -36,8 +36,7 @@ const FLOWER_REACH_PX = 26;
 const INVISIBLE_CORRIDOR_PX = 72;
 const CORRIDOR_SEARCH_WINDOW = 80;
 
-const DEFAULT_SETTINGS: BeeTracingSettings = {
-  patientName: 'Demo Patient',
+const DEFAULT_SETTINGS: Omit<BeeTracingSettings, 'patientName'> = {
   tracingMode: 'active',
   pathType: 'auto',
   toleranceBandPx: PATH_WIDTH_NARROW,
@@ -122,11 +121,12 @@ export function BeeTracingGame({
   const lockPortrait = !isTablet;
   const insets = useSafeAreaInsets();
   const lockedPathType = resolveBeePathType(initialPathType);
-  const [settings, setSettings] = useState<BeeTracingSettings>({
+  const [settings, setSettings] = useState<BeeTracingSettings>(() => ({
     ...DEFAULT_SETTINGS,
+    patientName: sessionDisplayName(session),
     pathType: lockedPathType,
     orientation: lockPortrait ? 'portrait' : DEFAULT_SETTINGS.orientation,
-  });
+  }));
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
   const [beeHeading, setBeeHeading] = useState(0);

@@ -20,8 +20,8 @@ export interface GameMenuDrawerProps {
   settingsSummary: ClinicalSettingSummaryItem[];
   sessionInProgress?: boolean;
   /**
-   * When true (default), Open Settings is blocked mid-session — reset first.
-   * Set false only to allow opening (Apply still confirms via sessionLocked).
+   * @deprecated Mid-game apply confirmation lives in ClinicalSettingsModal (sessionLocked).
+   * Opening settings mid-session is always allowed.
    */
   lockSettingsWhilePlaying?: boolean;
 }
@@ -36,17 +36,14 @@ export function GameMenuDrawer({
   extraControls,
   settingsSummary,
   sessionInProgress = true,
-  lockSettingsWhilePlaying = true,
 }: GameMenuDrawerProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setConfirmReset(false);
       setConfirmQuit(false);
-      setSettingsLockedOpen(false);
     }
   }, [isOpen]);
 
@@ -61,7 +58,6 @@ export function GameMenuDrawer({
         className="w-[300px] sm:w-[340px] max-w-[88vw] h-full h-[100dvh] max-h-[100dvh] bg-[#111111] text-white p-5 sm:p-6 flex flex-col gap-4 shadow-2xl overflow-y-auto custom-scrollbar touch-pan-y animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* DRAWER HEADER */}
         <div className="flex justify-between items-center border-b border-gray-800 pb-3 shrink-0">
           <h3 className="text-xl font-bold">Menu</h3>
           <button
@@ -72,7 +68,6 @@ export function GameMenuDrawer({
           </button>
         </div>
 
-        {/* SHARED CORE ACTIONS */}
         <button
           className="w-full py-3 px-4 bg-[#B91C1C] border border-red-800 rounded-xl text-white hover:bg-red-700 font-semibold cursor-pointer transition-colors shrink-0"
           onClick={() => {
@@ -109,10 +104,6 @@ export function GameMenuDrawer({
           <button
             className="w-full py-3 px-4 bg-blue-600 border border-blue-500 rounded-xl text-white hover:bg-blue-700 font-semibold cursor-pointer transition-colors shrink-0"
             onClick={() => {
-              if (sessionInProgress && lockSettingsWhilePlaying) {
-                setSettingsLockedOpen(true);
-                return;
-              }
               onClose();
               onOpenSettings();
             }}
@@ -121,10 +112,8 @@ export function GameMenuDrawer({
           </button>
         )}
 
-        {/* GAME-SPECIFIC EXTRA CONTROLS (e.g. Speed buttons) */}
         {extraControls}
 
-        {/* GAME-SPECIFIC CLINICAL SETTINGS SUMMARY */}
         {settingsSummary.length > 0 && (
           <div className="pt-4 mt-2 border-t border-gray-800 flex flex-col gap-2 shrink-0 pb-10 mb-6">
             <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -141,18 +130,6 @@ export function GameMenuDrawer({
           </div>
         )}
       </div>
-      <ResetConfirmDialog
-        isOpen={settingsLockedOpen}
-        title="Settings locked"
-        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
-        cancelLabel="Keep playing"
-        confirmLabel={resetButtonLabel}
-        onCancel={() => setSettingsLockedOpen(false)}
-        onConfirm={() => {
-          setSettingsLockedOpen(false);
-          setConfirmReset(true);
-        }}
-      />
       <ResetConfirmDialog
         isOpen={confirmReset}
         confirmLabel={resetButtonLabel}

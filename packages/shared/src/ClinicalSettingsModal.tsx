@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   SPEED_PRESETS,
@@ -11,6 +11,8 @@ import {
   MAX_SORTING_NUMBER_COUNT,
   STIMULI_BUBBLE_COLOR_OPTIONS,
   STIMULI_COLOR_MIXED,
+  WHEEL_COLOR_PRESETS,
+  wheelColorLabel,
 } from './constants';
 import { requestFullScreenSafe, clampSortingNumberRange, getContrastColor, getDeviceTier, resolveBubblePaint, resolveStimuliBubbleColor } from './game-logic';
 import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
@@ -115,6 +117,34 @@ import {
   locationMemoryGridLabel,
   locationMemoryRecallLabel,
 } from './location-memory-logic';
+import {
+  clampDirectionSenseChoiceCount,
+  clampDirectionSenseShapeSize,
+  clampDirectionSenseTimeLimitSec,
+  clampDirectionSenseTrials,
+  DEFAULT_DIRECTION_SENSE_BG,
+  DEFAULT_DIRECTION_SENSE_CHOICE_COUNT,
+  DEFAULT_DIRECTION_SENSE_ARROW_COLOR,
+  DEFAULT_DIRECTION_SENSE_SHAPE_COLOR,
+  DEFAULT_DIRECTION_SENSE_SHAPE_SIZE,
+  DEFAULT_DIRECTION_SENSE_TRIALS,
+  DEFAULT_DIRECTION_SENSE_TURN_DIRECTION,
+  DIRECTION_SENSE_BG_COLORS,
+  DIRECTION_SENSE_CHOICE_COUNT_PRESETS,
+  DIRECTION_SENSE_SHAPE_COLORS,
+  DIRECTION_SENSE_SHAPE_PATHS,
+  DIRECTION_SENSE_SHAPE_SIZE_PRESETS,
+  DIRECTION_SENSE_SHAPE_STROKE_WIDTH,
+  DIRECTION_SENSE_ARROW_STROKE_WIDTH,
+  DIRECTION_SENSE_TIME_LIMIT_PRESETS,
+  DIRECTION_SENSE_TRIALS_PRESETS,
+  clampDirectionSenseTurnDirection,
+  directionSenseArrowTransform,
+  directionSenseCurvedArrowPath,
+  directionSensePoseTransform,
+  directionSenseTurnDirectionLabel,
+  type DirectionSenseTurnDirection,
+} from './direction-sense-logic';
 import { pursuitPatternName } from './game-registry';
 import {
   AlphabetVariant,
@@ -128,6 +158,56 @@ import {
   PursuitTargetColor,
 } from './types';
 import type { PeripheralBubbleType } from './peripheral-hive-logic';
+
+function FloatingLabelField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  className = '',
+  inputClassName = '',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: 'text' | 'number';
+  className?: string;
+  inputClassName?: string;
+}) {
+  const id = useId();
+  const [focused, setFocused] = useState(false);
+  const floated = focused || value.length > 0;
+
+  return (
+    <div className={className}>
+      <div className="relative">
+        <div className="rounded-xl border border-gray-700 bg-[#141414] transition-all focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20">
+          <input
+            id={id}
+            type={type}
+            value={value}
+            placeholder=" "
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            className={`floating-label-input floating-label-input--dark peer w-full bg-transparent outline-none text-sm font-medium px-4 py-3.5 text-white ${inputClassName}`}
+          />
+        </div>
+        <label
+          htmlFor={id}
+          style={floated ? { backgroundColor: '#141414' } : undefined}
+          className={`pointer-events-none absolute left-3 z-10 transition-all duration-150 ${
+            floated
+              ? 'top-0 -translate-y-1/2 px-1.5 text-[11px] font-semibold tracking-wide text-amber-400'
+              : 'top-1/2 -translate-y-1/2 px-1 text-sm font-semibold text-gray-400'
+          }`}
+        >
+          {label}
+        </label>
+      </div>
+    </div>
+  );
+}
 
 export interface AppliedClinicalSettings {
   patientName: string;
@@ -202,6 +282,14 @@ export interface AppliedClinicalSettings {
   locationMemoryRecallSec?: number;
   /** Location Memory: board size N for N×N (2–4). */
   locationMemoryGridSize?: number;
+  /** Direction Sense: response options per trial (3–4). */
+  directionSenseChoiceCount?: number;
+  /** Direction Sense: trials per session. */
+  directionSenseTrials?: number;
+  /** Direction Sense: probe/option shape diameter px. */
+  directionSenseShapeSizePx?: number;
+  /** Direction Sense: clockwise vs anticlockwise turns. */
+  directionSenseTurnDirection?: DirectionSenseTurnDirection;
 }
 
 export interface ClinicalSettingsModalProps {
@@ -215,6 +303,10 @@ export interface ClinicalSettingsModalProps {
   wheelColor?: string;
   showSpeedControl?: boolean;
   showWheelColorControl?: boolean;
+  /** Section title for the wheel/playfield background picker. */
+  wheelColorTitle?: string;
+  /** Helper text under the background picker title. */
+  wheelColorHint?: string;
   sampleSymbol?: string;
   extraStats?: React.ReactNode;
   showLetterSizeControl?: boolean;
@@ -262,6 +354,7 @@ export interface ClinicalSettingsModalProps {
   showNumberSearchControls?: boolean;
   showPatternMatchControls?: boolean;
   showLocationMemoryControls?: boolean;
+  showDirectionSenseControls?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
   batchesPerSession?: number;
@@ -293,6 +386,10 @@ export interface ClinicalSettingsModalProps {
   locationMemoryExploreSec?: number;
   locationMemoryRecallSec?: number;
   locationMemoryGridSize?: number;
+  directionSenseChoiceCount?: number;
+  directionSenseTrials?: number;
+  directionSenseShapeSizePx?: number;
+  directionSenseTurnDirection?: DirectionSenseTurnDirection;
   /** Letter/number bubble fill picker. Hide for color-discrimination modes. */
   showStimuliColorPicker?: boolean;
   stimuliColor?: string;
@@ -321,6 +418,8 @@ export function ClinicalSettingsModal({
   wheelColor = '#000000',
   showSpeedControl = false,
   showWheelColorControl = false,
+  wheelColorTitle = 'Wheel Color',
+  wheelColorHint = 'Background color of the spinning wheel.',
   sampleSymbol = 'A',
   extraStats,
   showLetterSizeControl = true,
@@ -368,6 +467,7 @@ export function ClinicalSettingsModal({
   showNumberSearchControls = false,
   showPatternMatchControls = false,
   showLocationMemoryControls = false,
+  showDirectionSenseControls = false,
   hexSizePx = 64,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
@@ -389,6 +489,10 @@ export function ClinicalSettingsModal({
   locationMemoryExploreSec = DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
   locationMemoryRecallSec = DEFAULT_LOCATION_MEMORY_RECALL_SEC,
   locationMemoryGridSize = DEFAULT_LOCATION_MEMORY_GRID_SIZE,
+  directionSenseChoiceCount = DEFAULT_DIRECTION_SENSE_CHOICE_COUNT,
+  directionSenseTrials = DEFAULT_DIRECTION_SENSE_TRIALS,
+  directionSenseShapeSizePx = DEFAULT_DIRECTION_SENSE_SHAPE_SIZE,
+  directionSenseTurnDirection = DEFAULT_DIRECTION_SENSE_TURN_DIRECTION,
   showStimuliColorPicker = false,
   stimuliColor = DEFAULT_STIMULI_BUBBLE_COLOR,
   showBubbleAppearancePicker = false,
@@ -483,6 +587,17 @@ export function ClinicalSettingsModal({
   const [tempLocationMemoryGridSize, setTempLocationMemoryGridSize] = useState<number>(
     clampLocationMemoryGridSize(locationMemoryGridSize),
   );
+  const [tempDirectionSenseChoiceCount, setTempDirectionSenseChoiceCount] = useState<number>(
+    clampDirectionSenseChoiceCount(directionSenseChoiceCount),
+  );
+  const [tempDirectionSenseTrials, setTempDirectionSenseTrials] = useState<number>(
+    clampDirectionSenseTrials(directionSenseTrials),
+  );
+  const [tempDirectionSenseShapeSizePx, setTempDirectionSenseShapeSizePx] = useState<number>(
+    clampDirectionSenseShapeSize(directionSenseShapeSizePx),
+  );
+  const [tempDirectionSenseTurnDirection, setTempDirectionSenseTurnDirection] =
+    useState<DirectionSenseTurnDirection>(clampDirectionSenseTurnDirection(directionSenseTurnDirection));
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const deviceTier = getDeviceTier();
@@ -559,6 +674,10 @@ export function ClinicalSettingsModal({
       setTempLocationMemoryRounds(clampLocationMemoryRounds(locationMemoryRounds));
       setTempLocationMemoryExploreSec(clampLocationMemoryExploreSec(locationMemoryExploreSec));
       setTempLocationMemoryRecallSec(clampLocationMemoryRecallSec(locationMemoryRecallSec));
+      setTempDirectionSenseChoiceCount(clampDirectionSenseChoiceCount(directionSenseChoiceCount));
+      setTempDirectionSenseTrials(clampDirectionSenseTrials(directionSenseTrials));
+      setTempDirectionSenseShapeSizePx(clampDirectionSenseShapeSize(directionSenseShapeSizePx));
+      setTempDirectionSenseTurnDirection(clampDirectionSenseTurnDirection(directionSenseTurnDirection));
       if (showNumberSearchControls) {
         setTempTimeLimitSec(clampNumberSearchTimeLimitSec(timeLimitSec));
         setTempBgColor(bgColor || DEFAULT_NUMBER_SEARCH_BG);
@@ -574,6 +693,10 @@ export function ClinicalSettingsModal({
         setTempLetterSize(clampLocationMemoryLetterSize(letterSize));
         setTempBgColor(bgColor || DEFAULT_LOCATION_MEMORY_BG);
         setTempShapeColor(shapeColor || DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
+      }
+      if (showDirectionSenseControls) {
+        setTempBgColor(bgColor || DEFAULT_DIRECTION_SENSE_BG);
+        setTempShapeColor(shapeColor || DEFAULT_DIRECTION_SENSE_SHAPE_COLOR);
       }
       setConfirmApplyOpen(false);
       requestFullScreenSafe();
@@ -642,6 +765,11 @@ export function ClinicalSettingsModal({
     showNumberSearchControls,
     showPatternMatchControls,
     showLocationMemoryControls,
+    showDirectionSenseControls,
+    directionSenseChoiceCount,
+    directionSenseTrials,
+    directionSenseShapeSizePx,
+    directionSenseTurnDirection,
   ]);
 
   if (!isOpen || !portalReady) return null;
@@ -662,7 +790,7 @@ export function ClinicalSettingsModal({
             ? clampPatternMatchLetterSize(tempLetterSize)
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(tempLetterSize)
-            : tempLetterSize,
+              : tempLetterSize,
       bubbleSize: tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
@@ -692,7 +820,9 @@ export function ClinicalSettingsModal({
         ? clampNumberSearchTimeLimitSec(tempTimeLimitSec)
         : showPatternMatchControls
           ? clampPatternMatchTimeLimitSec(tempTimeLimitSec)
-          : tempTimeLimitSec,
+          : showDirectionSenseControls
+            ? clampDirectionSenseTimeLimitSec(tempTimeLimitSec)
+            : tempTimeLimitSec,
       contrastSensitivity: tempContrastSensitivity,
       bgColor: tempBgColor,
       shapeColor: tempShapeColor,
@@ -749,6 +879,18 @@ export function ClinicalSettingsModal({
       locationMemoryGridSize: showLocationMemoryControls
         ? clampLocationMemoryGridSize(tempLocationMemoryGridSize)
         : tempLocationMemoryGridSize,
+      directionSenseChoiceCount: showDirectionSenseControls
+        ? clampDirectionSenseChoiceCount(tempDirectionSenseChoiceCount)
+        : tempDirectionSenseChoiceCount,
+      directionSenseTrials: showDirectionSenseControls
+        ? clampDirectionSenseTrials(tempDirectionSenseTrials)
+        : tempDirectionSenseTrials,
+      directionSenseShapeSizePx: showDirectionSenseControls
+        ? clampDirectionSenseShapeSize(tempDirectionSenseShapeSizePx)
+        : tempDirectionSenseShapeSizePx,
+      directionSenseTurnDirection: showDirectionSenseControls
+        ? clampDirectionSenseTurnDirection(tempDirectionSenseTurnDirection)
+        : tempDirectionSenseTurnDirection,
     };
   };
 
@@ -794,7 +936,9 @@ export function ClinicalSettingsModal({
         ? clampNumberSearchTimeLimitSec(timeLimitSec)
         : showPatternMatchControls
           ? clampPatternMatchTimeLimitSec(timeLimitSec)
-          : timeLimitSec,
+          : showDirectionSenseControls
+            ? clampDirectionSenseTimeLimitSec(timeLimitSec)
+            : timeLimitSec,
       contrastSensitivity,
       bgColor,
       shapeColor,
@@ -851,6 +995,18 @@ export function ClinicalSettingsModal({
       locationMemoryGridSize: showLocationMemoryControls
         ? clampLocationMemoryGridSize(locationMemoryGridSize)
         : locationMemoryGridSize,
+      directionSenseChoiceCount: showDirectionSenseControls
+        ? clampDirectionSenseChoiceCount(directionSenseChoiceCount)
+        : directionSenseChoiceCount,
+      directionSenseTrials: showDirectionSenseControls
+        ? clampDirectionSenseTrials(directionSenseTrials)
+        : directionSenseTrials,
+      directionSenseShapeSizePx: showDirectionSenseControls
+        ? clampDirectionSenseShapeSize(directionSenseShapeSizePx)
+        : directionSenseShapeSizePx,
+      directionSenseTurnDirection: showDirectionSenseControls
+        ? clampDirectionSenseTurnDirection(directionSenseTurnDirection)
+        : directionSenseTurnDirection,
     };
   };
 
@@ -912,6 +1068,8 @@ export function ClinicalSettingsModal({
                       ? 'Configure code length, flash encoding, field size, and distractor hardness for pattern memory.'
                       : showLocationMemoryControls
                         ? 'Configure explore time, recall timing, active cells, and contrast for spatial location memory.'
+                        : showDirectionSenseControls
+                          ? 'Configure choice count, trials, shape size, and contrast for spatial directionality.'
                       : showPeripheralViewControls
                         ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
                         : showPursuitControls
@@ -952,19 +1110,7 @@ export function ClinicalSettingsModal({
               </div>
 
               {/* Patient Name Input */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-teal-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
 
               {/* Letter Case — Board 02 only */}
               {geoboardSupportsLetterCase && (
@@ -1355,19 +1501,7 @@ export function ClinicalSettingsModal({
               </div>
 
               {/* Patient Name Input */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
 
               {/* Movement Pattern — locked to the selected level */}
               <div>
@@ -1529,19 +1663,7 @@ export function ClinicalSettingsModal({
               </div>
 
               {/* Patient Name Input */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-blue-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
 
               {/* Rounds per Session / Set */}
               <div>
@@ -1853,19 +1975,7 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Profile
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-amber-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
             </div>
 
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -2094,19 +2204,7 @@ export function ClinicalSettingsModal({
                 );
               })()}
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Profile
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-rose-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
             </div>
 
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -2363,18 +2461,7 @@ export function ClinicalSettingsModal({
                   },
                 )}
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Profile
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-amber-500 font-medium text-sm"
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
             </div>
 
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -2645,19 +2732,7 @@ export function ClinicalSettingsModal({
                 </span>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
-              </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
             </div>
 
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -2855,130 +2930,246 @@ export function ClinicalSettingsModal({
               {extraStats}
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch w-full">
-            <div className="lg:col-span-4 flex flex-col">
+        ) : showDirectionSenseControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-sky-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Live Preview
+              </div>
               <div
-                className="bg-[#0B1220] p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center justify-between gap-5 overflow-hidden shadow-inner relative h-full min-h-[280px]"
+                className="flex-1 flex flex-col justify-center items-center gap-6 py-8 relative w-full min-h-[220px] rounded-2xl border border-slate-800 overflow-hidden"
+                style={{ backgroundColor: tempBgColor }}
               >
-                <div className="w-full flex items-center justify-between text-xs font-extrabold text-cyan-300 uppercase tracking-widest">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse inline-block" />
-                    Live Preview
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">Matches play size</span>
-                </div>
-
-                <div
-                  className="flex-1 flex justify-center items-center py-4 relative w-full min-h-[180px] rounded-2xl"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(circle at center, rgba(34,211,238,0.08) 0, transparent 55%), repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px), repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px)',
-                  }}
-                >
-                  <div
-                    className="rounded-full flex justify-center items-center font-extrabold transition-all duration-200 select-none shadow-[0_12px_40px_rgba(47,128,255,0.35)]"
-                    style={{
-                      width: `${tempBubbleSize}px`,
-                      height: `${tempBubbleSize}px`,
-                      fontSize: `${tempLetterSize}rem`,
-                      backgroundColor: bubblePreviewPaint.backgroundColor,
-                      border: `${bubblePreviewPaint.borderWidth}px solid ${bubblePreviewPaint.borderColor}`,
-                      color: bubblePreviewPaint.textColor,
-                    }}
+                <div className="flex items-center gap-6">
+                  <svg width={tempDirectionSenseShapeSizePx} height={tempDirectionSenseShapeSizePx} viewBox="0 0 100 100" aria-hidden>
+                    <path
+                      d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                      fill="none"
+                      stroke={tempShapeColor}
+                      strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      transform={directionSensePoseTransform({ orientation: 0, flipH: false })}
+                    />
+                  </svg>
+                  <svg
+                    width={Math.round(tempDirectionSenseShapeSizePx * 0.52)}
+                    height={Math.round(tempDirectionSenseShapeSizePx * 0.52)}
+                    viewBox="0 0 100 100"
+                    aria-hidden
                   >
-                    <span>{sampleSymbol}</span>
-                  </div>
+                    <path
+                      d={directionSenseCurvedArrowPath(90, tempDirectionSenseTurnDirection)}
+                      fill="none"
+                      stroke={DEFAULT_DIRECTION_SENSE_ARROW_COLOR}
+                      strokeWidth={DIRECTION_SENSE_ARROW_STROKE_WIDTH}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      transform={directionSenseArrowTransform(tempDirectionSenseTurnDirection)}
+                    />
+                  </svg>
                 </div>
-
-                <div className="flex gap-4 text-xs sm:text-sm text-slate-300 font-mono px-5 py-2.5 rounded-full border border-slate-700 bg-slate-950/80">
-                  <span>Bubble <strong className="text-cyan-300">{tempBubbleSize}px</strong></span>
-                  {showLetterSizeControl ? (
-                    <>
-                      <span className="text-slate-600">·</span>
-                      <span>Letter <strong className="text-cyan-300">{tempLetterSize}</strong></span>
-                    </>
-                  ) : null}
+                <div className="flex gap-3">
+                  {([0, 1, 2] as const).map((ori) => (
+                    <div
+                      key={ori}
+                      className="rounded-xl border border-slate-600 p-2"
+                      style={{
+                        width: Math.round(tempDirectionSenseShapeSizePx * 0.55),
+                        height: Math.round(tempDirectionSenseShapeSizePx * 0.55),
+                      }}
+                    >
+                      <svg width="100%" height="100%" viewBox="0 0 100 100">
+                        <path
+                          d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                          fill="none"
+                          stroke={tempShapeColor}
+                          strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          transform={directionSensePoseTransform({ orientation: ori, flipH: false })}
+                        />
+                      </svg>
+                    </div>
+                  ))}
                 </div>
               </div>
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
             </div>
 
-            <div className="lg:col-span-5 flex flex-col gap-5">
-              {showLetterSizeControl ? (
-              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
-                    Letter Size
-                  </span>
-                  <span className="font-black text-cyan-300 font-mono text-lg">{tempLetterSize}</span>
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {[1, 1.5, 2, 2.5, 3].map((size) => (
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="text-sm font-extrabold text-sky-400 uppercase tracking-wider border-b border-gray-800 pb-3">
+                Session Parameters
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Turn Direction
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['cw', 'ccw'] as const).map((dir) => (
                     <button
-                      key={size}
+                      key={dir}
                       type="button"
-                      onClick={() => setTempLetterSize(size)}
-                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
-                        tempLetterSize === size
-                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      onClick={() => setTempDirectionSenseTurnDirection(dir)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempDirectionSenseTurnDirection === dir
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                       }`}
                     >
-                      {size}
+                      {directionSenseTurnDirectionLabel(dir)}
                     </button>
                   ))}
                 </div>
               </div>
-              ) : null}
 
-              {!showPeripheralViewControls ? (
-              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg flex-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
-                    Bubble Size
-                  </span>
-                  <span className="font-black text-cyan-300 font-mono text-lg">{tempBubbleSize}px</span>
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Choices per Trial
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {DIRECTION_SENSE_CHOICE_COUNT_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempDirectionSenseChoiceCount(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempDirectionSenseChoiceCount === n
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n} options
+                    </button>
+                  ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Trials
+                </label>
                 <div className="grid grid-cols-4 gap-2">
-                  {BUBBLE_SIZE_PRESETS.map((size) => (
+                  {DIRECTION_SENSE_TRIALS_PRESETS.map((n) => (
                     <button
-                      key={size}
+                      key={n}
                       type="button"
-                      onClick={() => setTempBubbleSize(size)}
-                      className={`py-3 rounded-2xl text-sm font-black transition-all ${
-                        tempBubbleSize === size
-                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      onClick={() => setTempDirectionSenseTrials(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempDirectionSenseTrials === n
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                       }`}
                     >
-                      {size}
+                      {n}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500">Tablets default to 100px. Phones keep the smaller size.</p>
               </div>
-              ) : null}
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Shape Size
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {DIRECTION_SENSE_SHAPE_SIZE_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTempDirectionSenseShapeSizePx(n)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        tempDirectionSenseShapeSizePx === n
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {n}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Session Timer
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {DIRECTION_SENSE_TIME_LIMIT_PRESETS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setTempTimeLimitSec(sec)}
+                      className={`py-2.5 rounded-xl text-[11px] font-bold transition-all ${
+                        tempTimeLimitSec === sec
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {sec === 0 ? 'Off' : `${sec}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Background
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {DIRECTION_SENSE_BG_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      title={c.name}
+                      onClick={() => setTempBgColor(c.code)}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        tempBgColor.toLowerCase() === c.code.toLowerCase()
+                          ? 'border-white scale-110'
+                          : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Shape Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {DIRECTION_SENSE_SHAPE_COLORS.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      title={c.name}
+                      onClick={() => setTempShapeColor(c.code)}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        tempShapeColor.toLowerCase() === c.code.toLowerCase()
+                          ? 'border-white scale-110'
+                          : 'border-transparent opacity-80 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.code }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {extraStats}
             </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch w-full">
+            {/* COLUMN 1 (LEFT): PATIENT + MOTION + WHEEL */}
 
-
-            {/* COLUMN 3 (RIGHT): PATIENT PROFILE & DYNAMICS */}
-            <div className="lg:col-span-3 flex flex-col gap-5 justify-between">
-              {/* PATIENT NAME CARD */}
+            <div className="lg:col-span-3 flex flex-col gap-5">
               <div
                 className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
                 style={{ backgroundColor: '#242424' }}
               >
-                <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider">
-                  Patient Profile
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3.5 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-blue-500 font-medium text-sm transition-all shadow-inner"
-                  style={{ backgroundColor: '#141414' }}
-                  value={tempPatientName}
-                  placeholder="Enter patient name..."
-                  onChange={(e) => setTempPatientName(e.target.value)}
-                />
+                <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
               </div>
 
               {showNumberRangeControl ? (
@@ -2990,24 +3181,20 @@ export function ClinicalSettingsModal({
                     Any start. At most {MAX_SORTING_NUMBER_COUNT} numbers (default {DEFAULT_SORTING_NUMBER_FROM}–{DEFAULT_SORTING_NUMBER_TO}).
                   </p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-slate-400">From</span>
-                      <input
-                        type="number"
-                        className="w-full mt-1 p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-400 font-mono"
-                        value={tempNumberRangeFrom}
-                        onChange={(e) => setTempNumberRangeFrom(parseInt(e.target.value, 10))}
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-slate-400">To</span>
-                      <input
-                        type="number"
-                        className="w-full mt-1 p-3 bg-[#141414] border border-gray-700 rounded-xl text-white outline-none focus:border-cyan-400 font-mono"
-                        value={tempNumberRangeTo}
-                        onChange={(e) => setTempNumberRangeTo(parseInt(e.target.value, 10))}
-                      />
-                    </div>
+                    <FloatingLabelField
+                      label="From"
+                      type="number"
+                      value={String(Number.isFinite(tempNumberRangeFrom) ? tempNumberRangeFrom : '')}
+                      onChange={(v) => setTempNumberRangeFrom(parseInt(v, 10))}
+                      inputClassName="font-mono"
+                    />
+                    <FloatingLabelField
+                      label="To"
+                      type="number"
+                      value={String(Number.isFinite(tempNumberRangeTo) ? tempNumberRangeTo : '')}
+                      onChange={(v) => setTempNumberRangeTo(parseInt(v, 10))}
+                      inputClassName="font-mono"
+                    />
                   </div>
                   <p className="text-xs text-cyan-300 font-semibold">
                     {(() => {
@@ -3019,7 +3206,6 @@ export function ClinicalSettingsModal({
                 </div>
               ) : null}
 
-              {/* SPEED CONTROL CARD (IF APPLICABLE) */}
               {showSpeedControl && (
                 <div
                   className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 shadow-lg"
@@ -3051,8 +3237,107 @@ export function ClinicalSettingsModal({
                 </div>
               )}
 
-              {/* BUBBLE STYLE — solid fill vs colored border */}
-              {showBubbleAppearancePicker && (
+              {showWheelColorControl ? (
+                <div
+                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider block mb-1.5">
+                    {wheelColorTitle}
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-3">{wheelColorHint}</p>
+                  <div className="flex flex-wrap gap-2.5 items-start">
+                    {WHEEL_COLOR_PRESETS.map((c) => {
+                      const active = tempWheelColor.toLowerCase() === c.code.toLowerCase();
+                      return (
+                        <button
+                          key={c.code}
+                          type="button"
+                          title={c.name}
+                          aria-label={`Wheel color ${c.name}`}
+                          onClick={() => setTempWheelColor(c.code)}
+                          className={`flex flex-col items-center gap-1 w-14 ${
+                            active ? 'opacity-100' : 'opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <span
+                            className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                              active ? 'border-cyan-400 scale-110' : 'border-slate-600'
+                            }`}
+                            style={{ backgroundColor: c.code }}
+                          />
+                          <span className={`text-[9px] font-bold text-center leading-tight ${active ? 'text-white' : 'text-gray-500'}`}>
+                            {c.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-[11px] font-bold text-gray-400">{wheelColorLabel(tempWheelColor)}</p>
+                </div>
+              ) : null}
+
+              {extraStats}
+            </div>
+
+            {/* COLUMN 2 (MIDDLE): STIMULUS / BUBBLE CONTROLS */}
+            <div className="lg:col-span-5 flex flex-col gap-5">
+              {showLetterSizeControl ? (
+              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
+                    Letter Size
+                  </span>
+                  <span className="font-black text-cyan-300 font-mono text-lg">{tempLetterSize}</span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 1.5, 2, 2.5, 3].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempLetterSize(size)}
+                      className={`py-2.5 rounded-xl text-xs font-black transition-all ${
+                        tempLetterSize === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              ) : null}
+
+              {!showPeripheralViewControls ? (
+              <div className="bg-[#1E293B] p-6 rounded-3xl border border-slate-700/80 flex flex-col gap-4 shadow-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wider">
+                    Bubble Size
+                  </span>
+                  <span className="font-black text-cyan-300 font-mono text-lg">{tempBubbleSize}px</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {BUBBLE_SIZE_PRESETS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setTempBubbleSize(size)}
+                      className={`py-3 rounded-2xl text-sm font-black transition-all ${
+                        tempBubbleSize === size
+                          ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/30'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500">Tablets default to 100px. Phones keep the smaller size.</p>
+              </div>
+              ) : null}
+
+              {showBubbleAppearancePicker ? (
                 <div
                   className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
                   style={{ backgroundColor: '#242424' }}
@@ -3080,10 +3365,9 @@ export function ClinicalSettingsModal({
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {/* STIMULI COLOR — letter/number bubbles (not color-discrimination) */}
-              {showStimuliColorPicker && (
+              {showStimuliColorPicker ? (
                 <div
                   className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
                   style={{ backgroundColor: '#242424' }}
@@ -3147,35 +3431,56 @@ export function ClinicalSettingsModal({
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
+            </div>
 
-              {/* WHEEL COLOR CARD (IF APPLICABLE) */}
-              {showWheelColorControl && (
+            {/* COLUMN 3 (RIGHT): LIVE PREVIEW */}
+            <div className="lg:col-span-4 flex flex-col">
+              <div
+                className="bg-[#0B1220] p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center gap-5 overflow-hidden shadow-inner relative h-full"
+              >
+                <div className="w-full flex items-center justify-between text-xs font-extrabold text-cyan-300 uppercase tracking-widest shrink-0">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse inline-block" />
+                    Live Preview
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">Matches play size</span>
+                </div>
+
                 <div
-                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex items-center justify-between gap-4 shadow-lg"
-                  style={{ backgroundColor: '#242424' }}
+                  className="flex-1 flex justify-center items-center py-6 relative w-full rounded-2xl min-h-[120px]"
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at center, rgba(34,211,238,0.08) 0, transparent 55%), repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px), repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(148,163,184,0.08) 19px)',
+                  }}
                 >
-                  <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider">
-                    Wheel Color
-                  </label>
                   <div
-                    className="flex items-center gap-3.5 p-2 px-3.5 rounded-xl border border-gray-700 shadow-inner"
-                    style={{ backgroundColor: '#141414' }}
+                    className="rounded-full flex justify-center items-center font-extrabold transition-all duration-200 select-none shadow-[0_12px_40px_rgba(47,128,255,0.35)]"
+                    style={{
+                      width: `${tempBubbleSize}px`,
+                      height: `${tempBubbleSize}px`,
+                      fontSize: `${tempLetterSize}rem`,
+                      backgroundColor: bubblePreviewPaint.backgroundColor,
+                      border: `${bubblePreviewPaint.borderWidth}px solid ${bubblePreviewPaint.borderColor}`,
+                      color: bubblePreviewPaint.textColor,
+                    }}
                   >
-                    <input
-                      type="color"
-                      className="w-9 h-9 bg-transparent border-none cursor-pointer rounded"
-                      value={tempWheelColor}
-                      onChange={(e) => setTempWheelColor(e.target.value)}
-                    />
-                    <span className="text-sm font-mono text-gray-200 font-bold">{tempWheelColor}</span>
+                    <span>{sampleSymbol}</span>
                   </div>
                 </div>
-              )}
 
-              {/* EXTRA STATS INTEGRATION */}
-              {extraStats}
+                <div className="flex gap-4 text-xs sm:text-sm text-slate-300 font-mono px-5 py-2.5 rounded-full border border-slate-700 bg-slate-950/80 shrink-0">
+                  <span>Bubble <strong className="text-cyan-300">{tempBubbleSize}px</strong></span>
+                  {showLetterSizeControl ? (
+                    <>
+                      <span className="text-slate-600">·</span>
+                      <span>Letter <strong className="text-cyan-300">{tempLetterSize}</strong></span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
             </div>
+          </div>
           </div>
         )}
 

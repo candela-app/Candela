@@ -32,12 +32,13 @@ import {
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
+  wheelColorLabel,
   type BubbleAppearance,
 } from '@candela/shared';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
-import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
@@ -53,6 +54,7 @@ export function RotatoryWheelGame({
   initialVariant = 'uppercase',
   onExit,
 }: RotatoryWheelGameProps) {
+  const { session } = useAuth();
   const [mode] = useState<GameMode>(initialMode);
   const [variant] = useState<AlphabetVariant>(initialVariant);
   const [isPaused, setIsPaused] = useState<boolean>(true);
@@ -62,17 +64,22 @@ export function RotatoryWheelGame({
   const [targetColor, setTargetColor] = useState<string>('#ff5722');
 
   // Clinical Settings
-  const [patientName, setPatientName] = useState<string>('Demo Patient');
+  const [patientName, setPatientName] = useState<string>(() => sessionDisplayName(session));
   const [letterSize, setLetterSize] = useState<number>(2.5);
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'rotatory'));
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
 
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setPatientName((prev) => (prev === name ? prev : name));
+  }, [session?.user?.name]);
+
   // Settings, Click to Start & Results Modal State
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
@@ -718,10 +725,6 @@ export function RotatoryWheelGame({
           <button
             onClick={() => {
               setIsAssistiveTouchOpen(false);
-              if (isGameStarted && !isResultsOpen) {
-                setSettingsLockedOpen(true);
-                return;
-              }
               setIsPaused(true);
               if (typeof window !== 'undefined' && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
@@ -805,7 +808,7 @@ export function RotatoryWheelGame({
                   className="w-3.5 h-3.5 rounded-full border border-gray-600 inline-block shadow-sm"
                   style={{ backgroundColor: wheelColor }}
                 />
-                <span className="font-mono text-[11px] text-gray-200">{wheelColor}</span>
+                <span className="text-[11px] text-gray-200">{wheelColorLabel(wheelColor)}</span>
               </div>
             </div>
             <div className="flex justify-between items-center">
@@ -944,7 +947,7 @@ export function RotatoryWheelGame({
                   className="w-4 h-4 rounded-full border border-gray-600 inline-block shadow-sm"
                   style={{ backgroundColor: wheelColor }}
                 />
-                <span className="font-mono text-[11px] text-gray-300">{wheelColor}</span>
+                <span className="text-[11px] text-gray-300">{wheelColorLabel(wheelColor)}</span>
               </div>
             ),
           },
@@ -994,21 +997,6 @@ export function RotatoryWheelGame({
         bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
         sessionLocked={isGameStarted && !isResultsOpen}
-      />
-
-      <MidGameSettingsLockedDialog
-        isOpen={settingsLockedOpen}
-        onCancel={() => setSettingsLockedOpen(false)}
-        resetLabel="Reset Level"
-        onReset={() => {
-          setSettingsLockedOpen(false);
-          setIsGameStarted(false);
-          setIsPaused(true);
-          setIsSettingsOpen(true);
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-          }
-        }}
       />
 
       {/* GAME RESULTS MODAL */}

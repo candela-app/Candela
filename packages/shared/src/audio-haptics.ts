@@ -17,77 +17,7 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
- * Play a high-frequency clean chime ("Ding", ~987-1318 Hz)
- * and trigger a 100ms haptic vibration for correct target clicks.
- */
-export function playCorrectSoundAndHaptic(): void {
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try {
-      navigator.vibrate(100);
-    } catch (_) {}
-  }
-
-  const ctx = getAudioContext();
-  if (!ctx) return;
-
-  try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(987.77, ctx.currentTime); // B5 note
-    osc.frequency.exponentialRampToValueAtTime(1318.51, ctx.currentTime + 0.15); // E6 chime finish
-
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.25);
-  } catch (_) {}
-}
-
-/**
- * Play a descending buzz/bonk sound (320 Hz -> 180 Hz)
- * and trigger a double haptic pulse for incorrect bubble selections.
- */
-export function playWrongSoundAndHaptic(): void {
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try {
-      navigator.vibrate([80, 100, 80]);
-    } catch (_) {}
-  }
-
-  const ctx = getAudioContext();
-  if (!ctx) return;
-
-  try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(320, ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.22);
-
-    gain.gain.setValueAtTime(0.35, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.25);
-  } catch (_) {}
-}
-
-export const playWrongBubbleSoundAndHaptic = playWrongSoundAndHaptic;
-export const playSuccessTone = playCorrectSoundAndHaptic;
-export const playErrorTone = playWrongSoundAndHaptic;
-
-/**
- * Short whoosh / air-sweep for vanishing correct digits in number-search.
+ * Short whoosh / air-sweep for correct responses (SVI-style).
  * Filtered noise with a fast gain drop (~180ms) + light haptic.
  */
 export function playWhooshSoundAndHaptic(): void {
@@ -133,6 +63,92 @@ export function playWhooshSoundAndHaptic(): void {
     source.stop(ctx.currentTime + duration);
   } catch (_) {}
 }
+
+/**
+ * Shorter, quieter SVI whoosh for motion (finger-drag / letter turning).
+ * No haptic — meant to fire repeatedly along a path without buzzing.
+ */
+export function playSviMoveWhoosh(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const duration = 0.1;
+    const sampleRate = ctx.sampleRate;
+    const frameCount = Math.floor(sampleRate * duration);
+    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      const t = i / frameCount;
+      const envelope = Math.pow(1 - t, 1.35);
+      data[i] = (Math.random() * 2 - 1) * envelope;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2100, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(520, ctx.currentTime + duration);
+    filter.Q.setValueAtTime(0.65, ctx.currentTime);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  } catch (_) {}
+}
+
+/**
+ * Correct-target feedback — same SVI whoosh used across all games.
+ */
+export function playCorrectSoundAndHaptic(): void {
+  playWhooshSoundAndHaptic();
+}
+
+/**
+ * Play a descending buzz/bonk sound (320 Hz -> 180 Hz)
+ * and trigger a double haptic pulse for incorrect bubble selections.
+ */
+export function playWrongSoundAndHaptic(): void {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate([80, 100, 80]);
+    } catch (_) {}
+  }
+
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.22);
+
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch (_) {}
+}
+
+export const playWrongBubbleSoundAndHaptic = playWrongSoundAndHaptic;
+export const playSuccessTone = playCorrectSoundAndHaptic;
+export const playErrorTone = playWrongSoundAndHaptic;
 
 /**
  * Soft flip / open tap for Location Memory cells (peek or reveal a closed box).

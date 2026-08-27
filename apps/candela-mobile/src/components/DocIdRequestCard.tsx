@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import type { DocIdRequestResult } from '@candela/shared/rn';
+import { FloatingLabelInput } from './FloatingLabelInput';
 import { ApiError, api } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
@@ -76,7 +77,7 @@ export function DocIdRequestCard() {
         borderColor: colors.border,
       }}
     >
-      <Text style={{ fontSize: fs(11), fontWeight: '800', color: colors.blue, letterSpacing: 1, textTransform: 'uppercase' }}>
+      <Text style={{ fontSize: fs(11), fontWeight: '600', color: colors.blue, letterSpacing: 0.4 }}>
         DocID
       </Text>
       {linked ? (
@@ -140,27 +141,13 @@ export function DocIdRequestCard() {
         </View>
       ) : (
         <View style={{ marginTop: s(16), gap: s(10) }}>
-          <TextInput
+          <FloatingLabelInput
+            label="DocID"
             value={code}
             onChangeText={(v) => setCode(v.toUpperCase())}
-            placeholder="DocID"
-            placeholderTextColor={colors.muted}
             maxLength={6}
             autoCapitalize="characters"
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: s(12),
-              paddingHorizontal: s(14),
-              paddingVertical: s(12),
-              fontSize: fs(16),
-              fontFamily: 'monospace',
-              fontWeight: '800',
-              letterSpacing: 4,
-              textTransform: 'uppercase',
-              color: colors.text,
-              backgroundColor: colors.white,
-            }}
+            style={{ marginBottom: 0 }}
           />
           <Pressable
             onPress={() => void onSubmit()}

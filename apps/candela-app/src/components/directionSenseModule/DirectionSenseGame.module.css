@@ -1,0 +1,231 @@
+.shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  color: #f8fafc;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.playField {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 3vh, 28px);
+  padding: 72px 16px 88px;
+  box-sizing: border-box;
+}
+
+.prompt {
+  margin: 0;
+  max-width: 640px;
+  text-align: center;
+  font-size: clamp(15px, 2.2vw, 18px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(248, 250, 252, 0.88);
+}
+
+.probeRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 4vw, 36px);
+  flex-wrap: wrap;
+}
+
+.probeCard {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  pointer-events: none;
+}
+
+.optionCard {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.45);
+  padding: clamp(10px, 2vw, 16px);
+  box-sizing: border-box;
+}
+
+.arrowCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.referenceCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: clamp(8px, 1.6vw, 12px);
+}
+
+.rotatePad {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(72vmin, 440px);
+  height: min(72vmin, 440px);
+  max-width: 440px;
+  max-height: 440px;
+  border-radius: 50%;
+  border: 2px dashed var(--rotate-pad-border, rgba(148, 163, 184, 0.45));
+  background: rgba(15, 23, 42, 0.28);
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: visible;
+}
+
+.rotateGlyph {
+  width: 74%;
+  height: 74%;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rotateGlyph svg {
+  width: 100%;
+  height: 100%;
+}
+
+.trailSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.trailFading {
+  opacity: 0;
+}
+
+.rotatePad:active {
+  cursor: grabbing;
+}
+
+.rotatePadOk {
+  border-style: solid;
+  box-shadow: 0 0 0 2px var(--rotate-pad-border, #34d399);
+}
+
+.rotatePadLocked {
+  pointer-events: none;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2.4vw, 18px);
+  width: min(920px, 100%);
+  margin-top: clamp(40px, 8vh, 72px);
+}
+
+.optionCard {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.optionCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.65);
+}
+
+.optionCard:active {
+  transform: scale(0.97);
+}
+
+.optionCorrect {
+  border-color: rgba(52, 211, 153, 0.9);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35);
+}
+
+.optionWrong {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.3);
+}
+
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.hud strong {
+  color: #e2e8f0;
+  font-weight: 800;
+}
+
+.settingsBtn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 30;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(5, 150, 105, 0.92);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}

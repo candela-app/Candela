@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { EyeIcon, EyeOffIcon } from '@/components/icons/VectorIcons';
 import logoPng from '@candela/shared/assets/updated_Web logo.png';
+import {
+  FloatingLabelInput,
+  FloatingLabelPasswordInput,
+} from '@/components/ui/FloatingLabelInput';
 
 const logoSrc = typeof logoPng === 'string' ? logoPng : (logoPng as any).src;
 
@@ -46,16 +48,15 @@ export function Field({
   autoComplete?: string;
 }) {
   return (
-    <label className="block mb-4">
-      <span className="block text-sm font-semibold text-shell-text mb-1.5">{label}</span>
-      <input
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-shell-border px-4 py-3 text-sm font-medium text-shell-text outline-none focus:border-shell-blue focus:ring-2 focus:ring-shell-blue/20"
-      />
-    </label>
+    <FloatingLabelInput
+      label={label}
+      type={type}
+      value={value}
+      onChange={onChange}
+      autoComplete={autoComplete}
+      variant="light"
+      className="mb-4"
+    />
   );
 }
 
@@ -70,31 +71,15 @@ export function PasswordField({
   onChange: (value: string) => void;
   autoComplete?: string;
 }) {
-  const [visible, setVisible] = useState(false);
   return (
-    <label className="block mb-4">
-      <span className="block text-sm font-semibold text-shell-text mb-1.5">{label}</span>
-      <span className="relative block">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          autoComplete={autoComplete}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-xl border border-shell-border px-4 py-3 pr-12 text-sm font-medium text-shell-text outline-none focus:border-shell-blue focus:ring-2 focus:ring-shell-blue/20"
-        />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            setVisible((v) => !v);
-          }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-shell-muted hover:text-shell-text"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-        </button>
-      </span>
-    </label>
+    <FloatingLabelPasswordInput
+      label={label}
+      value={value}
+      onChange={onChange}
+      autoComplete={autoComplete}
+      variant="light"
+      className="mb-4"
+    />
   );
 }
 

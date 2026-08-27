@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { FloatingLabelInput } from './FloatingLabelInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   SPEED_PRESETS,
@@ -7,6 +8,8 @@ import {
   DEFAULT_SORTING_NUMBER_FROM,
   DEFAULT_SORTING_NUMBER_TO,
   MAX_SORTING_NUMBER_COUNT,
+  WHEEL_COLOR_PRESETS,
+  wheelColorLabel,
   clampSortingNumberRange,
   clampBatchesPerSession,
   clampHexSizePx,
@@ -89,6 +92,32 @@ import {
   locationMemoryExploreLabel,
   locationMemoryGridLabel,
   locationMemoryRecallLabel,
+  clampDirectionSenseChoiceCount,
+  clampDirectionSenseShapeSize,
+  clampDirectionSenseTimeLimitSec,
+  clampDirectionSenseTrials,
+  clampDirectionSenseTurnDirection,
+  DEFAULT_DIRECTION_SENSE_ARROW_COLOR,
+  DEFAULT_DIRECTION_SENSE_BG,
+  DEFAULT_DIRECTION_SENSE_CHOICE_COUNT,
+  DEFAULT_DIRECTION_SENSE_SHAPE_COLOR,
+  DEFAULT_DIRECTION_SENSE_SHAPE_SIZE,
+  DEFAULT_DIRECTION_SENSE_TRIALS,
+  DEFAULT_DIRECTION_SENSE_TURN_DIRECTION,
+  DIRECTION_SENSE_ARROW_STROKE_WIDTH,
+  DIRECTION_SENSE_BG_COLORS,
+  DIRECTION_SENSE_CHOICE_COUNT_PRESETS,
+  DIRECTION_SENSE_SHAPE_COLORS,
+  DIRECTION_SENSE_SHAPE_PATHS,
+  DIRECTION_SENSE_SHAPE_SIZE_PRESETS,
+  DIRECTION_SENSE_SHAPE_STROKE_WIDTH,
+  DIRECTION_SENSE_TIME_LIMIT_PRESETS,
+  DIRECTION_SENSE_TRIALS_PRESETS,
+  directionSenseArrowTransform,
+  directionSenseCurvedArrowPath,
+  directionSensePoseTransform,
+  directionSenseTurnDirectionLabel,
+  type DirectionSenseTurnDirection,
   peripheralHexPaint,
   peripheralLetterColor,
   peripheralLetterFontPx,
@@ -112,7 +141,7 @@ import {
   type PeripheralBubbleType,
 } from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
-import Svg, { Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { useLayout } from '../lib/layout';
 
 export interface AppliedClinicalSettings {
@@ -166,11 +195,19 @@ export interface AppliedClinicalSettings {
   locationMemoryExploreSec?: number;
   locationMemoryRecallSec?: number;
   locationMemoryGridSize?: number;
+  /** Direction Sense: response options per trial (3–4). */
+  directionSenseChoiceCount?: number;
+  /** Direction Sense: trials per session. */
+  directionSenseTrials?: number;
+  /** Direction Sense: probe/option shape diameter px. */
+  directionSenseShapeSizePx?: number;
+  /** Direction Sense: clockwise vs anticlockwise turns. */
+  directionSenseTurnDirection?: DirectionSenseTurnDirection;
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
 const BUBBLE_SIZES = [60, 80, 100, 120];
-const WHEEL_COLORS = ['#000000', '#0B1B3A', '#1A1A1A', '#111827', '#0D0D0D', '#1E3A8A'];
+const WHEEL_COLORS = WHEEL_COLOR_PRESETS;
 const PATH_TYPES = ['auto', 'straight', 'curve', 'zigzag', 'wave', 'spiral', 'branching', 'dotted', 'random'];
 const PURSUIT_PATTERN_OPTIONS: { val: PursuitMovementPattern; label: string }[] = [
   { val: 'linear_bounce', label: '1. Linear Bounce (Straight Wall Bounces)' },
@@ -295,6 +332,8 @@ export function ClinicalSettingsModal({
   wheelColor = '#000000',
   showSpeedControl = false,
   showWheelColorControl = false,
+  wheelColorTitle = 'Wheel Color',
+  wheelColorHint = 'Background color of the spinning wheel.',
   sampleSymbol = 'A',
   showBeeTracingControls = false,
   tracingMode = 'active',
@@ -326,6 +365,8 @@ export function ClinicalSettingsModal({
   showNumberSearchControls = false,
   showPatternMatchControls = false,
   showLocationMemoryControls = false,
+  showDirectionSenseControls = false,
+  directionSenseStraightenMode = false,
   sessionLocked = false,
   hexSizePx = 64,
   stimuliCount = 16,
@@ -351,6 +392,10 @@ export function ClinicalSettingsModal({
   locationMemoryExploreSec = DEFAULT_LOCATION_MEMORY_EXPLORE_SEC,
   locationMemoryRecallSec = DEFAULT_LOCATION_MEMORY_RECALL_SEC,
   locationMemoryGridSize = DEFAULT_LOCATION_MEMORY_GRID_SIZE,
+  directionSenseChoiceCount = DEFAULT_DIRECTION_SENSE_CHOICE_COUNT,
+  directionSenseTrials = DEFAULT_DIRECTION_SENSE_TRIALS,
+  directionSenseShapeSizePx = DEFAULT_DIRECTION_SENSE_SHAPE_SIZE,
+  directionSenseTurnDirection = DEFAULT_DIRECTION_SENSE_TURN_DIRECTION,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -362,6 +407,8 @@ export function ClinicalSettingsModal({
   wheelColor?: string;
   showSpeedControl?: boolean;
   showWheelColorControl?: boolean;
+  wheelColorTitle?: string;
+  wheelColorHint?: string;
   sampleSymbol?: string;
   showBeeTracingControls?: boolean;
   tracingMode?: 'active' | 'guided';
@@ -394,6 +441,8 @@ export function ClinicalSettingsModal({
   showNumberSearchControls?: boolean;
   showPatternMatchControls?: boolean;
   showLocationMemoryControls?: boolean;
+  showDirectionSenseControls?: boolean;
+  directionSenseStraightenMode?: boolean;
   sessionLocked?: boolean;
   hexSizePx?: number;
   stimuliCount?: number;
@@ -419,6 +468,10 @@ export function ClinicalSettingsModal({
   locationMemoryExploreSec?: number;
   locationMemoryRecallSec?: number;
   locationMemoryGridSize?: number;
+  directionSenseChoiceCount?: number;
+  directionSenseTrials?: number;
+  directionSenseShapeSizePx?: number;
+  directionSenseTurnDirection?: DirectionSenseTurnDirection;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s, width, height } = useLayout();
@@ -492,6 +545,18 @@ export function ClinicalSettingsModal({
   const [tempLocationMemoryGridSize, setTempLocationMemoryGridSize] = useState(
     clampLocationMemoryGridSize(locationMemoryGridSize),
   );
+  const [tempDirectionSenseChoiceCount, setTempDirectionSenseChoiceCount] = useState(
+    clampDirectionSenseChoiceCount(directionSenseChoiceCount),
+  );
+  const [tempDirectionSenseTrials, setTempDirectionSenseTrials] = useState(
+    clampDirectionSenseTrials(directionSenseTrials),
+  );
+  const [tempDirectionSenseShapeSizePx, setTempDirectionSenseShapeSizePx] = useState(
+    clampDirectionSenseShapeSize(directionSenseShapeSizePx),
+  );
+  const [tempDirectionSenseTurnDirection, setTempDirectionSenseTurnDirection] = useState(
+    clampDirectionSenseTurnDirection(directionSenseTurnDirection),
+  );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   useEffect(() => {
@@ -532,9 +597,11 @@ export function ClinicalSettingsModal({
     setTempShapeColor(shapeColor);
     setTempTargetDigitCount(clampNumberSearchTargetDigits(targetDigitCount));
     setTempTimeLimitSec(
-      showPatternMatchControls
-        ? clampPatternMatchTimeLimitSec(timeLimitSec)
-        : clampNumberSearchTimeLimitSec(timeLimitSec),
+      showDirectionSenseControls
+        ? clampDirectionSenseTimeLimitSec(timeLimitSec)
+        : showPatternMatchControls
+          ? clampPatternMatchTimeLimitSec(timeLimitSec)
+          : clampNumberSearchTimeLimitSec(timeLimitSec),
     );
     setTempNumberSearchLayout(clampNumberSearchLayoutMode(numberSearchLayout));
     setTempNumberSearchFieldCount(clampNumberSearchFieldCount(numberSearchFieldCount));
@@ -550,6 +617,10 @@ export function ClinicalSettingsModal({
     setTempLocationMemoryRounds(clampLocationMemoryRounds(locationMemoryRounds));
     setTempLocationMemoryExploreSec(clampLocationMemoryExploreSec(locationMemoryExploreSec));
     setTempLocationMemoryRecallSec(clampLocationMemoryRecallSec(locationMemoryRecallSec));
+    setTempDirectionSenseChoiceCount(clampDirectionSenseChoiceCount(directionSenseChoiceCount));
+    setTempDirectionSenseTrials(clampDirectionSenseTrials(directionSenseTrials));
+    setTempDirectionSenseShapeSizePx(clampDirectionSenseShapeSize(directionSenseShapeSizePx));
+    setTempDirectionSenseTurnDirection(clampDirectionSenseTurnDirection(directionSenseTurnDirection));
     setConfirmApplyOpen(false);
     if (showPeripheralViewControls) {
       setTempLetterSize(clampPeripheralLetterSize(letterSize));
@@ -568,6 +639,10 @@ export function ClinicalSettingsModal({
       setTempLetterSize(clampLocationMemoryLetterSize(letterSize));
       setTempBgColor(bgColor || DEFAULT_LOCATION_MEMORY_BG);
       setTempShapeColor(shapeColor || DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
+    }
+    if (showDirectionSenseControls) {
+      setTempBgColor(bgColor || DEFAULT_DIRECTION_SENSE_BG);
+      setTempShapeColor(shapeColor || DEFAULT_DIRECTION_SENSE_SHAPE_COLOR);
     }
     setTempTherapyColors((prev) => {
       if (
@@ -628,9 +703,11 @@ export function ClinicalSettingsModal({
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(tempPeripheralTargetTimeoutSec),
       peripheralBubbleType: tempPeripheralBubbleType,
       targetDigitCount: clampNumberSearchTargetDigits(tempTargetDigitCount),
-      timeLimitSec: showPatternMatchControls
-        ? clampPatternMatchTimeLimitSec(tempTimeLimitSec)
-        : clampNumberSearchTimeLimitSec(tempTimeLimitSec),
+      timeLimitSec: showDirectionSenseControls
+        ? clampDirectionSenseTimeLimitSec(tempTimeLimitSec)
+        : showPatternMatchControls
+          ? clampPatternMatchTimeLimitSec(tempTimeLimitSec)
+          : clampNumberSearchTimeLimitSec(tempTimeLimitSec),
       numberSearchLayout: clampNumberSearchLayoutMode(tempNumberSearchLayout),
       numberSearchFieldCount: clampNumberSearchFieldCount(tempNumberSearchFieldCount),
       patternMatchCodeLength: showPatternMatchControls
@@ -663,6 +740,18 @@ export function ClinicalSettingsModal({
       locationMemoryGridSize: showLocationMemoryControls
         ? clampLocationMemoryGridSize(tempLocationMemoryGridSize)
         : tempLocationMemoryGridSize,
+      directionSenseChoiceCount: showDirectionSenseControls
+        ? clampDirectionSenseChoiceCount(tempDirectionSenseChoiceCount)
+        : tempDirectionSenseChoiceCount,
+      directionSenseTrials: showDirectionSenseControls
+        ? clampDirectionSenseTrials(tempDirectionSenseTrials)
+        : tempDirectionSenseTrials,
+      directionSenseShapeSizePx: showDirectionSenseControls
+        ? clampDirectionSenseShapeSize(tempDirectionSenseShapeSizePx)
+        : tempDirectionSenseShapeSizePx,
+      directionSenseTurnDirection: showDirectionSenseControls
+        ? clampDirectionSenseTurnDirection(tempDirectionSenseTurnDirection)
+        : tempDirectionSenseTurnDirection,
     };
   };
 
@@ -711,9 +800,11 @@ export function ClinicalSettingsModal({
       peripheralTargetTimeoutSec: clampPeripheralTargetTimeoutSec(peripheralTargetTimeoutSec),
       peripheralBubbleType,
       targetDigitCount: clampNumberSearchTargetDigits(targetDigitCount),
-      timeLimitSec: showPatternMatchControls
-        ? clampPatternMatchTimeLimitSec(timeLimitSec)
-        : clampNumberSearchTimeLimitSec(timeLimitSec),
+      timeLimitSec: showDirectionSenseControls
+        ? clampDirectionSenseTimeLimitSec(timeLimitSec)
+        : showPatternMatchControls
+          ? clampPatternMatchTimeLimitSec(timeLimitSec)
+          : clampNumberSearchTimeLimitSec(timeLimitSec),
       numberSearchLayout: clampNumberSearchLayoutMode(numberSearchLayout),
       numberSearchFieldCount: clampNumberSearchFieldCount(numberSearchFieldCount),
       patternMatchCodeLength: showPatternMatchControls
@@ -746,6 +837,18 @@ export function ClinicalSettingsModal({
       locationMemoryGridSize: showLocationMemoryControls
         ? clampLocationMemoryGridSize(locationMemoryGridSize)
         : locationMemoryGridSize,
+      directionSenseChoiceCount: showDirectionSenseControls
+        ? clampDirectionSenseChoiceCount(directionSenseChoiceCount)
+        : directionSenseChoiceCount,
+      directionSenseTrials: showDirectionSenseControls
+        ? clampDirectionSenseTrials(directionSenseTrials)
+        : directionSenseTrials,
+      directionSenseShapeSizePx: showDirectionSenseControls
+        ? clampDirectionSenseShapeSize(directionSenseShapeSizePx)
+        : directionSenseShapeSizePx,
+      directionSenseTurnDirection: showDirectionSenseControls
+        ? clampDirectionSenseTurnDirection(directionSenseTurnDirection)
+        : directionSenseTurnDirection,
     };
   };
 
@@ -774,7 +877,8 @@ export function ClinicalSettingsModal({
     !showPeripheralViewControls &&
     !showNumberSearchControls &&
     !showPatternMatchControls &&
-    !showLocationMemoryControls;
+    !showLocationMemoryControls &&
+    !showDirectionSenseControls;
   const previewSize = Math.min(tempBubbleSize, 130);
   const previewStimuliHex = showStimuliColorPicker
     ? resolveStimuliBubbleColor(tempStimuliColor, 0)
@@ -849,6 +953,8 @@ export function ClinicalSettingsModal({
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
                   {showPursuitControls
                     ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                    : showDirectionSenseControls
+                      ? 'Configure turn direction, choice count, trials, shape size, and field colors.'
                     : showPatternMatchControls
                       ? 'Configure code length, flash encoding, field size, and near-miss hardness.'
                       : showLocationMemoryControls
@@ -964,22 +1070,12 @@ export function ClinicalSettingsModal({
                 ) : null}
 
                 <Card>
-                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
-                    PATIENT PROFILE
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#9CA3AF"
-                    style={{
-                      backgroundColor: '#141414',
-                      color: '#fff',
-                      borderRadius: s(12),
-                      padding: s(12),
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                    }}
+                    variant="dark"
+                    style={{ marginBottom: 0 }}
                   />
                 </Card>
 
@@ -993,37 +1089,23 @@ export function ClinicalSettingsModal({
                     </Text>
                     <View style={{ flexDirection: 'row', gap: s(10) }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#9CA3AF', fontSize: fs(10), marginBottom: s(4) }}>FROM</Text>
-                        <TextInput
-                          keyboardType="number-pad"
+                        <FloatingLabelInput
+                          label="From"
                           value={String(Number.isFinite(tempNumberRangeFrom) ? tempNumberRangeFrom : '')}
                           onChangeText={(text) => setTempNumberRangeFrom(parseInt(text, 10))}
-                          style={{
-                            backgroundColor: '#141414',
-                            color: '#fff',
-                            borderRadius: s(12),
-                            padding: s(12),
-                            borderWidth: 1,
-                            borderColor: '#374151',
-                            fontWeight: '800',
-                          }}
+                          variant="dark"
+                          keyboardType="number-pad"
+                          style={{ marginBottom: 0 }}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#9CA3AF', fontSize: fs(10), marginBottom: s(4) }}>TO</Text>
-                        <TextInput
-                          keyboardType="number-pad"
+                        <FloatingLabelInput
+                          label="To"
                           value={String(Number.isFinite(tempNumberRangeTo) ? tempNumberRangeTo : '')}
                           onChangeText={(text) => setTempNumberRangeTo(parseInt(text, 10))}
-                          style={{
-                            backgroundColor: '#141414',
-                            color: '#fff',
-                            borderRadius: s(12),
-                            padding: s(12),
-                            borderWidth: 1,
-                            borderColor: '#374151',
-                            fontWeight: '800',
-                          }}
+                          variant="dark"
+                          keyboardType="number-pad"
+                          style={{ marginBottom: 0 }}
                         />
                       </View>
                     </View>
@@ -1053,7 +1135,7 @@ export function ClinicalSettingsModal({
                   <Card>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
-                        WHEEL COLOR
+                        {wheelColorTitle.toUpperCase()}
                       </Text>
                       <View
                         style={{
@@ -1078,30 +1160,48 @@ export function ClinicalSettingsModal({
                             borderColor: '#4B5563',
                           }}
                         />
-                        <TextInput
-                          value={tempWheelColor}
-                          onChangeText={setTempWheelColor}
-                          autoCapitalize="none"
-                          style={{ color: '#E5E7EB', minWidth: s(80), fontSize: fs(13), fontWeight: '700' }}
-                        />
+                        <Text style={{ color: '#E5E7EB', fontSize: fs(13), fontWeight: '700' }}>
+                          {wheelColorLabel(tempWheelColor)}
+                        </Text>
                       </View>
                     </View>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: s(10) }}>
-                      {WHEEL_COLORS.map((c) => (
-                        <Pressable
-                          key={c}
-                          onPress={() => setTempWheelColor(c)}
-                          style={{
-                            width: s(28),
-                            height: s(28),
-                            borderRadius: s(14),
-                            backgroundColor: c,
-                            marginRight: s(8),
-                            borderWidth: tempWheelColor.toLowerCase() === c.toLowerCase() ? 2 : 1,
-                            borderColor: tempWheelColor.toLowerCase() === c.toLowerCase() ? '#60A5FA' : '#4B5563',
-                          }}
-                        />
-                      ))}
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(6), marginBottom: s(4) }}>
+                      {wheelColorHint}
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: s(10), gap: s(8) }}>
+                      {WHEEL_COLORS.map((c) => {
+                        const active = tempWheelColor.toLowerCase() === c.code.toLowerCase();
+                        return (
+                          <Pressable
+                            key={c.code}
+                            onPress={() => setTempWheelColor(c.code)}
+                            accessibilityLabel={`Wheel color ${c.name}`}
+                            style={{ alignItems: 'center', width: s(56) }}
+                          >
+                            <View
+                              style={{
+                                width: s(28),
+                                height: s(28),
+                                borderRadius: s(14),
+                                backgroundColor: c.code,
+                                borderWidth: active ? 2 : 1,
+                                borderColor: active ? '#60A5FA' : '#4B5563',
+                              }}
+                            />
+                            <Text
+                              style={{
+                                color: active ? '#FFFFFF' : '#6B7280',
+                                fontSize: fs(9),
+                                fontWeight: '700',
+                                marginTop: s(4),
+                                textAlign: 'center',
+                              }}
+                            >
+                              {c.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   </Card>
                 ) : null}
@@ -1392,22 +1492,12 @@ export function ClinicalSettingsModal({
                 </Card>
 
                 <Card>
-                  <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
-                    PATIENT PROFILE
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#9CA3AF"
-                    style={{
-                      backgroundColor: '#141414',
-                      color: '#fff',
-                      borderRadius: s(12),
-                      padding: s(12),
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                    }}
+                    variant="dark"
+                    style={{ marginBottom: 0 }}
                   />
                 </Card>
 
@@ -1511,21 +1601,12 @@ export function ClinicalSettingsModal({
 
             {showBeeTracingControls ? (
               <>
-                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Patient name</Text>
-                <TextInput
+                <FloatingLabelInput
+                  label="Patient Name"
                   value={tempPatientName}
                   onChangeText={setTempPatientName}
-                  placeholder="Enter patient name..."
-                  placeholderTextColor="#9CA3AF"
-                  style={{
-                    backgroundColor: '#141414',
-                    color: '#fff',
-                    borderRadius: s(12),
-                    padding: s(12),
-                    marginBottom: s(16),
-                    borderWidth: 1,
-                    borderColor: '#374151',
-                  }}
+                  variant="dark"
+                  style={{ marginBottom: s(16) }}
                 />
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tracing mode</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -1602,23 +1683,12 @@ export function ClinicalSettingsModal({
                   >
                     Pursuit Stimulus & Target Profile
                   </Text>
-                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
-                    PATIENT NAME
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#9CA3AF"
-                    style={{
-                      backgroundColor: '#141414',
-                      color: '#fff',
-                      borderRadius: s(12),
-                      padding: s(12),
-                      marginBottom: s(14),
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                    }}
+                    variant="dark"
+                    style={{ marginBottom: s(14) }}
                   />
                   <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
                     MOVEMENT PATTERN
@@ -1879,25 +1949,12 @@ export function ClinicalSettingsModal({
                       </View>
                     );
                   })()}
-                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginTop: s(12), marginBottom: s(6) }}>
-                    PATIENT PROFILE
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#6B7280"
-                    style={{
-                      backgroundColor: '#141414',
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                      borderRadius: s(12),
-                      color: '#fff',
-                      paddingHorizontal: s(14),
-                      paddingVertical: s(12),
-                      fontSize: fs(14),
-                      fontWeight: '600',
-                    }}
+                    variant="dark"
+                    style={{ marginTop: s(12), marginBottom: 0 }}
                   />
                 </Card>
                 <Card>
@@ -1975,6 +2032,292 @@ export function ClinicalSettingsModal({
               </>
             ) : null}
 
+            {showDirectionSenseControls ? (
+              <>
+                <Card>
+                  <Text style={{ color: '#38BDF8', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    LIVE PREVIEW
+                  </Text>
+                  {(() => {
+                    const previewSize = Math.min(tempDirectionSenseShapeSizePx, s(96));
+                    const arrowSize = Math.round(previewSize * 0.52);
+                    const optionSize = Math.round(previewSize * 0.55);
+                    const optionGlyph = Math.max(24, optionSize - s(12));
+                    return (
+                      <View
+                        style={{
+                          minHeight: s(180),
+                          borderRadius: s(16),
+                          borderWidth: 1,
+                          borderColor: '#1F2937',
+                          backgroundColor: tempBgColor,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingVertical: s(18),
+                          paddingHorizontal: s(12),
+                          gap: s(16),
+                          marginBottom: s(12),
+                        }}
+                      >
+                        {directionSenseStraightenMode ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(16) }}>
+                            <Svg width={previewSize} height={previewSize} viewBox="0 0 100 100">
+                              <Path
+                                d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                                fill="none"
+                                stroke={tempShapeColor}
+                                strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                transform={directionSensePoseTransform({ orientation: 0, flipH: false })}
+                              />
+                            </Svg>
+                            <View
+                              style={{
+                                width: Math.round(previewSize * 1.7),
+                                height: Math.round(previewSize * 1.7),
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Svg
+                                width={Math.round(previewSize * 1.7)}
+                                height={Math.round(previewSize * 1.7)}
+                                style={{ position: 'absolute' }}
+                              >
+                                <Circle
+                                  cx={Math.round(previewSize * 1.7) / 2}
+                                  cy={Math.round(previewSize * 1.7) / 2}
+                                  r={Math.round(previewSize * 1.7) / 2 - 2}
+                                  fill="none"
+                                  stroke={tempShapeColor}
+                                  strokeWidth={2}
+                                  strokeDasharray="8 6"
+                                />
+                              </Svg>
+                              <Svg width={previewSize} height={previewSize} viewBox="0 0 100 100">
+                                <Path
+                                  d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                                  fill="none"
+                                  stroke={tempShapeColor}
+                                  strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  transform="rotate(48 50 50)"
+                                />
+                              </Svg>
+                            </View>
+                          </View>
+                        ) : (
+                          <>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(16) }}>
+                              <Svg width={previewSize} height={previewSize} viewBox="0 0 100 100">
+                                <Path
+                                  d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                                  fill="none"
+                                  stroke={tempShapeColor}
+                                  strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  transform={directionSensePoseTransform({ orientation: 0, flipH: false })}
+                                />
+                              </Svg>
+                              <Svg width={arrowSize} height={arrowSize} viewBox="0 0 100 100">
+                                <Path
+                                  d={directionSenseCurvedArrowPath(90, tempDirectionSenseTurnDirection)}
+                                  fill="none"
+                                  stroke={DEFAULT_DIRECTION_SENSE_ARROW_COLOR}
+                                  strokeWidth={DIRECTION_SENSE_ARROW_STROKE_WIDTH}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  transform={directionSenseArrowTransform(tempDirectionSenseTurnDirection)}
+                                />
+                              </Svg>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: s(8) }}>
+                              {([0, 1, 2] as const).map((ori) => (
+                                <View
+                                  key={ori}
+                                  style={{
+                                    width: optionSize,
+                                    height: optionSize,
+                                    borderRadius: s(12),
+                                    borderWidth: 1,
+                                    borderColor: '#475569',
+                                    padding: s(6),
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <Svg width={optionGlyph} height={optionGlyph} viewBox="0 0 100 100">
+                                    <Path
+                                      d={DIRECTION_SENSE_SHAPE_PATHS.eee}
+                                      fill="none"
+                                      stroke={tempShapeColor}
+                                      strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      transform={directionSensePoseTransform({ orientation: ori, flipH: false })}
+                                    />
+                                  </Svg>
+                                </View>
+                              ))}
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    );
+                  })()}
+                  <FloatingLabelInput
+                    label="Patient Name"
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    variant="dark"
+                    style={{ marginBottom: 0 }}
+                  />
+                </Card>
+                <Card>
+                  <Text style={{ color: '#38BDF8', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                    SESSION PARAMETERS
+                  </Text>
+                  {!directionSenseStraightenMode ? (
+                    <>
+                      <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                        Turn Direction
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                        {(['cw', 'ccw'] as const).map((dir) => (
+                          <Chip
+                            key={dir}
+                            label={directionSenseTurnDirectionLabel(dir)}
+                            active={tempDirectionSenseTurnDirection === dir}
+                            onPress={() => setTempDirectionSenseTurnDirection(dir)}
+                          />
+                        ))}
+                      </View>
+                      <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                        Choices per Trial
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                        {DIRECTION_SENSE_CHOICE_COUNT_PRESETS.map((n) => (
+                          <Chip
+                            key={n}
+                            label={`${n} options`}
+                            active={tempDirectionSenseChoiceCount === n}
+                            onPress={() => setTempDirectionSenseChoiceCount(n)}
+                          />
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Trials
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {DIRECTION_SENSE_TRIALS_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={String(n)}
+                        active={tempDirectionSenseTrials === n}
+                        onPress={() => setTempDirectionSenseTrials(n)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Shape Size
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {DIRECTION_SENSE_SHAPE_SIZE_PRESETS.map((n) => (
+                      <Chip
+                        key={n}
+                        label={`${n}px`}
+                        active={tempDirectionSenseShapeSizePx === n}
+                        onPress={() => setTempDirectionSenseShapeSizePx(n)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Session Timer
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: s(12) }}>
+                    {DIRECTION_SENSE_TIME_LIMIT_PRESETS.map((sec) => (
+                      <Chip
+                        key={sec}
+                        label={sec === 0 ? 'Off' : `${sec}s`}
+                        active={tempTimeLimitSec === sec}
+                        onPress={() => setTempTimeLimitSec(sec)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Background
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                    {DIRECTION_SENSE_BG_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempBgColor(c.code)}
+                        style={{
+                          width: s(56),
+                          height: s(36),
+                          borderRadius: s(10),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempBgColor === c.code ? '#38BDF8' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
+                            fontSize: fs(9),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', marginBottom: s(8) }}>
+                    Shape Color
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    {DIRECTION_SENSE_SHAPE_COLORS.map((c) => (
+                      <Pressable
+                        key={c.code}
+                        onPress={() => setTempShapeColor(c.code)}
+                        style={{
+                          width: s(56),
+                          height: s(36),
+                          borderRadius: s(10),
+                          backgroundColor: c.code,
+                          borderWidth: 2,
+                          borderColor: tempShapeColor === c.code ? '#38BDF8' : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
+                                ? '#0F172A'
+                                : '#F8FAFC',
+                            fontSize: fs(9),
+                            fontWeight: '800',
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
+              </>
+            ) : null}
+
             {showPatternMatchControls ? (
               <>
                 <Card>
@@ -2042,25 +2385,12 @@ export function ClinicalSettingsModal({
                       </View>
                     );
                   })()}
-                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginBottom: s(6) }}>
-                    PATIENT PROFILE
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#6B7280"
-                    style={{
-                      backgroundColor: '#141414',
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                      borderRadius: s(12),
-                      color: '#fff',
-                      paddingHorizontal: s(14),
-                      paddingVertical: s(12),
-                      fontSize: fs(14),
-                      fontWeight: '600',
-                    }}
+                    variant="dark"
+                    style={{ marginBottom: 0 }}
                   />
                 </Card>
 
@@ -2274,25 +2604,12 @@ export function ClinicalSettingsModal({
                       </Text>
                     ))}
                   </View>
-                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), fontWeight: '700', marginBottom: s(6) }}>
-                    PATIENT PROFILE
-                  </Text>
-                  <TextInput
+                  <FloatingLabelInput
+                    label="Patient Name"
                     value={tempPatientName}
                     onChangeText={setTempPatientName}
-                    placeholder="Enter patient name..."
-                    placeholderTextColor="#6B7280"
-                    style={{
-                      backgroundColor: '#141414',
-                      borderWidth: 1,
-                      borderColor: '#374151',
-                      borderRadius: s(12),
-                      color: '#fff',
-                      paddingHorizontal: s(14),
-                      paddingVertical: s(12),
-                      fontSize: fs(14),
-                      fontWeight: '600',
-                    }}
+                    variant="dark"
+                    style={{ marginBottom: 0 }}
                   />
                 </Card>
 

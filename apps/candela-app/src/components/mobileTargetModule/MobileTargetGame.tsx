@@ -15,12 +15,12 @@ import {
   resolveBubblePaint,
   resolveBubbleAppearance,
 } from '@candela/shared';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
-import { MidGameSettingsLockedDialog } from '../shared/midGameSettingsLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
@@ -57,10 +57,11 @@ export function MobileTargetGame({
   initialVariant = 'uppercase',
   onExit,
 }: MobileTargetGameProps) {
+  const { session } = useAuth();
   useGameSessionLock(true);
   // Settings
-  const [settings, setSettings] = useState<MobileTargetSettings>({
-    patientName: 'Mobile Patient',
+  const [settings, setSettings] = useState<MobileTargetSettings>(() => ({
+    patientName: sessionDisplayName(session),
     gameMode: initialMode,
     alphabetVariant: initialVariant,
     speedPxPerSec: 70,
@@ -71,7 +72,13 @@ export function MobileTargetGame({
     hasBackground: false,
     therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
     stimuliColor: DEFAULT_STIMULI_BUBBLE_COLOR,
-  });
+  }));
+
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
+  }, [session?.user?.name]);
 
   // Speech Synthesis for Target Announcement
   const speakTarget = useCallback((textToSpeak: string) => {
@@ -123,7 +130,6 @@ export function MobileTargetGame({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(true);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
@@ -930,7 +936,7 @@ export function MobileTargetGame({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onQuit={onExit}
-        sessionInProgress={!showResults && !showSettings && !showClickToStart}
+        sessionInProgress={!showResults && !showClickToStart && isPlaying}
         onReset={handleRestartSession}
         onOpenSettings={() => {
           setMenuOpen(false);
@@ -949,16 +955,6 @@ export function MobileTargetGame({
         onCancel={() => setConfirmReset(false)}
         onConfirm={() => {
           setConfirmReset(false);
-          setIsAssistiveTouchOpen(false);
-          handleRestartSession();
-        }}
-      />
-      <MidGameSettingsLockedDialog
-        isOpen={settingsLockedOpen}
-        onCancel={() => setSettingsLockedOpen(false)}
-        resetLabel="Restart Session"
-        onReset={() => {
-          setSettingsLockedOpen(false);
           setIsAssistiveTouchOpen(false);
           handleRestartSession();
         }}

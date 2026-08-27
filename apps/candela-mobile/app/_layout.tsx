@@ -54,6 +54,10 @@ export default function RootLayout() {
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
             <Stack.Screen
+              name="play/direction-sense"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
               name="play/location-memory"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />

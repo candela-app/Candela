@@ -6,6 +6,7 @@ import {
   GEOBOARD_BOARDS,
   MODULE_LEVELS,
   UI_MODULE_TO_CATALOG,
+  directionSensePrescribedAllows,
   type GeoboardBoardId,
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
@@ -34,6 +35,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'number_search', title: 'Crowded Search', body: 'Find digits hidden in a crowded field of mixed letters', badge: 'For All Devices', accent: '#B45309', bar: '#F59E0B' },
   { uiId: 'pattern_match', title: 'Hold the Code', body: 'Hold a flashed code and tap every exact match', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
   { uiId: 'location_memory', title: 'Location Memory', body: 'Explore a grid, then recall where each number was', badge: 'For All Devices', accent: '#D97706', bar: '#FBBF24' },
+  { uiId: 'direction_sense', title: 'Direction Sense', body: 'Face & Flip: pick the 90° turn. Straighten: spin the letter to match.', badge: 'For All Devices', accent: '#0284C7', bar: '#38BDF8' },
 ];
 
 export default function DashboardScreen() {
@@ -66,6 +68,9 @@ export default function DashboardScreen() {
       if (!hasNewLevels) return true;
     }
     if (catalogId === 'geoboard' && String(levelId) === '6') return true;
+    if (catalogId === 'direction_sense') {
+      return directionSensePrescribedAllows(String(levelId), prescribedLevels);
+    }
     return prescribedLevels.includes(String(levelId));
   };
 
@@ -124,6 +129,9 @@ export default function DashboardScreen() {
   };
   const launchPatternMatch = (levelId: string = 'standard') => {
     router.push(`/play/pattern-match?level=${levelId}` as never);
+  };
+  const launchDirectionSense = (levelId: string = 'face') => {
+    router.push(`/play/direction-sense?level=${levelId}` as never);
   };
   const launchLocationMemory = (levelId: string = 'standard') => {
     router.push(`/play/location-memory?level=${levelId}` as never);
@@ -345,6 +353,24 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Hold a code — tap every exact match
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'direction_sense' && canPlayUiModule('direction_sense')) {
+    const levels = MODULE_LEVELS.direction_sense
+      .filter((level) => isLevelAllowed('direction_sense', level.id))
+      .map((level) => variantCard(level.name, () => launchDirectionSense(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Direction Sense</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Face & Flip: pick the 90° turn. Straighten: spin the letter to match.
           </Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>

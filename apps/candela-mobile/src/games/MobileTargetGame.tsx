@@ -96,7 +96,6 @@ export function MobileTargetGame({
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
@@ -649,11 +648,6 @@ export function MobileTargetGame({
           <Pressable
             onPress={() => {
               setIsAssistiveTouchOpen(false);
-              const inProgress = !showResults && !showClickToStart && isPlaying;
-              if (inProgress) {
-                setSettingsLockedOpen(true);
-                return;
-              }
               setIsPaused(true);
               setShowSettings(true);
             }}
@@ -795,18 +789,6 @@ export function MobileTargetGame({
             value: bubbleAppearanceLabel(resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)),
           },
         ]}
-      />
-      <ResetConfirmDialog
-        visible={settingsLockedOpen}
-        title="Settings locked"
-        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
-        cancelLabel="Keep playing"
-        confirmLabel="Reset Game"
-        onCancel={() => setSettingsLockedOpen(false)}
-        onConfirm={() => {
-          setSettingsLockedOpen(false);
-          setConfirmReset(true);
-        }}
       />
       <ResetConfirmDialog
         visible={confirmReset}

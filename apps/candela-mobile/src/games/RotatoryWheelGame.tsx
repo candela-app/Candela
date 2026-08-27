@@ -20,6 +20,7 @@ import {
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
+  wheelColorLabel,
   type BubbleAppearance,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
@@ -70,7 +71,6 @@ export function RotatoryWheelGame({
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [poppingActive, setPoppingActive] = useState(false);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
@@ -320,10 +320,6 @@ export function RotatoryWheelGame({
 
   const openSettings = () => {
     setIsAssistiveTouchOpen(false);
-    if (isGameStarted && !isResultsOpen) {
-      setSettingsLockedOpen(true);
-      return;
-    }
     setIsPaused(true);
     stopSpeaking();
     setIsSettingsOpen(true);
@@ -697,7 +693,7 @@ export function RotatoryWheelGame({
                   borderColor: '#4B5563',
                 }}
               />
-              <Text style={{ color: '#E5E7EB', fontSize: fs(11), fontFamily: 'monospace' }}>{wheelColor}</Text>
+              <Text style={{ color: '#E5E7EB', fontSize: fs(11) }}>{wheelColorLabel(wheelColor)}</Text>
             </View>
           </View>
           <View style={{ height: 1, backgroundColor: '#1F2937', marginVertical: s(8) }} />
@@ -801,23 +797,11 @@ export function RotatoryWheelGame({
                     borderColor: '#4B5563',
                   }}
                 />
-                <Text style={{ color: '#D1D5DB', fontSize: 11 }}>{wheelColor}</Text>
+                <Text style={{ color: '#D1D5DB', fontSize: 11 }}>{wheelColorLabel(wheelColor)}</Text>
               </View>
             ),
           },
         ]}
-      />
-      <ResetConfirmDialog
-        visible={settingsLockedOpen}
-        title="Settings locked"
-        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
-        cancelLabel="Keep playing"
-        confirmLabel="Reset Level"
-        onCancel={() => setSettingsLockedOpen(false)}
-        onConfirm={() => {
-          setSettingsLockedOpen(false);
-          setConfirmReset(true);
-        }}
       />
       <ResetConfirmDialog
         visible={confirmReset}

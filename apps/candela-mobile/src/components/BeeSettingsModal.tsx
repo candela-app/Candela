@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BeeTracingSettings, ColorTheme, DeviceOrientation, PathComplexity, TracingMode } from '@candela/shared/rn';
 import { BEE_TARGET_DOT_COLORS, DEFAULT_BEE_TARGET_DOT_COLOR } from '@candela/shared/rn';
+import { FloatingLabelInput } from './FloatingLabelInput';
 import { useLayout } from '../lib/layout';
 
 function Card({ title, color, children }: { title: string; color: string; children: ReactNode }) {
@@ -184,20 +185,12 @@ export function BeeSettingsModal({
             </View>
 
             <Card title="Patient & Session Configuration" color="#60A5FA">
-              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>PATIENT NAME</Text>
-              <TextInput
+              <FloatingLabelInput
+                label="Patient Name"
                 value={draft.patientName}
                 onChangeText={(patientName) => patch({ patientName })}
-                placeholder="Enter patient name..."
-                placeholderTextColor="#9CA3AF"
-                style={{
-                  backgroundColor: '#141414',
-                  color: '#fff',
-                  borderRadius: s(12),
-                  padding: s(12),
-                  borderWidth: 1,
-                  borderColor: '#374151',
-                }}
+                variant="dark"
+                style={{ marginBottom: 0 }}
               />
               <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>ROUNDS PER SESSION / SET</Text>
               <View style={{ flexDirection: 'row', gap: s(8) }}>

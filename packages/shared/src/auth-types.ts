@@ -87,6 +87,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   number_search: 'number_search',
   pattern_match: 'pattern_match',
   location_memory: 'location_memory',
+  direction_sense: 'direction_sense',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -100,4 +101,5 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   number_search: 'number_search',
   pattern_match: 'pattern_match',
   location_memory: 'location_memory',
+  direction_sense: 'direction_sense',
 };

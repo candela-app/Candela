@@ -62,6 +62,12 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
+/** Prefer the signed-in user's display name for clinical patient profile fields. */
+export function sessionDisplayName(session: SessionUser | null | undefined): string {
+  const name = session?.user?.name?.trim();
+  return name && name.length > 0 ? name : 'Demo Patient';
+}
+
 export function roleHomePath(role: string): string {
   if (role === 'admin') {
     return '/admin';

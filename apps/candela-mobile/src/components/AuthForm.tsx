@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { type ReactNode } from 'react';
+import { Image, Pressable, ScrollView, Text, View, type TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EyeIcon, EyeOffIcon } from './icons';
+import { FloatingLabelInput, FloatingLabelPasswordInput } from './FloatingLabelInput';
 import { brandLogo, openWebsite } from '../lib/brand';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
@@ -73,31 +73,26 @@ export function Field({
   autoComplete?: TextInput['props']['autoComplete'];
   secureTextEntry?: boolean;
 }) {
-  const { fs, s } = useLayout();
-  return (
-    <View style={{ marginBottom: s(14) }}>
-      <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', marginBottom: s(6) }}>{label}</Text>
-      <TextInput
+  if (secureTextEntry) {
+    return (
+      <FloatingLabelPasswordInput
+        label={label}
         value={value}
         onChangeText={onChange}
-        keyboardType={keyboardType}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
         autoComplete={autoComplete}
-        secureTextEntry={secureTextEntry}
-        placeholderTextColor={colors.muted}
-        style={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: s(12),
-          paddingHorizontal: s(14),
-          paddingVertical: s(12),
-          fontSize: fs(14),
-          fontWeight: '500',
-          color: colors.text,
-          backgroundColor: colors.white,
-        }}
+        variant="light"
       />
-    </View>
+    );
+  }
+  return (
+    <FloatingLabelInput
+      label={label}
+      value={value}
+      onChangeText={onChange}
+      keyboardType={keyboardType}
+      autoComplete={autoComplete}
+      variant="light"
+    />
   );
 }
 
@@ -112,41 +107,14 @@ export function PasswordField({
   onChange: (value: string) => void;
   autoComplete?: TextInput['props']['autoComplete'];
 }) {
-  const [visible, setVisible] = useState(false);
-  const { fs, s } = useLayout();
   return (
-    <View style={{ marginBottom: s(14) }}>
-      <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', marginBottom: s(6) }}>{label}</Text>
-      <View>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          autoComplete={autoComplete}
-          autoCapitalize="none"
-          secureTextEntry={!visible}
-          placeholderTextColor={colors.muted}
-          style={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: s(12),
-            paddingHorizontal: s(14),
-            paddingVertical: s(12),
-            paddingRight: s(44),
-            fontSize: fs(14),
-            fontWeight: '500',
-            color: colors.text,
-            backgroundColor: colors.white,
-          }}
-        />
-        <Pressable
-          onPress={() => setVisible((v) => !v)}
-          accessibilityLabel={visible ? 'Hide password' : 'Show password'}
-          style={{ position: 'absolute', right: s(10), top: 0, bottom: 0, justifyContent: 'center' }}
-        >
-          {visible ? <EyeOffIcon size={s(20)} color="#6B7280" /> : <EyeIcon size={s(20)} color="#6B7280" />}
-        </Pressable>
-      </View>
-    </View>
+    <FloatingLabelPasswordInput
+      label={label}
+      value={value}
+      onChangeText={onChange}
+      autoComplete={autoComplete}
+      variant="light"
+    />
   );
 }
 

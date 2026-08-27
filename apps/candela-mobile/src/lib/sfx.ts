@@ -89,6 +89,50 @@ function encodeWavSweep(options: {
   return bytesToBase64(bytes);
 }
 
+function encodeWavWhoosh(options?: { durationMs?: number; gain?: number }) {
+  const sampleRate = 22050;
+  const durationMs = options?.durationMs ?? 180;
+  const n = Math.max(2, Math.floor(sampleRate * (durationMs / 1000)));
+  const samples = new Int16Array(n);
+  const peak = Math.floor(32767 * (options?.gain ?? 0.28));
+  for (let i = 0; i < n; i += 1) {
+    const t = i / (n - 1);
+    const envelope = Math.pow(1 - t, 1.6);
+    // Approximate bandpass noise: high-pass-ish by differencing successive random samples
+    const noise = Math.random() * 2 - 1;
+    const bright = noise * (0.55 + 0.45 * (1 - t));
+    samples[i] = Math.max(-32767, Math.min(32767, bright * peak * envelope));
+  }
+
+  const dataSize = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i += 1) {
+    view.setInt16(offset, samples[i], true);
+    offset += 2;
+  }
+
+  const bytes = new Uint8Array(buffer);
+  return bytesToBase64(bytes);
+}
+
 async function fileFor(name: string, builder: () => string) {
   if (cache[name]) return cache[name]!;
   const path = `${FileSystem.cacheDirectory}candela-${name}.wav`;
@@ -123,10 +167,26 @@ async function playFile(path: string) {
 
 export async function playCorrectWoosh() {
   try {
-    const path = await fileFor('correct', () =>
-      encodeWavSweep({ startHz: 987, endHz: 1318, durationMs: 250, kind: 'sine', gain: 0.32 }),
-    );
+    const path = await fileFor('correct-svi-whoosh-v1', () => encodeWavWhoosh({ durationMs: 180, gain: 0.3 }));
     await playFile(path);
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
+export async function playMoveWhoosh() {
+  try {
+    const path = await fileFor('svi-move-whoosh-v1', () => encodeWavWhoosh({ durationMs: 100, gain: 0.26 }));
+    await playFile(path);
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
+export async function preloadMoveWhoosh() {
+  try {
+    await ensureAudioMode();
+    await fileFor('svi-move-whoosh-v1', () => encodeWavWhoosh({ durationMs: 100, gain: 0.26 }));
   } catch {
     // audio is optional on simulators
   }

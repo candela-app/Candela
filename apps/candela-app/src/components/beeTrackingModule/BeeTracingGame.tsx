@@ -27,6 +27,7 @@ import {
   findNearestPathPointInWindow,
   evaluateTracingMetrics,
 } from './BeePathGenerator';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
@@ -44,8 +45,7 @@ interface BeeTracingGameProps {
   initialPathType?: string;
 }
 
-const DEFAULT_SETTINGS: BeeTracingSettings = {
-  patientName: 'Demo Patient',
+const DEFAULT_SETTINGS: Omit<BeeTracingSettings, 'patientName'> = {
   tracingMode: 'active',
   pathType: 'auto',
   toleranceBandPx: 40,
@@ -71,18 +71,26 @@ const PATH_PROGRESSION: BeePathType[] = [
 ];
 
 export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialPathType = 'straight' }) => {
+  const { session } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const lockedPathType = resolveBeePathType(initialPathType);
 
   // Settings & State
-  const [settings, setSettings] = useState<BeeTracingSettings>({
+  const [settings, setSettings] = useState<BeeTracingSettings>(() => ({
     ...DEFAULT_SETTINGS,
+    patientName: sessionDisplayName(session),
     pathType: lockedPathType,
-  });
+  }));
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
   const [gameStarted, setGameStarted] = useState(false);
   const [beeHeading, setBeeHeading] = useState(0);
   useGameSessionLock(true);
+
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
+  }, [session?.user?.name]);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 

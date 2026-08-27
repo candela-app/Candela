@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GEOBOARD_PEN_COLORS,
@@ -11,6 +11,7 @@ import {
   type GeoboardProtocol,
   type GeoboardTransform,
 } from '@candela/shared/rn';
+import { FloatingLabelInput } from './FloatingLabelInput';
 import { useLayout } from '../lib/layout';
 
 const BOARD_COLORS = ['#FFFFFF', '#F2F5F3', '#0B1220', '#111827'];
@@ -205,22 +206,12 @@ export function GeoboardSettingsModal({
                     : `${patternCount} patterns in this playlist`}
                 </Text>
               </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>PATIENT NAME</Text>
-              <TextInput
+              <FloatingLabelInput
+                label="Patient Name"
                 value={draft.patientName}
                 onChangeText={(patientName) => patch({ patientName })}
-                placeholder="Enter patient name..."
-                placeholderTextColor="#9CA3AF"
-                style={{
-                  backgroundColor: '#141414',
-                  color: '#fff',
-                  borderWidth: 1,
-                  borderColor: '#374151',
-                  borderRadius: s(12),
-                  paddingHorizontal: s(12),
-                  paddingVertical: s(10),
-                  fontSize: fs(14),
-                }}
+                variant="dark"
+                style={{ marginBottom: 0 }}
               />
               {supportsLetterCase ? (
                 <>

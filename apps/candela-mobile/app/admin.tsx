@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela/shared/rn';
 import { AppHeader } from '../src/components/AppHeader';
+import {
+  FloatingLabelInput,
+  FloatingLabelPasswordInput,
+} from '../src/components/FloatingLabelInput';
 import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
@@ -221,10 +225,10 @@ export default function AdminScreen() {
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create doctor</Text>
-          <TextInput placeholder="Name" value={name} onChangeText={setName} style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} placeholderTextColor={colors.muted} />
-          <TextInput placeholder="Password (min 8)" value={password} onChangeText={setPassword} secureTextEntry style={inputStyle} placeholderTextColor={colors.muted} />
+          <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
+          <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <FloatingLabelPasswordInput label="Password (min 8)" value={password} onChangeText={setPassword} />
           <Pressable
             onPress={() => void onCreateDoctor()}
             disabled={saving}
@@ -249,14 +253,12 @@ export default function AdminScreen() {
                 : 'Select patient'}
             </Text>
           </Pressable>
-          <TextInput
-            placeholder="Target DocID"
-            placeholderTextColor={colors.muted}
+          <FloatingLabelInput
+            label="Target DocID"
             value={transferCode}
             onChangeText={(v) => setTransferCode(v.toUpperCase())}
             maxLength={6}
             autoCapitalize="characters"
-            style={{ ...inputStyle, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 3 }}
           />
           <Pressable
             onPress={() => void onTransfer()}
@@ -329,13 +331,12 @@ export default function AdminScreen() {
           </View>
         ))}
 
-        <TextInput
-          placeholder="Filter by DocID (current or previous)"
-          placeholderTextColor={colors.muted}
+        <FloatingLabelInput
+          label="Filter by DocID"
           value={docIdFilter}
           onChangeText={(v) => setDocIdFilter(v.toUpperCase())}
           autoCapitalize="characters"
-          style={{ ...inputStyle, marginTop: s(16), fontFamily: 'monospace' }}
+          style={{ marginTop: s(16) }}
         />
 
         <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Patients managed by doctors</Text>
@@ -377,14 +378,10 @@ export default function AdminScreen() {
               </Text>
             ) : null}
             {editError ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{editError}</Text> : null}
-            <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>Doctor Name</Text>
-            <TextInput value={editName} onChangeText={setEditName} style={inputStyle} />
-            <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>Phone Number</Text>
-            <TextInput value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" style={inputStyle} />
-            <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>Email Address</Text>
-            <TextInput value={editEmail} onChangeText={setEditEmail} autoCapitalize="none" keyboardType="email-address" style={inputStyle} />
-            <Text style={{ fontSize: fs(12), fontWeight: '700', marginBottom: s(4) }}>New Password (optional)</Text>
-            <TextInput value={editPassword} onChangeText={setEditPassword} secureTextEntry style={inputStyle} placeholder="Leave empty to keep existing password" placeholderTextColor={colors.muted} />
+            <FloatingLabelInput label="Doctor Name" value={editName} onChangeText={setEditName} />
+            <FloatingLabelInput label="Phone Number" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+            <FloatingLabelInput label="Email Address" value={editEmail} onChangeText={setEditEmail} autoCapitalize="none" keyboardType="email-address" />
+            <FloatingLabelPasswordInput label="New Password (optional)" value={editPassword} onChangeText={setEditPassword} />
             <View style={{ flexDirection: 'row', gap: s(10), marginTop: s(8) }}>
               <Pressable onPress={() => setEditDoctor(null)} style={{ flex: 1, backgroundColor: '#F3F4F6', borderRadius: s(12), padding: s(14), alignItems: 'center' }}>
                 <Text style={{ fontWeight: '700', color: '#374151' }}>Cancel</Text>

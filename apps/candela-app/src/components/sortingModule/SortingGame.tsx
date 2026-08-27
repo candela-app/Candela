@@ -31,9 +31,11 @@ import {
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
+  wheelColorLabel,
   DEFAULT_BUBBLE_APPEARANCE,
   type BubbleAppearance,
 } from '@candela/shared';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
@@ -46,6 +48,7 @@ interface SortingGameProps {
 }
 
 export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps) {
+  const { session } = useAuth();
   const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
@@ -56,13 +59,19 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
 
   // Active Settings
-  const [patientName, setPatientName] = useState<string>('Demo Patient');
+  const [patientName, setPatientName] = useState<string>(() => sessionDisplayName(session));
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setPatientName((prev) => (prev === name ? prev : name));
+  }, [session?.user?.name]);
   const [letterSize, setLetterSize] = useState<number>(1.8);
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'sorting'));
   const [numberRangeFrom, setNumberRangeFrom] = useState(DEFAULT_SORTING_NUMBER_FROM);
   const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
+  const [wheelColor, setWheelColor] = useState<string>('#000000');
 
   // Temporary Settings state for Modal editing
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
@@ -428,7 +437,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     : 0;
 
   return (
-    <div className="relative w-screen h-screen bg-[#0A0A0A] overflow-hidden text-white">
+    <div className="relative w-screen h-screen overflow-hidden text-white" style={{ backgroundColor: wheelColor }}>
       {/* TOP-RIGHT NOTIFICATION TOAST */}
       {notification && (
         <div className="fixed top-6 right-6 z-[300] flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md text-white font-bold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/30 text-sm animate-fade-in">
@@ -448,7 +457,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       {/* GAME AREA */}
       <div
         ref={containerRef}
-        className="relative w-full h-full bg-[#000000] overflow-hidden cursor-pointer"
+        className="relative w-full h-full overflow-hidden cursor-pointer"
+        style={{ backgroundColor: wheelColor }}
         onClick={handleBackgroundClick}
       >
         {gameStarted ? (
@@ -518,6 +528,18 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           { label: 'Bubble Size', value: <span className="text-blue-400 font-bold">{bubbleSize}</span> },
           { label: 'Stimuli Color', value: stimuliColorLabel(stimuliColor) },
           { label: 'Bubble Style', value: bubbleAppearanceLabel(bubbleAppearance) },
+          {
+            label: 'Background',
+            value: (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-4 h-4 rounded-full border border-gray-600 inline-block shadow-sm"
+                  style={{ backgroundColor: wheelColor }}
+                />
+                <span className="text-[11px] text-gray-300">{wheelColorLabel(wheelColor)}</span>
+              </div>
+            ),
+          },
           { label: 'Variant', value: <span className="text-emerald-400 font-bold capitalize">{variant}</span> },
           ...(variant === 'numbers'
             ? [{ label: 'Range', value: <span className="text-cyan-300 font-bold">{numberRangeFrom}–{numberRangeTo}</span> }]
@@ -541,6 +563,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           }
           if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
           if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
+          if (newSettings.wheelColor !== undefined) setWheelColor(newSettings.wheelColor);
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -557,6 +580,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         stimuliColor={stimuliColor}
         showBubbleAppearancePicker
         bubbleAppearance={bubbleAppearance}
+        showWheelColorControl
+        wheelColor={wheelColor}
+        wheelColorTitle="Background Color"
+        wheelColorHint="Background color of the sorting playfield."
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}

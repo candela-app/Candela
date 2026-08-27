@@ -121,6 +121,18 @@ export interface LocationMemorySessionResultData extends SessionResultData {
   medianReactionSec: number;
 }
 
+export interface DirectionSenseSessionResultData extends SessionResultData {
+  trialsConfigured: number;
+  trialsCompleted: number;
+  choiceCount: number;
+  transformMode: 'face' | 'flip' | 'mixed' | 'straighten';
+  endedBy: 'cleared' | 'timeout';
+  deviceTier: DeviceTier;
+  medianReactionSec: number;
+  faceErrors: number;
+  flipErrors: number;
+}
+
 export interface RotatoryWheelSettings {
   bubbleCount: number;
   rotationDuration: number;
@@ -218,7 +230,8 @@ export type TherapyModuleId =
   | 'peripheral_view'
   | 'number_search'
   | 'pattern_match'
-  | 'location_memory';
+  | 'location_memory'
+  | 'direction_sense';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;

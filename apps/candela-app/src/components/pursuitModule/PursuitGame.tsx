@@ -19,6 +19,7 @@ import {
   pursuitPatternName,
   reactionStatsFromMs,
 } from '@candela/shared';
+import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -36,12 +37,13 @@ const TRIALS_PER_BLOCK = 5;
 const TOTAL_BLOCKS = 4;
 
 export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovementPattern = 'linear_bounce' }) => {
+  const { session } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const lockedPattern = resolvePursuitPattern(initialMovementPattern);
 
   // --- Clinical Settings State ---
-  const [settings, setSettings] = useState<PursuitSettings>({
-    patientName: 'Demo Patient',
+  const [settings, setSettings] = useState<PursuitSettings>(() => ({
+    patientName: sessionDisplayName(session),
     movementPattern: lockedPattern,
     bubbleSizePx: 100,
     targetColor: '#00E5FF',
@@ -52,11 +54,17 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     totalTrials: TOTAL_TRIALS,
     blocksCount: TOTAL_BLOCKS,
     orientation: 'auto',
-  });
+  }));
 
   useEffect(() => {
     setSettings((prev) => (prev.movementPattern === lockedPattern ? prev : { ...prev, movementPattern: lockedPattern }));
   }, [lockedPattern]);
+
+  useEffect(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return;
+    setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
+  }, [session?.user?.name]);
 
   // --- Session & Trial Execution State ---
   const [currentTrialIndex, setCurrentTrialIndex] = useState<number>(0);

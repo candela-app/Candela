@@ -101,4 +101,12 @@ export const MODULE_CARDS: ModuleCard[] = [
     accent: '#D97706',
     bar: '#FBBF24',
   },
+  {
+    uiId: 'direction_sense',
+    title: 'Direction Sense',
+    body: 'See a letter and a rotate arrow, then pick the matching 90° turn',
+    badge: 'For All Devices',
+    accent: '#0284C7',
+    bar: '#38BDF8',
+  },
 ];
