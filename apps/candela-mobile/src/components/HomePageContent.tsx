@@ -14,6 +14,7 @@ import {
   RocketIcon,
   RotatoryIcon,
   NumberSearchIcon,
+  PatternMatchIcon,
   SlidersIcon,
   SparklesIcon,
   TargetIcon,
@@ -94,6 +95,15 @@ const MODULES = [
     accent: '#B45309',
     bg: '#FFFBEB',
     Icon: NumberSearchIcon,
+  },
+  {
+    id: 'pattern_match',
+    title: 'Pattern Match',
+    body: 'Hold a flashed digit code and tap every exact match among near-misses.',
+    badge: 'For All Devices',
+    accent: '#BE123C',
+    bg: '#FFF1F2',
+    Icon: PatternMatchIcon,
   },
 ] as const;
 

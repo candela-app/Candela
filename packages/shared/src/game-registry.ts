@@ -60,6 +60,14 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'mobile'],
   },
+  pattern_match: {
+    id: 'pattern_match',
+    name: 'Pattern Match',
+    description:
+      'Visual memory & digit-sequence discrimination — hold a flashed code and tap every exact match in a near-miss field.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'mobile'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -129,6 +137,10 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
   ],
   number_search: [
     { id: 'standard', name: 'Find the Numbers' },
+  ],
+  pattern_match: [
+    { id: 'standard', name: 'Hold the Code' },
+    { id: 'compound', name: 'Compound' },
   ],
 };
 

@@ -85,6 +85,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   geoboard: 'geoboard',
   peripheral: 'peripheral_view',
   number_search: 'number_search',
+  pattern_match: 'pattern_match',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -96,4 +97,5 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   geoboard: 'geoboard',
   peripheral_view: 'peripheral',
   number_search: 'number_search',
+  pattern_match: 'pattern_match',
 };

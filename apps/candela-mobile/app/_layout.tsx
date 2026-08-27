@@ -49,6 +49,10 @@ export default function RootLayout() {
               name="play/number-search"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
+            <Stack.Screen
+              name="play/pattern-match"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
           </Stack>
         </AuthProvider>
       </SafeAreaProvider>

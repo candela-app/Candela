@@ -7,6 +7,7 @@ export const ALL_MODULE_IDS = [
   'geoboard',
   'peripheral_view',
   'number_search',
+  'pattern_match',
 ] as const;
 
 export type TherapyModuleId = (typeof ALL_MODULE_IDS)[number];
