@@ -759,6 +759,7 @@ export function BeeTracingGame({
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         resetButtonLabel="Reset Level"
+        sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient', value: settings.patientName },
           { label: 'Mode', value: settings.tracingMode },

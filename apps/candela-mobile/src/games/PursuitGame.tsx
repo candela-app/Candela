@@ -375,6 +375,7 @@ export function PursuitGame({
           setCurrentTrialIndex(0);
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient Name', value: settings.patientName },
           { label: 'Movement Pattern', value: pursuitPatternName(settings.movementPattern) },

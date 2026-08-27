@@ -62,6 +62,7 @@ export function PeripheralViewGame({
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
@@ -450,6 +451,10 @@ export function PeripheralViewGame({
   const openSettings = () => {
     setIsAssistiveTouchOpen(false);
     setIsHeaderExpanded(false);
+    if (gameStarted && !isResultsOpen) {
+      setSettingsLockedOpen(true);
+      return;
+    }
     setIsSettingsOpen(true);
   };
 
@@ -893,6 +898,18 @@ export function PeripheralViewGame({
         </View>
       ) : null}
 
+      <ResetConfirmDialog
+        visible={settingsLockedOpen}
+        title="Settings locked"
+        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
+        cancelLabel="Keep playing"
+        confirmLabel="Reset Session"
+        onCancel={() => setSettingsLockedOpen(false)}
+        onConfirm={() => {
+          setSettingsLockedOpen(false);
+          setConfirmReset(true);
+        }}
+      />
       <ResetConfirmDialog
         visible={confirmReset}
         confirmLabel="Reset Session"

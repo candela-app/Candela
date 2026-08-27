@@ -135,6 +135,60 @@ export function playWhooshSoundAndHaptic(): void {
 }
 
 /**
+ * Soft flip / open tap for Location Memory cells (peek or reveal a closed box).
+ * Short filtered click + light haptic — distinct from the correct/wrong whoosh.
+ */
+export function playOpenTapSoundAndHaptic(): void {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(25);
+    } catch (_) {}
+  }
+
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const duration = 0.09;
+    const t0 = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(620, t0);
+    osc.frequency.exponentialRampToValueAtTime(280, t0 + duration);
+    gain.gain.setValueAtTime(0.22, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration);
+
+    const sampleRate = ctx.sampleRate;
+    const frameCount = Math.floor(sampleRate * 0.05);
+    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      const t = i / frameCount;
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.2) * 0.35;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(900, t0);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.12, t0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(t0);
+    noise.stop(t0 + 0.05);
+  } catch (_) {}
+}
+
+/**
  * Play a low dull thud sound (150 Hz -> 65 Hz)
  * and trigger a short triple pulse for miss presses (clicking empty wheel/game background).
  */

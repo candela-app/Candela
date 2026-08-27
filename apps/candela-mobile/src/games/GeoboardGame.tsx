@@ -1276,6 +1276,7 @@ export function GeoboardGame({
           setIsSettingsOpen(true);
         }}
         resetButtonLabel="Restart Board"
+        sessionInProgress={isPlayingPhase}
         settingsSummary={[
           { label: 'Patient', value: protocol.patientName },
           { label: 'Board', value: board.shortLabel },

@@ -70,6 +70,7 @@ export function RotatoryWheelGame({
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [settingsLockedOpen, setSettingsLockedOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [poppingActive, setPoppingActive] = useState(false);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
@@ -319,6 +320,10 @@ export function RotatoryWheelGame({
 
   const openSettings = () => {
     setIsAssistiveTouchOpen(false);
+    if (isGameStarted && !isResultsOpen) {
+      setSettingsLockedOpen(true);
+      return;
+    }
     setIsPaused(true);
     stopSpeaking();
     setIsSettingsOpen(true);
@@ -801,6 +806,18 @@ export function RotatoryWheelGame({
             ),
           },
         ]}
+      />
+      <ResetConfirmDialog
+        visible={settingsLockedOpen}
+        title="Settings locked"
+        message="You cannot change the settings in the middle of a game. If you want to change the settings, reset the game."
+        cancelLabel="Keep playing"
+        confirmLabel="Reset Level"
+        onCancel={() => setSettingsLockedOpen(false)}
+        onConfirm={() => {
+          setSettingsLockedOpen(false);
+          setConfirmReset(true);
+        }}
       />
       <ResetConfirmDialog
         visible={confirmReset}

@@ -89,7 +89,7 @@ const MODULES = [
   },
   {
     id: 'number_search',
-    title: 'Number Search',
+    title: 'Crowded Search',
     body: 'Find digits hidden in a crowded field of mixed letters.',
     badge: 'For All Devices',
     accent: '#B45309',
@@ -98,11 +98,20 @@ const MODULES = [
   },
   {
     id: 'pattern_match',
-    title: 'Pattern Match',
-    body: 'Hold a flashed digit code and tap every exact match among near-misses.',
+    title: 'Hold the Code',
+    body: 'Hold a flashed code and tap every exact match among near-misses.',
     badge: 'For All Devices',
     accent: '#BE123C',
     bg: '#FFF1F2',
+    Icon: PatternMatchIcon,
+  },
+  {
+    id: 'location_memory',
+    title: 'Location Memory',
+    body: 'Explore a 3×3 grid one cell at a time, then recall where each number was.',
+    badge: 'For All Devices',
+    accent: '#D97706',
+    bg: '#FFFBEB',
     Icon: PatternMatchIcon,
   },
 ] as const;

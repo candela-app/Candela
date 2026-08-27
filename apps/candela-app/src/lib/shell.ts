@@ -79,7 +79,7 @@ export const MODULE_CARDS: ModuleCard[] = [
   },
   {
     uiId: 'number_search',
-    title: 'Number Search',
+    title: 'Crowded Search',
     body: 'Find digits hidden in a crowded field of mixed letters',
     badge: 'For All Devices',
     accent: '#B45309',
@@ -87,10 +87,18 @@ export const MODULE_CARDS: ModuleCard[] = [
   },
   {
     uiId: 'pattern_match',
-    title: 'Pattern Match',
-    body: 'Hold a flashed digit code and tap every exact match',
+    title: 'Hold the Code',
+    body: 'Hold a flashed code and tap every exact match',
     badge: 'For All Devices',
     accent: '#BE123C',
     bar: '#FB7185',
+  },
+  {
+    uiId: 'location_memory',
+    title: 'Location Memory',
+    body: 'Explore a grid, then recall where each number was',
+    badge: 'For All Devices',
+    accent: '#D97706',
+    bar: '#FBBF24',
   },
 ];

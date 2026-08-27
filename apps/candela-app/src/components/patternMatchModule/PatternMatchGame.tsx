@@ -61,7 +61,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     () => patternMatchStimulusFromLevelId(levelId) as PatternMatchStimulusMode,
     [levelId],
   );
-  const levelTitle = stimulusMode === 'compound' ? 'Compound' : 'Hold the Code';
+  const levelTitle = stimulusMode === 'compound' ? 'Compound' : 'Standard';
   const levelHint =
     stimulusMode === 'compound'
       ? 'Memorize the flashed letter–number code, then tap every exact match. Near-miss codes are wrong taps.'
@@ -201,7 +201,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         patientName: cfg.patientName,
         sessionId: Date.now(),
         date: new Date().toISOString(),
-        gameName: 'Pattern Match',
+        gameName: 'Hold the Code',
         stimuliCount: stats.matchesConfigured,
         letterSize: cfg.letterSize,
         speed: cfg.timeLimitSec > 0 ? `${cfg.timeLimitSec}s` : 'Untimed',

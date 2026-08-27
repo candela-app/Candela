@@ -53,11 +53,11 @@ export function PatternMatchGame({
     () => patternMatchStimulusFromLevelId(levelId) as PatternMatchStimulusMode,
     [levelId],
   );
-  const levelTitle = stimulusMode === 'compound' ? 'Compound' : 'Hold the Code';
+  const levelTitle = 'Hold the Code';
   const levelHint =
     stimulusMode === 'compound'
-      ? 'Memorize the letter–number code, then tap every exact match.'
-      : 'Memorize the flashed code, then tap every exact match. Near-miss codes are wrong.';
+      ? 'Compound — memorize the letter–number code, then tap every exact match.'
+      : 'Standard — memorize the flashed code, then tap every exact match. Near-miss codes are wrong.';
   const { requestExit } = useGameSessionLock(onExit);
 
   const [gameStarted, setGameStarted] = useState(false);
@@ -151,7 +151,7 @@ export function PatternMatchGame({
         patientName,
         sessionId: Date.now(),
         date: new Date().toISOString(),
-        gameName: 'Pattern Match',
+        gameName: 'Hold the Code',
         stimuliCount: stats.matchesConfigured,
         letterSize,
         speed: timeLimitSec > 0 ? `${timeLimitSec}s` : 'Untimed',
@@ -233,11 +233,31 @@ export function PatternMatchGame({
   );
 
   const launchRound = useCallback(
-    (round: number, resetSession = false) => {
+    (
+      round: number,
+      resetSession = false,
+      overrides?: {
+        codeLength?: number;
+        flashMs?: number;
+        cellCount?: number;
+        hardness?: PatternMatchHardness;
+        timeLimitSec?: number;
+      },
+    ) => {
       endingRef.current = false;
       if (encodeTimerRef.current) clearTimeout(encodeTimerRef.current);
-      const code = generatePatternMatchTarget(codeLength, stimulusMode);
-      const packed = buildPatternMatchField({ target: code, cellCount, hardness, stimulusMode });
+      const len = overrides?.codeLength ?? codeLength;
+      const flash = overrides?.flashMs ?? flashMs;
+      const cellsN = overrides?.cellCount ?? cellCount;
+      const hard = overrides?.hardness ?? hardness;
+      const limit = overrides?.timeLimitSec ?? timeLimitSec;
+      const code = generatePatternMatchTarget(len, stimulusMode);
+      const packed = buildPatternMatchField({
+        target: code,
+        cellCount: cellsN,
+        hardness: hard,
+        stimulusMode,
+      });
       if (!packed.some((c) => c.isMatch)) {
         setNotification('Could not build field — try again.');
         setTimeout(() => setNotification(null), 2500);
@@ -248,22 +268,31 @@ export function PatternMatchGame({
       setIsSettingsOpen(false);
       setTargetCode(code);
       setGameStarted(true);
-      if (flashMs <= 0) {
-        beginSearchPhase(code, packed, timeLimitSec, { resetSession });
+      if (flash <= 0) {
+        beginSearchPhase(code, packed, limit, { resetSession });
         return;
       }
       setPhase('encode');
       setCells([]);
       encodeTimerRef.current = setTimeout(() => {
-        if (!endingRef.current) beginSearchPhase(code, packed, timeLimitSec, { resetSession });
-      }, flashMs);
+        if (!endingRef.current) beginSearchPhase(code, packed, limit, { resetSession });
+      }, flash);
     },
     [codeLength, cellCount, hardness, flashMs, timeLimitSec, stimulusMode, beginSearchPhase],
   );
 
-  const startGame = useCallback(() => {
-    launchRound(1, true);
-  }, [launchRound]);
+  const startGame = useCallback(
+    (overrides?: {
+      codeLength?: number;
+      flashMs?: number;
+      cellCount?: number;
+      hardness?: PatternMatchHardness;
+      timeLimitSec?: number;
+    }) => {
+      launchRound(1, true, overrides);
+    },
+    [launchRound],
+  );
 
   const onBoardCleared = useCallback(() => {
     statsRef.current.roundsCompleted = currentRoundRef.current;
@@ -321,11 +350,37 @@ export function PatternMatchGame({
   );
 
   const commitSettings = (settings: AppliedClinicalSettings) => {
+    const nextLength = settings.patternMatchCodeLength ?? codeLength;
+    const nextFlash = settings.patternMatchFlashMs ?? flashMs;
+    const nextCells = settings.patternMatchCellCount ?? cellCount;
+    const nextHard = settings.patternMatchHardness ?? hardness;
+    const nextLetter = settings.letterSize ?? letterSize;
+    const nextRounds = settings.patternMatchRounds ?? roundsPerSession;
+    const nextTime = settings.timeLimitSec ?? timeLimitSec;
+    const nextBg = settings.bgColor || engineBgColor;
+    const nextChar = settings.shapeColor || charColor;
+
     setPatientName(settings.patientName);
-    if (settings.letterSize != null) setLetterSize(settings.letterSize);
-    if (settings.timeLimitSec != null) setTimeLimitSec(settings.timeLimitSec);
-    if (settings.bgColor) setEngineBgColor(settings.bgColor);
-    if (settings.shapeColor) setCharColor(settings.shapeColor);
+    setCodeLength(nextLength);
+    setFlashMs(nextFlash);
+    setCellCount(nextCells);
+    setHardness(nextHard);
+    setLetterSize(nextLetter);
+    setRoundsPerSession(nextRounds);
+    roundsPerSessionRef.current = nextRounds;
+    setTimeLimitSec(nextTime);
+    setEngineBgColor(nextBg);
+    setCharColor(nextChar);
+
+    return {
+      codeLength: nextLength,
+      flashMs: nextFlash,
+      cellCount: nextCells,
+      hardness: nextHard,
+      letterSize: nextLetter,
+      rounds: nextRounds,
+      timeLimitSec: nextTime,
+    };
   };
 
   const showHoldCode = flashMs <= 0 && phase === 'search' && !!targetCode;
@@ -495,19 +550,27 @@ export function PatternMatchGame({
         onClose={() => setIsSettingsOpen(false)}
         onApply={(settings) => {
           const wasPlaying = gameStarted && !isResultsOpen;
-          commitSettings(settings);
+          const next = commitSettings(settings);
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
-          if (wasPlaying) startGame();
+          if (wasPlaying) startGame(next);
         }}
         patientName={patientName}
         letterSize={letterSize}
         bubbleSize={80}
-        showLetterSizeControl
+        showLetterSizeControl={false}
+        showPatternMatchControls
+        patternMatchCodeLength={codeLength}
+        patternMatchFlashMs={flashMs}
+        patternMatchCellCount={cellCount}
+        patternMatchHardness={hardness}
+        patternMatchRounds={roundsPerSession}
+        patternMatchStimulusMode={stimulusMode}
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        sampleSymbol={stimulusMode === 'compound' ? 'A3B' : '331'}
         sessionLocked={gameStarted && !isResultsOpen}
       />
 

@@ -31,8 +31,9 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'mobile_target', title: 'Bubble Chase', body: '2-target bouncing pursuit & dark field tracking', badge: 'For Mobile & Tabs', accent: '#059669', bar: '#34D399' },
   { uiId: 'geoboard', title: 'Draw a Pattern', body: 'Hand-eye coordination & visual spatial recall patterns', badge: 'For All Devices', accent: '#0D9488', bar: '#14B8A6' },
   { uiId: 'peripheral', title: 'Peripheral View', body: 'Hex-hive peripheral field awareness — left, right, or both', badge: 'Landscape only', accent: '#4338CA', bar: '#818CF8' },
-  { uiId: 'number_search', title: 'Number Search', body: 'Find digits hidden in a crowded field of mixed letters', badge: 'For All Devices', accent: '#B45309', bar: '#F59E0B' },
-  { uiId: 'pattern_match', title: 'Pattern Match', body: 'Hold a flashed digit code and tap every exact match', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
+  { uiId: 'number_search', title: 'Crowded Search', body: 'Find digits hidden in a crowded field of mixed letters', badge: 'For All Devices', accent: '#B45309', bar: '#F59E0B' },
+  { uiId: 'pattern_match', title: 'Hold the Code', body: 'Hold a flashed code and tap every exact match', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
+  { uiId: 'location_memory', title: 'Location Memory', body: 'Explore a grid, then recall where each number was', badge: 'For All Devices', accent: '#D97706', bar: '#FBBF24' },
 ];
 
 export default function DashboardScreen() {
@@ -123,6 +124,9 @@ export default function DashboardScreen() {
   };
   const launchPatternMatch = (levelId: string = 'standard') => {
     router.push(`/play/pattern-match?level=${levelId}` as never);
+  };
+  const launchLocationMemory = (levelId: string = 'standard') => {
+    router.push(`/play/location-memory?level=${levelId}` as never);
   };
 
   const backToModules = () => router.replace('/dashboard');
@@ -320,7 +324,7 @@ export default function DashboardScreen() {
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Number Search</Text>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Crowded Search</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Find digits hidden among mixed letters
           </Text>
@@ -338,9 +342,27 @@ export default function DashboardScreen() {
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pattern Match</Text>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Hold a code — tap every exact match
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (params.module === 'location_memory' && canPlayUiModule('location_memory')) {
+    const levels = MODULE_LEVELS.location_memory
+      .filter((level) => isLevelAllowed('location_memory', level.id))
+      .map((level) => variantCard(level.name, () => launchLocationMemory(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Location Memory</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Explore the grid, then recall each number
           </Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>

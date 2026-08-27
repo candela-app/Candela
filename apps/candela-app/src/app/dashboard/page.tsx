@@ -11,6 +11,7 @@ import { GeoboardGame } from '@/components/geoboardModule/GeoboardGame';
 import { PeripheralViewGame } from '@/components/peripheralViewModule/PeripheralViewGame';
 import { NumberSearchGame } from '@/components/numberSearchModule/NumberSearchGame';
 import { PatternMatchGame } from '@/components/patternMatchModule/PatternMatchGame';
+import { LocationMemoryGame } from '@/components/locationMemoryModule/LocationMemoryGame';
 import {
   EyeIcon,
   AnalyticsIcon,
@@ -43,7 +44,7 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match';
+type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory';
 
 function MainContent() {
   const router = useRouter();
@@ -105,6 +106,7 @@ function MainContent() {
   const [geoboardBoardId, setGeoboardBoardId] = useState<GeoboardBoardId>(1);
   const [peripheralField, setPeripheralField] = useState<PeripheralField>('both');
   const [patternMatchLevelId, setPatternMatchLevelId] = useState<string>('standard');
+  const [locationMemoryLevelId, setLocationMemoryLevelId] = useState<string>('standard');
 
   // Sync state from URL Query Params
   useEffect(() => {
@@ -168,6 +170,14 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('pattern_match');
       setView('play_pattern_match');
+    } else if (gameParam === 'location_memory') {
+      const lmLevel = searchParams.get('variant');
+      setLocationMemoryLevelId(
+        lmLevel === 'practice' ? 'practice' : lmLevel === 'match' ? 'match' : 'standard',
+      );
+      setSelectedTherapy('vision');
+      setSelectedModule('location_memory');
+      setView('play_location_memory');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -358,6 +368,19 @@ function MainContent() {
     });
   };
 
+  const handleLaunchLocationMemory = (levelId: string = 'standard') => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'location_memory',
+      game: 'location_memory',
+      mode: null,
+      variant: levelId,
+      board: null,
+    });
+  };
+
   const handleExitGame = () => {
     if (selectedModule) {
       updateQueryParams({
@@ -382,7 +405,7 @@ function MainContent() {
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory';
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
@@ -498,8 +521,9 @@ function MainContent() {
               {selectedModule === 'mobile_target' && 'Bubble Chase'}
               {selectedModule === 'geoboard' && 'Draw a Pattern'}
               {selectedModule === 'peripheral' && 'Peripheral View'}
-              {selectedModule === 'number_search' && 'Number Search'}
-              {selectedModule === 'pattern_match' && 'Pattern Match'}
+              {selectedModule === 'number_search' && 'Crowded Search'}
+              {selectedModule === 'pattern_match' && 'Hold the Code'}
+              {selectedModule === 'location_memory' && 'Location Memory'}
             </h2>
             <p className="text-[13px] text-shell-muted font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
@@ -511,6 +535,7 @@ function MainContent() {
               {selectedModule === 'peripheral' && 'Select a visual field · designed for landscape'}
               {selectedModule === 'number_search' && 'Find digits in a crowded letter field'}
               {selectedModule === 'pattern_match' && 'Hold a code — tap every exact match'}
+              {selectedModule === 'location_memory' && 'Explore the grid, then find each number from memory'}
             </p>
           </div>
 
@@ -749,6 +774,31 @@ function MainContent() {
               )}
             </main>
           )}
+
+          {selectedModule === 'location_memory' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.location_memory.map((level) =>
+                isLevelAllowed('location_memory', level.id) ? (
+                  <button
+                    type="button"
+                    key={level.id}
+                    className={VARIANT_TILE}
+                    onClick={() => handleLaunchLocationMemory(level.id)}
+                  >
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
+                ) : null,
+              )}
+              {MODULE_LEVELS.location_memory.every((level) => !isLevelAllowed('location_memory', level.id)) && (
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
         </>
       )}
 
@@ -797,6 +847,12 @@ function MainContent() {
         canPlayUiModule('pattern_match') &&
         isLevelAllowed('pattern_match', patternMatchLevelId) && (
           <PatternMatchGame levelId={patternMatchLevelId} onExit={handleExitGame} />
+        )}
+
+      {view === 'play_location_memory' &&
+        canPlayUiModule('location_memory') &&
+        isLevelAllowed('location_memory', locationMemoryLevelId) && (
+          <LocationMemoryGame levelId={locationMemoryLevelId} onExit={handleExitGame} />
         )}
     </div>
   );
