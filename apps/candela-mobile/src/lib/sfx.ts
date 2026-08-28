@@ -1,5 +1,9 @@
+import { APPLAUSE_LEAD_IN_SEC } from '@candela/shared/rn';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
+
+const applauseModule = require('@candela/shared/assets/sfx/applause-cheer.mp3') as number;
 
 type ToneKind = 'sine' | 'sawtooth' | 'triangle';
 
@@ -133,6 +137,52 @@ function encodeWavWhoosh(options?: { durationMs?: number; gain?: number }) {
   return bytesToBase64(bytes);
 }
 
+function encodeWavFromSamples(samples: Int16Array) {
+  const sampleRate = 22050;
+  const dataSize = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i += 1) {
+    view.setInt16(offset, samples[i], true);
+    offset += 2;
+  }
+  return bytesToBase64(new Uint8Array(buffer));
+}
+
+function encodePartyBlast() {
+  const sampleRate = 22050;
+  const n = Math.floor(sampleRate * 0.32);
+  const samples = new Int16Array(n);
+  const peak = Math.floor(32767 * 0.44);
+  let phase = 0;
+  for (let i = 0; i < n; i += 1) {
+    const t = i / (n - 1);
+    const env = Math.pow(1 - t, 2.2);
+    const noise = (Math.random() * 2 - 1) * env;
+    phase += (Math.PI * 2 * (98 - 56 * t)) / sampleRate;
+    const boom = Math.sin(phase) * env * 0.72;
+    samples[i] = Math.max(-32767, Math.min(32767, (noise * 0.62 + boom) * peak));
+  }
+  return encodeWavFromSamples(samples);
+}
+
 async function fileFor(name: string, builder: () => string) {
   if (cache[name]) return cache[name]!;
   const path = `${FileSystem.cacheDirectory}candela-${name}.wav`;
@@ -153,10 +203,10 @@ function releasePlayer(player: AudioPlayer) {
   }
 }
 
-async function playFile(path: string) {
+async function playFile(path: string, volume = 0.85) {
   await ensureAudioMode();
   const player = createAudioPlayer({ uri: path });
-  player.volume = 0.85;
+  player.volume = volume;
   const sub = player.addListener('playbackStatusUpdate', (status) => {
     if (!status.didJustFinish) return;
     sub.remove();
@@ -220,6 +270,64 @@ export async function playMissThud() {
       encodeWavSweep({ startHz: 150, endHz: 65, durationMs: 200, kind: 'triangle', gain: 0.4 }),
     );
     await playFile(path);
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
+export async function playPartyBlast() {
+  try {
+    const path = await fileFor('party-blast-v1', encodePartyBlast);
+    await playFile(path);
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
+let clapPlayer: AudioPlayer | null = null;
+
+export function stopClapBed() {
+  if (!clapPlayer) return;
+  releasePlayer(clapPlayer);
+  clapPlayer = null;
+}
+
+export async function playClapBed() {
+  try {
+    await ensureAudioMode();
+    stopClapBed();
+    const asset = Asset.fromModule(applauseModule);
+    if (!asset.localUri) {
+      await asset.downloadAsync();
+    }
+    const player = asset.localUri
+      ? createAudioPlayer({ uri: asset.localUri })
+      : createAudioPlayer(applauseModule);
+    player.volume = 0.9;
+    clapPlayer = player;
+    const sub = player.addListener('playbackStatusUpdate', (status) => {
+      if (!status.didJustFinish) return;
+      sub.remove();
+      if (clapPlayer === player) {
+        releasePlayer(player);
+        clapPlayer = null;
+      }
+    });
+    try {
+      await player.seekTo(APPLAUSE_LEAD_IN_SEC);
+    } catch {
+      // play from the start if seek is not ready
+    }
+    player.play();
+  } catch {
+    // audio is optional on simulators
+  }
+}
+
+export async function preloadClapBed() {
+  try {
+    await ensureAudioMode();
+    await Asset.fromModule(applauseModule).downloadAsync();
   } catch {
     // audio is optional on simulators
   }

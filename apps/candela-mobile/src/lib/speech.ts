@@ -1,4 +1,5 @@
 import * as Speech from 'expo-speech';
+import { clapForLine } from '@candela/shared/rn';
 
 export function speak(text: string, options?: { rate?: number; pitch?: number; language?: string }) {
   try {
@@ -10,6 +11,20 @@ export function speak(text: string, options?: { rate?: number; pitch?: number; l
     });
   } catch {
     // Speech is optional on some emulators.
+  }
+}
+
+export function speakClapFor(patientName?: string | null, onDone?: () => void) {
+  try {
+    Speech.speak(clapForLine(patientName), {
+      language: 'en-US',
+      rate: 0.92,
+      pitch: 1.05,
+      onDone,
+      onError: onDone,
+    });
+  } catch {
+    onDone?.();
   }
 }
 
