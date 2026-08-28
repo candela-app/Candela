@@ -28,6 +28,17 @@ function defaultApiUrl(): string {
 
 export const API_URL = defaultApiUrl();
 
+async function request(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(
+      0,
+      `Can't reach the server. Is the backend running, and is this device on the same Wi‑Fi?`,
+    );
+  }
+}
+
 async function parseBody(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) {
@@ -72,7 +83,7 @@ async function tryRefresh(): Promise<boolean> {
       if (!refreshToken) {
         return false;
       }
-      const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      const res = await request(`${API_URL}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -104,7 +115,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     }
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await request(`${API_URL}${path}`, {
     ...init,
     headers,
     credentials: 'omit',

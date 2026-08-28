@@ -10,7 +10,35 @@ const promiseRoot = path.resolve(workspaceRoot, 'node_modules/promise');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [...new Set([...(config.watchFolders ?? []), workspaceRoot])];
+// Watch shared code only — not the whole monorepo. Metro crawling
+// `apps/candela-app/.next` hits disappearing export dirs and crashes with ENOENT.
+config.watchFolders = [
+  ...new Set(
+    [
+      ...(config.watchFolders ?? []),
+      path.resolve(workspaceRoot, 'packages/shared'),
+      path.resolve(workspaceRoot, 'node_modules'),
+    ].filter((folder) => path.resolve(folder) !== workspaceRoot),
+  ),
+];
+const extraBlockList = [
+  /[\\/]apps[\\/]candela-app[\\/]\.next[\\/].*/,
+  /[\\/]apps[\\/]candela-backend[\\/]dist[\\/].*/,
+  /[\\/]\.turbo[\\/].*/,
+];
+
+function asRegexList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(asRegexList);
+  return [value];
+}
+
+const existingBlockList = asRegexList(config.resolver.blockList);
+const blockFlags = existingBlockList[0]?.flags ?? '';
+config.resolver.blockList = [
+  ...existingBlockList,
+  ...extraBlockList.map((re) => new RegExp(re.source, blockFlags)),
+];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),

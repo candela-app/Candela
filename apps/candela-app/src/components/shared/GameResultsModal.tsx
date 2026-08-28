@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio } from '@candela/shared';
+import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
+import { ResultsConfetti } from './ResultsConfetti';
 
 interface GameResultsModalProps {
   isOpen: boolean;
@@ -21,6 +23,16 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const [activeRoundTab, setActiveRoundTab] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const stop = startResultsCelebrationAudio(data.patientName, {
+      playClap: playApplauseClip,
+      stopClap: stopApplauseClip,
+      preloadClap: preloadApplauseClip,
+    });
+    return () => stop();
+  }, [isOpen, data.patientName]);
 
   if (!isOpen) return null;
 
@@ -141,6 +153,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all animate-fade-in">
+      <ResultsConfetti />
       <div
         ref={cardRef}
         className="relative w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"

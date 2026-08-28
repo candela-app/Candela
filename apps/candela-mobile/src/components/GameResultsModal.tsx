@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { GeoboardSessionResultData, NumberSearchSessionResultData, SessionResultData } from '@candela/shared/rn';
+import {
+  APPLAUSE_EARLY_MS,
+  type GeoboardSessionResultData,
+  type NumberSearchSessionResultData,
+  type SessionResultData,
+} from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
+import { playClapBed, playPartyBlast, preloadClapBed, stopClapBed } from '../lib/sfx';
+import { speakClapFor, stopSpeaking } from '../lib/speech';
+import { ResultsConfetti } from './ResultsConfetti';
 
 export function GameResultsModal({
   isOpen,
@@ -19,6 +27,31 @@ export function GameResultsModal({
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let clapped = false;
+    let stopped = false;
+    const clapOnce = () => {
+      if (stopped || clapped) return;
+      clapped = true;
+      void playClapBed();
+    };
+    void preloadClapBed();
+    void playPartyBlast();
+    const speakTimer = setTimeout(() => {
+      if (stopped) return;
+      speakClapFor(data.patientName);
+    }, 420);
+    const clapTimer = setTimeout(clapOnce, 2100 - APPLAUSE_EARLY_MS);
+    return () => {
+      stopped = true;
+      clearTimeout(speakTimer);
+      clearTimeout(clapTimer);
+      stopSpeaking();
+      stopClapBed();
+    };
+  }, [isOpen, data.patientName]);
 
   const formattedDate =
     data.date ||
@@ -271,6 +304,7 @@ export function GameResultsModal({
             </Pressable>
           </ScrollView>
         </View>
+        {isOpen ? <ResultsConfetti /> : null}
       </View>
     </Modal>
   );
