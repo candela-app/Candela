@@ -17,6 +17,8 @@ import {
   numberSearchDeviceDefaults,
   numberSearchFieldCountLabel,
   numberSearchLayoutLabel,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   packNumberSearchField,
   playMissPressSoundAndHaptic,
   playSuccessSoundAndHaptic,
@@ -30,6 +32,7 @@ import {
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -72,6 +75,8 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_NUMBER_SEARCH_BG);
   const [charColor, setCharColor] = useState(DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayCharColor = getContrastAdjustedColor(charColor, engineBgColor, contrastSensitivity);
 
   const [glyphs, setGlyphs] = useState<NumberSearchGlyph[]>([]);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
@@ -106,6 +111,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     timeLimitSec,
     engineBgColor,
     charColor,
+    contrastSensitivity,
   });
 
   useEffect(() => {
@@ -118,8 +124,9 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       timeLimitSec,
       engineBgColor,
       charColor,
+      contrastSensitivity,
     };
-  }, [patientName, letterSize, targetDigitCount, layoutMode, fieldCount, timeLimitSec, engineBgColor, charColor]);
+  }, [patientName, letterSize, targetDigitCount, layoutMode, fieldCount, timeLimitSec, engineBgColor, charColor, contrastSensitivity]);
 
   useEffect(() => {
     requestFullScreenSafe();
@@ -192,10 +199,11 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         targetDigitsConfigured: stats.digitsConfigured,
         digitsFound,
         digitsRemaining,
-        timeLimitSec: cfg.timeLimitSec,
-        endedBy,
-        deviceTier,
-      };
+      timeLimitSec: cfg.timeLimitSec,
+      endedBy,
+      deviceTier,
+      ...clinicalColorSessionFields(cfg.engineBgColor, cfg.charColor, cfg.contrastSensitivity),
+    };
 
       setResultsData(data);
       setIsResultsOpen(true);
@@ -266,6 +274,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       setTimeLimitSec(nextTime);
       setEngineBgColor(nextBg);
       setCharColor(nextChar);
+      if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
       return {
         letterSize: nextLetter,
@@ -402,7 +411,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Crowded Search"
-          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps."
+          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are misses."
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExit={onExit}
@@ -428,7 +437,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
                     left: glyph.x,
                     top: glyph.y,
                     fontSize: `${glyph.isDigit ? letterSize * NUMBER_SEARCH_DIGIT_SIZE_SCALE : letterSize}rem`,
-                    color: charColor,
+                    color: displayCharColor,
                     background: 'transparent',
                     border: 'none',
                     padding: 0,
@@ -448,7 +457,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
           <div className={styles.hudLeft}>
             <p className={styles.hudSub}>
               {remainingDigits} digit{remainingDigits === 1 ? '' : 's'} left · {correctCount} found
-              {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+              {wrongCount > 0 ? ` · ${wrongCount} misses` : ''}
             </p>
           </div>
           <div className={styles.hudRight}>
@@ -463,15 +472,17 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className={`${styles.menuBtn} absolute bottom-6 right-4 z-40`}
-        style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 40 }}
-        onClick={() => setIsMenuOpen(true)}
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          className={styles.menuBtn}
+          onClick={() => setIsMenuOpen(true)}
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -513,6 +524,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
           },
           { label: 'Engine', value: engineBgColor },
           { label: 'Characters', value: charColor },
+          { label: 'Contrast', value: `${Math.round(contrastSensitivity * 100)}%` },
         ]}
       />
 
@@ -540,6 +552,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

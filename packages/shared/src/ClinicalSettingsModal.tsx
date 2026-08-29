@@ -15,7 +15,9 @@ import {
   wheelColorLabel,
 } from './constants';
 import { requestFullScreenSafe, clampSortingNumberRange, getContrastColor, getDeviceTier, resolveBubblePaint, resolveStimuliBubbleColor } from './game-logic';
-import { getContrastAdjustedColor, getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
+import { ClinicalColorFields } from './ClinicalColorFields';
+import { CLINICAL_INK, getContrastAdjustedColor } from './clinical-color';
+import { getPenColorName, GEOBOARD_PEN_COLORS, GEOBOARD_PEG_SIZE_PRESETS, isBeginnerLineBoard } from './geoboard-logic';
 import {
   clampBatchesPerSession,
   clampHexSizePx,
@@ -34,11 +36,9 @@ import {
   peripheralMaxStimuliCount,
   peripheralStimuliPresets,
   PERIPHERAL_BATCH_PRESETS,
-  PERIPHERAL_BG_COLORS,
   PERIPHERAL_DEFAULT_BATCHES,
   PERIPHERAL_HEX_SIZE_PRESETS,
   PERIPHERAL_LETTER_SIZE_PRESETS,
-  PERIPHERAL_STIMULUS_COLORS,
   PERIPHERAL_TARGET_TIMEOUT_PRESETS,
 } from './peripheral-hive-logic';
 import {
@@ -52,8 +52,6 @@ import {
   DEFAULT_NUMBER_SEARCH_TARGET_DIGITS,
   DEFAULT_NUMBER_SEARCH_LAYOUT,
   DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
-  NUMBER_SEARCH_BG_COLORS,
-  NUMBER_SEARCH_CHAR_COLORS,
   NUMBER_SEARCH_LETTER_SIZE_PRESETS,
   NUMBER_SEARCH_TARGET_DIGIT_PRESETS,
   NUMBER_SEARCH_TIME_LIMIT_PRESETS,
@@ -75,9 +73,7 @@ import {
   DEFAULT_PATTERN_MATCH_FLASH_MS,
   DEFAULT_PATTERN_MATCH_HARDNESS,
   DEFAULT_PATTERN_MATCH_ROUNDS,
-  PATTERN_MATCH_BG_COLORS,
   PATTERN_MATCH_CELL_COUNT_PRESETS,
-  PATTERN_MATCH_CHAR_COLORS,
   PATTERN_MATCH_CODE_LENGTH_PRESETS,
   PATTERN_MATCH_FLASH_MS_PRESETS,
   PATTERN_MATCH_LETTER_SIZE_PRESETS,
@@ -105,8 +101,6 @@ import {
   DEFAULT_LOCATION_MEMORY_GRID_SIZE,
   DEFAULT_LOCATION_MEMORY_RECALL_SEC,
   DEFAULT_LOCATION_MEMORY_ROUNDS,
-  LOCATION_MEMORY_BG_COLORS,
-  LOCATION_MEMORY_CHAR_COLORS,
   LOCATION_MEMORY_EXPLORE_SEC_PRESETS,
   LOCATION_MEMORY_GRID_SIZE_PRESETS,
   LOCATION_MEMORY_LETTER_SIZE_PRESETS,
@@ -129,9 +123,7 @@ import {
   DEFAULT_DIRECTION_SENSE_SHAPE_SIZE,
   DEFAULT_DIRECTION_SENSE_TRIALS,
   DEFAULT_DIRECTION_SENSE_TURN_DIRECTION,
-  DIRECTION_SENSE_BG_COLORS,
   DIRECTION_SENSE_CHOICE_COUNT_PRESETS,
-  DIRECTION_SENSE_SHAPE_COLORS,
   DIRECTION_SENSE_SHAPE_PATHS,
   DIRECTION_SENSE_SHAPE_SIZE_PRESETS,
   DIRECTION_SENSE_SHAPE_STROKE_WIDTH,
@@ -437,7 +429,7 @@ export function ClinicalSettingsModal({
   showPursuitControls = false,
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
-  pursuitDecoyCount = 2,
+  pursuitDecoyCount = 0,
   pursuitSpeedPxPerSec = 110,
   pursuitTrialTimeoutSec = 0,
   showGeoboardControls = false,
@@ -468,7 +460,7 @@ export function ClinicalSettingsModal({
   showPatternMatchControls = false,
   showLocationMemoryControls = false,
   showDirectionSenseControls = false,
-  hexSizePx = 64,
+  hexSizePx = 96,
   stimuliCount = 16,
   batchesPerSession = PERIPHERAL_DEFAULT_BATCHES,
   stimulusColor = DEFAULT_PERIPHERAL_STIMULUS_COLOR,
@@ -643,7 +635,7 @@ export function ClinicalSettingsModal({
       setTempOcularity(ocularity);
       setTempTimeLimitSec(timeLimitSec);
       setTempContrastSensitivity(contrastSensitivity);
-      setTempBgColor(bgColor);
+      setTempBgColor(showPursuitControls ? (bgColor || '#000000') : bgColor);
       setTempShapeColor(shapeColor);
       setTempPenColor(penColor);
       setTempPegSizeScale(pegSizeScale);
@@ -697,6 +689,16 @@ export function ClinicalSettingsModal({
       if (showDirectionSenseControls) {
         setTempBgColor(bgColor || DEFAULT_DIRECTION_SENSE_BG);
         setTempShapeColor(shapeColor || DEFAULT_DIRECTION_SENSE_SHAPE_COLOR);
+      }
+      if (showBeeTracingControls) {
+        setTempBgColor(bgColor || (colorTheme === 'standard' ? '#F4F4EE' : '#0B0F19'));
+        setTempShapeColor(
+          shapeColor ||
+            (colorTheme === 'high_contrast' ? '#FFE600' : colorTheme === 'dark' ? '#00F3FF' : '#FFB703'),
+        );
+      }
+      if (showPeripheralViewControls) {
+        setTempBgColor(bgColor || DEFAULT_PERIPHERAL_BG_COLOR);
       }
       setConfirmApplyOpen(false);
       requestFullScreenSafe();
@@ -1031,13 +1033,15 @@ export function ClinicalSettingsModal({
 
 
 
-  const previewStimuliHex = showStimuliColorPicker
-    ? resolveStimuliBubbleColor(tempStimuliColor, 0)
-    : '#2F80FF';
+  const previewStimuliHex = getContrastAdjustedColor(
+    showStimuliColorPicker ? resolveStimuliBubbleColor(tempStimuliColor, 0) : '#FFFFFF',
+    showWheelColorControl ? tempWheelColor : tempBgColor || CLINICAL_INK,
+    tempContrastSensitivity,
+  );
   const bubblePreviewPaint = resolveBubblePaint(
     showBubbleAppearancePicker || showStimuliColorPicker ? tempBubbleAppearance : 'solid',
     previewStimuliHex,
-    { borderFill: '#0B1220', solidBorderWidth: 0 },
+    { borderFill: showWheelColorControl ? tempWheelColor : '#0B1220', solidBorderWidth: 0 },
   );
 
   return createPortal(
@@ -1340,35 +1344,15 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              {/* Contrast Sensitivity */}
-              <div className="border-t border-gray-800/80 pt-4">
-                <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
-                  <span>Stimulus Contrast</span>
-                  <span className="text-blue-400 font-mono font-extrabold">
-                    {Math.round(tempContrastSensitivity * 100)}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0.15}
-                  max={1}
-                  step={0.05}
-                  className="w-full accent-blue-500 cursor-pointer h-2.5 my-2"
-                  value={tempContrastSensitivity}
-                  onChange={(e) => setTempContrastSensitivity(parseFloat(e.target.value))}
-                />
-                <div
-                  className="mt-2 rounded-xl border border-gray-700 h-12 flex items-center justify-center"
-                  style={{ backgroundColor: tempBgColor }}
-                >
-                  <span
-                    className="text-sm font-black tracking-widest"
-                    style={{ color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity) }}
-                  >
-                    PREVIEW
-                  </span>
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempShapeColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+                hint="Board field and model colour. Lower contrast blends the model toward the board — keep pegs large."
+              />
 
               {/* Pen colour — presets for speed, free picker for anything else.
                   Recorded with the session so a report shows what was drawn with. */}
@@ -1462,31 +1446,6 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              {/* Board & model palette */}
-              <div className="grid grid-cols-2 gap-3">
-                {([
-                  { label: 'Board', value: tempBgColor, set: setTempBgColor },
-                  { label: 'Model', value: tempShapeColor, set: setTempShapeColor },
-                ]).map((swatch) => (
-                  <div key={swatch.label}>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
-                      {swatch.label}
-                    </label>
-                    <div
-                      className="flex items-center gap-2 p-2 rounded-xl border border-gray-700 shadow-inner"
-                      style={{ backgroundColor: '#141414' }}
-                    >
-                      <input
-                        type="color"
-                        className="w-7 h-7 bg-transparent border-none cursor-pointer rounded shrink-0"
-                        value={swatch.value}
-                        onChange={(e) => swatch.set(e.target.value)}
-                      />
-                      <span className="text-[10px] font-mono text-gray-300 font-bold truncate">{swatch.value}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
 
               {/* EXTRA STATS INTEGRATION */}
               {extraStats}
@@ -1514,37 +1473,20 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              {/* Target Bubble Color */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Target Luminance Color (High Salience)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Cyan (#00E5FF)', val: '#00E5FF', bg: '#00E5FF', text: '#000000' },
-                    { label: 'Yellow (#FFD600)', val: '#FFD600', bg: '#FFD600', text: '#000000' },
-                    { label: 'Bright White', val: '#FFFFFF', bg: '#FFFFFF', text: '#000000' },
-                  ].map((clr) => (
-                    <button
-                      key={clr.val}
-                      type="button"
-                      onClick={() => setTempPursuitTargetColor(clr.val as PursuitTargetColor)}
-                      className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-all border flex items-center justify-center gap-1.5 ${
-                        tempPursuitTargetColor === clr.val
-                          ? 'border-white shadow-lg ring-2 ring-cyan-400/50'
-                          : 'border-gray-700 opacity-70 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: clr.bg, color: clr.text }}
-                    >
-                      <span>●</span>
-                      <span>{clr.label.split(' ')[0]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor || '#000000'}
+                stimulusColor={tempPursuitTargetColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={(hex) => {
+                  if (hex === '#FFFFFF' || hex === '#FFD600' || hex === '#00E5FF' || hex === '#0F172A') {
+                    setTempPursuitTargetColor(hex);
+                  }
+                }}
+                onContrast={setTempContrastSensitivity}
+                hint="Bright target on a bare field. Lower contrast makes the target closer to the background — decoys stay dimmer."
+              />
             </div>
-
-            {/* CONTAINER 2: DYNAMICS & DECOY DENSITY */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-blue-400 uppercase tracking-wider border-b border-gray-800 pb-3">
                 <span>Dynamics & Selective Attention Controls</span>
@@ -1556,8 +1498,9 @@ export function ClinicalSettingsModal({
                   <span>Decoy Element Count (Selective Attention)</span>
                   <span className="text-cyan-400 font-mono font-extrabold">{tempPursuitDecoyCount + 1} Total (1 Target + {tempPursuitDecoyCount} Decoys)</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {[
+                    { label: 'None (target only)', val: 0 },
                     { label: '1 Decoy (2 Total)', val: 1 },
                     { label: '2 Decoys (3 Total)', val: 2 },
                     { label: '3 Decoys (4 Max)', val: 3 },
@@ -1926,6 +1869,16 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
+              <ClinicalColorFields
+                bgColor={tempBgColor || (tempColorTheme === 'standard' ? '#F4F4EE' : '#0B0F19')}
+                stimulusColor={tempShapeColor || '#00F3FF'}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+                hint="Path color against the field. Lower contrast makes the trail harder to see — keep the bee large."
+              />
+
               <div>
                 <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
                   Target Dot Color
@@ -1966,7 +1919,7 @@ export function ClinicalSettingsModal({
                 className="flex-1 flex justify-center items-center py-8 relative w-full min-h-[200px] rounded-2xl border border-slate-800 overflow-hidden"
                 style={{ backgroundColor: tempBgColor }}
               >
-                <div className="flex gap-3 font-mono font-black select-none" style={{ color: tempShapeColor }}>
+                <div className="flex gap-3 font-mono font-black select-none" style={{ color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity) }}>
                   {['A', '7', 'b', '3', 'm', '9'].map((ch) => (
                     <span key={ch} style={{ fontSize: `${tempLetterSize}rem` }}>
                       {ch}
@@ -2114,49 +2067,14 @@ export function ClinicalSettingsModal({
                 </p>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Engine Background
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {NUMBER_SEARCH_BG_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempBgColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code, color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC' }}
-                      title={c.name}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Character Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {NUMBER_SEARCH_CHAR_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempShapeColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                        tempShapeColor === c.code ? 'border-amber-400 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code, color: c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24' ? '#0F172A' : '#F8FAFC' }}
-                      title={c.name}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempShapeColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+              />
 
               {extraStats}
             </div>
@@ -2185,7 +2103,7 @@ export function ClinicalSettingsModal({
                   >
                     <div
                       className="font-mono font-black tracking-[0.35em] select-none"
-                      style={{ color: tempShapeColor, fontSize: `${tempLetterSize * 1.4}rem` }}
+                      style={{ color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity), fontSize: `${tempLetterSize * 1.4}rem` }}
                     >
                       {preview.target}
                     </div>
@@ -2194,7 +2112,7 @@ export function ClinicalSettingsModal({
                         <span
                           key={c}
                           className="font-mono font-bold px-2 py-1 rounded-lg border border-slate-600"
-                          style={{ color: tempShapeColor, fontSize: `${tempLetterSize * 0.7}rem` }}
+                          style={{ color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity), fontSize: `${tempLetterSize * 0.7}rem` }}
                         >
                           {c}
                         </span>
@@ -2372,58 +2290,14 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Engine Background
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PATTERN_MATCH_BG_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempBgColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{
-                        backgroundColor: c.code,
-                        color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
-                      }}
-                      title={c.name}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Character Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PATTERN_MATCH_CHAR_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempShapeColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                        tempShapeColor === c.code ? 'border-rose-400 scale-105' : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{
-                        backgroundColor: c.code,
-                        color:
-                          c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
-                            ? '#0F172A'
-                            : '#F8FAFC',
-                      }}
-                      title={c.name}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempShapeColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+              />
 
               {extraStats}
             </div>
@@ -2449,7 +2323,7 @@ export function ClinicalSettingsModal({
                         key={n}
                         className="aspect-square rounded-xl border border-slate-600 flex items-center justify-center font-mono font-black"
                         style={{
-                          color: tempShapeColor,
+                          color: getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity),
                           fontSize: `${tempLetterSize * 1.1}rem`,
                           backgroundColor: highlight ? 'rgba(30,41,59,0.85)' : 'rgba(15,23,42,0.45)',
                           borderColor: highlight ? 'rgba(251,191,36,0.75)' : undefined,
@@ -2606,56 +2480,14 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Background
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {LOCATION_MEMORY_BG_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempBgColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold ${
-                        tempBgColor === c.code ? 'border-white scale-105' : 'border-transparent opacity-80'
-                      }`}
-                      style={{
-                        backgroundColor: c.code,
-                        color: c.code === '#E8ECF0' || c.code === '#F8FAFC' ? '#0F172A' : '#F8FAFC',
-                      }}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Number Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {LOCATION_MEMORY_CHAR_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setTempShapeColor(c.code)}
-                      className={`h-9 min-w-[2.25rem] px-2.5 rounded-xl border-2 text-[10px] font-bold ${
-                        tempShapeColor === c.code ? 'border-amber-400 scale-105' : 'border-transparent opacity-80'
-                      }`}
-                      style={{
-                        backgroundColor: c.code,
-                        color:
-                          c.code === '#F5F7FA' || c.code === '#FFFFFF' || c.code === '#FBBF24'
-                            ? '#0F172A'
-                            : '#F8FAFC',
-                      }}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempShapeColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+              />
 
               {extraStats}
             </div>
@@ -2681,14 +2513,19 @@ export function ClinicalSettingsModal({
                 {(() => {
                   const hexR = Math.max(40, Math.min(58, clampHexSizePx(tempHexSizePx) * 0.9));
                   const letterPx = peripheralLetterFontPx(clampHexSizePx(tempHexSizePx), tempLetterSize);
+                  const paintedStim = getContrastAdjustedColor(
+                    tempStimulusColor,
+                    tempBgColor,
+                    tempContrastSensitivity,
+                  );
                   const letterColor = peripheralLetterColor({
                     bubbleType: tempPeripheralBubbleType,
-                    stimulusColor: tempStimulusColor,
+                    stimulusColor: paintedStim,
                   });
                   const previewPaint = peripheralHexPaint({
                     bubbleType: tempPeripheralBubbleType,
                     isActive: true,
-                    stimulusColor: tempStimulusColor,
+                    stimulusColor: paintedStim,
                   });
                   return (
                     <svg width={hexR * 2.4} height={hexR * 2.4} viewBox={`0 0 ${hexR * 2.4} ${hexR * 2.4}`} aria-hidden>
@@ -2884,48 +2721,14 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Engine Background
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PERIPHERAL_BG_COLORS.map((c) => (
-                    <button
-                      key={`bg-${c.code}`}
-                      type="button"
-                      title={c.name}
-                      onClick={() => setTempBgColor(c.code)}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
-                        tempBgColor.toLowerCase() === c.code.toLowerCase()
-                          ? 'border-white scale-110'
-                          : 'border-slate-600 opacity-90 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code }}
-                    />
-                  ))}
-                </div>
-                <p className="text-[11px] text-gray-500 mt-2">Play-area color behind the hive.</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Stimulus Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PERIPHERAL_STIMULUS_COLORS.map((c) => (
-                    <button
-                      key={`stim-${c.code}`}
-                      type="button"
-                      title={c.name}
-                      onClick={() => setTempStimulusColor(c.code)}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
-                        tempStimulusColor === c.code ? 'border-white scale-110' : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code }}
-                    />
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempStimulusColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempStimulusColor}
+                onContrast={setTempContrastSensitivity}
+              />
 
               {extraStats}
             </div>
@@ -2945,7 +2748,7 @@ export function ClinicalSettingsModal({
                     <path
                       d={DIRECTION_SENSE_SHAPE_PATHS.eee}
                       fill="none"
-                      stroke={tempShapeColor}
+                      stroke={getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity)}
                       strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -2983,7 +2786,7 @@ export function ClinicalSettingsModal({
                         <path
                           d={DIRECTION_SENSE_SHAPE_PATHS.eee}
                           fill="none"
-                          stroke={tempShapeColor}
+                          stroke={getContrastAdjustedColor(tempShapeColor, tempBgColor, tempContrastSensitivity)}
                           strokeWidth={DIRECTION_SENSE_SHAPE_STROKE_WIDTH}
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -3112,49 +2915,14 @@ export function ClinicalSettingsModal({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Background
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {DIRECTION_SENSE_BG_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      title={c.name}
-                      onClick={() => setTempBgColor(c.code)}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
-                        tempBgColor.toLowerCase() === c.code.toLowerCase()
-                          ? 'border-white scale-110'
-                          : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Shape Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {DIRECTION_SENSE_SHAPE_COLORS.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      title={c.name}
-                      onClick={() => setTempShapeColor(c.code)}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
-                        tempShapeColor.toLowerCase() === c.code.toLowerCase()
-                          ? 'border-white scale-110'
-                          : 'border-transparent opacity-80 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.code }}
-                    />
-                  ))}
-                </div>
-              </div>
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempShapeColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempShapeColor}
+                onContrast={setTempContrastSensitivity}
+              />
 
               {extraStats}
             </div>
@@ -3277,6 +3045,22 @@ export function ClinicalSettingsModal({
                 </div>
               ) : null}
 
+              {showWheelColorControl ? (
+                <div className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg" style={{ backgroundColor: '#242424' }}>
+                  <ClinicalColorFields
+                    bgColor={tempWheelColor}
+                    stimulusColor={
+                      tempStimuliColor === 'mixed' ? '#FFFFFF' : tempStimuliColor || '#FFFFFF'
+                    }
+                    contrast={tempContrastSensitivity}
+                    onBgColor={setTempWheelColor}
+                    onStimulusColor={setTempStimuliColor}
+                    onContrast={setTempContrastSensitivity}
+                    hint="Wheel field and bubble fill. Mixed stimuli still use this contrast against the field."
+                  />
+                </div>
+              ) : null}
+
               {extraStats}
             </div>
 
@@ -3291,7 +3075,7 @@ export function ClinicalSettingsModal({
                   <span className="font-black text-cyan-300 font-mono text-lg">{tempLetterSize}</span>
                 </div>
                 <div className="grid grid-cols-5 gap-2">
-                  {[1, 1.5, 2, 2.5, 3].map((size) => (
+                  {[1.5, 2, 2.5, 3, 3.5].map((size) => (
                     <button
                       key={size}
                       type="button"

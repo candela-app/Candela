@@ -18,9 +18,15 @@ import {
   resolvePursuitPattern,
   pursuitPatternName,
   reactionStatsFromMs,
+  clinicalColorSessionFields,
+  clinicalColorSummaryItems,
+  getContrastAdjustedColor,
+  CLINICAL_INK,
+  isDarkClinicalBg,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { PursuitResultsModal } from './PursuitResultsModal';
@@ -45,15 +51,17 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   const [settings, setSettings] = useState<PursuitSettings>(() => ({
     patientName: sessionDisplayName(session),
     movementPattern: lockedPattern,
-    bubbleSizePx: 100,
+    bubbleSizePx: 140,
     targetColor: '#00E5FF',
-    decoyCount: 2, // 1 target + 2 decoys = 3 total elements (scalable 2-4)
-    decoySalience: 0.35, // 35% opacity/salience for decoys
-    speedPxPerSec: 110,
+    decoyCount: 0,
+    decoySalience: 0.35,
+    speedPxPerSec: 70,
     trialTimeoutSec: 0,
     totalTrials: TOTAL_TRIALS,
     blocksCount: TOTAL_BLOCKS,
     orientation: 'auto',
+    bgColor: CLINICAL_INK,
+    contrastSensitivity: 1,
   }));
 
   useEffect(() => {
@@ -109,10 +117,13 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   // Scaled decoy count by block / difficulty tier:
   // Entry block (Block 0): 1 target + 1 decoy (2 total)
   // Higher blocks: 1 target + 2-3 decoys (capped at max 4 total elements on screen)
-  const activeDecoyCount = Math.min(
-    3,
-    currentBlockIndex === 0 ? 1 : Math.min(settings.decoyCount, currentBlockIndex + 1)
-  );
+  const activeDecoyCount =
+    settings.decoyCount <= 0
+      ? 0
+      : Math.min(
+          3,
+          currentBlockIndex === 0 ? 1 : Math.min(settings.decoyCount, currentBlockIndex + 1),
+        );
 
   // Lock container dimensions at start of each trial to enforce orientation lock
   const updateLockedContainerBounds = useCallback(() => {
@@ -370,6 +381,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       anticipationVsLagScore,
       blockMetrics,
       starRating,
+      ...clinicalColorSessionFields(settings.bgColor || CLINICAL_INK, settings.targetColor, settings.contrastSensitivity ?? 1),
     };
 
     setSessionResults(resultData);
@@ -403,10 +415,19 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       decoyCount: applied.pursuitDecoyCount ?? prev.decoyCount,
       speedPxPerSec: applied.pursuitSpeedPxPerSec || prev.speedPxPerSec,
       trialTimeoutSec: applied.pursuitTrialTimeoutSec ?? prev.trialTimeoutSec,
+      bgColor: applied.bgColor || prev.bgColor || CLINICAL_INK,
+      contrastSensitivity: applied.contrastSensitivity ?? prev.contrastSensitivity ?? 1,
     }));
     setIsSettingsOpen(false);
     handleReset();
   };
+
+  const fieldColor = settings.bgColor || CLINICAL_INK;
+  const paintedTarget = getContrastAdjustedColor(
+    settings.targetColor,
+    fieldColor,
+    settings.contrastSensitivity ?? 1,
+  );
 
   // Menu settings summary
   const settingsSummary: ClinicalSettingSummaryItem[] = [
@@ -416,10 +437,15 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     { label: 'Pursuit Speed', value: `${settings.speedPxPerSec} px/s` },
     { label: 'Bubble Diameter', value: `${settings.bubbleSizePx}px` },
     { label: 'Trial Timeout', value: settings.trialTimeoutSec > 0 ? `${settings.trialTimeoutSec}s` : 'Off' },
+    ...clinicalColorSummaryItems(
+      settings.bgColor || CLINICAL_INK,
+      settings.targetColor,
+      settings.contrastSensitivity ?? 1,
+    ),
   ];
 
   return (
-    <div ref={containerRef} className={styles.gameContainer}>
+    <div ref={containerRef} className={styles.gameContainer} style={{ backgroundColor: fieldColor }}>
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Pursuit"
@@ -429,7 +455,10 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         />
       ) : null}
       {!isBlockPaused && !isResultsOpen ? (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 text-white font-bold pointer-events-none">
+        <div
+          className="absolute top-12 left-1/2 -translate-x-1/2 z-50 font-bold pointer-events-none"
+          style={{ color: isDarkClinicalBg(fieldColor) ? '#F8FAFC' : '#1A2A32' }}
+        >
           Trial {Math.min(currentTrialIndex + 1, TOTAL_TRIALS)}/{TOTAL_TRIALS}
         </div>
       ) : null}
@@ -452,7 +481,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       )}
 
       {/* BARE FIELD CANVAS WITH MOVING BUBBLES */}
-      <div className={styles.canvas}>
+      <div className={styles.canvas} style={{ backgroundColor: fieldColor }}>
         {/* TARGET BUBBLE (High Luminance, Bright Color) */}
         {!isBlockPaused && !isResultsOpen && (
           <div
@@ -462,7 +491,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
               top: `${targetState.y}px`,
               width: `${settings.bubbleSizePx}px`,
               height: `${settings.bubbleSizePx}px`,
-              backgroundColor: settings.targetColor,
+              backgroundColor: paintedTarget,
               border: 'none',
               boxShadow: 'none',
               touchAction: 'none',
@@ -497,7 +526,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
                 top: `${decoy.y}px`,
                 width: `${settings.bubbleSizePx}px`,
                 height: `${settings.bubbleSizePx}px`,
-                backgroundColor: settings.targetColor,
+                backgroundColor: paintedTarget,
                 opacity: settings.decoySalience, // Dim salience
                 border: 'none',
                 touchAction: 'none',
@@ -521,14 +550,17 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
           ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-6 right-4 z-50 w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300"
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-50 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          onClick={() => setIsMenuOpen(true)}
+          className="w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300"
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       {/* MENU DRAWER */}
       <GameMenuDrawer
@@ -555,6 +587,8 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         pursuitDecoyCount={settings.decoyCount}
         pursuitSpeedPxPerSec={settings.speedPxPerSec}
         pursuitTrialTimeoutSec={settings.trialTimeoutSec}
+        bgColor={fieldColor}
+        contrastSensitivity={settings.contrastSensitivity ?? 1}
         sessionLocked={gameStarted && !isResultsOpen}
       />
 

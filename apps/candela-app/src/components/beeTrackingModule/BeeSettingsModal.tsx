@@ -102,9 +102,9 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
             </div>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: 'Easy (60px)', val: 60 },
-                { label: 'Medium (40px)', val: 40 },
-                { label: 'Hard (24px)', val: 24 },
+                { label: 'Easy (96px)', val: 96 },
+                { label: 'Medium (72px)', val: 72 },
+                { label: 'Hard (48px)', val: 48 },
               ].map((item) => (
                 <button
                   key={item.val}

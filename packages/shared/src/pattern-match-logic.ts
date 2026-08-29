@@ -25,30 +25,30 @@ export const PATTERN_MATCH_CHAR_COLORS: { name: string; code: string }[] = [
 ];
 
 export const PATTERN_MATCH_CODE_LENGTH_PRESETS = [2, 3, 4] as const;
-export const DEFAULT_PATTERN_MATCH_CODE_LENGTH = 3;
+export const DEFAULT_PATTERN_MATCH_CODE_LENGTH = 2;
 
 /** 0 = stay visible (discrimination). Otherwise flash duration in ms.
  * Tuned longer than reaction-time apps — low-vision encode needs more dwell. */
 export const PATTERN_MATCH_FLASH_MS_PRESETS = [0, 1500, 2500, 3500, 5000] as const;
-export const DEFAULT_PATTERN_MATCH_FLASH_MS = 2500;
+export const DEFAULT_PATTERN_MATCH_FLASH_MS = 3500;
 
-export const PATTERN_MATCH_CELL_COUNT_PRESETS = [9, 12, 15, 18, 24] as const;
-export const DEFAULT_PATTERN_MATCH_CELL_COUNT = 12;
+export const PATTERN_MATCH_CELL_COUNT_PRESETS = [4, 6, 9, 12] as const;
+export const DEFAULT_PATTERN_MATCH_CELL_COUNT = 4;
 
-export const PATTERN_MATCH_COLUMNS = 3;
+export const PATTERN_MATCH_COLUMNS = 2;
 
 export const PATTERN_MATCH_TIME_LIMIT_PRESETS = [0, 30, 45, 60, 90] as const;
 export const DEFAULT_PATTERN_MATCH_TIME_LIMIT_SEC = 0;
 
 export type PatternMatchHardness = 'easy' | 'medium' | 'hard';
-export const DEFAULT_PATTERN_MATCH_HARDNESS: PatternMatchHardness = 'medium';
+export const DEFAULT_PATTERN_MATCH_HARDNESS: PatternMatchHardness = 'easy';
 
 /** Digits-only (Standard) vs mixed letters+digits (Compound). */
 export type PatternMatchStimulusMode = 'digits' | 'compound';
 export const DEFAULT_PATTERN_MATCH_STIMULUS: PatternMatchStimulusMode = 'digits';
 
-export const PATTERN_MATCH_LETTER_SIZE_PRESETS = [1.2, 1.5, 1.8, 2.2] as const;
-export const DEFAULT_PATTERN_MATCH_LETTER_SIZE = 1.8;
+export const PATTERN_MATCH_LETTER_SIZE_PRESETS = [1.8, 2.2, 2.8, 3.4, 4.2] as const;
+export const DEFAULT_PATTERN_MATCH_LETTER_SIZE = 2.8;
 
 /** How many encode→search boards to clear before session results. */
 export const PATTERN_MATCH_ROUNDS_PRESETS = [1, 2, 3, 4, 5] as const;
@@ -116,6 +116,11 @@ export function clampPatternMatchCellCount(value: number): number {
     }
   }
   return best;
+}
+
+export function patternMatchColumnCount(cellCount: number): number {
+  const n = clampPatternMatchCellCount(cellCount);
+  return n <= 6 ? 2 : 3;
 }
 
 export function clampPatternMatchHardness(value: unknown): PatternMatchHardness {
@@ -355,7 +360,7 @@ export function buildPatternMatchField(options: {
 }): PatternMatchCell[] {
   const target = options.target;
   const cellCount = clampPatternMatchCellCount(options.cellCount ?? DEFAULT_PATTERN_MATCH_CELL_COUNT);
-  const columns = options.columns && options.columns > 0 ? options.columns : PATTERN_MATCH_COLUMNS;
+  const columns = options.columns && options.columns > 0 ? options.columns : patternMatchColumnCount(cellCount);
   const hardness = clampPatternMatchHardness(options.hardness);
   const stimulusMode = clampPatternMatchStimulusMode(options.stimulusMode);
   const matchCount = patternMatchTargetDensity(cellCount, hardness);

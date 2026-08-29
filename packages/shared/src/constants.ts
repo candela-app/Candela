@@ -1,17 +1,17 @@
 import { ColorItem, DeviceTier } from './types';
 
 export const BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
-  mobile: 4,
-  tablet: 5,
-  tv: 10,
+  mobile: 2,
+  tablet: 3,
+  tv: 5,
 };
 
 // TODO: device-config — lift hardcoded colors to device configuration system in future refactor
 export const BRIGHT_COLORS: ColorItem[] = [
-  { name: 'Red', code: '#FF1E1E' },
-  { name: 'Blue', code: '#0084FF' },
-  { name: 'Green', code: '#00D26A' },
   { name: 'Yellow', code: '#FFD600' },
+  { name: 'Cyan', code: '#00E5FF' },
+  { name: 'White', code: '#FFFFFF' },
+  { name: 'Orange', code: '#FF9100' },
 ];
 
 // Kid-friendly names for color-discriminant games: high luminance, wide hue spacing.
@@ -53,25 +53,25 @@ export const DEFAULT_SORTING_NUMBER_TO = 20;
 export const MAX_SORTING_NUMBER_COUNT = 20;
 
 export const SORTING_BATCH_SIZE: Record<DeviceTier, number> = {
-  mobile: 4,
-  tablet: 5,
-  tv: 8,
+  mobile: 2,
+  tablet: 3,
+  tv: 5,
 };
 
 /** Phone bubble diameter (rotatory). Tablet / TV / desktop uses TABLET_BUBBLE_SIZE_PX. */
-export const PHONE_BUBBLE_SIZE_PX = 80;
-export const TABLET_BUBBLE_SIZE_PX = 100;
-export const PHONE_SORTING_BUBBLE_SIZE_PX = 90;
-export const BUBBLE_SIZE_PRESETS = [60, 80, 100, 120];
+export const PHONE_BUBBLE_SIZE_PX = 120;
+export const TABLET_BUBBLE_SIZE_PX = 140;
+export const PHONE_SORTING_BUBBLE_SIZE_PX = 128;
+export const BUBBLE_SIZE_PRESETS = [100, 120, 140, 180, 220];
 
 /** Preset wheel backgrounds for rotatory / sorting clinical settings. */
 export const WHEEL_COLOR_PRESETS: ColorItem[] = [
+  { name: 'Ink', code: '#0B0F14' },
   { name: 'Black', code: '#000000' },
   { name: 'Midnight', code: '#0B1B3A' },
   { name: 'Charcoal', code: '#1A1A1A' },
   { name: 'Slate', code: '#111827' },
-  { name: 'Ink', code: '#0D0D0D' },
-  { name: 'Royal Blue', code: '#1E3A8A' },
+  { name: 'Paper', code: '#F8FAFC' },
 ];
 
 export function wheelColorLabel(hex: string | undefined): string {

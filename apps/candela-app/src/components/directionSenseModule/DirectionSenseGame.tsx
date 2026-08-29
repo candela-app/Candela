@@ -42,6 +42,8 @@ import {
   resetDirectionSenseMoveCue,
   shouldAppendTrailPoint,
   takeDirectionSenseMoveCue,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   reactionStatsFromMs,
   requestFullScreenSafe,
   getDeviceTier,
@@ -54,6 +56,7 @@ import {
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -124,6 +127,8 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const [timeLimitSec, setTimeLimitSec] = useState(0);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_DIRECTION_SENSE_BG);
   const [shapeColor, setShapeColor] = useState(DEFAULT_DIRECTION_SENSE_SHAPE_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayShapeColor = getContrastAdjustedColor(shapeColor, engineBgColor, contrastSensitivity);
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [trial, setTrial] = useState<DirectionSenseTrial | null>(null);
@@ -192,6 +197,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     setTimeLimitSec(nextTime);
     if (settings.bgColor) setEngineBgColor(settings.bgColor);
     if (settings.shapeColor) setShapeColor(settings.shapeColor);
+    if (settings.contrastSensitivity != null) setContrastSensitivity(settings.contrastSensitivity);
     return {
       choiceCount: nextChoice,
       trialsConfigured: nextTrials,
@@ -237,13 +243,14 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         deviceTier,
         faceErrors: stats.faceErrors,
         flipErrors: stats.flipErrors,
+        ...clinicalColorSessionFields(engineBgColor, shapeColor, contrastSensitivity),
       };
       setResultsData(data);
       setIsResultsOpen(true);
       setGameStarted(false);
       setTrial(null);
     },
-    [choiceCount, deviceTier, durationSec, isStraighten, lockedMode, patientName, shapeSizePx, timeLimitSec, trialsConfigured],
+    [choiceCount, deviceTier, durationSec, isStraighten, lockedMode, patientName, shapeSizePx, timeLimitSec, trialsConfigured, engineBgColor, shapeColor, contrastSensitivity],
   );
 
   const spawnTrial = useCallback(
@@ -536,14 +543,17 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className={styles.settingsBtn}
-            aria-label="Open menu"
-            onClick={() => setIsMenuOpen(true)}
-          >
-            <SlidersIcon size={22} color="#94A3B8" />
-          </button>
+          <div className={styles.fabCluster}>
+            <FullscreenToggleButton />
+            <button
+              type="button"
+              className={styles.settingsBtn}
+              aria-label="Open menu"
+              onClick={() => setIsMenuOpen(true)}
+            >
+              <SlidersIcon size={22} color="#94A3B8" />
+            </button>
+          </div>
 
           <div className={styles.probeRow}>
             {isStraighten ? (
@@ -552,7 +562,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   <ShapeGlyph
                     shapeId={trial.shapeId}
                     pose={trial.probe}
-                    color={shapeColor}
+                    color={displayShapeColor}
                     size={shapeSizePx}
                   />
                 </div>
@@ -565,7 +575,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  style={{ ['--rotate-pad-border' as string]: shapeColor }}
+                  style={{ ['--rotate-pad-border' as string]: displayShapeColor }}
                   role="slider"
                   aria-label="Rotate the letter until it matches the reference"
                   aria-valuemin={0}
@@ -580,7 +590,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                     <ShapeGlyph
                       shapeId={trial.shapeId}
                       rotationDeg={rotateDeg}
-                      color={shapeColor}
+                      color={displayShapeColor}
                       size={Math.round(shapeSizePx * 3.2)}
                     />
                   </div>
@@ -610,7 +620,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
             ) : (
               <>
                 <div className={styles.probeCard}>
-                  <ShapeGlyph shapeId={trial.shapeId} pose={trial.probe} color={shapeColor} size={shapeSizePx} />
+                  <ShapeGlyph shapeId={trial.shapeId} pose={trial.probe} color={displayShapeColor} size={shapeSizePx} />
                 </div>
                 <div className={styles.arrowCard} aria-hidden>
                   <svg
@@ -657,7 +667,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   <ShapeGlyph
                     shapeId={trial.shapeId}
                     pose={opt.pose}
-                    color={shapeColor}
+                    color={displayShapeColor}
                     size={Math.round(shapeSizePx * 0.92)}
                   />
                 </button>
@@ -734,6 +744,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={shapeColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

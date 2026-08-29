@@ -17,7 +17,7 @@ export default function HomePage() {
     router.push(roleHomePath(session.user.role));
   };
 
-  const selectModule = (id: string) => {
+  const selectFamily = (id: string) => {
     if (!session) {
       router.push('/login');
       return;
@@ -26,14 +26,14 @@ export default function HomePage() {
       router.push(roleHomePath(session.user.role));
       return;
     }
-    const params = new URLSearchParams({ therapy: 'vision', module: id });
+    const params = new URLSearchParams({ therapy: 'vision', family: id });
     router.push(`/dashboard?${params.toString()}`);
   };
 
   return (
     <div className="min-h-screen overflow-y-auto flex flex-col bg-[#F4F7FC]">
       <AppHeader />
-      <HomePageContent onOpenDashboard={goToDashboard} onSelectModule={selectModule} />
+      <HomePageContent onOpenDashboard={goToDashboard} onSelectFamily={selectFamily} />
     </div>
   );
 }
