@@ -20,6 +20,7 @@ import {
   evaluateHalfFieldAccuracy,
   getGeoboardStarRating,
   getContrastAdjustedColor,
+  clinicalColorSessionFields,
   getPenColorName,
   isBeginnerLineBoard,
   lockBeginnerGeoboardProtocol,
@@ -35,6 +36,7 @@ import {
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -461,6 +463,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         penColorName: getPenColorName(protocol.penColor),
         starRating: getGeoboardStarRating(accuracy),
         status,
+        ...clinicalColorSessionFields(protocol.bgColor, protocol.shapeColor, protocol.contrastSensitivity),
       };
 
       // TODO: persist once DB is configured — the summary above is the record a
@@ -859,6 +862,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
           >
             <SlidersIcon className="w-5 h-5" />
           </button>
+          <FullscreenToggleButton />
           <button onClick={() => setIsMenuOpen(true)} className={styles.iconBtn} title="Session menu">
             Menu
           </button>
@@ -893,7 +897,9 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
           )}
 
           <div
-            className={styles.gridsContainer}
+            className={`${styles.gridsContainer} ${practiceOnReference ? styles.layoutCopy : ''} ${
+              !practiceOnReference && gameState === 'memorize' ? styles.layoutMemorize : ''
+            } ${!practiceOnReference && gameState === 'play' ? styles.layoutRecallPlay : ''}`}
             style={{ '--peg-scale': String(protocol.pegSizeScale ?? 1) } as React.CSSProperties}
           >
             {/* MODEL GRID

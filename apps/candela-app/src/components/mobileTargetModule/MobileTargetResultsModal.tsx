@@ -1,5 +1,5 @@
 import React from 'react';
-import { MobileTargetSessionResultData, exportSessionCSV } from '@candela/shared';
+import { MobileTargetSessionResultData, exportSessionCSV, ClinicalLookBadge } from '@candela/shared';
 
 interface MobileTargetResultsModalProps {
   isOpen: boolean;
@@ -48,6 +48,11 @@ export function MobileTargetResultsModal({
           <p className="text-xs text-gray-400">
             Patient: <span className="text-white font-semibold">{resultData.patientName}</span> | Date: {resultData.date}
           </p>
+          <ClinicalLookBadge
+            bgColor={resultData.bgColor}
+            stimulusColor={resultData.stimulusColor}
+            contrastPercent={resultData.contrastPercent}
+          />
         </div>
 
         {/* Primary Metrics Grid */}
@@ -77,7 +82,7 @@ export function MobileTargetResultsModal({
             <span className="block text-2xl font-black text-rose-400">
               {resultData.wrong}
             </span>
-            <span className="text-[11px] text-gray-400 font-medium">Wrong Clicks</span>
+            <span className="text-[11px] text-gray-400 font-medium">Misses</span>
           </div>
         </div>
 

@@ -12,6 +12,8 @@ import {
   DEFAULT_LOCATION_MEMORY_RECALL_SEC,
   DEFAULT_LOCATION_MEMORY_ROUNDS,
   LOCATION_MEMORY_MISMATCH_MS,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   buildLocationMemoryBoard,
   buildLocationMemoryPairsBoard,
   buildLocationMemoryRecallQueue,
@@ -33,6 +35,7 @@ import {
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -86,6 +89,8 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   const [letterSize, setLetterSize] = useState(defaults.letterSize || DEFAULT_LOCATION_MEMORY_LETTER_SIZE);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_LOCATION_MEMORY_BG);
   const [charColor, setCharColor] = useState(DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayCharColor = getContrastAdjustedColor(charColor, engineBgColor, contrastSensitivity);
 
   const [currentRound, setCurrentRound] = useState(1);
   const [cells, setCells] = useState<LocationMemoryCell[]>([]);
@@ -199,6 +204,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         playMode,
         endedBy,
         deviceTier,
+        ...clinicalColorSessionFields(engineBgColor, charColor, contrastSensitivity),
       };
       setResultsData(data);
       setIsResultsOpen(true);
@@ -216,6 +222,9 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       isPairs,
       playMode,
       cells.length,
+      engineBgColor,
+      charColor,
+      contrastSensitivity,
     ],
   );
 
@@ -457,6 +466,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
     if (newSettings.letterSize != null) setLetterSize(newSettings.letterSize);
     if (newSettings.bgColor) setEngineBgColor(newSettings.bgColor);
     if (newSettings.shapeColor) setCharColor(newSettings.shapeColor);
+    if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
     if (newSettings.locationMemoryActiveCells != null) setActiveCells(newSettings.locationMemoryActiveCells);
     if (newSettings.locationMemoryGridSize != null) setGridSize(newSettings.locationMemoryGridSize);
     if (newSettings.locationMemoryRounds != null) setRoundsPerSession(newSettings.locationMemoryRounds);
@@ -520,7 +530,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                     className={`${styles.cell} ${isOpen ? styles.cellOpen : ''} ${isExplored ? styles.cellExplored : ''} ${cell.value == null ? styles.cellBlank : ''}`}
                     style={{
                       fontSize: `${letterSize * (isOpen ? 2.15 : 1.75)}rem`,
-                      color: isOpen ? '#0F172A' : charColor,
+                      color: isOpen ? '#0F172A' : displayCharColor,
                     }}
                     onClick={() => onExploreCell(cell)}
                     aria-pressed={isOpen}
@@ -565,7 +575,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                   key={cell.id}
                   type="button"
                   className={`${styles.cell} ${wrongIds.has(cell.id) ? styles.cellWrong : ''} ${matchedIds.has(cell.id) ? styles.cellCorrect : ''}`}
-                  style={{ fontSize: `${letterSize * 1.75}rem`, color: charColor }}
+                  style={{ fontSize: `${letterSize * 1.75}rem`, color: displayCharColor }}
                   onClick={() => onRecallCell(cell)}
                   disabled={matchedIds.has(cell.id)}
                 >
@@ -586,7 +596,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
               className={styles.grid}
               style={{
                 gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                width: 'min(480px, 94vw)',
+                width: 'min(88vmin, 94vw)',
               }}
             >
               {cells.map((cell) => {
@@ -600,7 +610,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                     className={`${styles.cell} ${revealed && !isWrong && !isMatched ? styles.cellOpen : ''} ${isWrong ? styles.cellWrong : ''} ${isMatched ? styles.cellCorrect : ''} ${cell.value == null ? styles.cellBlank : ''}`}
                     style={{
                       fontSize: `${letterSize * (revealed ? 1.75 : 1.4)}rem`,
-                      color: revealed && !isWrong && !isMatched ? '#0F172A' : charColor,
+                      color: revealed && !isWrong && !isMatched ? '#0F172A' : displayCharColor,
                     }}
                     onClick={() => onMatchCell(cell)}
                     disabled={matchedIds.has(cell.id) || lockBoard || cell.value == null}
@@ -620,16 +630,19 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
             {phase === 'match'
               ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} misses`
               : phase === 'recall'
-                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}`
+                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} misses` : ''}`
                 : `Explored ${exploredCount}/${activeCells}`}
           </span>
           <span className={styles.hudAccent}>{durationSec}s</span>
         </div>
       ) : null}
 
-      <button type="button" className={styles.menuFab} onClick={() => setIsMenuOpen(true)} aria-label="Menu">
-        <SlidersIcon className="w-6 h-6" />
-      </button>
+      <div className="absolute bottom-5 right-4 z-20 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button type="button" className={styles.menuFab} onClick={() => setIsMenuOpen(true)} aria-label="Menu">
+          <SlidersIcon className="w-6 h-6" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -686,6 +699,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         locationMemoryRecallSec={recallSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

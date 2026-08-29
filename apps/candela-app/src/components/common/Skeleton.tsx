@@ -125,45 +125,16 @@ export function DoctorDashboardSkeleton() {
         </div>
       </section>
 
-      {/* 2-column sidebar & patient detail skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Patients List */}
-        <section className="bg-white rounded-3xl border border-gray-100 p-5 space-y-3">
-          <div className="h-6 w-28 bg-gray-200 rounded-lg mb-4" />
+      <section className="bg-white rounded-3xl border border-gray-100 p-5 space-y-3">
+        <div className="h-6 w-28 bg-gray-200 rounded-lg mb-4" />
+        <div className="h-12 bg-gray-100 rounded-xl max-w-md" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="h-16 bg-gray-100 rounded-xl" />
           <div className="h-16 bg-gray-100 rounded-xl" />
           <div className="h-16 bg-gray-100 rounded-xl" />
-        </section>
-
-        {/* Right Column - Prescriptions */}
-        <section className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 p-6 space-y-5">
-          <div className="border-b border-gray-100 pb-4 flex justify-between items-center">
-            <div>
-              <div className="h-7 w-48 bg-gray-200 rounded-lg mb-2" />
-              <div className="h-4 w-32 bg-gray-100 rounded-md" />
-            </div>
-            <div className="h-6 w-24 bg-gray-100 rounded-md" />
-          </div>
-
-          <div className="space-y-4">
-            <div className="h-6 w-44 bg-gray-200 rounded-lg" />
-            <div className="grid gap-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-2xl border border-gray-100 p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-md bg-gray-200" />
-                    <div className="h-5 w-36 bg-gray-200 rounded-md" />
-                  </div>
-                  <div className="pl-8 flex gap-3">
-                    <div className="h-4 w-24 bg-gray-100 rounded-md" />
-                    <div className="h-4 w-24 bg-gray-100 rounded-md" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
+          <div className="h-16 bg-gray-100 rounded-xl" />
+        </div>
+      </section>
     </main>
   );
 }

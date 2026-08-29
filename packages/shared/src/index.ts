@@ -17,3 +17,6 @@ export * from './location-memory-logic';
 export * from './direction-sense-logic';
 export * from './celebration';
 export * from './clap-synth';
+export * from './clinical-color';
+export * from './ClinicalColorFields';
+export * from './handheld-field';
