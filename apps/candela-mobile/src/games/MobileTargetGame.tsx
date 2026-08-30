@@ -16,8 +16,11 @@ import {
   resolveBubbleAppearance,
   stimuliColorLabel,
   bubbleAppearanceLabel,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
@@ -89,10 +92,10 @@ export function MobileTargetGame({
   const [bubbles, setBubbles] = useState<MovingBubble[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
-  const [showSettings, setShowSettings] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen: showSettings, setIsSettingsOpen: setShowSettings, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [showClickToStart, setShowClickToStart] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -104,6 +107,10 @@ export function MobileTargetGame({
   const [bounds, setBounds] = useState({ w: 360, h: 640 });
   const bubblesRef = useRef<MovingBubble[]>([]);
   const setStartTimeRef = useRef(performance.now());
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || showResults;
+  usePauseShiftedClock(engineFrozen, isPlaying, (delta) => {
+    setStartTimeRef.current += delta;
+  }, setStartTimeRef.current);
   const wrongClicksSetRef = useRef(0);
   const shuffledPoolRef = useRef<string[]>([]);
 
@@ -325,7 +332,7 @@ export function MobileTargetGame({
     const updatePhysics = (timestamp: number) => {
       const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
       lastTimestamp = timestamp;
-      if (isPlaying && !isPaused && !showResults && !showSettings) {
+      if (isPlaying && !engineFrozen) {
         const halfW = bounds.w / 2;
         const halfH = bounds.h / 2;
         const list = bubblesRef.current.map((b) => ({ ...b, x: b.x + b.vx * dt, y: b.y + b.vy * dt }));
@@ -392,7 +399,7 @@ export function MobileTargetGame({
     };
     raf = requestAnimationFrame(updatePhysics);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, isPaused, showResults, showSettings, bounds, settings.speedPxPerSec]);
+  }, [isPlaying, engineFrozen, bounds, settings.speedPxPerSec]);
 
   const fabSize = s(40);
   const bottomPad = insets.bottom + s(12);
@@ -401,7 +408,7 @@ export function MobileTargetGame({
 
   return (
     <View style={{ flex: 1, backgroundColor: '#05070F' }}>
-      {showClickToStart && !showSettings && !showResults ? (
+      {showClickToStart && !showHowToPlay && !showSettings && !showResults ? (
         <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: 'rgba(6,7,13,0.98)' }}>
           <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '900', marginBottom: s(16), textAlign: 'center' }}>{gameTitle}</Text>
           <Pressable
@@ -436,7 +443,7 @@ export function MobileTargetGame({
             <Pressable
               key={bubble.id}
               onPress={() => {
-                if (!isPlaying || isPaused || showResults) return;
+                if (!isPlaying || engineFrozen) return;
                 if (bubble.isTarget) {
                   void hapticCorrect();
                   setCorrectCount((c) => c + 1);
@@ -724,6 +731,13 @@ export function MobileTargetGame({
           <InfoRow label="Wrong Clicks" value={String(wrongCount)} accent="#FB7185" />
         </View>
       ) : null}
+      <HowToPlayManual
+        moduleId="mobile_target"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
@@ -767,8 +781,9 @@ export function MobileTargetGame({
         <GameResultsModal isOpen={showResults} data={sessionResult} onClose={requestExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
       ) : null}
       <GameMenuDrawer
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={requestExit}
         sessionInProgress={!showResults && !showSettings && !showClickToStart}
         onReset={() => {

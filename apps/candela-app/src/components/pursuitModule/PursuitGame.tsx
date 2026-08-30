@@ -18,11 +18,14 @@ import {
   resolvePursuitPattern,
   pursuitPatternName,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { PursuitResultsModal } from './PursuitResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
@@ -85,12 +88,15 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
 
   // Menu & Results Modals
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [sessionResults, setSessionResults] = useState<PursuitSessionResultData | null>(null);
+  const sessionFrozen = playBlocked || isBlockPaused || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && trialStartTime != null), (delta) => {
+    setTrialStartTime((prev) => (prev == null ? prev : prev + delta));
+  }, trialStartTime);
 
   // Animation frame ref & Timeout timer ref
   const animFrameRef = useRef<number | null>(null);
@@ -166,22 +172,23 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   // Setup trial on mount or trial index change
   useEffect(() => {
-    if (isSettingsOpen || !gameStarted) return;
+    if (!gameStarted) return;
     startTrial(currentTrialIndex);
-  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
+  }, [currentTrialIndex, gameStarted, startTrial]);
 
   // Timeout handler (logged as miss / timeout, auto advance)
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) {
+    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
 
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
     if (settings.trialTimeoutSec <= 0) return;
 
+    const remainingMs = Math.max(0, settings.trialTimeoutSec * 1000 - elapsedSec * 1000);
     timeoutTimerRef.current = setTimeout(() => {
       handleTrialEnd('timeout', { x: 0, y: 0 });
-    }, settings.trialTimeoutSec * 1000);
+    }, remainingMs);
 
     return () => {
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
@@ -194,11 +201,12 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     isResultsOpen,
     trialStartTime,
     settings.trialTimeoutSec,
+    playBlocked,
   ]);
 
   // 60 FPS Continuous Animation Loop using requestAnimationFrame
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) {
+    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
 
@@ -217,7 +225,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isBlockPaused, isMenuOpen, isSettingsOpen, isResultsOpen, trialStartTime]);
+  }, [isBlockPaused, isMenuOpen, playBlocked, isResultsOpen, trialStartTime]);
 
   // Calculate current target state
   const orientation = containerBounds.width >= containerBounds.height ? 'landscape' : 'portrait';
@@ -420,7 +428,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   return (
     <div ref={containerRef} className={styles.gameContainer}>
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Pursuit"
           onStart={() => setGameStarted(true)}
@@ -534,6 +542,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={onExit}
         onReset={handleReset}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -542,6 +551,13 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       />
 
       {/* CLINICAL SETTINGS MODAL */}
+      <HowToPlayManual
+        moduleId="pursuit"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

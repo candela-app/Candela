@@ -15,6 +15,7 @@ export function GameMenuDrawer({
   onQuit,
   onReset,
   onOpenSettings,
+  onOpenHowToPlay,
   resetButtonLabel = 'Reset Game',
   extraControls,
   settingsSummary,
@@ -25,6 +26,7 @@ export function GameMenuDrawer({
   onQuit: () => void;
   onReset: () => void;
   onOpenSettings?: () => void;
+  onOpenHowToPlay?: () => void;
   resetButtonLabel?: string;
   extraControls?: ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
@@ -82,6 +84,17 @@ export function GameMenuDrawer({
           <Pressable onPress={() => setConfirmReset(true)} style={menuBtn}>
             <Text style={menuBtnText}>{resetButtonLabel}</Text>
           </Pressable>
+          {onOpenHowToPlay ? (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onOpenHowToPlay();
+              }}
+              style={[menuBtn, { backgroundColor: 'rgba(5,150,105,0.18)', borderColor: 'rgba(52,211,153,0.4)' }]}
+            >
+              <Text style={[menuBtnText, { color: '#6EE7B7' }]}>How to play?</Text>
+            </Pressable>
+          ) : null}
           {onOpenSettings ? (
             <Pressable
               onPress={() => {
@@ -95,17 +108,67 @@ export function GameMenuDrawer({
           ) : null}
           {extraControls}
           <ScrollView style={{ marginTop: s(16) }}>
-            <Text style={{ color: '#9CA3AF', fontSize: fs(12), fontWeight: '700', marginBottom: s(8) }}>SESSION</Text>
-            {settingsSummary.map((item) => (
-              <View key={item.label} style={{ marginBottom: s(10) }}>
-                <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>{item.label}</Text>
-                {typeof item.value === 'string' || typeof item.value === 'number' ? (
-                  <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '600' }}>{item.value}</Text>
-                ) : (
-                  item.value
-                )}
-              </View>
-            ))}
+            <Text
+              style={{
+                color: '#9CA3AF',
+                fontSize: fs(11),
+                fontWeight: '800',
+                letterSpacing: 1,
+                marginBottom: s(10),
+              }}
+            >
+              SESSION
+            </Text>
+            <View
+              style={{
+                backgroundColor: '#181818',
+                borderWidth: 1,
+                borderColor: '#1F2937',
+                borderRadius: 12,
+                paddingHorizontal: s(12),
+                paddingVertical: s(10),
+              }}
+            >
+              {settingsSummary.map((item) => (
+                <View
+                  key={item.label}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: s(12),
+                    paddingVertical: s(6),
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#9CA3AF',
+                      fontSize: fs(12),
+                      flexShrink: 1,
+                      paddingRight: s(8),
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                  {typeof item.value === 'string' || typeof item.value === 'number' ? (
+                    <Text
+                      style={{
+                        color: '#fff',
+                        fontSize: fs(13),
+                        fontWeight: '700',
+                        textAlign: 'right',
+                        flexShrink: 1,
+                        maxWidth: '58%',
+                      }}
+                    >
+                      {item.value}
+                    </Text>
+                  ) : (
+                    <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>{item.value}</View>
+                  )}
+                </View>
+              ))}
+            </View>
           </ScrollView>
         </View>
       </View>

@@ -21,8 +21,11 @@ import {
   bubbleAppearanceLabel,
   wheelColorLabel,
   type BubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
@@ -60,8 +63,7 @@ export function RotatoryWheelGame({
   const [wheelColor, setWheelColor] = useState('#000000');
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const { requestExit } = useGameSessionLock(onExit);
@@ -86,13 +88,18 @@ export function RotatoryWheelGame({
     reactionTimes: [] as number[],
     targetShownAt: null as number | null,
   });
-  const isSettingsOpenRef = useRef(isSettingsOpen);
+  const isSettingsOpenRef = useRef(playBlocked);
   const currentTargetRef = useRef('');
   const pausedRef = useRef(isPaused);
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || isResultsOpen;
+  usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
+    if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
+    if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
+  }, statsRef.current.startTime);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
   useEffect(() => {
     pausedRef.current = isPaused;
   }, [isPaused]);
@@ -105,7 +112,7 @@ export function RotatoryWheelGame({
   const animationDurationSeconds = DEFAULT_BASE_ANIMATION_DURATION / speed;
 
   useEffect(() => {
-    if (isPaused || isSettingsOpen || isResultsOpen || !isGameStarted) return;
+    if (engineFrozen || isResultsOpen || !isGameStarted) return;
     let last = performance.now();
     let current = angle;
     const loop = (now: number) => {
@@ -118,7 +125,7 @@ export function RotatoryWheelGame({
     let raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPaused, isSettingsOpen, isResultsOpen, isGameStarted, animationDurationSeconds]);
+  }, [engineFrozen, isResultsOpen, isGameStarted, animationDurationSeconds]);
 
   const speakTarget = useCallback((text: string, currentMode: GameMode) => {
     speak(currentMode !== 'colors' ? `target ${text.toLowerCase()}` : text, {
@@ -291,7 +298,7 @@ export function RotatoryWheelGame({
   };
 
   const handleWheelClick = () => {
-    if (!isPaused && poppingActive) {
+    if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
       bumpStats();
@@ -357,7 +364,7 @@ export function RotatoryWheelGame({
         </View>
       ) : null}
 
-      {!isGameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!isGameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 200, backgroundColor: 'rgba(6,7,13,0.98)' }}>
           <Text style={{ color: '#fff', fontSize: fs(26), fontWeight: '900', marginBottom: s(12) }}>{modeTitle}</Text>
           <Pressable
@@ -604,6 +611,26 @@ export function RotatoryWheelGame({
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(12) }}>{isPaused ? 'Play' : 'Pause'}</Text>
           </Pressable>
           <Pressable
+            onPress={() => {
+              setIsAssistiveTouchOpen(false);
+              openHowToPlay();
+            }}
+            style={{
+              backgroundColor: 'rgba(5,150,105,0.22)',
+              borderRadius: s(16),
+              paddingVertical: s(10),
+              alignItems: 'center',
+              marginBottom: s(8),
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: s(8),
+              borderWidth: 1,
+              borderColor: 'rgba(52,211,153,0.4)',
+            }}
+          >
+            <Text style={{ color: '#6EE7B7', fontWeight: '800', fontSize: fs(12) }}>How to play?</Text>
+          </Pressable>
+          <Pressable
             onPress={openSettings}
             style={{
               backgroundColor: '#1F2937',
@@ -694,6 +721,13 @@ export function RotatoryWheelGame({
         </View>
       ) : null}
 
+      <HowToPlayManual
+        moduleId="rotatory"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => {
@@ -761,6 +795,7 @@ export function RotatoryWheelGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => requestExit()}
         sessionInProgress={isGameStarted && !isResultsOpen}
         onReset={startLevel}

@@ -14,6 +14,8 @@ import {
   resolveStimuliBubbleColor,
   resolveBubblePaint,
   resolveBubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
@@ -22,6 +24,7 @@ import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
 interface MobileTargetGameProps {
@@ -129,10 +132,10 @@ export function MobileTargetGame({
   const [bubbles, setBubbles] = useState<MovingBubble[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(true);
-  const [showSettings, setShowSettings] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen: showSettings, setIsSettingsOpen: setShowSettings, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
-  const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -150,6 +153,10 @@ export function MobileTargetGame({
   const canvasRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const setStartTimeRef = useRef<number>(performance.now());
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || showResults;
+  usePauseShiftedClock(engineFrozen, isPlaying, (delta) => {
+    setStartTimeRef.current += delta;
+  }, setStartTimeRef.current);
   const bubblesRef = useRef<MovingBubble[]>([]);
   const wrongClicksSetRef = useRef<number>(0);
 
@@ -461,7 +468,7 @@ export function MobileTargetGame({
       const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05); // Cap dt
       lastTimestamp = timestamp;
 
-      if (isPlaying && !isPaused && !showResults && !showSettings && canvasRef.current) {
+      if (isPlaying && !engineFrozen && canvasRef.current) {
         const bounds = canvasRef.current.getBoundingClientRect();
         const halfW = bounds.width / 2;
         const halfH = bounds.height / 2;
@@ -590,11 +597,11 @@ export function MobileTargetGame({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isPlaying, isPaused, showResults, showSettings]);
+  }, [isPlaying, engineFrozen]);
 
   // Handle Bubble Tap
   const handleBubbleTap = (bubble: MovingBubble) => {
-    if (!isPlaying || isPaused || showResults) return;
+    if (!isPlaying || engineFrozen) return;
 
     if (bubble.isTarget) {
       // Correct Tap -> Advance Set
@@ -885,7 +892,7 @@ export function MobileTargetGame({
       )}
 
       {/* Click to Start overlay */}
-      {showClickToStart && !showSettings && !showResults && (
+      {showClickToStart && !showHowToPlay && !showSettings && !showResults && (
         <ClickToStartOverlay
           title={gameTitle}
           onStart={handleStartGameFromOverlay}
@@ -895,6 +902,13 @@ export function MobileTargetGame({
       )}
 
       {/* MODALS */}
+      <HowToPlayManual
+        moduleId="mobile_target"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <MobileTargetSettingsModal
         isOpen={showSettings}
         onClose={() => {
@@ -933,13 +947,14 @@ export function MobileTargetGame({
       />
 
       <GameMenuDrawer
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={onExit}
         sessionInProgress={!showResults && !showClickToStart && isPlaying}
         onReset={handleRestartSession}
         onOpenSettings={() => {
-          setMenuOpen(false);
+          setIsMenuOpen(false);
           setShowSettings(true);
         }}
         resetButtonLabel="Restart Session"
