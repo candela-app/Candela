@@ -33,6 +33,8 @@ See [WALKTHROUGH.md](./WALKTHROUGH.md) for screens and architecture.
 
 Pushes to `main` that touch `apps/candela-mobile/**` or `packages/shared/**` trigger an Android APK build on Expo EAS. Slack notifications go to the `#mobile-app` channel.
 
+CI tries **candelaapp** first, then **satvik-27s-team**, then **srisais-team** when that account has used its Free-plan Android builds for the month.
+
 **One-time setup**
 
 1. Create an Expo account and link the project from `apps/candela-mobile`:
