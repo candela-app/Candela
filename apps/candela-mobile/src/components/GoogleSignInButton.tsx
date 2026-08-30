@@ -1,13 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '../lib/google';
+import { GOOGLE_WEB_CLIENT_ID, googleOAuthRedirectUri } from '../lib/google';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 
 WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_DISCOVERY: AuthSession.DiscoveryDocument = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+};
 
 function GoogleMark({ size }: { size: number }) {
   return (
@@ -44,11 +50,50 @@ export function GoogleSignInButton({
   const { fs, s } = useLayout();
   const onIdTokenRef = useRef(onIdToken);
   onIdTokenRef.current = onIdToken;
-  const [, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
+  const [nonce, setNonce] = useState<string | null>(null);
+  const returnTo = useMemo(
+    () => AuthSession.makeRedirectUri({ scheme: 'candela', path: 'oauth' }),
+    [],
+  );
+
+  useEffect(() => {
+    void Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${Date.now()}-${Math.random()}`).then(
+      setNonce,
+    );
+  }, []);
+
+  useEffect(() => {
+    function takeIdToken(url: string): void {
+      const hash = url.split('#')[1];
+      const query = url.split('?')[1]?.split('#')[0];
+      const token =
+        (hash ? new URLSearchParams(hash).get('id_token') : null) ??
+        (query ? new URLSearchParams(query).get('id_token') : null);
+      if (token) {
+        void onIdTokenRef.current(token);
+      }
+    }
+    const sub = Linking.addEventListener('url', ({ url }) => takeIdToken(url));
+    void Linking.getInitialURL().then((url) => {
+      if (url) {
+        takeIdToken(url);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: GOOGLE_WEB_CLIENT_ID,
+      redirectUri: googleOAuthRedirectUri(),
+      responseType: AuthSession.ResponseType.IdToken,
+      scopes: ['openid', 'email', 'profile'],
+      usePKCE: false,
+      state: returnTo,
+      extraParams: nonce ? { nonce } : {},
+    },
+    GOOGLE_DISCOVERY,
+  );
 
   useEffect(() => {
     if (response?.type !== 'success') {
@@ -60,10 +105,12 @@ export function GoogleSignInButton({
     }
   }, [response]);
 
+  const ready = Boolean(request && nonce);
+
   return (
     <Pressable
-      disabled={disabled || busy}
-      onPress={() => void promptAsync()}
+      disabled={disabled || busy || !ready}
+      onPress={() => void promptAsync({ showInRecents: true })}
       style={{
         borderWidth: 1,
         borderColor: colors.border,

@@ -8,6 +8,7 @@ import { AuthDivider, GoogleSignInButton } from '@/components/auth/GoogleSignInB
 import type { SessionUser } from '@candela/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { returnToMobileApp } from '@/lib/mobile-google-return';
 import { FormEvent, useEffect, useState } from 'react';
 
 export default function LoginPage() {
@@ -22,6 +23,9 @@ export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
+    if (returnToMobileApp()) {
+      return;
+    }
     if (!loading && session) {
       setRedirecting(true);
       router.replace(roleHomePath(session.user.role));
