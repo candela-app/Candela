@@ -1,6 +1,6 @@
 // Web Audio API Synthesizer and Web Vibration Haptics Utility
 
-import { APPLAUSE_EARLY_MS, clapForLine } from './celebration';
+import { APPLAUSE_EARLY_MS, clapForLine, clapLineSpeakMs } from './celebration';
 import { synthesizeClapBed } from './clap-synth';
 
 let sharedAudioCtx: AudioContext | null = null;
@@ -499,17 +499,15 @@ export function startResultsCelebrationAudio(
 
   hooks?.preloadClap?.();
   playPartyBlastSound();
+  const speakMs = clapLineSpeakMs(patientName);
   timers.push(
     setTimeout(() => {
       if (stopped) return;
-      const line = clapForLine(patientName);
-      const words = Math.max(1, line.trim().split(/\s+/).length);
-      const speakMs = Math.round((words / 2.35) * 1000 / 0.92) + 180;
-      speakClapForName(line, clapOnce);
+      speakClapForName(clapForLine(patientName), clapOnce);
       timers.push(setTimeout(clapOnce, Math.max(0, speakMs - APPLAUSE_EARLY_MS)));
     }, 420),
   );
-  timers.push(setTimeout(clapOnce, 3200 - APPLAUSE_EARLY_MS));
+  timers.push(setTimeout(clapOnce, 420 + speakMs + 1400));
 
   return () => {
     stopped = true;

@@ -16,6 +16,7 @@ export function speak(text: string, options?: { rate?: number; pitch?: number; l
 
 export function speakClapFor(patientName?: string | null, onDone?: () => void) {
   try {
+    Speech.stop();
     Speech.speak(clapForLine(patientName), {
       language: 'en-US',
       rate: 0.92,

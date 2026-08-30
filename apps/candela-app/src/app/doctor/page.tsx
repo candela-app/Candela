@@ -30,6 +30,8 @@ export default function DoctorPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [listTab, setListTab] = useState<'create' | 'patients'>('patients');
 
   const filteredPatients = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -81,6 +83,7 @@ export default function DoctorPage() {
       setEmail('');
       setPassword('');
       toast.success(`Patient ${patientName} created successfully!`);
+      setListTab('patients');
       router.push(`/doctor/patients/${created.id}`);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
@@ -180,6 +183,35 @@ export default function DoctorPage() {
           </section>
         )}
 
+        <div className="flex bg-gray-200 rounded-2xl p-1 max-w-lg">
+          <button
+            type="button"
+            onClick={() => setListTab('create')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold cursor-pointer ${
+              listTab === 'create' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Create patient
+          </button>
+          <button
+            type="button"
+            onClick={() => setListTab('patients')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+              listTab === 'patients' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Patients
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full ${
+                listTab === 'patients' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {patients.length}
+            </span>
+          </button>
+        </div>
+
+        {listTab === 'create' && (
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Create patient</h2>
           <form onSubmit={onCreatePatient} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -198,38 +230,73 @@ export default function DoctorPage() {
             </button>
           </form>
         </section>
+        )}
 
+        {listTab === 'patients' && (
         <section className="bg-white rounded-3xl border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center mb-3">
             <h2 className="text-lg font-bold text-gray-900">Patients</h2>
-            <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            <span className="ml-2 text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               {patients.length}
             </span>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => {
+                if (searchOpen) {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+              }`}
+              title={searchOpen ? 'Close search' : 'Search patients'}
+              aria-label={searchOpen ? 'Close search' : 'Search patients'}
+            >
+              {searchOpen ? <XIcon className="w-4 h-4" /> : <SearchIcon className="w-4 h-4" />}
+            </button>
           </div>
 
-          <div className="relative mb-3 max-w-md">
-            <FloatingLabelInput
-              label="Search patient name, email..."
-              value={searchQuery}
-              onChange={setSearchQuery}
-              endAdornment={
-                searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
-                    title="Clear search"
-                  >
-                    <XIcon className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <SearchIcon className="w-4 h-4 text-gray-400" />
-                )
-              }
-            />
-          </div>
+          {searchOpen && (
+            <div className="relative mb-3 max-w-md">
+              <FloatingLabelInput
+                label="Search patient name, email..."
+                value={searchQuery}
+                onChange={setSearchQuery}
+                autoFocus
+                endAdornment={
+                  searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                      title="Clear search"
+                    >
+                      <XIcon className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <SearchIcon className="w-4 h-4 text-gray-400" />
+                  )
+                }
+              />
+            </div>
+          )}
 
-          {patients.length === 0 && <p className="text-sm text-gray-500 py-2">No patients yet.</p>}
+          {patients.length === 0 && (
+            <div className="py-2">
+              <p className="text-sm text-gray-500">No patients yet.</p>
+              <button
+                type="button"
+                onClick={() => setListTab('create')}
+                className="mt-3 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold cursor-pointer"
+              >
+                Create a patient
+              </button>
+            </div>
+          )}
 
           {patients.length > 0 && filteredPatients.length === 0 && (
             <div className="text-center py-6 px-2 text-gray-400">
@@ -255,6 +322,7 @@ export default function DoctorPage() {
             ))}
           </ul>
         </section>
+        )}
       </main>
     </div>
   );

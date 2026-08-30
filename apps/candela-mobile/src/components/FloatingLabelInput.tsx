@@ -28,6 +28,7 @@ type FloatingLabelInputProps = {
   maxLength?: number;
   style?: StyleProp<ViewStyle>;
   endAdornment?: ReactNode;
+  autoFocus?: boolean;
 };
 
 export function FloatingLabelInput({
@@ -44,6 +45,7 @@ export function FloatingLabelInput({
   maxLength,
   style,
   endAdornment,
+  autoFocus,
 }: FloatingLabelInputProps) {
   const { fs, s } = useLayout();
   const [focused, setFocused] = useState(false);
@@ -97,6 +99,7 @@ export function FloatingLabelInput({
             maxLength={maxLength}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
+            autoFocus={autoFocus}
             placeholder=""
             placeholderTextColor="transparent"
             style={{

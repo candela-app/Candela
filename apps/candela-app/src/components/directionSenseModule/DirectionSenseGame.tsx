@@ -53,6 +53,8 @@ import {
   type DirectionSenseTrailPoint,
   type DirectionSenseTrial,
   type DirectionSenseTurnDirection,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
@@ -60,6 +62,7 @@ import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './DirectionSenseGame.module.css';
 
@@ -110,8 +113,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const levelTitle = directionSenseLevelLabel(levelId);
 
   const [gameStarted, setGameStarted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<DirectionSenseSessionResultData | null>(null);
@@ -147,6 +149,11 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const [faceErrors, setFaceErrors] = useState(0);
   const [flipErrors, setFlipErrors] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const [durationSec, setDurationSec] = useState(0);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const trialShownAtRef = useRef<number | null>(null);
@@ -310,15 +317,15 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   );
 
   useEffect(() => {
-    if (!gameStarted || !startTime || isResultsOpen) return;
+    if (!gameStarted || !startTime || isResultsOpen || playBlocked) return;
     const id = window.setInterval(() => {
       setDurationSec(Math.max(1, Math.round((Date.now() - startTime) / 1000)));
     }, 500);
     return () => window.clearInterval(id);
-  }, [gameStarted, isResultsOpen, startTime]);
+  }, [gameStarted, isResultsOpen, startTime, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen) return;
+    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen || playBlocked) return;
     if (timeLeft <= 0) {
       finishSession('timeout', {
         correct: correctCount,
@@ -332,7 +339,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
       });
       return;
     }
-    const id = window.setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    const id = window.setTimeout(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
     return () => window.clearTimeout(id);
   }, [
     clicks,
@@ -342,6 +349,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     flipErrors,
     gameStarted,
     isResultsOpen,
+    playBlocked,
     reactionTimes,
     startTime,
     timeLeft,
@@ -521,7 +529,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.toast}>✓ {notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={levelTitle}
           onStart={() => startGame()}
@@ -681,6 +689,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           setIsMenuOpen(false);
           if (onExit) onExit();
@@ -720,6 +729,13 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="direction_sense"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

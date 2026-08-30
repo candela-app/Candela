@@ -19,8 +19,11 @@ import {
   DEFAULT_BEE_TARGET_DOT_COLOR,
   reactionStatsFromMs,
   type GeneratedPath,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { BeeResultsModal } from '../components/BeeResultsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { BeeSettingsModal } from '../components/BeeSettingsModal';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
@@ -127,11 +130,10 @@ export function BeeTracingGame({
     pathType: lockedPathType,
     orientation: lockPortrait ? 'portrait' : DEFAULT_SETTINGS.orientation,
   }));
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   const [beeHeading, setBeeHeading] = useState(0);
   const { requestExit } = useGameSessionLock(onExit);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const [roundResults, setRoundResults] = useState<RoundResultData[]>([]);
@@ -148,6 +150,15 @@ export function BeeTracingGame({
   const [bounds, setBounds] = useState({ w: 360, h: 640 });
   const currentPathIndexRef = useRef(0);
   const roundStartTimeRef = useRef(performance.now());
+  const sessionFrozen = playBlocked || isResultsOpen;
+  const playBlockedRef = useRef(playBlocked);
+  useEffect(() => {
+    playBlockedRef.current = playBlocked;
+  }, [playBlocked]);
+  usePauseShiftedClock(sessionFrozen, gameStarted, (delta) => {
+    roundStartTimeRef.current += delta;
+    if (reactionReadyAtRef.current != null) reactionReadyAtRef.current += delta;
+  }, roundStartTimeRef.current);
   const reactionReadyAtRef = useRef<number | null>(null);
   const roundReactionMsRef = useRef<number | null>(null);
   const beePosRef = useRef(beePos);
@@ -271,9 +282,20 @@ export function BeeTracingGame({
     roundReactionMsRef.current = null;
     const duration = Math.max(250, settingsRef.current.beeSpeedSec * 1000);
     const startTime = Date.now();
+    let pauseAccum = 0;
+    let pauseAt: number | null = null;
     const animate = () => {
       if (token !== demoTokenRef.current) return;
-      const progress = Math.min(1, (Date.now() - startTime) / duration);
+      if (playBlockedRef.current) {
+        if (pauseAt == null) pauseAt = Date.now();
+        requestAnimationFrame(animate);
+        return;
+      }
+      if (pauseAt != null) {
+        pauseAccum += Date.now() - pauseAt;
+        pauseAt = null;
+      }
+      const progress = Math.min(1, (Date.now() - startTime - pauseAccum) / duration);
       const last = Math.max(0, generated.points.length - 1);
       const ptIndex = Math.min(last, Math.floor(progress * last));
       const pt = generated.points[ptIndex] || generated.startPoint;
@@ -348,9 +370,9 @@ export function BeeTracingGame({
   );
 
   useEffect(() => {
-    if (isSettingsOpen || !gameStarted) return;
+    if (!gameStarted) return;
     initRoundPath(currentRoundNumber, bounds.w, bounds.h);
-  }, [currentRoundNumber, isSettingsOpen, gameStarted, initRoundPath, bounds.w, bounds.h]);
+  }, [currentRoundNumber, gameStarted, initRoundPath, bounds.w, bounds.h]);
 
   const handleRoundCompletion = () => {
     if (roundSuccessRef.current || !currentPath) return;
@@ -653,7 +675,7 @@ export function BeeTracingGame({
       <Text style={{ position: 'absolute', top: s(52), right: s(16), color: theme.ui, fontWeight: '700', fontSize: fs(13) }}>
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </Text>
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View
           style={{
             position: 'absolute',
@@ -719,6 +741,13 @@ export function BeeTracingGame({
       >
         <SlidersIcon size={22} color={theme.muted} />
       </Pressable>
+      <HowToPlayManual
+        moduleId="bee_tracing"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <BeeSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -750,6 +779,7 @@ export function BeeTracingGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={leaveGame}
         onReset={() => {
           void stopBeeBuzz();

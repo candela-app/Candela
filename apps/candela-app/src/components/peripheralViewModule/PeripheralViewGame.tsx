@@ -40,11 +40,14 @@ import {
   type HexCell,
   type PeripheralSessionResultData,
   type PeripheralTrialOutcome,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { ChevronUpIcon, ReplayIcon, SlidersIcon, VolumeIcon } from '../icons/VectorIcons';
 import { useAuth } from '@/lib/auth-context';
@@ -71,7 +74,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
@@ -116,8 +119,15 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
     stimuliPresented: 0,
   });
   const startTimeRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen || isAssistiveTouchOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+    setTargetShownAt((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const currentTargetRef = useRef('');
-  const isSettingsOpenRef = useRef(isSettingsOpen);
+  const isSettingsOpenRef = useRef(playBlocked);
   const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const cellsRef = useRef<HexCell[]>([]);
   const sizeRef = useRef(size);
@@ -138,8 +148,8 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, [session?.user.name]);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
 
   useEffect(() => {
     startTimeRef.current = startTime;
@@ -250,12 +260,12 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime === null) return;
+    if (!gameStarted || startTime === null || sessionFrozen) return;
     const interval = setInterval(() => {
-      setDurationSec(Math.floor((performance.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((performance.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [gameStarted, startTime]);
+  }, [gameStarted, startTime, sessionFrozen]);
 
   const clearBoard = useCallback(() => {
     setActiveMap({});
@@ -321,13 +331,20 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, [clearTargetTimeout, handleTargetTimeout]);
 
   useEffect(() => {
-    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || isSettingsOpen) {
+    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || playBlocked || isAssistiveTouchOpen) {
       clearTargetTimeout();
       return;
     }
-    scheduleTargetTimeout();
+    clearTargetTimeout();
+    const remaining =
+      targetShownAt != null
+        ? Math.max(0, targetTimeoutSec * 1000 - (performance.now() - targetShownAt))
+        : targetTimeoutSec * 1000;
+    targetTimeoutTimerRef.current = setTimeout(() => {
+      handleTargetTimeout();
+    }, remaining);
     return clearTargetTimeout;
-  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, isSettingsOpen, scheduleTargetTimeout, clearTargetTimeout]);
+  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, playBlocked, isAssistiveTouchOpen, handleTargetTimeout, clearTargetTimeout]);
 
   useEffect(() => () => clearTargetTimeout(), [clearTargetTimeout]);
 
@@ -571,7 +588,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         </div>
       ) : null}
 
-      {isLandscape && !gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {isLandscape && !gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={`Peripheral View · ${peripheralFieldLabel(field)}`}
           hint="Tap the triangle to start · keep eyes on center"
@@ -829,6 +846,13 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         }}
       />
 
+      <HowToPlayManual
+        moduleId="peripheral_view"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen && (!sizeReady || isLandscape)}
         onClose={() => setIsSettingsOpen(false)}

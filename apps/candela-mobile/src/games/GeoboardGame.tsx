@@ -27,8 +27,11 @@ import {
   type GeoboardSessionResultData,
   type GeoboardTrialMetric,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { GeoboardSettingsModal } from '../components/GeoboardSettingsModal';
 import { CheckIcon, ClearIcon, ReplayIcon, SkipIcon, SlidersIcon, UndoIcon } from '../components/icons';
@@ -296,8 +299,7 @@ export function GeoboardGame({
   const [feedback, setFeedback] = useState<TrialFeedback | null>(null);
   const [trials, setTrials] = useState<GeoboardTrialMetric[]>([]);
   const [resultsData, setResultsData] = useState<GeoboardSessionResultData | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [allowExit, setAllowExit] = useState(false);
   const [fatigueWarning, setFatigueWarning] = useState(false);
   const [modelLayout, setModelLayout] = useState({ w: 0, h: 0 });
@@ -308,6 +310,12 @@ export function GeoboardGame({
   const strokeBoardHistoryRef = useRef<InkBoard[]>([]);
   const sessionStartRef = useRef(0);
   const trialStartRef = useRef(0);
+  const sessionFrozen = playBlocked;
+  usePauseShiftedClock(sessionFrozen, gameState === 'play' || gameState === 'memorize', (delta) => {
+    if (sessionStartRef.current) sessionStartRef.current += delta;
+    if (trialStartRef.current) trialStartRef.current += delta;
+    if (firstDotAtRef.current != null) firstDotAtRef.current += delta;
+  }, sessionStartRef.current);
   const firstDotAtRef = useRef<number | null>(null);
   const correctionsRef = useRef(0);
   const tapSequenceRef = useRef<Array<{ dotIndex: number; timestamp: number }>>([]);
@@ -470,10 +478,10 @@ export function GeoboardGame({
   );
 
   useEffect(() => {
-    if (gameState !== 'memorize' || isSettingsOpen) return;
+    if (gameState !== 'memorize' || playBlocked) return;
     const timer = setInterval(() => setMemorizeTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, isSettingsOpen]);
+  }, [gameState, playBlocked]);
 
   useEffect(() => {
     if (gameState !== 'memorize' || memorizeTimeLeft > 0) return;
@@ -669,10 +677,10 @@ export function GeoboardGame({
   }, [handleSkip]);
 
   useEffect(() => {
-    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || isSettingsOpen) return;
+    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || playBlocked) return;
     const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, protocol.timeLimitSec, trialIndex, isSettingsOpen]);
+  }, [gameState, protocol.timeLimitSec, trialIndex, playBlocked]);
 
   useEffect(() => {
     if (gameState !== 'play' || protocol.timeLimitSec <= 0 || timeLeft > 0) return;
@@ -1100,7 +1108,7 @@ export function GeoboardGame({
         paddingHorizontal: isPlayingPhase ? s(8) : 0,
       }}
     >
-      {gameState === 'settings' && !isSettingsOpen ? (
+      {gameState === 'settings' && !showHowToPlay && !isSettingsOpen ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: s(24) }}>
           <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '800' }}>{board.shortLabel}</Text>
           <Pressable
@@ -1266,6 +1274,7 @@ export function GeoboardGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => setAllowExit(true)}
         onReset={() => {
           setIsMenuOpen(false);
@@ -1295,6 +1304,13 @@ export function GeoboardGame({
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="geoboard"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <GeoboardSettingsModal
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}

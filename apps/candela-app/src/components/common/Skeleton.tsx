@@ -70,9 +70,8 @@ export function PatientDashboardSkeleton() {
         <div className="h-10 w-28 bg-gray-200 rounded-xl animate-pulse" />
       </div>
 
-      {/* Grid of 6 module cards */}
-      <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
-        <ModuleCardSkeleton />
+      {/* Grid of family cards */}
+      <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 px-8 py-6 max-w-6xl mx-auto w-full">
         <ModuleCardSkeleton />
         <ModuleCardSkeleton />
         <ModuleCardSkeleton />

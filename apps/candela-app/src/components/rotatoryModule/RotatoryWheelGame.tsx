@@ -5,14 +5,13 @@ import {
   GameMode,
   AlphabetVariant,
   BubbleItem,
-  BubblePosition,
   BRIGHT_COLORS,
   SPEED_PRESETS,
   BUBBLES_PER_ROUND,
   DEFAULT_BASE_ANIMATION_DURATION,
   defaultBubbleSizePx,
   getDeviceTier,
-  findNonOverlappingBubblePosition,
+  getSlotFallbackPosition,
   getRandomSymbol,
   getContrastColor,
   exportSessionCSV,
@@ -35,12 +34,15 @@ import {
   getContrastAdjustedColor,
   clinicalColorSessionFields,
   type BubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
@@ -81,8 +83,7 @@ export function RotatoryWheelGame({
   }, [session?.user?.name]);
 
   // Settings, Click to Start & Results Modal State
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
@@ -118,8 +119,13 @@ export function RotatoryWheelGame({
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const bubbleContainerRef = useRef<HTMLDivElement>(null);
-  const isSettingsOpenRef = useRef<boolean>(isSettingsOpen);
+  const isSettingsOpenRef = useRef<boolean>(playBlocked);
   const currentTargetRef = useRef<string>('');
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || isResultsOpen;
+  usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
+    if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
+    if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
+  }, statsRef.current.startTime);
 
   // Original English target voice (device en-US, e.g. Samantha)
   const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -147,8 +153,8 @@ export function RotatoryWheelGame({
   }, []);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
 
   // Counter-rotate text inside bubbles to maintain 0 self-rotation relative to screen viewport
   useEffect(() => {
@@ -312,7 +318,6 @@ export function RotatoryWheelGame({
     setPoppingActive(false);
 
     const newBubbles: BubbleItem[] = [];
-    const positions: BubblePosition[] = [];
 
     const rawContainer = bubbleContainerRef.current;
     const measured = rawContainer
@@ -335,16 +340,8 @@ export function RotatoryWheelGame({
 
     for (let i = 0; i < bubblesPerRound; i++) {
       const symbol = getRandomSymbol(mode, variant);
-      const pos = findNonOverlappingBubblePosition(positions, {
-        containerSize,
-        bubbleSize,
-        slotIndex: i,
-        totalSlots: bubblesPerRound,
-        gapPercent: deviceTier === 'mobile' ? 10 : 8,
-        randomAttempts: 0,
-      });
+      const pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize, 0.62);
 
-      positions.push(pos);
       let bgColor = '';
       let colorName = '';
 
@@ -476,7 +473,7 @@ export function RotatoryWheelGame({
   };
 
   const handleWheelClick = () => {
-    if (!isPaused && poppingActive) {
+    if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
       playMissPressSoundAndHaptic();
@@ -531,7 +528,7 @@ export function RotatoryWheelGame({
         </div>
       )}
 
-      {!isGameStarted && !isSettingsOpen && !isResultsOpen && (
+      {!isGameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen && (
         <ClickToStartOverlay
           title={
             mode === 'colors'
@@ -665,6 +662,17 @@ export function RotatoryWheelGame({
             <span>{isPaused ? 'Play' : 'Pause'}</span>
           </button>
 
+          <button
+            onClick={() => {
+              setIsAssistiveTouchOpen(false);
+              openHowToPlay();
+            }}
+            className="w-full py-2.5 px-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white transition-colors border border-emerald-500/40 flex items-center justify-center gap-2 text-xs font-bold"
+            title="How to play"
+          >
+            <span>How to play?</span>
+          </button>
+
           {/* CLINICAL SETTINGS BUTTON */}
           <button
             onClick={() => {
@@ -790,7 +798,7 @@ export function RotatoryWheelGame({
           className="relative h-[86vmin] w-[86vmin] max-w-[86vw] max-h-[86vw] aspect-square rounded-full flex justify-center items-center cursor-pointer shrink-0 animate-rotate-wheel"
           style={{
             animationDuration: `${animationDurationSeconds}s`,
-            animationPlayState: isPaused || isSettingsOpen ? 'paused' : 'running',
+            animationPlayState: engineFrozen ? 'paused' : 'running',
             backgroundColor: wheelColor,
           }}
           onClick={handleWheelClick}
@@ -842,6 +850,7 @@ export function RotatoryWheelGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -903,6 +912,13 @@ export function RotatoryWheelGame({
       />
 
       {/* SHARED CLINICAL SETTINGS MODAL */}
+      <HowToPlayManual
+        moduleId="rotatory"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}

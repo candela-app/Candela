@@ -13,8 +13,11 @@ import {
   pursuitPatternName,
   resolvePursuitPattern,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { PursuitResultsModal } from '../components/PursuitResultsModal';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
@@ -56,12 +59,15 @@ export function PursuitGame({
   const [trialStartTime, setTrialStartTime] = useState<number | null>(null);
   const [containerBounds, setContainerBounds] = useState({ width, height });
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   const { requestExit } = useGameSessionLock(onExit);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [sessionResults, setSessionResults] = useState<PursuitSessionResultData | null>(null);
+  const sessionFrozen = playBlocked || isBlockPaused || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && trialStartTime != null), (delta) => {
+    setTrialStartTime((prev) => (prev == null ? prev : prev + delta));
+  }, trialStartTime);
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seedRef = useRef(1);
@@ -157,21 +163,22 @@ export function PursuitGame({
   );
 
   useEffect(() => {
-    if (!isSettingsOpen && gameStarted) startTrial(currentTrialIndex);
-  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
+    if (!gameStarted) return;
+    startTrial(currentTrialIndex);
+  }, [currentTrialIndex, gameStarted, startTrial]);
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
+    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) return;
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
     if (settings.trialTimeoutSec <= 0) return;
-    timeoutTimerRef.current = setTimeout(() => handleTrialEnd('timeout', { x: 0, y: 0 }), settings.trialTimeoutSec * 1000);
+    timeoutTimerRef.current = setTimeout(() => handleTrialEnd('timeout', { x: 0, y: 0 }), Math.max(0, settings.trialTimeoutSec * 1000 - elapsedSec * 1000));
     return () => {
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
     };
-  }, [currentTrialIndex, isBlockPaused, isMenuOpen, isSettingsOpen, isResultsOpen, trialStartTime, settings.trialTimeoutSec]);
+  }, [currentTrialIndex, isBlockPaused, isMenuOpen, playBlocked, isResultsOpen, trialStartTime, settings.trialTimeoutSec]);
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
+    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) return;
     let lastTime = performance.now();
     let raf = 0;
     const loop = (now: number) => {
@@ -181,7 +188,7 @@ export function PursuitGame({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [isBlockPaused, isMenuOpen, isSettingsOpen, isResultsOpen, trialStartTime]);
+  }, [isBlockPaused, isMenuOpen, playBlocked, isResultsOpen, trialStartTime]);
 
   const orientation = containerBounds.width >= containerBounds.height ? 'landscape' : 'portrait';
   const targetState = getMovementPath(
@@ -282,7 +289,7 @@ export function PursuitGame({
       <Text style={{ position: 'absolute', top: s(48), alignSelf: 'center', color: '#fff', fontWeight: '700' }}>
         Trial {Math.min(currentTrialIndex + 1, TOTAL_TRIALS)}/{TOTAL_TRIALS}
       </Text>
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View
           style={{
             position: 'absolute',
@@ -323,6 +330,13 @@ export function PursuitGame({
       >
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
+      <HowToPlayManual
+        moduleId="pursuit"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -369,6 +383,7 @@ export function PursuitGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={requestExit}
         onReset={() => {
           trialMetricsRef.current = [];
