@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { GAME_CATALOG, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { CheckIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { ScreenLoader } from '../src/components/ScreenLoader';
 import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
@@ -216,11 +217,7 @@ export default function DoctorScreen() {
   }
 
   if (loading || dataLoading || !session || session.user.role !== 'doctor') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page, justifyContent: 'center' }}>
-        <Text style={{ textAlign: 'center', color: colors.muted }}>Loading…</Text>
-      </View>
-    );
+    return <ScreenLoader />;
   }
 
   return (

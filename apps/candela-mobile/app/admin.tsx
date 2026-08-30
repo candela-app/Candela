@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela/shared/rn';
 import { AppHeader } from '../src/components/AppHeader';
+import { ScreenLoader } from '../src/components/ScreenLoader';
 import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
@@ -206,11 +207,7 @@ export default function AdminScreen() {
   };
 
   if (loading || dataLoading || !session || session.user.role !== 'admin') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page, justifyContent: 'center' }}>
-        <Text style={{ textAlign: 'center', color: colors.muted }}>Loading…</Text>
-      </View>
-    );
+    return <ScreenLoader />;
   }
 
   return (

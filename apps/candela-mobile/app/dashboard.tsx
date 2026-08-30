@@ -11,6 +11,7 @@ import {
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { ScreenLoader } from '../src/components/ScreenLoader';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -94,13 +95,8 @@ export default function DashboardScreen() {
     [columns, width, pad, s],
   );
 
-  if (loading || !session || session.user.role !== 'patient') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
-        <Text style={{ padding: 32, textAlign: 'center', color: colors.muted, fontWeight: '600' }}>Loading…</Text>
-      </View>
-    );
+  if (session?.user.role !== 'patient') {
+    return loading ? <ScreenLoader /> : null;
   }
 
   const launchRotatory = (mode: string, variant: string) => {
