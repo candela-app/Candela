@@ -26,7 +26,9 @@ Deploy credentials come from **GitHub → Settings → Secrets and variables →
 | `RENDER_DEPLOY_HOOK_URL` | Deploy Render | Render service → Settings → Deploy Hook → copy URL |
 | `SLACK_WEBHOOK_URL_WEB` | Slack `#web-app` | Incoming Webhook for web deploy notifications |
 | `SLACK_WEBHOOK_URL_MOBILE` | Slack `#mobile-app` | Incoming Webhook for EAS APK build notifications |
-| `EXPO_TOKEN` | EAS Build (mobile job) | [expo.dev → Access tokens](https://expo.dev/settings/access-tokens) |
+| `EXPO_TOKEN` | EAS Build — candelaapp (tried first) | Team token: [candelaapp access tokens](https://expo.dev/accounts/candelaapp/settings/access-tokens) |
+| `EXPO_TOKEN_BACKUP1` | EAS Build — satvik-27s-team (if candelaapp Free quota is exhausted) | [satvik-27s-team access tokens](https://expo.dev/accounts/satvik-27s-team/settings/access-tokens) |
+| `EXPO_TOKEN_BACKUP2` | EAS Build — srisais-team (if the first two are exhausted) | [srisais-team access tokens](https://expo.dev/accounts/srisais-team/settings/access-tokens) |
 
 ### Variables (optional, non-sensitive)
 
@@ -69,4 +71,4 @@ Use **Actions → Variables** for public config later (e.g. `NEXT_PUBLIC_API_URL
 
 ### Mobile APK (first time)
 
-From `apps/candela-mobile`: `eas login` → `eas init` → commit `projectId` in `app.json`. Set `EXPO_TOKEN` in GitHub secrets before the first CI build.
+`app.json` stays on candelaapp. CI fails over to Satvik then Sri Sai EAS projects when candelaapp hits the Free Android quota. Each Expo **team** needs: the shared Android keystore (`com.candela.app`), and a team access token in GitHub secrets. Tokens are **not** on Project → Credentials; use Account → Access tokens (URLs above).

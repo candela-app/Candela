@@ -2,6 +2,12 @@
 node_modules/
 **/node_modules/
 
+# Android signing / Expo keystore backups — never commit
+*.jks
+*keystore-backup.zip
+@candelaapp__candela-keystore-backup.zip
+credentials-local/
+
 # Environment variables / secrets — IMPORTANT
 .env
 .env.local
