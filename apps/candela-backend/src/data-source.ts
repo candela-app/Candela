@@ -12,13 +12,15 @@ import { InitAuth1740000000000 } from './migrations/1740000000000-InitAuth';
 import { AddLevelsToPrescription1786860435953 } from './migrations/1786860435953-AddLevelsToPrescription';
 import { AddDocIdRequestsAndHistory1787000000001 } from './migrations/1787000000001-AddDocIdRequestsAndHistory';
 import { AddGoogleAuth1788000000000 } from './migrations/1788000000000-AddGoogleAuth';
+import { postgresConnectionUrl } from './common/postgres-url';
 
 config({ path: '.env' });
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  url: process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL,
+  url: postgresConnectionUrl(process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL || ''),
   ssl: { rejectUnauthorized: false },
+  extra: { ssl: { rejectUnauthorized: false } },
   entities: [User, DoctorProfile, PatientProfile, Prescription, RefreshToken, DocIdRequest, DocIdHistory],
   migrations: [
     InitAuth1740000000000,

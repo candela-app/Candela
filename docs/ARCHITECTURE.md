@@ -71,7 +71,7 @@ DocID attach/change/transfer and SMTP: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 | **Web Frontend** | Next.js 14 (App Router) + TypeScript + Tailwind CSS | Fast SSR/Static generation, Client interactive therapy canvases |
 | **Mobile Frontend** | React Native + Expo | Native touch, gestures, and audio feedback |
 | **Backend API** | NestJS + TypeScript | Modular architecture, TypeORM, Passport JWT, Bcrypt |
-| **Database** | PostgreSQL (Neon / Serverless Postgres) | Relational schema with migrations |
+| **Database** | PostgreSQL (Supabase) | Relational schema with migrations; Storage buckets for images later |
 | **Monorepo** | TurboRepo + npm workspaces | Parallelized builds, linting, and shared caching |
 
 ---
