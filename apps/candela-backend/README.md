@@ -22,7 +22,7 @@ Listens on `PORT` (default **3001**). Website (`candela-app`) rewrites `/api/*` 
 
 ## First-time database
 
-1. Copy `.env.example` → `.env` and fill Neon URLs + JWT secrets.
+1. Copy `.env.example` → `.env` and fill Supabase URLs + JWT secrets.
 2. Apply schema (uses `DATABASE_URL_DIRECT`):
 
 ```bash
@@ -55,8 +55,8 @@ See `.env.example`. Do not commit `.env`.
 |------|----------|---------|
 | `PORT` | no | Default `3001` |
 | `FRONTEND_URL` | yes (CORS) | Website origin, e.g. `http://localhost:3000` |
-| `DATABASE_URL` | yes | Neon **pooler** (app runtime) |
-| `DATABASE_URL_DIRECT` | yes | Neon **direct** (migrations) |
+| `DATABASE_URL` | yes | Supabase **session pooler** (app runtime) |
+| `DATABASE_URL_DIRECT` | yes | Supabase **session pooler** (migrations; use the `db.*` direct host only if your network has IPv6) |
 | `JWT_ACCESS_SECRET` | yes | Signs access JWTs |
 | `JWT_REFRESH_SECRET` | unused | Reserved; refresh tokens are opaque hashes today |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` / `ADMIN_1_NAME` | seed | First admin; extra admins use `ADMIN_2_*` … `ADMIN_9_*` |

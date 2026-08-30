@@ -38,7 +38,7 @@ Use **Actions → Variables** for public config later (e.g. `NEXT_PUBLIC_API_URL
 
 | Platform | Env |
 |----------|-----|
-| Render | `DATABASE_URL`, `NODE_ENV=production`, `FRONTEND_URL`, `JWT_ACCESS_SECRET`, `ADMIN_1_*` (and `ADMIN_2_*` if needed). Set `ADMIN_SEED_OVERWRITE=true` only while rotating passwords. |
+| Render | `DATABASE_URL`, `DATABASE_URL_DIRECT`, `NODE_ENV=production`, `FRONTEND_URL`, `JWT_ACCESS_SECRET`, `ADMIN_1_*` (and `ADMIN_2_*` if needed). Set `ADMIN_SEED_OVERWRITE=true` only while rotating passwords. |
 | Vercel | any `NEXT_PUBLIC_*` when you add them |
 
 ## Dashboard toggles (avoid double deploys)
@@ -52,7 +52,7 @@ Use **Actions → Variables** for public config later (e.g. `NEXT_PUBLIC_API_URL
 - Branch: `main`
 - Build Command: `cd apps/candela-backend && npm install && npm run build`
 - Start Command: `cd apps/candela-backend && node dist/main.js`
-- Env: `DATABASE_URL` (Neon pooler), `NODE_ENV=production`
+- Env: `DATABASE_URL` + `DATABASE_URL_DIRECT` (Supabase session pooler), `NODE_ENV=production`
 - **Auto-Deploy: Off** — Actions triggers the Deploy Hook after CI on `main`
 
 ## Release flow
