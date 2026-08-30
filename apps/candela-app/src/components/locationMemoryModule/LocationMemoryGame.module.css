@@ -51,9 +51,9 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(10px, 2.5vw, 16px);
-  width: min(420px, 92vw);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(12px, 3vw, 22px);
+  width: min(88vmin, 92vw);
 }
 
 .cell {
@@ -203,10 +203,6 @@
 }
 
 .menuFab {
-  position: absolute;
-  bottom: 20px;
-  right: 16px;
-  z-index: 20;
   appearance: none;
   border: none;
   background: transparent;

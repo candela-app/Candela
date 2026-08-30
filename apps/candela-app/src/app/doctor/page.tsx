@@ -132,7 +132,7 @@ export default function DoctorPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">Doctor dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Patients you create are automatically linked to your DocID. Open a patient to prescribe modules.
+            Patients you create are automatically linked to your DocID. Open a patient to review Progress or prescribe modules.
           </p>
         </div>
 

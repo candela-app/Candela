@@ -32,6 +32,8 @@ import {
   stimuliColorLabel,
   bubbleAppearanceLabel,
   wheelColorLabel,
+  getContrastAdjustedColor,
+  clinicalColorSessionFields,
   DEFAULT_BUBBLE_APPEARANCE,
   type BubbleAppearance,
   useHowToPlayGate,
@@ -39,6 +41,7 @@ import {
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -67,13 +70,14 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     if (!name) return;
     setPatientName((prev) => (prev === name ? prev : name));
   }, [session?.user?.name]);
-  const [letterSize, setLetterSize] = useState<number>(1.8);
+  const [letterSize, setLetterSize] = useState<number>(3);
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'sorting'));
   const [numberRangeFrom, setNumberRangeFrom] = useState(DEFAULT_SORTING_NUMBER_FROM);
   const [numberRangeTo, setNumberRangeTo] = useState(DEFAULT_SORTING_NUMBER_TO);
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
   const [wheelColor, setWheelColor] = useState<string>('#000000');
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
 
   // Temporary Settings state for Modal editing
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
@@ -250,7 +254,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       const containerHeight = rawContainer ? rawContainer.clientHeight : 600;
       const containerSize = Math.min(containerWidth, containerHeight);
 
-      const minDistance = getMinDistancePercent(bubbleSize, containerSize, 2);
+      const minDistance = getMinDistancePercent(bubbleSize, containerSize, 10);
 
       // Boundary padding in percentage based on actual rendered bubble size + 16px safety padding
       const bubbleRadiusPercentX = Math.max(10, ((bubbleSize / 2 + 16) / containerWidth) * 100);
@@ -388,6 +392,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               wrong: wrongCount,
               accuracy: Math.round(((correctCount + 1) / (clicks + 1)) * 100),
               avgReactionSec: avgSec,
+              ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
             };
 
             setResultsData(finalData);
@@ -474,7 +479,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
             {bubbles.map((bubble) => {
               const isPopping = poppingIds.has(bubble.id);
               const isWrong = wrongIds.has(bubble.id);
-              const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
+              const paint = resolveBubblePaint(
+                bubbleAppearance,
+                getContrastAdjustedColor(bubble.color || '#FFFFFF', wheelColor, contrastSensitivity),
+                {
                 borderFill: 'transparent',
                 solidBorderWidth: 0,
               });
@@ -507,14 +515,17 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-6 right-4 z-40 w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300 hover:text-white"
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          onClick={() => setIsMenuOpen(true)}
+          className="w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300 hover:text-white"
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       {/* SHARED OFFCANVAS MENU */}
       <GameMenuDrawer
@@ -580,6 +591,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
           if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
           if (newSettings.wheelColor !== undefined) setWheelColor(newSettings.wheelColor);
+          if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -600,6 +612,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         wheelColor={wheelColor}
         wheelColorTitle="Background Color"
         wheelColorHint="Background color of the sorting playfield."
+        contrastSensitivity={contrastSensitivity}
         showNumberRangeControl={variant === 'numbers'}
         numberRangeFrom={numberRangeFrom}
         numberRangeTo={numberRangeTo}

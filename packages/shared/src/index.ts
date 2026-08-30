@@ -20,3 +20,6 @@ export * from './clap-synth';
 export * from './how-to-play';
 export * from './use-how-to-play-gate';
 export * from './use-pause-shifted-clock';
+export * from './clinical-color';
+export * from './ClinicalColorFields';
+export * from './handheld-field';

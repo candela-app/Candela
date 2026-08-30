@@ -932,38 +932,7 @@ export function getGeoboardStarRating(accuracyPercent: number): number {
   return 1;
 }
 
-/**
- * Blends the stimulus colour toward the background to model Weber contrast.
- * Applying opacity to the whole grid instead would also fade the background and
- * dots, which is not what a contrast sensitivity setting should measure.
- */
-export function getContrastAdjustedColor(
-  shapeColor: string,
-  bgColor: string,
-  contrast: number
-): string {
-  const parse = (hex: string): [number, number, number] => {
-    const clean = hex.replace('#', '');
-    const full =
-      clean.length === 3
-        ? clean.split('').map((c) => c + c).join('')
-        : clean.padEnd(6, '0');
-    return [
-      parseInt(full.slice(0, 2), 16),
-      parseInt(full.slice(2, 4), 16),
-      parseInt(full.slice(4, 6), 16),
-    ];
-  };
-
-  const clamped = Math.max(0, Math.min(1, contrast));
-  const [sr, sg, sb] = parse(shapeColor);
-  const [br, bg, bb] = parse(bgColor);
-
-  const mix = (s: number, b: number) => Math.round(b + (s - b) * clamped);
-  const toHex = (v: number) => v.toString(16).padStart(2, '0');
-
-  return `#${toHex(mix(sr, br))}${toHex(mix(sg, bg))}${toHex(mix(sb, bb))}`;
-}
+export { getContrastAdjustedColor } from './clinical-color';
 
 /** Current on-board peg diameter is the maximum. Scale down from here to shrink. */
 export const GEOBOARD_PEG_SIZE_MAX_FRACTION = 0.07;

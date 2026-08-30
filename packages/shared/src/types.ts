@@ -52,6 +52,9 @@ export interface SessionResultData {
   wrong: number;
   accuracy: number;
   avgReactionSec: number;
+  bgColor?: string;
+  stimulusColor?: string;
+  contrastPercent?: number;
 }
 
 /** Single target attempt — used for analytics / AI pipelines. */
@@ -187,6 +190,9 @@ export interface BeeTracingSettings {
   inputSensitivity: InputSensitivity;
   roundsPerSet: number; // session length: 5, 7, or 10 rounds
   orientation?: DeviceOrientation;
+  bgColor?: string;
+  pathColor?: string;
+  contrastSensitivity?: number;
 }
 
 export interface RoundResultData {
@@ -256,7 +262,7 @@ export type PursuitMovementPattern =
   | 'random_walk'
   | 'freeze_drift';
 
-export type PursuitTargetColor = '#FFFFFF' | '#FFD600' | '#00E5FF';
+export type PursuitTargetColor = '#FFFFFF' | '#FFD600' | '#00E5FF' | '#0F172A';
 
 export interface PursuitSettings {
   patientName: string;
@@ -270,6 +276,8 @@ export interface PursuitSettings {
   totalTrials: number; // 20 trials total
   blocksCount: number; // 4 blocks of 5
   orientation?: DeviceOrientation;
+  bgColor?: string;
+  contrastSensitivity?: number;
 }
 
 export interface PursuitTrialMetric {
@@ -318,6 +326,8 @@ export interface MobileTargetSettings {
   stimuliColor?: string;
   /** Prefer over hasBackground when set: solid | border. */
   bubbleAppearance?: BubbleAppearance;
+  bgColor?: string;
+  contrastSensitivity?: number;
 }
 
 export interface MobileTargetSetMetric {

@@ -25,7 +25,7 @@ export const LOCATION_MEMORY_GRID_SIZE = 3;
 
 /** Match Pairs / configurable board: 2×2, 3×3, or 4×4 (max). */
 export const LOCATION_MEMORY_GRID_SIZE_PRESETS = [2, 3, 4] as const;
-export const DEFAULT_LOCATION_MEMORY_GRID_SIZE = 4;
+export const DEFAULT_LOCATION_MEMORY_GRID_SIZE = 2;
 /** @deprecated Prefer LOCATION_MEMORY_GRID_SIZE_PRESETS — kept as max default. */
 export const LOCATION_MEMORY_PAIRS_GRID_SIZE = DEFAULT_LOCATION_MEMORY_GRID_SIZE;
 /** How many unique values for a full 4×4 pairs board (each appears twice). */
@@ -34,8 +34,8 @@ export const LOCATION_MEMORY_PAIR_COUNT = 8;
 export const LOCATION_MEMORY_MISMATCH_MS = 750;
 
 /** How many cells carry a number (rest are blank distractors on the grid). */
-export const LOCATION_MEMORY_ACTIVE_CELL_PRESETS = [5, 7, 9] as const;
-export const DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS = 9;
+export const LOCATION_MEMORY_ACTIVE_CELL_PRESETS = [2, 3, 4, 5, 7, 9] as const;
+export const DEFAULT_LOCATION_MEMORY_ACTIVE_CELLS = 3;
 
 export const LOCATION_MEMORY_ROUNDS_PRESETS = [1, 2, 3, 4, 5] as const;
 export const DEFAULT_LOCATION_MEMORY_ROUNDS = 1;
@@ -48,8 +48,8 @@ export const DEFAULT_LOCATION_MEMORY_EXPLORE_SEC = 60;
 export const LOCATION_MEMORY_RECALL_SEC_PRESETS = [0, 15, 30, 45, 60] as const;
 export const DEFAULT_LOCATION_MEMORY_RECALL_SEC = 30;
 
-export const LOCATION_MEMORY_LETTER_SIZE_PRESETS = [1.2, 1.5, 1.8, 2.2] as const;
-export const DEFAULT_LOCATION_MEMORY_LETTER_SIZE = 1.8;
+export const LOCATION_MEMORY_LETTER_SIZE_PRESETS = [1.8, 2.2, 2.8, 3.4, 4.2] as const;
+export const DEFAULT_LOCATION_MEMORY_LETTER_SIZE = 2.8;
 
 export type LocationMemoryPlayMode = 'recall' | 'pairs';
 

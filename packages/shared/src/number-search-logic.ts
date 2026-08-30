@@ -1,4 +1,4 @@
-import { ALPHABETS, NUMBERS } from './constants';
+import { NUMBERS } from './constants';
 import type { DeviceTier } from './types';
 
 /** Engine background — high contrast dark default for figure–ground search. */
@@ -22,29 +22,35 @@ export const NUMBER_SEARCH_CHAR_COLORS: { name: string; code: string }[] = [
   { name: 'Amber', code: '#FBBF24' },
 ];
 
-export const NUMBER_SEARCH_LETTER_SIZE_PRESETS = [1.2, 1.5, 1.8, 2.2] as const;
-export const DEFAULT_NUMBER_SEARCH_LETTER_SIZE = 2.2;
+export const NUMBER_SEARCH_LETTER_SIZE_PRESETS = [1.8, 2.2, 2.8, 3.4, 4.2] as const;
+export const DEFAULT_NUMBER_SEARCH_LETTER_SIZE = 2.8;
 
 /** Digits render larger than letters so guardians can spot them more easily. */
 export const NUMBER_SEARCH_DIGIT_SIZE_SCALE = 1.32;
+
+/**
+ * Distractor letters only — skip glyphs that look like digits
+ * (I/l/1, O/0, S/5, B/8, Z/2, G/6, D/0, Q/9).
+ */
+export const NUMBER_SEARCH_DISTRACTOR_LETTERS = 'ACEFHJKMNPRTUVWXY';
 
 /** 0 = Off (clear all digits). Advanced: timed rounds. */
 export const NUMBER_SEARCH_TIME_LIMIT_PRESETS = [0, 30, 45, 60, 90, 120] as const;
 export const DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC = 0;
 
-export const NUMBER_SEARCH_TARGET_DIGIT_PRESETS = [5, 8, 10, 12, 15] as const;
-export const DEFAULT_NUMBER_SEARCH_TARGET_DIGITS = 5;
+export const NUMBER_SEARCH_TARGET_DIGIT_PRESETS = [2, 3, 5, 8, 10] as const;
+export const DEFAULT_NUMBER_SEARCH_TARGET_DIGITS = 3;
 
 /**
  * Total characters on the field (digits + letters).
  * `0` = Auto — pack as many as fit without overlap.
  */
-export const NUMBER_SEARCH_FIELD_COUNT_PRESETS = [0, 40, 60, 80, 100, 120] as const;
-export const DEFAULT_NUMBER_SEARCH_FIELD_COUNT = 0;
+export const NUMBER_SEARCH_FIELD_COUNT_PRESETS = [0, 8, 12, 20, 40, 60] as const;
+export const DEFAULT_NUMBER_SEARCH_FIELD_COUNT = 12;
 
 /** Organised grid vs scattered random placement. */
 export type NumberSearchLayoutMode = 'grid' | 'random';
-export const DEFAULT_NUMBER_SEARCH_LAYOUT: NumberSearchLayoutMode = 'random';
+export const DEFAULT_NUMBER_SEARCH_LAYOUT: NumberSearchLayoutMode = 'grid';
 
 /** Bottom-right menu / sliders control — keep glyphs out of this zone. */
 export const NUMBER_SEARCH_MENU_RESERVE_W = 88;
@@ -80,7 +86,7 @@ export function numberSearchFieldCountLabel(count: number): string {
   return count <= 0 ? 'Auto' : String(count);
 }
 
-export const DEFAULT_NUMBER_SEARCH_GAP_PX = 6;
+export const DEFAULT_NUMBER_SEARCH_GAP_PX = 18;
 export const DEFAULT_NUMBER_SEARCH_PADDING_PX = 16;
 
 export interface NumberSearchGlyph {
@@ -163,7 +169,8 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 }
 
 function randomMixedLetter(): string {
-  const upper = ALPHABETS[Math.floor(Math.random() * ALPHABETS.length)];
+  const pool = NUMBER_SEARCH_DISTRACTOR_LETTERS;
+  const upper = pool[Math.floor(Math.random() * pool.length)]!;
   return Math.random() < 0.5 ? upper : upper.toLowerCase();
 }
 

@@ -13,6 +13,8 @@ import {
   DEFAULT_PATTERN_MATCH_LETTER_SIZE,
   DEFAULT_PATTERN_MATCH_ROUNDS,
   DEFAULT_PATTERN_MATCH_TIME_LIMIT_SEC,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   buildPatternMatchField,
   generatePatternMatchTarget,
   getDeviceTier,
@@ -36,6 +38,7 @@ import {
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
@@ -67,8 +70,8 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   const levelTitle = stimulusMode === 'compound' ? 'Compound' : 'Standard';
   const levelHint =
     stimulusMode === 'compound'
-      ? 'Memorize the flashed letter–number code, then tap every exact match. Near-miss codes are wrong taps.'
-      : 'Memorize the flashed digit code, then tap every exact match in the field. Near-miss codes are wrong taps.';
+      ? 'Memorize the flashed letter–number code, then tap every exact match. Near-miss codes count as misses.'
+      : 'Memorize the flashed digit code, then tap every exact match in the field. Near-miss codes count as misses.';
 
   const [gameStarted, setGameStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -90,6 +93,8 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_PATTERN_MATCH_TIME_LIMIT_SEC);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_PATTERN_MATCH_BG);
   const [charColor, setCharColor] = useState(DEFAULT_PATTERN_MATCH_CHAR_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayCharColor = getContrastAdjustedColor(charColor, engineBgColor, contrastSensitivity);
 
   const [currentRound, setCurrentRound] = useState(1);
   const [targetCode, setTargetCode] = useState('');
@@ -136,6 +141,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     timeLimitSec,
     engineBgColor,
     charColor,
+    contrastSensitivity,
   });
 
   useEffect(() => {
@@ -150,6 +156,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
       timeLimitSec,
       engineBgColor,
       charColor,
+      contrastSensitivity,
     };
     roundsPerSessionRef.current = roundsPerSession;
   }, [
@@ -163,6 +170,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     timeLimitSec,
     engineBgColor,
     charColor,
+    contrastSensitivity,
   ]);
 
   useEffect(() => {
@@ -232,6 +240,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         stimulusMode,
         endedBy,
         deviceTier,
+        ...clinicalColorSessionFields(cfg.engineBgColor, cfg.charColor, cfg.contrastSensitivity ?? 1),
       };
 
       setResultsData(data);
@@ -285,6 +294,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
       setTimeLimitSec(nextTime);
       setEngineBgColor(nextBg);
       setCharColor(nextChar);
+      if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
       return {
         codeLength: nextLength,
@@ -525,7 +535,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         {phase === 'encode' && targetCode ? (
           <div className={styles.encodeBanner} style={{ backgroundColor: engineBgColor }}>
             <p className={styles.encodeLabel}>Hold this code</p>
-            <p className={styles.encodeCode} style={{ color: charColor, fontSize: `${letterSize * 2}rem` }}>
+            <p className={styles.encodeCode} style={{ color: displayCharColor, fontSize: `${letterSize * 2}rem` }}>
               {targetCode}
             </p>
           </div>
@@ -534,11 +544,11 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         {phase === 'search' ? (
           <>
             {showHoldCode ? (
-              <p className={styles.holdCode} style={{ color: charColor, fontSize: `${letterSize}rem` }}>
+              <p className={styles.holdCode} style={{ color: displayCharColor, fontSize: `${letterSize}rem` }}>
                 {targetCode}
               </p>
             ) : null}
-            <div className={styles.grid}>
+            <div className={styles.grid} style={{ gridTemplateColumns: `repeat(${cellCount <= 6 ? 2 : 3}, minmax(0, 1fr))` }}>
               {cells.map((cell) => {
                 const isPopping = poppingIds.has(cell.id);
                 const isWrong = wrongIds.has(cell.id);
@@ -547,7 +557,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
                     key={cell.id}
                     type="button"
                     className={`${styles.cell} ${isPopping ? styles.cellPop : ''} ${isWrong ? styles.cellShake : ''}`}
-                    style={{ color: charColor, fontSize: `${letterSize}rem` }}
+                    style={{ color: displayCharColor, fontSize: `${letterSize}rem` }}
                     onClick={(e) => handleCellClick(cell, e)}
                     aria-label={`Code ${cell.code}`}
                   >
@@ -566,7 +576,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
             <p className={styles.hudSub}>
               Round {currentRound}/{roundsPerSession} · {remainingMatches} match
               {remainingMatches === 1 ? '' : 'es'} left · {correctCount} found
-              {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+              {wrongCount > 0 ? ` · ${wrongCount} misses` : ''}
             </p>
           </div>
           <div className={styles.hudRight}>
@@ -581,15 +591,17 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className={styles.menuBtn}
-        style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 40 }}
-        onClick={() => setIsMenuOpen(true)}
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          className={styles.menuBtn}
+          onClick={() => setIsMenuOpen(true)}
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -667,6 +679,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        contrastSensitivity={contrastSensitivity}
         sampleSymbol={stimulusMode === 'compound' ? 'A3B' : '331'}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
