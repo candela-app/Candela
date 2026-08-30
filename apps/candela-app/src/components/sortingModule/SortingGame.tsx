@@ -34,12 +34,15 @@ import {
   wheelColorLabel,
   DEFAULT_BUBBLE_APPEARANCE,
   type BubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 
 interface SortingGameProps {
@@ -50,10 +53,9 @@ interface SortingGameProps {
 export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps) {
   const { session } = useAuth();
   const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Settings & Results Modal State
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
@@ -104,6 +106,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const indianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const reactionTimesRef = useRef<number[]>([]);
   const targetShownAtRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (targetShownAtRef.current != null) targetShownAtRef.current += delta;
+  }, startTime);
 
   useEffect(() => {
     const detectDevice = () => {
@@ -215,12 +223,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
   // Duration timer
   useEffect(() => {
-    if (!gameStarted || startTime === null) return;
+    if (!gameStarted || startTime === null || sessionFrozen) return;
     const interval = setInterval(() => {
-      setDurationSec(Math.floor((performance.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((performance.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [gameStarted, startTime]);
+  }, [gameStarted, startTime, sessionFrozen]);
 
   // Spawn bubbles for a specific batch index
   const spawnBatch = useCallback(
@@ -445,7 +453,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         </div>
       )}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Sorting Module"
           onStart={startGame}
@@ -512,6 +520,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -548,6 +557,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       />
 
       {/* SHARED CLINICAL SETTINGS MODAL */}
+      <HowToPlayManual
+        moduleId="sorting"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}

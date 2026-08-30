@@ -15,6 +15,7 @@ export interface GameMenuDrawerProps {
   onQuit: () => void;
   onReset: () => void;
   onOpenSettings?: () => void;
+  onOpenHowToPlay?: () => void;
   resetButtonLabel?: string;
   extraControls?: React.ReactNode;
   settingsSummary: ClinicalSettingSummaryItem[];
@@ -32,6 +33,7 @@ export function GameMenuDrawer({
   onQuit,
   onReset,
   onOpenSettings,
+  onOpenHowToPlay,
   resetButtonLabel = 'Reset Game',
   extraControls,
   settingsSummary,
@@ -99,6 +101,18 @@ export function GameMenuDrawer({
           <span>Full Screen</span>
           <span>⛶</span>
         </button>
+
+        {onOpenHowToPlay && (
+          <button
+            className="w-full py-3 px-4 bg-emerald-600/20 border border-emerald-500/40 rounded-xl text-emerald-300 hover:bg-emerald-600/30 font-semibold cursor-pointer transition-colors shrink-0"
+            onClick={() => {
+              onClose();
+              onOpenHowToPlay();
+            }}
+          >
+            How to play?
+          </button>
+        )}
 
         {onOpenSettings && (
           <button

@@ -31,12 +31,15 @@ import {
   type PatternMatchHardness,
   type PatternMatchSessionResultData,
   type PatternMatchStimulusMode,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PatternMatchGame.module.css';
 
@@ -69,8 +72,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
 
   const [gameStarted, setGameStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PatternMatchSessionResultData | null>(null);
@@ -117,6 +119,12 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     roundsCompleted: 0,
   });
   const startTimeRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+  }, startTime);
   const settingsRef = useRef({
     patientName,
     codeLength,
@@ -162,13 +170,13 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime === null || isSettingsOpen || isMenuOpen || isResultsOpen) return;
+    if (!gameStarted || startTime === null || playBlocked || isMenuOpen || isResultsOpen) return;
     if (phase !== 'search') return;
     const interval = setInterval(() => {
-      setDurationSec(Math.floor((performance.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((performance.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [gameStarted, startTime, isSettingsOpen, isMenuOpen, isResultsOpen, phase]);
+  }, [gameStarted, startTime, playBlocked, isMenuOpen, isResultsOpen, phase]);
 
   const remainingMatches = useMemo(
     () => cells.filter((c) => c.isMatch && !poppingIds.has(c.id)).length,
@@ -236,18 +244,18 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   );
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'search' || isSettingsOpen || isResultsOpen || isMenuOpen) return;
+    if (!gameStarted || phase !== 'search' || playBlocked || isResultsOpen || isMenuOpen) return;
     if (timeLimitSec <= 0) return;
     if (timeLeft <= 0) {
       finishSession('timeout');
       return;
     }
-    const t = setTimeout(() => setTimeLeft((s) => s - 1), 1000);
+    const t = setTimeout(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(t);
   }, [
     gameStarted,
     phase,
-    isSettingsOpen,
+    playBlocked,
     isResultsOpen,
     isMenuOpen,
     timeLimitSec,
@@ -499,7 +507,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.toast}>✓ {notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={levelTitle}
           hint={levelHint}
@@ -586,6 +594,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -625,6 +634,13 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="pattern_match"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

@@ -12,17 +12,29 @@ export const CELEBRATION_CONFETTI_COLORS = [
   '#A78BFA',
 ] as const;
 
-/** First name only, safe to speak. Empty → generic “you”. */
-export function celebrationFirstName(patientName?: string | null): string {
-  const token = (patientName || '').trim().split(/\s+/)[0] || '';
-  const cleaned = token.replace(/[^A-Za-zÀ-ž0-9'.-]/g, '');
-  if (!cleaned || /^(demo|patient)$/i.test(cleaned)) return '';
+/** Spoken name for celebration TTS. Empty → generic “you”. */
+export function celebrationSpokenName(patientName?: string | null): string {
+  const cleaned = (patientName || '')
+    .trim()
+    .replace(/[^A-Za-zÀ-ž0-9'.\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned || /^(demo(\s+patient)?|patient)$/i.test(cleaned)) return '';
   return cleaned;
 }
 
 export function clapForLine(patientName?: string | null): string {
-  const first = celebrationFirstName(patientName);
-  return first ? `Clap for ${first}` : 'Clap for you';
+  const name = celebrationSpokenName(patientName);
+  return name ? `Clap for ${name}` : 'Clap for you';
+}
+
+/** On-screen prompt during results celebration. */
+export const CLAP_ALONG_PROMPT = 'Clap along!';
+
+/** Estimated spoken duration of the clap-for line (ms), matching TTS rate 0.92. */
+export function clapLineSpeakMs(patientName?: string | null): number {
+  const words = Math.max(1, clapForLine(patientName).trim().split(/\s+/).length);
+  return Math.round((words / 2.35) * 1000 / 0.92) + 180;
 }
 
 /** Silent lead-in in `applause-cheer.mp3` before the first clap. */

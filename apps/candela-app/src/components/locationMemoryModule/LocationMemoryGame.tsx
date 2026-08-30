@@ -30,12 +30,15 @@ import {
   requestFullScreenSafe,
   type LocationMemoryCell,
   type LocationMemorySessionResultData,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './LocationMemoryGame.module.css';
 
@@ -70,8 +73,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
 
   const [gameStarted, setGameStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<LocationMemorySessionResultData | null>(null);
@@ -124,6 +126,12 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   });
   const startTimeRef = useRef<number | null>(null);
 
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+  }, startTime);
+
   useEffect(() => {
     roundsPerSessionRef.current = roundsPerSession;
   }, [roundsPerSession]);
@@ -139,12 +147,12 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime == null || isSettingsOpen || isMenuOpen || isResultsOpen) return;
+    if (!gameStarted || startTime == null || playBlocked || isMenuOpen || isResultsOpen) return;
     const id = setInterval(() => {
-      setDurationSec(Math.floor((Date.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(id);
-  }, [gameStarted, startTime, isSettingsOpen, isMenuOpen, isResultsOpen]);
+  }, [gameStarted, startTime, playBlocked, isMenuOpen, isResultsOpen]);
 
   const currentTarget = recallQueue[recallIndex] ?? null;
   const targetsRemaining = Math.max(0, recallQueue.length - recallIndex);
@@ -301,34 +309,34 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   }, [finishSession, launchRound]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'explore' || exploreSec <= 0) return;
+    if (!gameStarted || phase !== 'explore' || exploreSec <= 0 || playBlocked) return;
     if (exploreTimeLeft <= 0) {
       beginRecallPhase();
       return;
     }
     const t = setTimeout(() => setExploreTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, exploreSec, exploreTimeLeft, beginRecallPhase]);
+  }, [gameStarted, phase, exploreSec, exploreTimeLeft, beginRecallPhase, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'recall' || recallSec <= 0) return;
+    if (!gameStarted || phase !== 'recall' || recallSec <= 0 || playBlocked) return;
     if (recallTimeLeft <= 0) {
       finishSession('timeout');
       return;
     }
     const t = setTimeout(() => setRecallTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, recallSec, recallTimeLeft, finishSession]);
+  }, [gameStarted, phase, recallSec, recallTimeLeft, finishSession, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'match' || recallSec <= 0) return;
+    if (!gameStarted || phase !== 'match' || recallSec <= 0 || playBlocked) return;
     if (sessionTimeLeft <= 0) {
       finishSession('timeout');
       return;
     }
     const t = setTimeout(() => setSessionTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, recallSec, sessionTimeLeft, finishSession]);
+  }, [gameStarted, phase, recallSec, sessionTimeLeft, finishSession, playBlocked]);
 
   const onExploreCell = useCallback(
     (cell: LocationMemoryCell) => {
@@ -492,7 +500,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.notification}>{notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={`Location Memory — ${levelTitle}`}
           hint={levelHint}
@@ -634,6 +642,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => onExit?.()}
         onReset={() => {
           endingRef.current = true;
@@ -662,6 +671,13 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="location_memory"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

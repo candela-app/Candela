@@ -32,12 +32,15 @@ import {
   playMissPressSoundAndHaptic,
   getDeviceTier,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { CheckIcon, ClearIcon, SkipIcon, SlidersIcon, UndoIcon } from '../icons/VectorIcons';
 import styles from './GeoboardGame.module.css';
 
@@ -195,8 +198,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
 
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [uiHighContrast, setUiHighContrast] = useState<boolean>(false);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [fatigueWarning, setFatigueWarning] = useState<boolean>(false);
 
@@ -211,6 +213,12 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   const livePathDrawRef = useRef<SVGPathElement>(null);
   const sessionStartRef = useRef<number>(0);
   const trialStartRef = useRef<number>(0);
+  const sessionFrozen = playBlocked;
+  usePauseShiftedClock(sessionFrozen, gameState === 'play' || gameState === 'memorize', (delta) => {
+    if (sessionStartRef.current) sessionStartRef.current += delta;
+    if (trialStartRef.current) trialStartRef.current += delta;
+    if (firstDotAtRef.current != null) firstDotAtRef.current += delta;
+  }, sessionStartRef.current);
   const firstDotAtRef = useRef<number | null>(null);
   const correctionsRef = useRef<number>(0);
   const tapSequenceRef = useRef<Array<{ dotIndex: number; timestamp: number }>>([]);
@@ -346,10 +354,10 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
 
   // Memorize countdown
   useEffect(() => {
-    if (gameState !== 'memorize' || isSettingsOpen) return;
+    if (gameState !== 'memorize' || playBlocked) return;
     const timer = setInterval(() => setMemorizeTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, isSettingsOpen]);
+  }, [gameState, playBlocked]);
 
   useEffect(() => {
     if (gameState !== 'memorize' || memorizeTimeLeft > 0) return;
@@ -569,10 +577,10 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
   }, [handleSkip]);
 
   useEffect(() => {
-    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || isSettingsOpen) return;
+    if (gameState !== 'play' || protocol.timeLimitSec <= 0 || playBlocked) return;
     const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearInterval(timer);
-  }, [gameState, protocol.timeLimitSec, trialIndex, isSettingsOpen]);
+  }, [gameState, protocol.timeLimitSec, trialIndex, playBlocked]);
 
   useEffect(() => {
     if (gameState !== 'play' || protocol.timeLimitSec <= 0 || timeLeft > 0) return;
@@ -865,7 +873,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         </div>
       </header>
 
-      {gameState === 'settings' && !isSettingsOpen && (
+      {gameState === 'settings' && !showHowToPlay && !isSettingsOpen && (
         <ClickToStartOverlay
           title={board.shortLabel}
           onStart={() => startSession(protocol)}
@@ -1061,6 +1069,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -1093,6 +1102,13 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="geoboard"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}

@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
-import { GAME_CATALOG, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared';
+import type { IncomingDocIdRequest, PatientSummary } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import { SearchIcon, XIcon } from '@/components/icons/VectorIcons';
@@ -11,17 +11,15 @@ import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
 } from '@/components/ui/FloatingLabelInput';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-
-const MODULES = Object.values(GAME_CATALOG);
 
 export default function DoctorPage() {
   const router = useRouter();
   const { session, loading } = useAuth();
   const toast = useToast();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [name, setName] = useState('');
@@ -32,6 +30,8 @@ export default function DoctorPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [listTab, setListTab] = useState<'create' | 'patients'>('patients');
 
   const filteredPatients = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -44,11 +44,6 @@ export default function DoctorPage() {
     );
   }, [patients, searchQuery]);
 
-  const selected = useMemo(
-    () => patients.find((p) => p.id === selectedId) ?? null,
-    [patients, selectedId],
-  );
-
   const load = useCallback(async () => {
     try {
       const [next, nextIncoming] = await Promise.all([
@@ -57,7 +52,6 @@ export default function DoctorPage() {
       ]);
       setPatients(next);
       setIncoming(nextIncoming);
-      setSelectedId((current) => current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null);
     } finally {
       setDataLoading(false);
     }
@@ -88,9 +82,9 @@ export default function DoctorPage() {
       setPhone('');
       setEmail('');
       setPassword('');
-      await load();
-      setSelectedId(created.id);
       toast.success(`Patient ${patientName} created successfully!`);
+      setListTab('patients');
+      router.push(`/doctor/patients/${created.id}`);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
       setError(msg);
@@ -110,107 +104,6 @@ export default function DoctorPage() {
       toast.error(err instanceof ApiError ? err.message : 'Could not update request');
     } finally {
       setIncomingBusy(null);
-    }
-  }
-
-  async function toggleModule(moduleId: TherapyModuleId, enabled: boolean) {
-    if (!selected) {
-      return;
-    }
-    const patientId = selected.id;
-    const patientName = selected.name;
-    const previousIds = selected.prescribedModuleIds;
-    const previousLevels = { ...selected.prescribedLevels };
-    setError('');
-    
-    // Default to selecting all levels when enabling a module
-    const defaultLevels = enabled ? (MODULE_LEVELS[moduleId]?.map(l => l.id) || []) : [];
-
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id !== patientId) {
-          return p;
-        }
-        const prescribedModuleIds = enabled
-          ? Array.from(new Set([...p.prescribedModuleIds, moduleId]))
-          : p.prescribedModuleIds.filter((id) => id !== moduleId);
-        
-        const prescribedLevels = { ...p.prescribedLevels };
-        if (enabled) {
-          prescribedLevels[moduleId] = defaultLevels;
-        } else {
-          delete prescribedLevels[moduleId];
-        }
-
-        return { ...p, prescribedModuleIds, prescribedLevels };
-      }),
-    );
-    try {
-      const updated = enabled
-        ? await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
-            method: 'POST',
-            body: JSON.stringify({ moduleId, levels: defaultLevels }),
-          })
-        : await api<PatientSummary>(
-            `/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`,
-            { method: 'DELETE' },
-          );
-      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      toast.success(enabled ? `Prescribed module for ${patientName}` : `Removed module for ${patientName}`);
-    } catch (err) {
-      setPatients((prev) =>
-        prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previousIds, prescribedLevels: previousLevels } : p)),
-      );
-      const msg = err instanceof ApiError ? err.message : 'Could not update prescription';
-      setError(msg);
-      toast.error(msg);
-    }
-  }
-
-  async function toggleLevel(moduleId: TherapyModuleId, levelId: string, enabled: boolean) {
-    if (!selected) {
-      return;
-    }
-    const patientId = selected.id;
-    const patientName = selected.name;
-    const currentLevels =
-      moduleId === 'direction_sense'
-        ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[moduleId] || [])
-        : selected.prescribedLevels?.[moduleId] || [];
-    const newLevels = enabled
-      ? Array.from(new Set([...currentLevels, levelId]))
-      : currentLevels.filter((id) => id !== levelId);
-
-    const previousLevels = { ...selected.prescribedLevels };
-    setError('');
-
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id !== patientId) return p;
-        return {
-          ...p,
-          prescribedLevels: {
-            ...p.prescribedLevels,
-            [moduleId]: newLevels,
-          },
-        };
-      })
-    );
-
-    try {
-      const updated = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions`, {
-        method: 'POST',
-        body: JSON.stringify({ moduleId, levels: newLevels }),
-      });
-      setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      toast.success(`Updated levels for ${patientName}`);
-    } catch (err) {
-      setPatients((prev) =>
-        prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)),
-      );
-      const msg = err instanceof ApiError ? err.message : 'Could not update level';
-      setError(msg);
-      toast.error(msg);
     }
   }
 
@@ -239,7 +132,7 @@ export default function DoctorPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">Doctor dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Patients you create are automatically linked to your DocID. Prescribe modules and levels by adding or removing them.
+            Patients you create are automatically linked to your DocID. Open a patient to prescribe modules.
           </p>
         </div>
 
@@ -290,6 +183,35 @@ export default function DoctorPage() {
           </section>
         )}
 
+        <div className="flex bg-gray-200 rounded-2xl p-1 max-w-lg">
+          <button
+            type="button"
+            onClick={() => setListTab('create')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold cursor-pointer ${
+              listTab === 'create' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Create patient
+          </button>
+          <button
+            type="button"
+            onClick={() => setListTab('patients')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+              listTab === 'patients' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Patients
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full ${
+                listTab === 'patients' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {patients.length}
+            </span>
+          </button>
+        </div>
+
+        {listTab === 'create' && (
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Create patient</h2>
           <form onSubmit={onCreatePatient} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -308,23 +230,43 @@ export default function DoctorPage() {
             </button>
           </form>
         </section>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <section className="bg-white rounded-3xl border border-gray-100 p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-900">Patients</h2>
-                <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {patients.length}
-                </span>
-              </div>
-            </div>
+        {listTab === 'patients' && (
+        <section className="bg-white rounded-3xl border border-gray-100 p-5">
+          <div className="flex items-center mb-3">
+            <h2 className="text-lg font-bold text-gray-900">Patients</h2>
+            <span className="ml-2 text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {patients.length}
+            </span>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => {
+                if (searchOpen) {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+              }`}
+              title={searchOpen ? 'Close search' : 'Search patients'}
+              aria-label={searchOpen ? 'Close search' : 'Search patients'}
+            >
+              {searchOpen ? <XIcon className="w-4 h-4" /> : <SearchIcon className="w-4 h-4" />}
+            </button>
+          </div>
 
-            <div className="relative mb-3">
+          {searchOpen && (
+            <div className="relative mb-3 max-w-md">
               <FloatingLabelInput
                 label="Search patient name, email..."
                 value={searchQuery}
                 onChange={setSearchQuery}
+                autoFocus
                 endAdornment={
                   searchQuery ? (
                     <button
@@ -341,96 +283,46 @@ export default function DoctorPage() {
                 }
               />
             </div>
+          )}
 
-            {patients.length === 0 && <p className="text-sm text-gray-500 py-2">No patients yet.</p>}
+          {patients.length === 0 && (
+            <div className="py-2">
+              <p className="text-sm text-gray-500">No patients yet.</p>
+              <button
+                type="button"
+                onClick={() => setListTab('create')}
+                className="mt-3 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold cursor-pointer"
+              >
+                Create a patient
+              </button>
+            </div>
+          )}
 
-            {patients.length > 0 && filteredPatients.length === 0 && (
-              <div className="text-center py-6 px-2 text-gray-400">
-                <SearchIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p className="text-xs font-semibold text-gray-500">No patients found</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">No match for &quot;{searchQuery}&quot;</p>
-              </div>
-            )}
+          {patients.length > 0 && filteredPatients.length === 0 && (
+            <div className="text-center py-6 px-2 text-gray-400">
+              <SearchIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-xs font-semibold text-gray-500">No patients found</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">No match for &quot;{searchQuery}&quot;</p>
+            </div>
+          )}
 
-            <ul className="space-y-2 overflow-y-auto max-h-[460px] pr-0.5">
-              {filteredPatients.map((patient) => (
-                <li key={patient.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(patient.id)}
-                    className={`w-full text-left rounded-xl px-4 py-3 text-sm font-semibold transition-colors cursor-pointer ${
-                      selectedId === patient.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
-                    }`}
-                  >
-                    {patient.name}
-                    <span className={`block text-xs font-medium ${selectedId === patient.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {patient.email} · {patient.phone}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 p-6">
-            {!selected && <p className="text-sm text-gray-500">Select a patient to prescribe modules.</p>}
-            {selected && (
-              <>
-                <h2 className="text-lg font-bold text-gray-900">{selected.name}</h2>
-                <p className="text-sm text-gray-500 mb-6">
-                  {selected.email} · {selected.phone}
-                </p>
-                <p className="text-sm font-semibold text-gray-700 mb-3">Prescribed modules</p>
-                <div className="space-y-3">
-                  {MODULES.map((mod) => {
-                    const on = selected.prescribedModuleIds.includes(mod.id);
-                    const levels = MODULE_LEVELS[mod.id] || [];
-                    const selectedLevels =
-                      mod.id === 'direction_sense'
-                        ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[mod.id] || [])
-                        : selected.prescribedLevels?.[mod.id] || [];
-
-                    return (
-                      <div key={mod.id} className="rounded-2xl border border-gray-100 p-4">
-                        <label className="flex items-start gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={(e) => void toggleModule(mod.id, e.target.checked)}
-                            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>
-                            <span className="block font-bold text-gray-900">{mod.name}</span>
-                            <span className="block text-xs text-gray-500">{mod.description}</span>
-                          </span>
-                        </label>
-                        
-                        {on && levels.length > 0 && (
-                          <div className="mt-3 ml-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {levels.map(level => {
-                              const levelOn = selectedLevels.includes(level.id);
-                              return (
-                                <label key={level.id} className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                                  <input
-                                    type="checkbox"
-                                    checked={levelOn}
-                                    onChange={(e) => void toggleLevel(mod.id, level.id, e.target.checked)}
-                                    className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  <span className="text-sm font-medium text-gray-700">{level.name}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </section>
-        </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {filteredPatients.map((patient) => (
+              <li key={patient.id}>
+                <Link
+                  href={`/doctor/patients/${patient.id}`}
+                  className="block rounded-xl px-4 py-3 text-sm font-semibold bg-gray-50 text-gray-800 hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-colors"
+                >
+                  {patient.name}
+                  <span className="block text-xs font-medium text-gray-500">
+                    {patient.email} · {patient.phone}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+        )}
       </main>
     </div>
   );

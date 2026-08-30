@@ -1,4 +1,4 @@
-import { BeePathType, GameRegistryEntry, PursuitMovementPattern, TherapyModuleId } from './types';
+import { BeePathType, GameRegistryEntry, PursuitMovementPattern, TherapyFamilyId, TherapyModuleId } from './types';
 
 /**
  * Shared central registry/catalog of games in the Candela vision therapy platform.
@@ -184,4 +184,70 @@ export function resolvePursuitPattern(value?: string | null): PursuitMovementPat
 
 export function pursuitPatternName(pattern: PursuitMovementPattern): string {
   return MODULE_LEVELS.pursuit.find((level) => level.id === pattern)?.name ?? 'Linear Bounce';
+}
+
+export interface GameFamily {
+  id: TherapyFamilyId;
+  title: string;
+  body: string;
+  accent: string;
+  bar: string;
+  moduleIds: TherapyModuleId[];
+}
+
+/** Dashboard families — activities stay the existing games. */
+export const GAME_FAMILIES: GameFamily[] = [
+  {
+    id: 'spin_field',
+    title: 'Spin Field',
+    body: 'Turning and sequential work on a field',
+    accent: '#1D4ED8',
+    bar: '#3B82F6',
+    moduleIds: ['rotatory', 'sorting'],
+  },
+  {
+    id: 'tap_timing',
+    title: 'Tap Timing',
+    body: 'Reach, tap, and react under motion',
+    accent: '#059669',
+    bar: '#34D399',
+    moduleIds: ['mobile_target', 'pursuit'],
+  },
+  {
+    id: 'look_jumps',
+    title: 'Look Jumps',
+    body: 'Find the next mark and land on it',
+    accent: '#B45309',
+    bar: '#F59E0B',
+    moduleIds: ['number_search', 'peripheral_view'],
+  },
+  {
+    id: 'glimpse_hold',
+    title: 'Glimpse Hold',
+    body: 'See it briefly, then use what you held',
+    accent: '#BE123C',
+    bar: '#FB7185',
+    moduleIds: ['pattern_match', 'location_memory', 'direction_sense'],
+  },
+  {
+    id: 'trace_build',
+    title: 'Trace & Build',
+    body: 'Follow a path or rebuild a form',
+    accent: '#0D9488',
+    bar: '#14B8A6',
+    moduleIds: ['bee_tracing', 'geoboard'],
+  },
+];
+
+export function isTherapyFamilyId(id: string): id is TherapyFamilyId {
+  return GAME_FAMILIES.some((family) => family.id === id);
+}
+
+export function getGameFamily(id: string | null | undefined): GameFamily | undefined {
+  if (!id) return undefined;
+  return GAME_FAMILIES.find((family) => family.id === id);
+}
+
+export function familyForModuleId(moduleId: string): GameFamily | undefined {
+  return GAME_FAMILIES.find((family) => family.moduleIds.includes(moduleId as TherapyModuleId));
 }

@@ -19,6 +19,8 @@ import {
   beeHeadingDeg,
   lerpHeadingDeg,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -32,6 +34,7 @@ import { GameResultsModal } from '../shared/GameResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
@@ -81,7 +84,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     patientName: sessionDisplayName(session),
     pathType: lockedPathType,
   }));
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   const [beeHeading, setBeeHeading] = useState(0);
   useGameSessionLock(true);
@@ -92,7 +95,6 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
   }, [session?.user?.name]);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Set & Round tracking
   const [currentRoundNumber, setCurrentRoundNumber] = useState<number>(1);
@@ -119,6 +121,16 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   // Session Start Time
   const sessionStartTimeRef = useRef<number>(Date.now());
   const roundStartTimeRef = useRef<number>(performance.now());
+  const sessionFrozen = playBlocked || isResultsOpen;
+  const playBlockedRef = useRef(playBlocked);
+  useEffect(() => {
+    playBlockedRef.current = playBlocked;
+  }, [playBlocked]);
+  usePauseShiftedClock(sessionFrozen, gameStarted, (delta) => {
+    sessionStartTimeRef.current += delta;
+    roundStartTimeRef.current += delta;
+    if (reactionReadyAtRef.current != null) reactionReadyAtRef.current += delta;
+  }, sessionStartTimeRef.current);
   const reactionReadyAtRef = useRef<number | null>(null);
   const roundReactionMsRef = useRef<number | null>(null);
   const currentPathIndexRef = useRef<number>(0);
@@ -187,9 +199,20 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     roundReactionMsRef.current = null;
     const duration = settings.beeSpeedSec * 1000;
     const startTime = Date.now();
+    let pauseAccum = 0;
+    let pauseAt: number | null = null;
 
     const animate = () => {
-      const elapsed = Date.now() - startTime;
+      if (playBlockedRef.current) {
+        if (pauseAt == null) pauseAt = Date.now();
+        requestAnimationFrame(animate);
+        return;
+      }
+      if (pauseAt != null) {
+        pauseAccum += Date.now() - pauseAt;
+        pauseAt = null;
+      }
+      const elapsed = Date.now() - startTime - pauseAccum;
       const progress = Math.min(1, elapsed / duration);
 
       const ptIndex = Math.floor(progress * (generated.points.length - 1));
@@ -214,9 +237,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
   // Re-init path ONLY when currentRoundNumber or explicit init is triggered
   useEffect(() => {
-    if (isSettingsOpen || !gameStarted) return;
+    if (!gameStarted) return;
     initRoundPath(currentRoundNumber);
-  }, [currentRoundNumber, initRoundPath, isSettingsOpen, gameStarted]);
+  }, [currentRoundNumber, initRoundPath, gameStarted]);
 
   useEffect(() => {
     if (!currentPath) return;
@@ -515,7 +538,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </span>
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Bee Path Tracing"
           onStart={() => setGameStarted(true)}
@@ -663,6 +686,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           exitFullScreenSafe();
           onExit();
@@ -686,6 +710,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       />
 
       {/* Shared Clinical Settings Modal */}
+      <HowToPlayManual
+        moduleId="bee_tracing"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
