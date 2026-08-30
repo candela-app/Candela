@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
-import { CheckIcon } from '../src/components/icons';
+import { GAME_CATALOG, GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { AnalyticsIcon, CheckIcon, ChevronUpIcon, SearchIcon, XIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import {
   FloatingLabelInput,
@@ -12,8 +12,6 @@ import { ApiError, api } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
-
-const MODULES = Object.values(GAME_CATALOG);
 
 function PrescriptionTick({ checked, size }: { checked: boolean; size: number }) {
   return (
@@ -37,6 +35,88 @@ function PrescriptionTick({ checked, size }: { checked: boolean; size: number })
   );
 }
 
+function SummaryCard({
+  label,
+  value,
+  hint,
+  labelColor,
+  isTablet,
+  fs,
+  s,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  labelColor: string;
+  isTablet: boolean;
+  fs: (n: number) => number;
+  s: (n: number) => number;
+}) {
+  return (
+    <View
+      style={{
+        flexGrow: 1,
+        flexBasis: isTablet ? '22%' : '47%',
+        backgroundColor: colors.white,
+        borderRadius: s(16),
+        padding: s(14),
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <Text style={{ fontSize: fs(11), fontWeight: '700', color: labelColor, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        {label}
+      </Text>
+      <Text style={{ fontSize: fs(22), fontWeight: '800', color: colors.text, marginTop: s(4) }}>{value}</Text>
+      {hint ? <Text style={{ fontSize: fs(11), color: colors.muted, marginTop: s(4) }}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+function EmptyChartCard({
+  title,
+  hint,
+  fs,
+  s,
+}: {
+  title: string;
+  hint: string;
+  fs: (n: number) => number;
+  s: (n: number) => number;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: colors.white,
+        borderRadius: s(16),
+        padding: s(16),
+        borderWidth: 1,
+        borderColor: colors.border,
+        marginBottom: s(12),
+      }}
+    >
+      <Text style={{ fontSize: fs(14), fontWeight: '700', color: colors.text }}>{title}</Text>
+      <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>{hint}</Text>
+      <View
+        style={{
+          marginTop: s(16),
+          height: s(160),
+          borderRadius: s(12),
+          backgroundColor: '#F9FAFB',
+          borderWidth: 1,
+          borderStyle: 'dashed',
+          borderColor: colors.border,
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <Text style={{ fontSize: fs(12), fontWeight: '600', color: '#9CA3AF' }}>No sessions yet</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function DoctorScreen() {
   const router = useRouter();
   const { session, loading } = useAuth();
@@ -53,6 +133,10 @@ export default function DoctorScreen() {
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
+  const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [phoneTab, setPhoneTab] = useState<'create' | 'patients'>('patients');
+  const [searchOpen, setSearchOpen] = useState(false);
   const inFlightRef = useRef(new Set<string>());
 
   const filteredPatients = useMemo(() => {
@@ -64,6 +148,16 @@ export default function DoctorScreen() {
   }, [patients, searchQuery]);
 
   const selected = useMemo(() => patients.find((p) => p.id === selectedId) ?? null, [patients, selectedId]);
+  const prescribedCount = selected?.prescribedModuleIds.length ?? 0;
+  const assignedLevelCount = useMemo(() => {
+    if (!selected) return 0;
+    return Object.values(selected.prescribedLevels || {}).reduce((sum, levels) => sum + levels.length, 0);
+  }, [selected]);
+
+  useEffect(() => {
+    setOpenFamilyId(null);
+    setShowAnalytics(false);
+  }, [selectedId]);
 
   const load = useCallback(async () => {
     try {
@@ -73,7 +167,7 @@ export default function DoctorScreen() {
       ]);
       setPatients(next);
       setIncoming(nextIncoming);
-      setSelectedId((current) => (current && next.some((p) => p.id === current) ? current : next[0]?.id ?? null));
+      setSelectedId((current) => (current && next.some((p) => p.id === current) ? current : null));
     } finally {
       setDataLoading(false);
     }
@@ -101,8 +195,9 @@ export default function DoctorScreen() {
       setPhone('');
       setEmail('');
       setPassword('');
-      await load();
       setSelectedId(created.id);
+      setPhoneTab('patients');
+      await load();
       Alert.alert('Success', `Patient ${patientName} created successfully!`);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
@@ -223,36 +318,89 @@ export default function DoctorScreen() {
     );
   }
 
+  const referralExtra = session.doctor ? (
+    <Text
+      style={{
+        fontFamily: 'monospace',
+        fontSize: fs(12),
+        fontWeight: '700',
+        color: '#1D4ED8',
+        backgroundColor: '#EFF6FF',
+        paddingHorizontal: s(10),
+        paddingVertical: s(4),
+        borderRadius: s(8),
+      }}
+    >
+      {session.doctor.referralCode}
+    </Text>
+  ) : null;
+
+  if (showAnalytics && selected) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={() => setShowAnalytics(false)} extra={referralExtra} />
+        <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+          <Text style={{ fontSize: fs(28), fontWeight: '800' }}>{selected.name}</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(20) }}>
+            {selected.email} · {selected.phone}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginBottom: s(16) }}>
+            <View
+              style={{
+                width: s(40),
+                height: s(40),
+                borderRadius: s(12),
+                backgroundColor: '#EFF6FF',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AnalyticsIcon size={s(22)} color={colors.blue} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fs(20), fontWeight: '800' }}>Session Analytics</Text>
+              <Text style={{ fontSize: fs(13), color: colors.muted }}>
+                Performance for {selected.name} across therapy modules
+              </Text>
+            </View>
+          </View>
+          <EmptyChartCard
+            title="Accuracy over time"
+            hint="Session accuracy will plot here after play is saved"
+            fs={fs}
+            s={s}
+          />
+          <EmptyChartCard
+            title="Sessions by family"
+            hint="Counts per family will appear here after play is saved"
+            fs={fs}
+            s={s}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const phoneProfile = !isTablet && Boolean(selected);
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <AppHeader
-        extra={
-          session.doctor ? (
-            <Text
-              style={{
-                fontFamily: 'monospace',
-                fontSize: fs(12),
-                fontWeight: '700',
-                color: '#1D4ED8',
-                backgroundColor: '#EFF6FF',
-                paddingHorizontal: s(10),
-                paddingVertical: s(4),
-                borderRadius: s(8),
-              }}
-            >
-              {session.doctor.referralCode}
-            </Text>
-          ) : null
-        }
+        extra={referralExtra}
+        onBack={phoneProfile ? () => setSelectedId(null) : undefined}
       />
       <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
-        <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
-        <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
-          Patients you create are automatically linked to your DocID. Prescribe modules and levels by adding or removing them.
-        </Text>
+        {!phoneProfile ? (
+          <>
+            <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
+            <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
+              Patients you create are automatically linked to your DocID. Prescribe modules and levels by adding or removing them.
+            </Text>
+          </>
+        ) : null}
         {error ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{error}</Text> : null}
 
-        {incoming.length > 0 ? (
+        {!phoneProfile && incoming.length > 0 ? (
           <View
             style={{
               backgroundColor: colors.white,
@@ -318,6 +466,69 @@ export default function DoctorScreen() {
           </View>
         ) : null}
 
+        {!isTablet && !phoneProfile ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              backgroundColor: '#E5E7EB',
+              borderRadius: s(14),
+              padding: s(4),
+              marginBottom: s(16),
+            }}
+          >
+            <Pressable
+              onPress={() => setPhoneTab('create')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: phoneTab === 'create' }}
+              style={{
+                flex: 1,
+                paddingVertical: s(10),
+                borderRadius: s(11),
+                backgroundColor: phoneTab === 'create' ? colors.white : 'transparent',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ fontWeight: '700', fontSize: fs(13), color: phoneTab === 'create' ? colors.blue : colors.muted }}>
+                Create patient
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setPhoneTab('patients')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: phoneTab === 'patients' }}
+              style={{
+                flex: 1,
+                paddingVertical: s(10),
+                borderRadius: s(11),
+                backgroundColor: phoneTab === 'patients' ? colors.white : 'transparent',
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: s(6),
+              }}
+            >
+              <Text style={{ fontWeight: '700', fontSize: fs(13), color: phoneTab === 'patients' ? colors.blue : colors.muted }}>
+                Patients
+              </Text>
+              <Text
+                style={{
+                  fontSize: fs(11),
+                  fontWeight: '700',
+                  color: phoneTab === 'patients' ? colors.blue : colors.muted,
+                  backgroundColor: phoneTab === 'patients' ? '#EFF6FF' : '#F3F4F6',
+                  paddingHorizontal: s(7),
+                  paddingVertical: s(1),
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                }}
+              >
+                {patients.length}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {isTablet || (phoneTab === 'create' && !phoneProfile) ? (
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
           <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
@@ -332,105 +543,297 @@ export default function DoctorScreen() {
             <Text style={{ color: colors.white, fontWeight: '700' }}>{saving ? 'Creating…' : 'Create patient'}</Text>
           </Pressable>
         </View>
+        ) : null}
 
+        {isTablet || phoneTab === 'patients' || phoneProfile ? (
         <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
+          {isTablet || !selected ? (
           <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), marginBottom: s(10) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: s(10) }}>
               <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Patients</Text>
-              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999 }}>
+              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999, marginLeft: s(8) }}>
                 {patients.length}
               </Text>
+              <View style={{ flex: 1 }} />
+              <Pressable
+                onPress={() => {
+                  if (searchOpen) {
+                    setSearchOpen(false);
+                    setSearchQuery('');
+                  } else {
+                    setSearchOpen(true);
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={searchOpen ? 'Close search' : 'Search patients'}
+                hitSlop={s(8)}
+                style={{
+                  width: s(36),
+                  height: s(36),
+                  borderRadius: s(12),
+                  backgroundColor: searchOpen ? '#EFF6FF' : '#F3F4F6',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {searchOpen ? <XIcon size={s(16)} color={colors.blue} /> : <SearchIcon size={s(18)} color={colors.muted} />}
+              </Pressable>
             </View>
-            <FloatingLabelInput
-              label="Search patient name, email..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              style={{ marginBottom: s(12) }}
-            />
-            {patients.length === 0 ? <Text style={{ color: colors.muted }}>No patients yet.</Text> : null}
+            {searchOpen ? (
+              <FloatingLabelInput
+                label="Search patient name, email..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                style={{ marginBottom: s(12) }}
+                endAdornment={
+                  searchQuery ? (
+                    <Pressable onPress={() => setSearchQuery('')} accessibilityLabel="Clear search" hitSlop={8}>
+                      <XIcon size={s(14)} color="#9CA3AF" />
+                    </Pressable>
+                  ) : (
+                    <SearchIcon size={s(16)} color="#9CA3AF" />
+                  )
+                }
+              />
+            ) : null}
+            {patients.length === 0 ? (
+              <View style={{ paddingVertical: s(8) }}>
+                <Text style={{ color: colors.muted }}>No patients yet.</Text>
+                {!isTablet ? (
+                  <Pressable
+                    onPress={() => setPhoneTab('create')}
+                    style={{ marginTop: s(12), backgroundColor: colors.blue, borderRadius: s(12), padding: s(12), alignItems: 'center' }}
+                  >
+                    <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(13) }}>Create a patient</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
             {patients.length > 0 && filteredPatients.length === 0 ? (
-              <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: s(16) }}>No match for "{searchQuery}"</Text>
+              <View style={{ alignItems: 'center', paddingVertical: s(16) }}>
+                <SearchIcon size={s(28)} color="#D1D5DB" />
+                <Text style={{ color: colors.muted, textAlign: 'center', marginTop: s(8), fontSize: fs(12), fontWeight: '600' }}>No patients found</Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(2) }}>No match for "{searchQuery}"</Text>
+              </View>
             ) : null}
             {filteredPatients.map((patient) => (
               <Pressable
                 key={patient.id}
-                onPress={() => setSelectedId(patient.id)}
+                onPress={() => {
+                  setSelectedId(patient.id);
+                  setSearchOpen(false);
+                }}
                 style={{
                   borderRadius: s(12),
                   padding: s(12),
                   marginBottom: s(8),
-                  backgroundColor: selectedId === patient.id ? colors.blue : '#F9FAFB',
+                  backgroundColor: isTablet && selectedId === patient.id ? colors.blue : '#F9FAFB',
                 }}
               >
-                <Text style={{ fontWeight: '700', color: selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
-                <Text style={{ fontSize: fs(12), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
+                <Text style={{ fontWeight: '700', color: isTablet && selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
+                <Text style={{ fontSize: fs(12), color: isTablet && selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
                   {patient.email} · {patient.phone}
                 </Text>
               </Pressable>
             ))}
           </View>
+          ) : null}
 
+          {selected ? (
           <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
-            {!selected ? <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text> : null}
-            {selected ? (
-              <>
-                <Text style={{ fontSize: fs(17), fontWeight: '700' }}>{selected.name}</Text>
-                <Text style={{ color: colors.muted, marginBottom: s(16), fontSize: fs(13) }}>
-                  {selected.email} · {selected.phone}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: s(8), marginBottom: s(12) }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fs(17), fontWeight: '700' }}>{selected.name}</Text>
+                    <Text style={{ color: colors.muted, marginTop: s(2), fontSize: fs(13) }}>
+                      {selected.email} · {selected.phone}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setShowAnalytics(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="View Session Analytics"
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: s(6),
+                      backgroundColor: colors.white,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: s(12),
+                      paddingHorizontal: s(12),
+                      paddingVertical: s(8),
+                    }}
+                  >
+                    <AnalyticsIcon size={s(18)} color={colors.blue} />
+                    <Text style={{ fontWeight: '600', fontSize: fs(13) }}>Analytics</Text>
+                  </Pressable>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(16) }}>
+                  <SummaryCard
+                    label="Sessions"
+                    value="0"
+                    hint="No sessions yet"
+                    labelColor="#2563EB"
+                    isTablet={isTablet}
+                    fs={fs}
+                    s={s}
+                  />
+                  <SummaryCard
+                    label="Last played"
+                    value="—"
+                    hint="Not stored yet"
+                    labelColor="#D97706"
+                    isTablet={isTablet}
+                    fs={fs}
+                    s={s}
+                  />
+                  <SummaryCard
+                    label="Accuracy"
+                    value="—"
+                    hint="Not stored yet"
+                    labelColor="#059669"
+                    isTablet={isTablet}
+                    fs={fs}
+                    s={s}
+                  />
+                  <SummaryCard
+                    label="Prescribed"
+                    value={String(prescribedCount)}
+                    hint={
+                      prescribedCount === 1
+                        ? '1 activity'
+                        : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`
+                    }
+                    labelColor="#7C3AED"
+                    isTablet={isTablet}
+                    fs={fs}
+                    s={s}
+                  />
+                </View>
                 <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules & levels</Text>
-                {MODULES.map((mod) => {
-                  const on = selected.prescribedModuleIds.includes(mod.id);
-                  const levels = MODULE_LEVELS[mod.id] || [];
-                  const selectedLevels =
-                    mod.id === 'direction_sense'
-                      ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[mod.id] || [])
-                      : selected.prescribedLevels?.[mod.id] || [];
+                {GAME_FAMILIES.map((family) => {
+                  const familyOpen = openFamilyId === family.id;
+                  const prescribedInFamily = family.moduleIds.filter((id) =>
+                    selected.prescribedModuleIds.includes(id),
+                  ).length;
                   return (
-                    <View key={mod.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(14), padding: s(12), marginBottom: s(8) }}>
-                      <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>
-                        <View style={{ marginTop: 2 }}>
-                          <PrescriptionTick checked={on} size={s(20)} />
-                        </View>
+                    <View
+                      key={family.id}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: s(14),
+                        marginBottom: s(10),
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <Pressable
+                        onPress={() => setOpenFamilyId((current) => (current === family.id ? null : family.id))}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: s(10),
+                          padding: s(12),
+                          backgroundColor: '#F9FAFB',
+                        }}
+                      >
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
-                          <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
+                          <Text style={{ fontWeight: '700', fontSize: fs(15) }}>{family.title}</Text>
+                          <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>{family.body}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+                          <Text
+                            style={{
+                              fontSize: fs(10),
+                              fontWeight: '700',
+                              color: family.accent,
+                              backgroundColor: `${family.accent}14`,
+                              paddingHorizontal: s(8),
+                              paddingVertical: s(3),
+                              borderRadius: 999,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {prescribedInFamily}/{family.moduleIds.length}
+                          </Text>
+                          <View style={{ transform: [{ rotate: familyOpen ? '0deg' : '180deg' }] }}>
+                            <ChevronUpIcon size={s(14)} color="#9CA3AF" />
+                          </View>
                         </View>
                       </Pressable>
-                      {on && levels.length > 0 ? (
-                        <View style={{ marginTop: s(10), marginLeft: s(30), gap: s(6) }}>
-                          {levels.map((level) => {
-                            const levelOn = selectedLevels.includes(level.id);
+                      {familyOpen ? (
+                        <>
+                          {family.moduleIds.map((moduleId) => {
+                            const mod = GAME_CATALOG[moduleId];
+                            const on = selected.prescribedModuleIds.includes(mod.id);
+                            const levels = MODULE_LEVELS[mod.id] || [];
+                            const selectedLevels =
+                              mod.id === 'direction_sense'
+                                ? canonicalizeDirectionSenseLevels(selected.prescribedLevels?.[mod.id] || [])
+                                : selected.prescribedLevels?.[mod.id] || [];
                             return (
-                              <Pressable
-                                key={level.id}
-                                onPress={() => void toggleLevel(mod.id, level.id, !levelOn)}
+                              <View
+                                key={mod.id}
                                 style={{
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  gap: s(8),
-                                  backgroundColor: '#F9FAFB',
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                  borderRadius: s(10),
-                                  paddingHorizontal: s(10),
-                                  paddingVertical: s(8),
+                                  borderTopWidth: 1,
+                                  borderTopColor: colors.border,
+                                  padding: s(12),
                                 }}
                               >
-                                <PrescriptionTick checked={levelOn} size={s(16)} />
-                                <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', flex: 1 }}>{level.name}</Text>
-                              </Pressable>
+                                <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>
+                                  <View style={{ marginTop: 2 }}>
+                                    <PrescriptionTick checked={on} size={s(20)} />
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
+                                    <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
+                                  </View>
+                                </Pressable>
+                                {on && levels.length > 0 ? (
+                                  <View style={{ marginTop: s(10), marginLeft: s(30), gap: s(6) }}>
+                                    {levels.map((level) => {
+                                      const levelOn = selectedLevels.includes(level.id);
+                                      return (
+                                        <Pressable
+                                          key={level.id}
+                                          onPress={() => void toggleLevel(mod.id, level.id, !levelOn)}
+                                          style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: s(8),
+                                            backgroundColor: '#F9FAFB',
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                            borderRadius: s(10),
+                                            paddingHorizontal: s(10),
+                                            paddingVertical: s(8),
+                                          }}
+                                        >
+                                          <PrescriptionTick checked={levelOn} size={s(16)} />
+                                          <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151', flex: 1 }}>{level.name}</Text>
+                                        </Pressable>
+                                      );
+                                    })}
+                                  </View>
+                                ) : null}
+                              </View>
                             );
                           })}
-                        </View>
+                        </>
                       ) : null}
                     </View>
                   );
                 })}
-              </>
-            ) : null}
           </View>
+          ) : isTablet ? (
+            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text>
+            </View>
+          ) : null}
         </View>
+        ) : null}
       </ScrollView>
     </View>
   );

@@ -259,6 +259,24 @@ export function PeripheralIcon({ size = 24, color = 'currentColor' }: IconProps)
   );
 }
 
+export function SearchIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="11" cy="11" r="8" />
+      <Line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </Svg>
+  );
+}
+
+export function XIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M18 6 6 18" />
+      <Path d="m6 6 12 12" />
+    </Svg>
+  );
+}
+
 export function NumberSearchIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

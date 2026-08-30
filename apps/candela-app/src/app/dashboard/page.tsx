@@ -16,7 +16,6 @@ import { DirectionSenseGame } from '@/components/directionSenseModule/DirectionS
 import {
   EyeIcon,
   AnalyticsIcon,
-  ArrowLeftIcon,
 } from '@/components/icons/VectorIcons';
 import {
   GameMode,
@@ -27,7 +26,12 @@ import {
   GEOBOARD_BOARD_IDS,
   requestFullScreenSafe,
   UI_MODULE_TO_CATALOG,
+  CATALOG_TO_UI_MODULE,
   MODULE_LEVELS,
+  GAME_FAMILIES,
+  getGameFamily,
+  familyForModuleId,
+  isTherapyFamilyId,
   resolveBeePathType,
   resolvePursuitPattern,
   resolvePeripheralField,
@@ -47,7 +51,7 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense';
+type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense';
 
 function MainContent() {
   const router = useRouter();
@@ -97,6 +101,7 @@ function MainContent() {
   const [view, setView] = useState<ActiveView>('module');
   const [selectedTherapy, setSelectedTherapy] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  const [selectedFamily, setSelectedFamily] = useState<string | null>(null);
 
   const [rotatoryConfig, setRotatoryConfig] = useState<{ mode: GameMode; variant: AlphabetVariant }>({
     mode: 'alphabets',
@@ -118,6 +123,7 @@ function MainContent() {
   // Sync state from URL Query Params
   useEffect(() => {
     const pageParam = searchParams.get('page');
+    const familyParam = searchParams.get('family');
     const moduleParam = searchParams.get('module');
     const gameParam = searchParams.get('game');
     const modeParam = searchParams.get('mode') as GameMode | null;
@@ -131,26 +137,31 @@ function MainContent() {
       });
       setSelectedTherapy('vision');
       setSelectedModule('wheel');
+      setSelectedFamily(familyParam || 'spin_field');
       setView('play_rotatory');
     } else if (gameParam === 'sorting' || (moduleParam === 'sorting' && variantParam)) {
       setSortingVariant((variantParam as SortingVariant) || 'uppercase');
       setSelectedTherapy('vision');
       setSelectedModule('sorting');
+      setSelectedFamily(familyParam || 'spin_field');
       setView('play_sorting');
     } else if (gameParam === 'bee_tracing') {
       setBeePathType(resolveBeePathType(variantParam));
       setSelectedTherapy('vision');
       setSelectedModule('tracing');
+      setSelectedFamily(familyParam || 'trace_build');
       setView('play_bee_tracing');
     } else if (gameParam === 'pursuit') {
       if (variantParam) {
         setPursuitPattern(resolvePursuitPattern(variantParam));
         setSelectedTherapy('vision');
         setSelectedModule('pursuit');
+        setSelectedFamily(familyParam || 'tap_timing');
         setView('play_pursuit');
       } else {
         setSelectedTherapy('vision');
         setSelectedModule('pursuit');
+        setSelectedFamily(familyParam || 'tap_timing');
         setView('game');
       }
     } else if (gameParam === 'geoboard') {
@@ -161,21 +172,25 @@ function MainContent() {
       setGeoboardBoardId(resolved);
       setSelectedTherapy('vision');
       setSelectedModule('geoboard');
+      setSelectedFamily(familyParam || 'trace_build');
       setView('play_geoboard');
     } else if (gameParam === 'peripheral_view' || gameParam === 'peripheral') {
       setPeripheralField(resolvePeripheralField(variantParam));
       setSelectedTherapy('vision');
       setSelectedModule('peripheral');
+      setSelectedFamily(familyParam || 'look_jumps');
       setView('play_peripheral_view');
     } else if (gameParam === 'number_search') {
       setSelectedTherapy('vision');
       setSelectedModule('number_search');
+      setSelectedFamily(familyParam || 'look_jumps');
       setView('play_number_search');
     } else if (gameParam === 'pattern_match') {
       const pmLevel = searchParams.get('variant');
       setPatternMatchLevelId(pmLevel === 'compound' ? 'compound' : 'standard');
       setSelectedTherapy('vision');
       setSelectedModule('pattern_match');
+      setSelectedFamily(familyParam || 'glimpse_hold');
       setView('play_pattern_match');
     } else if (gameParam === 'location_memory') {
       const lmLevel = searchParams.get('variant');
@@ -184,12 +199,14 @@ function MainContent() {
       );
       setSelectedTherapy('vision');
       setSelectedModule('location_memory');
+      setSelectedFamily(familyParam || 'glimpse_hold');
       setView('play_location_memory');
     } else if (gameParam === 'direction_sense') {
       const dsLevel = searchParams.get('variant');
       setDirectionSenseLevelId(normalizeDirectionSenseLevelId(dsLevel));
       setSelectedTherapy('vision');
       setSelectedModule('direction_sense');
+      setSelectedFamily(familyParam || 'glimpse_hold');
       setView('play_direction_sense');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
@@ -198,17 +215,26 @@ function MainContent() {
       });
       setSelectedTherapy('vision');
       setSelectedModule('mobile_target');
+      setSelectedFamily(familyParam || 'tap_timing');
       setView('play_mobile_target');
     } else if (moduleParam) {
+      const catalogId = UI_MODULE_TO_CATALOG[moduleParam];
       setSelectedTherapy('vision');
       setSelectedModule(moduleParam);
+      setSelectedFamily(familyParam || familyForModuleId(catalogId ?? '')?.id || null);
       setView('game');
+    } else if (familyParam && isTherapyFamilyId(familyParam)) {
+      setSelectedTherapy('vision');
+      setSelectedFamily(familyParam);
+      setSelectedModule(null);
+      setView('family');
     } else if (pageParam === 'analytics') {
       setSelectedTherapy('vision');
       setView('analytics');
     } else {
       setSelectedTherapy('vision');
       setSelectedModule(null);
+      setSelectedFamily(null);
       setView('module');
     }
   }, [searchParams]);
@@ -243,14 +269,57 @@ function MainContent() {
     router.push(queryString ? `/dashboard?${queryString}` : '/dashboard');
   };
 
+  const familyQueryFor = (uiId: string) =>
+    selectedFamily || familyForModuleId(UI_MODULE_TO_CATALOG[uiId] ?? '')?.id || null;
+
   const navigateToAnalytics = () => {
-    updateQueryParams({ page: 'analytics', therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null });
+    updateQueryParams({
+      page: 'analytics',
+      therapy: 'vision',
+      family: null,
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
   };
 
   const handleBackToModules = () => {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: null,
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
+  };
+
+  const handleBackToFamily = () => {
+    if (selectedFamily) {
+      updateQueryParams({
+        page: null,
+        therapy: 'vision',
+        family: selectedFamily,
+        module: null,
+        game: null,
+        mode: null,
+        variant: null,
+        board: null,
+      });
+      return;
+    }
+    handleBackToModules();
+  };
+
+  const handleSelectFamily = (id: string) => {
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      family: id,
       module: null,
       game: null,
       mode: null,
@@ -263,7 +332,16 @@ function MainContent() {
     if (session?.user.role === 'patient' && !canPlayUiModule(id)) {
       return;
     }
-    updateQueryParams({ page: null, therapy: 'vision', module: id, game: null, mode: null, variant: null, board: null });
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      family: familyQueryFor(id),
+      module: id,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
   };
 
   const handleLaunchRotatory = (mode: GameMode, variant: AlphabetVariant) => {
@@ -271,6 +349,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('wheel'),
       module: 'wheel',
       game: 'rotatory',
       mode,
@@ -283,6 +362,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('tracing'),
       module: 'tracing',
       game: 'bee_tracing',
       mode: null,
@@ -296,6 +376,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('pursuit'),
       module: 'pursuit',
       game: 'pursuit',
       mode: null,
@@ -309,6 +390,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('sorting'),
       module: 'sorting',
       game: 'sorting',
       mode: null,
@@ -321,6 +403,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('mobile_target'),
       module: 'mobile_target',
       game: 'mobile_target',
       mode,
@@ -334,6 +417,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('geoboard'),
       module: 'geoboard',
       game: 'geoboard',
       mode: null,
@@ -347,6 +431,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('peripheral'),
       module: 'peripheral',
       game: 'peripheral_view',
       mode: null,
@@ -360,6 +445,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('number_search'),
       module: 'number_search',
       game: 'number_search',
       mode: null,
@@ -373,6 +459,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('pattern_match'),
       module: 'pattern_match',
       game: 'pattern_match',
       mode: null,
@@ -386,6 +473,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('location_memory'),
       module: 'location_memory',
       game: 'location_memory',
       mode: null,
@@ -399,6 +487,7 @@ function MainContent() {
     updateQueryParams({
       page: null,
       therapy: 'vision',
+      family: familyQueryFor('direction_sense'),
       module: 'direction_sense',
       game: 'direction_sense',
       mode: null,
@@ -412,6 +501,7 @@ function MainContent() {
       updateQueryParams({
         page: null,
         therapy: 'vision',
+        family: familyQueryFor(selectedModule),
         module: selectedModule,
         game: null,
         mode: null,
@@ -419,19 +509,19 @@ function MainContent() {
         board: null,
       });
     } else {
-      updateQueryParams({
-        page: null,
-        therapy: 'vision',
-        module: null,
-        game: null,
-        mode: null,
-        variant: null,
-        board: null,
-      });
+      handleBackToFamily();
     }
   };
 
   const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense';
+
+  const visibleFamilies = GAME_FAMILIES.filter((family) =>
+    family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
+  );
+  const activeFamily = getGameFamily(selectedFamily);
+  const familyActivityCards = (activeFamily?.moduleIds ?? [])
+    .map((catalogId) => MODULE_CARDS.find((card) => card.uiId === CATALOG_TO_UI_MODULE[catalogId]))
+    .filter((card): card is (typeof MODULE_CARDS)[number] => Boolean(card && canPlayUiModule(card.uiId)));
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
@@ -446,18 +536,23 @@ function MainContent() {
     <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-page relative select-none touch-manipulation`}>
       {!isPlayingGame && (
         <AppHeader
-          onBack={view === 'game' || view === 'analytics' ? handleBackToModules : undefined}
+          onBack={
+            view === 'game'
+              ? handleBackToFamily
+              : view === 'family' || view === 'analytics'
+                ? handleBackToModules
+                : undefined
+          }
         />
       )}
 
-      {/* MODULE SELECTION VIEW */}
+      {/* FAMILY SELECTION VIEW */}
       {view === 'module' && (
         <>
-        {/* MODULE HEADER WITH ANALYTICS ICON */}
         <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
-            <p className="text-[13px] text-shell-muted font-medium mt-0.5">Select a therapy module to begin</p>
+            <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
           </div>
           <button
             onClick={navigateToAnalytics}
@@ -477,7 +572,52 @@ function MainContent() {
               </p>
             </div>
           )}
-          {MODULE_CARDS.filter((card) => canPlayUiModule(card.uiId)).map((card) => (
+          {visibleFamilies.map((family) => {
+            const playableCount = family.moduleIds.filter((catalogId) =>
+              canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
+            ).length;
+            return (
+              <button
+                key={family.id}
+                type="button"
+                onClick={() => handleSelectFamily(family.id)}
+                className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
+                <div className="pt-2">
+                  <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
+                  <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
+                </div>
+                <span
+                  className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
+                  style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
+                >
+                  {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
+                </span>
+              </button>
+            );
+          })}
+        </main>
+        </>
+      )}
+
+      {/* FAMILY ACTIVITIES VIEW */}
+      {view === 'family' && activeFamily && (
+        <>
+        <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
+          <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
+          <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
+        </div>
+        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+          {familyActivityCards.length === 0 && (
+            <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+              <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
+              <p className="text-[13px] text-shell-muted mt-2">
+                Your doctor has not added any games in this family.
+              </p>
+            </div>
+          )}
+          {familyActivityCards.map((card) => (
             <button
               key={card.uiId}
               type="button"
@@ -525,7 +665,7 @@ function MainContent() {
               Complete therapy sessions to see your performance analytics here.
             </p>
             <button
-              onClick={() => updateQueryParams({ page: null, therapy: 'vision', module: null, game: null, mode: null, variant: null, board: null })}
+              onClick={handleBackToModules}
               className="px-5 py-3 bg-shell-blue hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all active:scale-95 flex items-center gap-2"
             >
               <EyeIcon className="w-[18px] h-[18px]" />
@@ -539,6 +679,11 @@ function MainContent() {
       {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
         <>
           <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
+            {activeFamily && (
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: activeFamily.accent }}>
+                {activeFamily.title}
+              </p>
+            )}
             <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">
               {selectedModule === 'wheel' && 'Rotatory Module'}
               {selectedModule === 'sorting' && 'Sorting Module'}

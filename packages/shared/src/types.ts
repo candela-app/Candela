@@ -233,6 +233,13 @@ export type TherapyModuleId =
   | 'location_memory'
   | 'direction_sense';
 
+export type TherapyFamilyId =
+  | 'spin_field'
+  | 'tap_timing'
+  | 'look_jumps'
+  | 'glimpse_hold'
+  | 'trace_build';
+
 export interface GameRegistryEntry {
   id: TherapyModuleId;
   name: string;

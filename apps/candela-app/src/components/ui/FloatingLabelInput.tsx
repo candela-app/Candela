@@ -30,6 +30,7 @@ type FloatingLabelInputProps = {
   name?: string;
   /** Extra padding on the right (e.g. for password toggle). */
   endAdornment?: ReactNode;
+  autoFocus?: boolean;
 };
 
 const shellByVariant: Record<
@@ -75,6 +76,7 @@ export function FloatingLabelInput({
   maxLength,
   name,
   endAdornment,
+  autoFocus,
 }: FloatingLabelInputProps) {
   const genId = useId();
   const id = idProp ?? genId;
@@ -151,6 +153,7 @@ export function FloatingLabelInput({
             minLength={minLength}
             maxLength={maxLength}
             placeholder=" "
+            autoFocus={autoFocus}
             onChange={(e) => pushValue(e.target.value)}
             onInput={(e) => pushValue((e.target as HTMLInputElement).value)}
             onFocus={() => setFocused(true)}

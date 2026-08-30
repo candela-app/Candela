@@ -6,12 +6,11 @@ import {
   BRIGHT_COLORS,
   BUBBLES_PER_ROUND,
   BubbleItem,
-  BubblePosition,
   DEFAULT_BASE_ANIMATION_DURATION,
   GameMode,
   SessionResultData,
   getDeviceTier,
-  findNonOverlappingBubblePosition,
+  getSlotFallbackPosition,
   getRandomSymbol,
   reactionStatsFromMs,
   DEFAULT_STIMULI_BUBBLE_COLOR,
@@ -174,7 +173,6 @@ export function RotatoryWheelGame({
     setWrongIds(new Set());
     setPoppingActive(false);
     const newBubbles: BubbleItem[] = [];
-    const positions: BubblePosition[] = [];
     const containerSize =
       wheelPx > 40
         ? wheelPx
@@ -184,14 +182,7 @@ export function RotatoryWheelGame({
 
     for (let i = 0; i < bubblesPerRound; i += 1) {
       const symbol = getRandomSymbol(mode, variant);
-      const pos = findNonOverlappingBubblePosition(positions, {
-        containerSize,
-        bubbleSize,
-        slotIndex: i,
-        totalSlots: bubblesPerRound,
-        gapPercent: 3.5,
-      });
-      positions.push(pos);
+      const pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize, 0.62);
       let bgColor = '';
       let colorName = '';
       if (mode === 'colors') {
@@ -403,7 +394,7 @@ export function RotatoryWheelGame({
             borderRadius: wheelPx / 2,
             backgroundColor: wheelColor,
             transform: [{ rotate: `${angle}deg` }],
-            overflow: 'hidden',
+            overflow: 'visible',
           }}
         >
           {bubbles.map((bubble) => {
