@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kandela</title>
+  </head>
+  <body style="font-family: sans-serif; background: #f4f7fc; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <p id="msg" style="font-weight: 600; color: #475569;">Returning to Kandela…</p>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var hash = window.location.hash.replace(/^#/, '');
+        if (hash) {
+          new URLSearchParams(hash).forEach(function (value, key) {
+            params.set(key, value);
+          });
+        }
+        var idToken = params.get('id_token');
+        var returnTo = params.get('state') || '';
+        var ok = /^(exp:\/\/|candela:\/\/)/i.test(returnTo);
+        if (!idToken || !ok) {
+          document.getElementById('msg').textContent = 'Signed in. Return to the Kandela app.';
+          return;
+        }
+        var join = returnTo.indexOf('?') >= 0 ? '&' : '?';
+        window.location.replace(returnTo + join + 'id_token=' + encodeURIComponent(idToken));
+      })();
+    </script>
+  </body>
+</html>

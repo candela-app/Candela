@@ -10,7 +10,8 @@ export class ApiError extends Error {
   }
 }
 
-const PRODUCTION_API_URL = 'https://candela-backend.onrender.com';
+const PRODUCTION_API_URL = 'https://candela-backend-gbdz.onrender.com';
+const REQUEST_TIMEOUT_MS = 10_000;
 const AUTH_ANON_PATHS = new Set(['/api/auth/login', '/api/auth/signup', '/api/auth/refresh']);
 
 function defaultApiUrl(): string {
@@ -29,13 +30,17 @@ function defaultApiUrl(): string {
 export const API_URL = defaultApiUrl();
 
 async function request(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, init);
+    return await fetch(url, { ...init, signal: controller.signal });
   } catch {
     throw new ApiError(
       0,
       `Can't reach the server. Is the backend running, and is this device on the same Wi‑Fi?`,
     );
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -136,6 +141,11 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   return body as T;
 }
 
-export function fetchSession() {
+export async function fetchSession(): Promise<SessionUser | null> {
+  const accessToken = await getAccessToken();
+  const refreshToken = await getRefreshToken();
+  if (!accessToken && !refreshToken) {
+    return null;
+  }
   return api<SessionUser>('/api/auth/me');
 }
