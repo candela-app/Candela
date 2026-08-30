@@ -44,7 +44,11 @@ Pushes to `main` that touch `apps/candela-mobile/**` or `packages/shared/**` tri
    ```
    Commit the `projectId` added to `app.json` under `expo.extra.eas`.
 2. Add GitHub Actions secrets:
-   - `EXPO_TOKEN` — [expo.dev → Access tokens](https://expo.dev/settings/access-tokens)
+   - `EXPO_TOKEN` — [candelaapp team access tokens](https://expo.dev/accounts/candelaapp/settings/access-tokens)
+   - `EXPO_TOKEN_BACKUP1` — [satvik-27s-team access tokens](https://expo.dev/accounts/satvik-27s-team/settings/access-tokens)
+   - `EXPO_TOKEN_BACKUP2` — [srisais-team access tokens](https://expo.dev/accounts/srisais-team/settings/access-tokens)
    - `SLACK_WEBHOOK_URL_MOBILE` — Incoming Webhook for `#mobile-app`
+
+   Access tokens live on the **Expo team** (`/accounts/<slug>/settings/access-tokens`), not on **Project credentials** (that page is only Android/iOS signing).
 
 The `preview` profile in `eas.json` produces an installable APK pointed at the production backend (`https://candela-backend-gbdz.onrender.com`).

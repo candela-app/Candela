@@ -174,7 +174,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN_CANDELA: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN_BACKUP1: ${{ secrets.EXPO_TOKEN_BACKUP1 }}
+      EXPO_TOKEN_BACKUP2: ${{ secrets.EXPO_TOKEN_BACKUP2 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -200,10 +202,14 @@ jobs:
       - name: Install EAS CLI
         run: npm install --global eas-cli@latest
 
-      - name: Require Expo token
+      - name: Require at least one Expo token
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "Missing secret: EXPO_TOKEN (create at https://expo.dev/settings/access-tokens)"
+          if [ -z "$EXPO_TOKEN_CANDELA" ] && [ -z "$EXPO_TOKEN_BACKUP1" ] && [ -z "$EXPO_TOKEN_BACKUP2" ]; then
+            echo "Set EXPO_TOKEN (candelaapp) and/or EXPO_TOKEN_BACKUP1 and EXPO_TOKEN_BACKUP2"
+            echo "Access tokens are on the Expo TEAM, not Project credentials:"
+            echo "https://expo.dev/accounts/candelaapp/settings/access-tokens"
+            echo "https://expo.dev/accounts/satvik-27s-team/settings/access-tokens"
+            echo "https://expo.dev/accounts/srisais-team/settings/access-tokens"
             exit 1
           fi
 
@@ -211,25 +217,14 @@ jobs:
         id: eas
         working-directory: apps/candela-mobile
         run: |
-          set -e
-          eas build --platform android --profile preview --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
-          BUILD_ID=$(jq -r '.[0].id // empty' "$RUNNER_TEMP/eas-build.json")
-          BUILD_URL=$(jq -r '.[0].artifacts.buildUrl // empty' "$RUNNER_TEMP/eas-build.json")
-          if [ -z "$BUILD_ID" ]; then
-            echo "Could not parse EAS build output:"
-            cat "$RUNNER_TEMP/eas-build.json"
-            exit 1
-          fi
-          BUILD_PAGE="https://expo.dev/builds/$BUILD_ID"
-          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
-          echo "build_page=$BUILD_PAGE" >> "$GITHUB_OUTPUT"
-          echo "apk_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+          chmod +x ../../.github/scripts/eas-android-preview.sh
+          ../../.github/scripts/eas-android-preview.sh
 
       - name: Slack — mobile APK build succeeded
         if: success()
         run: |
           chmod +x .github/scripts/slack-notify.sh
-          MSG=":white_check_mark: *Mobile APK build succeeded* (EAS Android)
+          MSG=":white_check_mark: *Mobile APK build succeeded* (EAS Android via ${{ steps.eas.outputs.eas_account }})
           Build: ${{ steps.eas.outputs.build_page }}
           APK: ${{ steps.eas.outputs.apk_url }}"
           .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" "$MSG"

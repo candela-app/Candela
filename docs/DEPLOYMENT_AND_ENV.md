@@ -78,7 +78,9 @@ Production deploys run on every push to `main` (`.github/workflows/deploy.yml`).
 | `SLACK_WEBHOOK_URL_MOBILE` | `#mobile-app` — EAS Android APK build notifications |
 | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel CLI deploy |
 | `RENDER_DEPLOY_HOOK_URL` | Render backend deploy hook |
-| `EXPO_TOKEN` | EAS Build for mobile APK (only when mobile/shared paths change) |
+| `EXPO_TOKEN` | EAS APK — candelaapp (first) |
+| `EXPO_TOKEN_BACKUP1` | EAS APK — satvik-27s-team if candelaapp quota is exhausted |
+| `EXPO_TOKEN_BACKUP2` | EAS APK — srisais-team if the first two are exhausted |
 
 **Web channel:** started / succeeded / failed for Vercel frontend; started / triggered / failed for Render backend hook.
 
