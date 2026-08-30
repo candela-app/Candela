@@ -46,14 +46,15 @@ try_account() {
 
   echo "EAS Android preview via $label (owner=$owner projectId=$project_id)"
   export EXPO_TOKEN="$token"
-  point_app_json "$owner" "$project_id"
+  if ! point_app_json "$owner" "$project_id"; then
+    echo "Failed to point app.json at $label"
+    return 1
+  fi
 
   : >"$JSON_OUT"
   : >"$LOG"
-  set +e
   eas build --platform android --profile preview --non-interactive --wait --json >"$JSON_OUT" 2>"$LOG"
   local code=$?
-  set -e
   if [ -s "$LOG" ]; then
     cat "$LOG" >&2
   fi
@@ -86,24 +87,18 @@ try_account() {
   return 1
 }
 
-set +e
 try_account "candelaapp" "${EXPO_TOKEN_CANDELA:-}" "$OWNER_CANDELA" "$PROJECT_CANDELA"
 code=$?
-set -e
 if [ "$code" -eq 0 ]; then exit 0; fi
 if [ "$code" -eq 1 ]; then exit 1; fi
 
-set +e
 try_account "satvik-27s-team" "${EXPO_TOKEN_BACKUP1:-}" "$OWNER_SATVIK" "$PROJECT_SATVIK"
 code=$?
-set -e
 if [ "$code" -eq 0 ]; then exit 0; fi
 if [ "$code" -eq 1 ]; then exit 1; fi
 
-set +e
 try_account "srisais-team" "${EXPO_TOKEN_BACKUP2:-}" "$OWNER_SRISAI" "$PROJECT_SRISAI"
 code=$?
-set -e
 if [ "$code" -eq 0 ]; then exit 0; fi
 if [ "$code" -eq 1 ]; then exit 1; fi
 
