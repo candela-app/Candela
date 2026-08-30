@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { DocIdModule } from './docid/docid.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { postgresConnectionUrl } from './common/postgres-url';
 
 @Module({
   imports: [
@@ -17,10 +18,11 @@ import { AppService } from './app.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres' as const,
-        url: config.getOrThrow<string>('DATABASE_URL'),
+        url: postgresConnectionUrl(config.getOrThrow<string>('DATABASE_URL')),
         autoLoadEntities: true,
         synchronize: false,
         ssl: { rejectUnauthorized: false },
+        extra: { ssl: { rejectUnauthorized: false } },
       }),
     }),
     AuthModule,

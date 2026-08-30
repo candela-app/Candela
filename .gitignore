@@ -8,6 +8,9 @@ node_modules/
 @candelaapp__candela-keystore-backup.zip
 credentials-local/
 
+# Local one-shot DB tools — never commit
+**/.migrate_to_supabase.py
+
 # Environment variables / secrets — IMPORTANT
 .env
 .env.local

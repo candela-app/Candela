@@ -88,7 +88,7 @@ patient_docid_history (previous DocIDs after change/internal)
 refresh_tokens (id, user_id → users, token_hash unique, expires_at, revoked_at)
 ```
 
-TypeORM `synchronize` is **false**. Schema is applied by migrations (`InitAuth`, prescription levels, DocID requests). Runtime uses `DATABASE_URL` (Neon pooler). Migrations use `DATABASE_URL_DIRECT`.
+TypeORM `synchronize` is **false**. Schema is applied by migrations (`InitAuth`, prescription levels, DocID requests). Runtime uses `DATABASE_URL` (Supabase session pooler). Migrations use `DATABASE_URL_DIRECT`.
 
 ---
 
