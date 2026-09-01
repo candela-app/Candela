@@ -4,12 +4,18 @@ const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL ||
 
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@candela/shared'],
+  transpilePackages: ['@candela/shared', '@mediapipe/tasks-vision', 'webeyetrack'],
   webpack: (config) => {
     config.resolve.alias['@candela/shared/assets'] = path.resolve(
       __dirname,
       '../../packages/shared/assets',
     );
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
     return config;
   },
   async rewrites() {

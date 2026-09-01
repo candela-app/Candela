@@ -109,4 +109,12 @@ export const MODULE_CARDS: ModuleCard[] = [
     accent: '#0284C7',
     bar: '#38BDF8',
   },
+  {
+    uiId: 'computer_vision',
+    title: 'Look Pursuit',
+    body: 'Look at the bright target among dim decoys — same Pursuit, look to pop',
+    badge: 'For All Devices',
+    accent: '#0E7490',
+    bar: '#22D3EE',
+  },
 ];

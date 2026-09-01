@@ -13,6 +13,7 @@ import { NumberSearchGame } from '@/components/numberSearchModule/NumberSearchGa
 import { PatternMatchGame } from '@/components/patternMatchModule/PatternMatchGame';
 import { LocationMemoryGame } from '@/components/locationMemoryModule/LocationMemoryGame';
 import { DirectionSenseGame } from '@/components/directionSenseModule/DirectionSenseGame';
+import { LookPursuitGame } from '@/components/lookPursuitModule/LookPursuitGame';
 import {
   EyeIcon,
   AnalyticsIcon,
@@ -28,6 +29,7 @@ import {
   requestFullScreenSafe,
   UI_MODULE_TO_CATALOG,
   MODULE_LEVELS,
+  resolveAllowedModuleIds,
   resolveBeePathType,
   resolvePursuitPattern,
   resolvePeripheralField,
@@ -47,13 +49,13 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
-type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense';
+type ActiveView = 'module' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision';
 
 function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, loading: authLoading } = useAuth();
-  const allowedModuleIds = new Set(session?.allowedModuleIds ?? []);
+  const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
     return Boolean(catalogId && allowedModuleIds.has(catalogId));
@@ -82,7 +84,7 @@ function MainContent() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
-    if (catalogId === 'pursuit') {
+    if (catalogId === 'pursuit' || catalogId === 'computer_vision') {
       const known = MODULE_LEVELS.pursuit.map((level) => level.id);
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
@@ -114,6 +116,7 @@ function MainContent() {
   const [patternMatchLevelId, setPatternMatchLevelId] = useState<string>('standard');
   const [locationMemoryLevelId, setLocationMemoryLevelId] = useState<string>('standard');
   const [directionSenseLevelId, setDirectionSenseLevelId] = useState<string>('face');
+  const [computerVisionPattern, setComputerVisionPattern] = useState<PursuitMovementPattern>('linear_bounce');
 
   // Sync state from URL Query Params
   useEffect(() => {
@@ -191,6 +194,17 @@ function MainContent() {
       setSelectedTherapy('vision');
       setSelectedModule('direction_sense');
       setView('play_direction_sense');
+    } else if (gameParam === 'computer_vision') {
+      if (variantParam) {
+        setComputerVisionPattern(resolvePursuitPattern(variantParam));
+        setSelectedTherapy('vision');
+        setSelectedModule('computer_vision');
+        setView('play_computer_vision');
+      } else {
+        setSelectedTherapy('vision');
+        setSelectedModule('computer_vision');
+        setView('game');
+      }
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -407,6 +421,19 @@ function MainContent() {
     });
   };
 
+  const handleLaunchComputerVision = (pattern: string) => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      module: 'computer_vision',
+      game: 'computer_vision',
+      mode: null,
+      variant: pattern,
+      board: null,
+    });
+  };
+
   const handleExitGame = () => {
     if (selectedModule) {
       updateQueryParams({
@@ -431,7 +458,7 @@ function MainContent() {
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision';
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
@@ -551,6 +578,7 @@ function MainContent() {
               {selectedModule === 'pattern_match' && 'Hold the Code'}
               {selectedModule === 'location_memory' && 'Location Memory'}
               {selectedModule === 'direction_sense' && 'Direction Sense'}
+              {selectedModule === 'computer_vision' && 'Look Pursuit'}
             </h2>
             <p className="text-[13px] text-shell-muted font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
@@ -564,6 +592,7 @@ function MainContent() {
               {selectedModule === 'pattern_match' && 'Hold a code — tap every exact match'}
               {selectedModule === 'location_memory' && 'Explore the grid, then find each number from memory'}
               {selectedModule === 'direction_sense' && 'See a letter and a rotate arrow — pick the matching 90° turn'}
+              {selectedModule === 'computer_vision' && 'Select a movement pattern to begin'}
             </p>
           </div>
 
@@ -852,6 +881,26 @@ function MainContent() {
               )}
             </main>
           )}
+
+          {selectedModule === 'computer_vision' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.computer_vision.map((level) =>
+                isLevelAllowed('computer_vision', level.id) ? (
+                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchComputerVision(level.id)}>
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
+                ) : null,
+              )}
+              {MODULE_LEVELS.computer_vision.every((level) => !isLevelAllowed('computer_vision', level.id)) && (
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
         </>
       )}
 
@@ -912,6 +961,12 @@ function MainContent() {
         canPlayUiModule('direction_sense') &&
         isLevelAllowed('direction_sense', directionSenseLevelId) && (
           <DirectionSenseGame levelId={directionSenseLevelId} onExit={handleExitGame} />
+        )}
+
+      {view === 'play_computer_vision' &&
+        canPlayUiModule('computer_vision') &&
+        isLevelAllowed('computer_vision', computerVisionPattern) && (
+          <LookPursuitGame initialMovementPattern={computerVisionPattern} onExit={handleExitGame} />
         )}
     </div>
   );

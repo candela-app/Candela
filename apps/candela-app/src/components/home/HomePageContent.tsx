@@ -356,6 +356,32 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
               </div>
             </div>
           </div>
+
+          <div
+            onClick={() => onSelectModule ? onSelectModule('computer_vision') : onOpenDashboard()}
+            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-cyan-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <SearchIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 group-hover:text-cyan-800 transition-colors">
+                Look Pursuit
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
+                Look at the bright target among dim decoys — same Pursuit, look to pop.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-900 border border-cyan-200/60">
+                For All Devices
+              </span>
+              <div className="text-xs font-bold text-cyan-800 flex items-center gap-1 group-hover:gap-2 transition-all">
+                <span>Launch</span>
+                <ArrowRightIcon className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

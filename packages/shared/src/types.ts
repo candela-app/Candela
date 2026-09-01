@@ -231,7 +231,8 @@ export type TherapyModuleId =
   | 'number_search'
   | 'pattern_match'
   | 'location_memory'
-  | 'direction_sense';
+  | 'direction_sense'
+  | 'computer_vision';
 
 export interface GameRegistryEntry {
   id: TherapyModuleId;

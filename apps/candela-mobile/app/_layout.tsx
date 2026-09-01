@@ -48,6 +48,10 @@ export default function RootLayout() {
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
             <Stack.Screen
+              name="play/computer-vision"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
               name="play/mobile-target"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />

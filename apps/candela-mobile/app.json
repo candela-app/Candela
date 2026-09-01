@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.candela.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Kandela does not record audio. Speech is used only to announce therapy targets."
+        "NSMicrophoneUsageDescription": "Kandela does not record audio. Speech is used only to announce therapy targets.",
+        "NSCameraUsageDescription": "Kandela uses the camera so you can pop pursuit targets by looking at them."
       }
     },
     "android": {
@@ -26,7 +27,8 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.candela.app",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": ["CAMERA", "android.permission.CAMERA"]
     },
     "plugins": [
       "expo-router",
@@ -40,7 +42,19 @@
           "initialOrientation": "DEFAULT"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kandela uses the camera so you can pop pursuit targets by looking at them."
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Kandela uses the camera so you can pop pursuit targets by looking at them."
+        }
+      ]
     ],
     "updates": {
       "enabled": false

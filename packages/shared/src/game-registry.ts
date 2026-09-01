@@ -84,6 +84,14 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'mobile'],
   },
+  computer_vision: {
+    id: 'computer_vision',
+    name: 'Look Pursuit',
+    description:
+      'Pursuit with look-to-select — track the bright target among dim decoys and pop it by looking.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['mobile', 'tablet'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -167,6 +175,13 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'face', name: 'Face' },
     { id: 'flip', name: 'Flip' },
     { id: 'straighten', name: 'Straighten' },
+  ],
+  computer_vision: [
+    { id: 'linear_bounce', name: 'Linear Bounce' },
+    { id: 'circular_orbit', name: 'Circular Orbit' },
+    { id: 'figure_eight', name: 'Figure Eight' },
+    { id: 'random_walk', name: 'Random Walk' },
+    { id: 'freeze_drift', name: 'Freeze & Drift' },
   ],
 };
 

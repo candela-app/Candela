@@ -10,6 +10,7 @@ export const ALL_MODULE_IDS = [
   'pattern_match',
   'location_memory',
   'direction_sense',
+  'computer_vision',
 ] as const;
 
 export type TherapyModuleId = (typeof ALL_MODULE_IDS)[number];
