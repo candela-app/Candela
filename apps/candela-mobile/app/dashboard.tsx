@@ -2,12 +2,17 @@ import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  CATALOG_TO_UI_MODULE,
+  GAME_FAMILIES,
   GEOBOARD_BOARD_IDS,
   GEOBOARD_BOARDS,
   MODULE_LEVELS,
   UI_MODULE_TO_CATALOG,
   directionSensePrescribedAllows,
   resolveAllowedModuleIds,
+  familyForModuleId,
+  getGameFamily,
+  isTherapyFamilyId,
   type GeoboardBoardId,
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
@@ -41,9 +46,17 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'computer_vision', title: 'Look Pursuit', body: 'Look at the bright target among dim decoys — same Pursuit, look to pop', badge: 'For All Devices', accent: '#0E7490', bar: '#22D3EE' },
 ];
 
+function firstParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ module?: string; page?: string }>();
+  const params = useLocalSearchParams<{ module?: string; page?: string; family?: string }>();
+  const moduleParam = firstParam(params.module);
+  const familyParam = firstParam(params.family);
+  const pageParam = firstParam(params.page);
   const { session, loading } = useAuth();
   const { fs, s, pad, columns, width } = useLayout();
   const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
@@ -139,6 +152,17 @@ export default function DashboardScreen() {
   };
 
   const backToModules = () => router.replace('/dashboard');
+  const activeFamilyId =
+    (familyParam && isTherapyFamilyId(familyParam) ? familyParam : null) ||
+    familyForModuleId(UI_MODULE_TO_CATALOG[moduleParam ?? ''] ?? '')?.id ||
+    null;
+  const backToFamily = () => {
+    if (activeFamilyId) {
+      router.replace(`/dashboard?family=${activeFamilyId}`);
+      return;
+    }
+    backToModules();
+  };
 
   const variantCard = (label: string, onPress: () => void) => (
     <Pressable
@@ -170,7 +194,7 @@ export default function DashboardScreen() {
     </View>
   );
 
-  if (params.page === 'analytics') {
+  if (pageParam === 'analytics') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
@@ -203,7 +227,7 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'wheel' && canPlayUiModule('wheel')) {
+  if (moduleParam === 'wheel' && canPlayUiModule('wheel')) {
     const levels = [
       isLevelAllowed('wheel', 'uppercase') ? variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase')) : null,
       isLevelAllowed('wheel', 'lowercase') ? variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase')) : null,
@@ -212,7 +236,7 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
@@ -222,7 +246,7 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'sorting' && canPlayUiModule('sorting')) {
+  if (moduleParam === 'sorting' && canPlayUiModule('sorting')) {
     const levels = [
       isLevelAllowed('sorting', 'uppercase') ? variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase')) : null,
       isLevelAllowed('sorting', 'lowercase') ? variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase')) : null,
@@ -230,7 +254,7 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
@@ -240,7 +264,7 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'mobile_target' && canPlayUiModule('mobile_target')) {
+  if (moduleParam === 'mobile_target' && canPlayUiModule('mobile_target')) {
     const levels = [
       isLevelAllowed('mobile_target', 'uppercase') ? variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase')) : null,
       isLevelAllowed('mobile_target', 'lowercase') ? variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase')) : null,
@@ -249,7 +273,7 @@ export default function DashboardScreen() {
     ].filter(Boolean);
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
@@ -259,13 +283,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'tracing' && canPlayUiModule('tracing')) {
+  if (moduleParam === 'tracing' && canPlayUiModule('tracing')) {
     const levels = MODULE_LEVELS.bee_tracing
       .filter((level) => isLevelAllowed('tracing', level.id))
       .map((level) => variantCard(level.name, () => launchBee(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bee Path Tracing</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a path type to begin</Text>
@@ -275,13 +299,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'pursuit' && canPlayUiModule('pursuit')) {
+  if (moduleParam === 'pursuit' && canPlayUiModule('pursuit')) {
     const levels = MODULE_LEVELS.pursuit
       .filter((level) => isLevelAllowed('pursuit', level.id))
       .map((level) => variantCard(level.name, () => launchPursuit(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pursuit Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a movement pattern to begin</Text>
@@ -291,13 +315,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'geoboard' && canPlayUiModule('geoboard')) {
+  if (moduleParam === 'geoboard' && canPlayUiModule('geoboard')) {
     const levels = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) =>
       variantCard(GEOBOARD_BOARDS[id].shortLabel, () => launchGeoboard(id)),
     );
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
@@ -307,13 +331,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'peripheral' && canPlayUiModule('peripheral')) {
+  if (moduleParam === 'peripheral' && canPlayUiModule('peripheral')) {
     const levels = MODULE_LEVELS.peripheral_view
       .filter((level) => isLevelAllowed('peripheral', level.id))
       .map((level) => variantCard(level.name, () => launchPeripheral(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Peripheral View</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -325,13 +349,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'number_search' && canPlayUiModule('number_search')) {
+  if (moduleParam === 'number_search' && canPlayUiModule('number_search')) {
     const levels = MODULE_LEVELS.number_search
       .filter((level) => isLevelAllowed('number_search', level.id))
       .map((level) => variantCard(level.name, () => launchNumberSearch()));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Crowded Search</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -343,13 +367,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'pattern_match' && canPlayUiModule('pattern_match')) {
+  if (moduleParam === 'pattern_match' && canPlayUiModule('pattern_match')) {
     const levels = MODULE_LEVELS.pattern_match
       .filter((level) => isLevelAllowed('pattern_match', level.id))
       .map((level) => variantCard(level.name, () => launchPatternMatch(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -361,13 +385,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'computer_vision' && canPlayUiModule('computer_vision')) {
+  if (moduleParam === 'computer_vision' && canPlayUiModule('computer_vision')) {
     const levels = MODULE_LEVELS.computer_vision
       .filter((level) => isLevelAllowed('computer_vision', level.id))
       .map((level) => variantCard(level.name, () => launchComputerVision(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Look Pursuit</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -379,13 +403,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'direction_sense' && canPlayUiModule('direction_sense')) {
+  if (moduleParam === 'direction_sense' && canPlayUiModule('direction_sense')) {
     const levels = MODULE_LEVELS.direction_sense
       .filter((level) => isLevelAllowed('direction_sense', level.id))
       .map((level) => variantCard(level.name, () => launchDirectionSense(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Direction Sense</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -397,13 +421,13 @@ export default function DashboardScreen() {
     );
   }
 
-  if (params.module === 'location_memory' && canPlayUiModule('location_memory')) {
+  if (moduleParam === 'location_memory' && canPlayUiModule('location_memory')) {
     const levels = MODULE_LEVELS.location_memory
       .filter((level) => isLevelAllowed('location_memory', level.id))
       .map((level) => variantCard(level.name, () => launchLocationMemory(level.id)));
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
+        <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Location Memory</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
@@ -415,19 +439,109 @@ export default function DashboardScreen() {
     );
   }
 
+  const visibleFamilies = GAME_FAMILIES.filter((family) =>
+    family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
+  );
+  const selectedFamily = familyParam && isTherapyFamilyId(familyParam) ? getGameFamily(familyParam) : undefined;
+  const familyActivityCards = (selectedFamily?.moduleIds ?? [])
+    .map((catalogId) => MODULE_CARDS.find((card) => card.uiId === CATALOG_TO_UI_MODULE[catalogId]))
+    .filter((card): card is ModuleCard => Boolean(card && canPlayUiModule(card.uiId)));
+
+  const handleSelectFamily = (id: string) => {
+    router.push(`/dashboard?family=${id}`);
+  };
+
   const handleSelectModule = (id: string) => {
     if (!canPlayUiModule(id)) return;
-    router.push(`/dashboard?module=${id}`);
+    const family =
+      (familyParam && isTherapyFamilyId(familyParam) ? familyParam : null) ||
+      familyForModuleId(UI_MODULE_TO_CATALOG[id] ?? '')?.id;
+    router.push(family ? `/dashboard?family=${family}&module=${id}` : `/dashboard?module=${id}`);
   };
+
+  const gridCard = (
+    key: string,
+    title: string,
+    body: string,
+    accent: string,
+    bar: string,
+    badge: string,
+    onPress: () => void,
+  ) => (
+    <Pressable
+      key={key}
+      onPress={onPress}
+      style={{
+        width: cardWidth,
+        minHeight: s(160),
+        backgroundColor: colors.white,
+        borderRadius: s(22),
+        padding: s(20),
+        borderWidth: 1,
+        borderColor: colors.border,
+        justifyContent: 'space-between',
+        overflow: 'hidden',
+      }}
+    >
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: bar }} />
+      <View>
+        <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.ink, marginTop: s(8) }}>{title}</Text>
+        <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(6) }}>{body}</Text>
+      </View>
+      <Text
+        style={{
+          alignSelf: 'center',
+          fontSize: fs(10),
+          fontWeight: '700',
+          color: accent,
+          backgroundColor: `${accent}14`,
+          paddingHorizontal: s(10),
+          paddingVertical: s(4),
+          borderRadius: 999,
+          overflow: 'hidden',
+        }}
+      >
+        {badge}
+      </Text>
+    </Pressable>
+  );
+
+  if (selectedFamily) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToModules} />
+        <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800' }}>{selectedFamily.title}</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
+            {selectedFamily.body}
+          </Text>
+          {familyActivityCards.length === 0 ? (
+            <View style={{ backgroundColor: colors.white, borderRadius: s(24), padding: s(28), alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: fs(18), fontWeight: '700' }}>No activities prescribed yet</Text>
+              <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center' }}>
+                Your doctor has not added any games in this family.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
+              {familyActivityCards.map((card) =>
+                gridCard(card.uiId, card.title, card.body, card.accent, card.bar, card.badge, () => handleSelectModule(card.uiId)),
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <AppHeader />
       <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s(16) }}>
-          <View>
+          <View style={{ flex: 1, paddingRight: s(8) }}>
             <Text style={{ fontSize: fs(22), fontWeight: '800' }}>Vision Therapy</Text>
-            <Text style={{ fontSize: fs(13), color: colors.muted }}>Select a therapy module to begin</Text>
+            <Text style={{ fontSize: fs(13), color: colors.muted }}>Pick a family, then an activity</Text>
           </View>
           <Pressable
             onPress={() => router.push('/dashboard?page=analytics')}
@@ -458,44 +572,20 @@ export default function DashboardScreen() {
         ) : null}
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>
-          {MODULE_CARDS.filter((card) => canPlayUiModule(card.uiId)).map((card) => (
-            <Pressable
-              key={card.uiId}
-              onPress={() => handleSelectModule(card.uiId)}
-              style={{
-                width: cardWidth,
-                minHeight: s(160),
-                backgroundColor: colors.white,
-                borderRadius: s(22),
-                padding: s(20),
-                borderWidth: 1,
-                borderColor: colors.border,
-                justifyContent: 'space-between',
-                overflow: 'hidden',
-              }}
-            >
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: card.bar }} />
-              <View>
-                <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.ink, marginTop: s(8) }}>{card.title}</Text>
-                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(6) }}>{card.body}</Text>
-              </View>
-              <Text
-                style={{
-                  alignSelf: 'center',
-                  fontSize: fs(10),
-                  fontWeight: '700',
-                  color: card.accent,
-                  backgroundColor: `${card.accent}14`,
-                  paddingHorizontal: s(10),
-                  paddingVertical: s(4),
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                }}
-              >
-                {card.badge}
-              </Text>
-            </Pressable>
-          ))}
+          {visibleFamilies.map((family) => {
+            const playableCount = family.moduleIds.filter((catalogId) =>
+              canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
+            ).length;
+            return gridCard(
+              family.id,
+              family.title,
+              family.body,
+              family.accent,
+              family.bar,
+              `${playableCount} ${playableCount === 1 ? 'activity' : 'activities'}`,
+              () => handleSelectFamily(family.id),
+            );
+          })}
         </View>
       </ScrollView>
     </View>

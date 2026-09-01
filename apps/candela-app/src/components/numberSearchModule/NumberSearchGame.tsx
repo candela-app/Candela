@@ -17,6 +17,8 @@ import {
   numberSearchDeviceDefaults,
   numberSearchFieldCountLabel,
   numberSearchLayoutLabel,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   packNumberSearchField,
   playMissPressSoundAndHaptic,
   playSuccessSoundAndHaptic,
@@ -27,12 +29,16 @@ import {
   type NumberSearchGlyph,
   type NumberSearchLayoutMode,
   type NumberSearchSessionResultData,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './NumberSearchGame.module.css';
 
@@ -51,8 +57,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   const defaults = useMemo(() => numberSearchDeviceDefaults(deviceTier), [deviceTier]);
 
   const [gameStarted, setGameStarted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<NumberSearchSessionResultData | null>(null);
@@ -72,6 +77,8 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_NUMBER_SEARCH_TIME_LIMIT_SEC);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_NUMBER_SEARCH_BG);
   const [charColor, setCharColor] = useState(DEFAULT_NUMBER_SEARCH_CHAR_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayCharColor = getContrastAdjustedColor(charColor, engineBgColor, contrastSensitivity);
 
   const [glyphs, setGlyphs] = useState<NumberSearchGlyph[]>([]);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
@@ -97,6 +104,12 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     digitsConfigured: 0,
   });
   const startTimeRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+  }, startTime);
   const settingsRef = useRef({
     patientName,
     letterSize,
@@ -106,6 +119,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     timeLimitSec,
     engineBgColor,
     charColor,
+    contrastSensitivity,
   });
 
   useEffect(() => {
@@ -118,8 +132,9 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       timeLimitSec,
       engineBgColor,
       charColor,
+      contrastSensitivity,
     };
-  }, [patientName, letterSize, targetDigitCount, layoutMode, fieldCount, timeLimitSec, engineBgColor, charColor]);
+  }, [patientName, letterSize, targetDigitCount, layoutMode, fieldCount, timeLimitSec, engineBgColor, charColor, contrastSensitivity]);
 
   useEffect(() => {
     requestFullScreenSafe();
@@ -143,12 +158,12 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime === null || isSettingsOpen || isMenuOpen || isResultsOpen) return;
+    if (!gameStarted || startTime === null || playBlocked || isMenuOpen || isResultsOpen) return;
     const interval = setInterval(() => {
-      setDurationSec(Math.floor((performance.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((performance.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [gameStarted, startTime, isSettingsOpen, isMenuOpen, isResultsOpen]);
+  }, [gameStarted, startTime, playBlocked, isMenuOpen, isResultsOpen]);
 
   const remainingDigits = useMemo(
     () => glyphs.filter((g) => g.isDigit && !poppingIds.has(g.id)).length,
@@ -192,10 +207,11 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         targetDigitsConfigured: stats.digitsConfigured,
         digitsFound,
         digitsRemaining,
-        timeLimitSec: cfg.timeLimitSec,
-        endedBy,
-        deviceTier,
-      };
+      timeLimitSec: cfg.timeLimitSec,
+      endedBy,
+      deviceTier,
+      ...clinicalColorSessionFields(cfg.engineBgColor, cfg.charColor, cfg.contrastSensitivity),
+    };
 
       setResultsData(data);
       setIsResultsOpen(true);
@@ -207,17 +223,17 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
 
   // Timed round countdown
   useEffect(() => {
-    if (!gameStarted || isSettingsOpen || isResultsOpen || isMenuOpen) return;
+    if (!gameStarted || playBlocked || isResultsOpen || isMenuOpen) return;
     if (timeLimitSec <= 0) return;
     if (timeLeft <= 0) {
       finishSession('timeout');
       return;
     }
-    const t = setTimeout(() => setTimeLeft((s) => s - 1), 1000);
+    const t = setTimeout(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(t);
   }, [
     gameStarted,
-    isSettingsOpen,
+    playBlocked,
     isResultsOpen,
     isMenuOpen,
     timeLimitSec,
@@ -266,6 +282,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       setTimeLimitSec(nextTime);
       setEngineBgColor(nextBg);
       setCharColor(nextChar);
+      if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
       return {
         letterSize: nextLetter,
@@ -399,10 +416,10 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.toast}>✓ {notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Crowded Search"
-          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps."
+          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are misses."
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExit={onExit}
@@ -428,7 +445,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
                     left: glyph.x,
                     top: glyph.y,
                     fontSize: `${glyph.isDigit ? letterSize * NUMBER_SEARCH_DIGIT_SIZE_SCALE : letterSize}rem`,
-                    color: charColor,
+                    color: displayCharColor,
                     background: 'transparent',
                     border: 'none',
                     padding: 0,
@@ -448,7 +465,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
           <div className={styles.hudLeft}>
             <p className={styles.hudSub}>
               {remainingDigits} digit{remainingDigits === 1 ? '' : 's'} left · {correctCount} found
-              {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+              {wrongCount > 0 ? ` · ${wrongCount} misses` : ''}
             </p>
           </div>
           <div className={styles.hudRight}>
@@ -463,19 +480,22 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className={`${styles.menuBtn} absolute bottom-6 right-4 z-40`}
-        style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 40 }}
-        onClick={() => setIsMenuOpen(true)}
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          className={styles.menuBtn}
+          onClick={() => setIsMenuOpen(true)}
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -513,9 +533,17 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
           },
           { label: 'Engine', value: engineBgColor },
           { label: 'Characters', value: charColor },
+          { label: 'Contrast', value: `${Math.round(contrastSensitivity * 100)}%` },
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="number_search"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -540,6 +568,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

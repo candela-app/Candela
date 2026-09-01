@@ -5,14 +5,13 @@ import {
   GameMode,
   AlphabetVariant,
   BubbleItem,
-  BubblePosition,
   BRIGHT_COLORS,
   SPEED_PRESETS,
   BUBBLES_PER_ROUND,
   DEFAULT_BASE_ANIMATION_DURATION,
   defaultBubbleSizePx,
   getDeviceTier,
-  findNonOverlappingBubblePosition,
+  getSlotFallbackPosition,
   getRandomSymbol,
   getContrastColor,
   exportSessionCSV,
@@ -22,7 +21,6 @@ import {
   playMissPressSoundAndHaptic,
   playSuccessSoundAndHaptic,
   requestFullScreenSafe,
-  exitFullScreenSafe,
   ClinicalSettingsModal,
   SessionResultData,
   reactionStatsFromMs,
@@ -33,12 +31,18 @@ import {
   stimuliColorLabel,
   bubbleAppearanceLabel,
   wheelColorLabel,
+  getContrastAdjustedColor,
+  clinicalColorSessionFields,
   type BubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
@@ -58,18 +62,19 @@ export function RotatoryWheelGame({
   const [mode] = useState<GameMode>(initialMode);
   const [variant] = useState<AlphabetVariant>(initialVariant);
   const [isPaused, setIsPaused] = useState<boolean>(true);
-  const [speed, setSpeed] = useState<number>(1);
+  const [speed, setSpeed] = useState<number>(0.5);
   const [bubbles, setBubbles] = useState<BubbleItem[]>([]);
   const [currentTarget, setCurrentTarget] = useState<string>('');
   const [targetColor, setTargetColor] = useState<string>('#ff5722');
 
   // Clinical Settings
   const [patientName, setPatientName] = useState<string>(() => sessionDisplayName(session));
-  const [letterSize, setLetterSize] = useState<number>(2.5);
+  const [letterSize, setLetterSize] = useState<number>(3);
   const [bubbleSize, setBubbleSize] = useState<number>(() => defaultBubbleSizePx(getDeviceTier(), 'rotatory'));
   const [wheelColor, setWheelColor] = useState<string>('#000000');
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
 
   useEffect(() => {
     const name = session?.user?.name?.trim();
@@ -78,8 +83,7 @@ export function RotatoryWheelGame({
   }, [session?.user?.name]);
 
   // Settings, Click to Start & Results Modal State
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
@@ -94,30 +98,9 @@ export function RotatoryWheelGame({
   const [notification, setNotification] = useState<string | null>(null);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState<boolean>(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState<boolean>(false);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   useGameSessionLock(true);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-    }
-  };
 
   // Gameplay state
   const [poppingActive, setPoppingActive] = useState<boolean>(false);
@@ -136,8 +119,13 @@ export function RotatoryWheelGame({
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const bubbleContainerRef = useRef<HTMLDivElement>(null);
-  const isSettingsOpenRef = useRef<boolean>(isSettingsOpen);
+  const isSettingsOpenRef = useRef<boolean>(playBlocked);
   const currentTargetRef = useRef<string>('');
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || isResultsOpen;
+  usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
+    if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
+    if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
+  }, statsRef.current.startTime);
 
   // Original English target voice (device en-US, e.g. Samantha)
   const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -165,8 +153,8 @@ export function RotatoryWheelGame({
   }, []);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
 
   // Counter-rotate text inside bubbles to maintain 0 self-rotation relative to screen viewport
   useEffect(() => {
@@ -278,6 +266,7 @@ export function RotatoryWheelGame({
                 )
               : 100,
           avgReactionSec: avgReact,
+          ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
         });
         return;
       }
@@ -329,7 +318,6 @@ export function RotatoryWheelGame({
     setPoppingActive(false);
 
     const newBubbles: BubbleItem[] = [];
-    const positions: BubblePosition[] = [];
 
     const rawContainer = bubbleContainerRef.current;
     const measured = rawContainer
@@ -352,15 +340,8 @@ export function RotatoryWheelGame({
 
     for (let i = 0; i < bubblesPerRound; i++) {
       const symbol = getRandomSymbol(mode, variant);
-      const pos = findNonOverlappingBubblePosition(positions, {
-        containerSize,
-        bubbleSize,
-        slotIndex: i,
-        totalSlots: bubblesPerRound,
-        gapPercent: 3.5,
-      });
+      const pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize, 0.62);
 
-      positions.push(pos);
       let bgColor = '';
       let colorName = '';
 
@@ -448,6 +429,7 @@ export function RotatoryWheelGame({
                     )
                   : 100,
               avgReactionSec: avgReact,
+              ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
             };
 
             setResultsData(finalData);
@@ -491,7 +473,7 @@ export function RotatoryWheelGame({
   };
 
   const handleWheelClick = () => {
-    if (!isPaused && poppingActive) {
+    if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
       playMissPressSoundAndHaptic();
@@ -546,7 +528,7 @@ export function RotatoryWheelGame({
         </div>
       )}
 
-      {!isGameStarted && !isSettingsOpen && !isResultsOpen && (
+      {!isGameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen && (
         <ClickToStartOverlay
           title={
             mode === 'colors'
@@ -565,48 +547,7 @@ export function RotatoryWheelGame({
 
       {/* BOTTOM RIGHT FLOATING CONTROLS GROUP (ULTRA-COMPACT & UNMUTED IDLE OPACITY) */}
       <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
-        {/* DIRECT FULLSCREEN TOGGLE BUTTON */}
-        <button
-          onClick={toggleFullscreen}
-          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white flex items-center justify-center shadow-md transition-all cursor-pointer backdrop-blur-md active:scale-95"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-        >
-          {isFullscreen ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M15 3h6v6" />
-              <path d="M9 21H3v-6" />
-              <path d="M21 3l-7 7" />
-              <path d="M3 21l7-7" />
-            </svg>
-          )}
-        </button>
+        <FullscreenToggleButton />
         <button
           onClick={() => speak(mode === 'colors' ? currentTarget : `target ${currentTarget}`, mode)}
           className="w-7 h-7 sm:w-8 sm:h-8 bg-transparent border-0 text-slate-500/40 hover:text-slate-400 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
@@ -721,6 +662,17 @@ export function RotatoryWheelGame({
             <span>{isPaused ? 'Play' : 'Pause'}</span>
           </button>
 
+          <button
+            onClick={() => {
+              setIsAssistiveTouchOpen(false);
+              openHowToPlay();
+            }}
+            className="w-full py-2.5 px-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white transition-colors border border-emerald-500/40 flex items-center justify-center gap-2 text-xs font-bold"
+            title="How to play"
+          >
+            <span>How to play?</span>
+          </button>
+
           {/* CLINICAL SETTINGS BUTTON */}
           <button
             onClick={() => {
@@ -829,7 +781,7 @@ export function RotatoryWheelGame({
               <span className="text-emerald-400 font-bold">{statsRef.current.correctCount} / 20</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Wrong Clicks:</span>
+              <span className="text-gray-400">Misses:</span>
               <span className="text-rose-400 font-bold">{statsRef.current.wrongCount}</span>
             </div>
           </div>
@@ -839,14 +791,14 @@ export function RotatoryWheelGame({
       {/* CENTER: ROTATING WHEEL (MAXIMIZED FULL SCREEN DIAMETER EDGE-TO-EDGE) */}
       {!isSettingsOpen ? (
       <main className="relative w-full h-full min-h-screen flex items-center justify-center p-0 overflow-hidden">
-        <div className="absolute w-[98vh] h-[98vh] max-w-[98vw] max-h-[98vw] rounded-full bg-blue-500/10 pointer-events-none" />
+        <div className="absolute w-[86vmin] h-[86vmin] max-w-[86vw] max-h-[86vw] rounded-full bg-blue-500/10 pointer-events-none" />
 
         <div
           ref={wheelRef}
-          className="relative h-[98vh] w-[98vh] max-w-[98vw] max-h-[98vw] aspect-square rounded-full flex justify-center items-center cursor-pointer shrink-0 animate-rotate-wheel"
+          className="relative h-[86vmin] w-[86vmin] max-w-[86vw] max-h-[86vw] aspect-square rounded-full flex justify-center items-center cursor-pointer shrink-0 animate-rotate-wheel"
           style={{
             animationDuration: `${animationDurationSeconds}s`,
-            animationPlayState: isPaused || isSettingsOpen ? 'paused' : 'running',
+            animationPlayState: engineFrozen ? 'paused' : 'running',
             backgroundColor: wheelColor,
           }}
           onClick={handleWheelClick}
@@ -855,7 +807,10 @@ export function RotatoryWheelGame({
             {bubbles.map((bubble) => {
               const isPopping = poppingIds.has(bubble.id);
               const isWrong = wrongIds.has(bubble.id);
-              const paint = resolveBubblePaint(bubbleAppearance, bubble.color || '#FFFFFF', {
+              const paint = resolveBubblePaint(
+                bubbleAppearance,
+                getContrastAdjustedColor(bubble.color || '#FFFFFF', wheelColor, contrastSensitivity),
+                {
                 borderFill: 'transparent',
                 solidBorderWidth: 0,
               });
@@ -895,6 +850,7 @@ export function RotatoryWheelGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           if (onExit) onExit();
         }}
@@ -956,6 +912,13 @@ export function RotatoryWheelGame({
       />
 
       {/* SHARED CLINICAL SETTINGS MODAL */}
+      <HowToPlayManual
+        moduleId="rotatory"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
@@ -967,6 +930,7 @@ export function RotatoryWheelGame({
           if (newSettings.wheelColor !== undefined) setWheelColor(newSettings.wheelColor);
           if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
           if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
+          if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
@@ -996,6 +960,7 @@ export function RotatoryWheelGame({
         showBubbleAppearancePicker
         bubbleAppearance={bubbleAppearance}
         sampleSymbol={mode === 'colors' ? '' : 'A'}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={isGameStarted && !isResultsOpen}
       />
 

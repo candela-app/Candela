@@ -19,6 +19,11 @@ import {
   beeHeadingDeg,
   lerpHeadingDeg,
   reactionStatsFromMs,
+  useHowToPlayGate,
+  usePauseShiftedClock,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
+  isDarkClinicalBg,
 } from '@candela/shared';
 import {
   generateBeePath,
@@ -30,15 +35,17 @@ import {
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
 const beeSrc = typeof beePng === 'string' ? beePng : beePng.src;
-const INVISIBLE_CORRIDOR_PX = 72;
+const INVISIBLE_CORRIDOR_PX = 96;
 const CORRIDOR_SEARCH_WINDOW = 80;
-const VISIBLE_PATH_WIDTH = 6;
+const VISIBLE_PATH_WIDTH = 18;
 
 interface BeeTracingGameProps {
   onExit: () => void;
@@ -46,11 +53,11 @@ interface BeeTracingGameProps {
 }
 
 const DEFAULT_SETTINGS: Omit<BeeTracingSettings, 'patientName'> = {
-  tracingMode: 'active',
+  tracingMode: 'guided',
   pathType: 'auto',
-  toleranceBandPx: 40,
-  beeSpeedSec: 5, // 5s Normal default
-  pathComplexity: 'medium',
+  toleranceBandPx: 72,
+  beeSpeedSec: 6,
+  pathComplexity: 'short',
   colorTheme: 'dark', // Dark theme by default
   targetDotColor: DEFAULT_BEE_TARGET_DOT_COLOR,
   audioEnabled: true,
@@ -81,7 +88,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     patientName: sessionDisplayName(session),
     pathType: lockedPathType,
   }));
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true); // Open settings BEFORE game starts
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   const [beeHeading, setBeeHeading] = useState(0);
   useGameSessionLock(true);
@@ -92,7 +99,6 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     setSettings((prev) => (prev.patientName === name ? prev : { ...prev, patientName: name }));
   }, [session?.user?.name]);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Set & Round tracking
   const [currentRoundNumber, setCurrentRoundNumber] = useState<number>(1);
@@ -119,6 +125,16 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   // Session Start Time
   const sessionStartTimeRef = useRef<number>(Date.now());
   const roundStartTimeRef = useRef<number>(performance.now());
+  const sessionFrozen = playBlocked || isResultsOpen;
+  const playBlockedRef = useRef(playBlocked);
+  useEffect(() => {
+    playBlockedRef.current = playBlocked;
+  }, [playBlocked]);
+  usePauseShiftedClock(sessionFrozen, gameStarted, (delta) => {
+    sessionStartTimeRef.current += delta;
+    roundStartTimeRef.current += delta;
+    if (reactionReadyAtRef.current != null) reactionReadyAtRef.current += delta;
+  }, sessionStartTimeRef.current);
   const reactionReadyAtRef = useRef<number | null>(null);
   const roundReactionMsRef = useRef<number | null>(null);
   const currentPathIndexRef = useRef<number>(0);
@@ -187,9 +203,20 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     roundReactionMsRef.current = null;
     const duration = settings.beeSpeedSec * 1000;
     const startTime = Date.now();
+    let pauseAccum = 0;
+    let pauseAt: number | null = null;
 
     const animate = () => {
-      const elapsed = Date.now() - startTime;
+      if (playBlockedRef.current) {
+        if (pauseAt == null) pauseAt = Date.now();
+        requestAnimationFrame(animate);
+        return;
+      }
+      if (pauseAt != null) {
+        pauseAccum += Date.now() - pauseAt;
+        pauseAt = null;
+      }
+      const elapsed = Date.now() - startTime - pauseAccum;
       const progress = Math.min(1, elapsed / duration);
 
       const ptIndex = Math.floor(progress * (generated.points.length - 1));
@@ -214,9 +241,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
   // Re-init path ONLY when currentRoundNumber or explicit init is triggered
   useEffect(() => {
-    if (isSettingsOpen || !gameStarted) return;
+    if (!gameStarted) return;
     initRoundPath(currentRoundNumber);
-  }, [currentRoundNumber, initRoundPath, isSettingsOpen, gameStarted]);
+  }, [currentRoundNumber, initRoundPath, gameStarted]);
 
   useEffect(() => {
     if (!currentPath) return;
@@ -255,7 +282,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     const distToStart = Math.hypot(x - currentPath.startPoint.x, y - currentPath.startPoint.y);
 
     // Direct touch hit radius around Bee sprite (~60px around center)
-    const BEE_GRAB_RADIUS = 60;
+    const BEE_GRAB_RADIUS = 96;
     const isStartOfRound = currentPathIndexRef.current === 0 || userTracePoints.length <= 1;
 
     let canGrabBee = false;
@@ -465,42 +492,55 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       roundResults,
       horizontalAccuracyPercent,
       verticalAccuracyPercent,
+      ...clinicalColorSessionFields(
+        settings.bgColor ||
+          (settings.colorTheme === 'high_contrast'
+            ? '#0A0E1A'
+            : settings.colorTheme === 'dark'
+              ? '#0B0F19'
+              : '#F4F4EE'),
+        settings.pathColor ||
+          (settings.colorTheme === 'high_contrast'
+            ? '#FFE600'
+            : settings.colorTheme === 'dark'
+              ? '#00F3FF'
+              : '#FFB703'),
+        settings.contrastSensitivity ?? 1,
+      ),
     };
   };
 
 
   // Color theme class bindings & Vibrant Neon Colors
-  const themeBgClass =
-    settings.colorTheme === 'high_contrast'
-      ? 'bg-[#0A0E1A]'
+  const fieldColor =
+    settings.bgColor ||
+    (settings.colorTheme === 'high_contrast'
+      ? '#0A0E1A'
       : settings.colorTheme === 'dark'
-      ? 'bg-[#0B0F19]'
-      : 'bg-[#F4F4EE]';
+      ? '#0B0F19'
+      : '#F4F4EE');
 
-  const pathColor =
-    settings.colorTheme === 'high_contrast'
-      ? '#FFE600' // Ultra Neon Yellow
+  const rawPathColor =
+    settings.pathColor ||
+    (settings.colorTheme === 'high_contrast'
+      ? '#FFE600'
       : settings.colorTheme === 'dark'
-      ? '#00F3FF' // Cyber Neon Cyan
-      : '#FFB703'; // Electric Neon Gold
+      ? '#00F3FF'
+      : '#FFB703');
 
-  const uiColor =
-    settings.colorTheme === 'high_contrast'
-      ? '#F8FAFC'
-      : settings.colorTheme === 'dark'
-      ? '#E7EEF5'
-      : '#1A2A32';
-  const mutedColor =
-    settings.colorTheme === 'high_contrast'
-      ? '#CBD5E1'
-      : settings.colorTheme === 'dark'
-      ? '#9AA8B5'
-      : '#4A5C66';
+  const pathColor = getContrastAdjustedColor(
+    rawPathColor,
+    fieldColor,
+    settings.contrastSensitivity ?? 1,
+  );
+
+  const uiColor = isDarkClinicalBg(fieldColor) ? '#F8FAFC' : '#1A2A32';
+  const mutedColor = isDarkClinicalBg(fieldColor) ? '#CBD5E1' : '#4A5C66';
   const targetDotColor = settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR;
   const isGuided = settings.tracingMode === 'guided';
 
   return (
-    <div className={`w-screen h-screen ${themeBgClass} select-none touch-none overflow-hidden relative transition-colors duration-300`}>
+    <div className="w-screen h-screen select-none touch-none overflow-hidden relative transition-colors duration-300" style={{ backgroundColor: fieldColor }}>
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-xl text-xs animate-bounce">
@@ -515,7 +555,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         Round {currentRoundNumber}/{settings.roundsPerSet}
       </span>
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title="Bee Path Tracing"
           onStart={() => setGameStarted(true)}
@@ -622,7 +662,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
                 <img
                   src={beeSrc}
                   alt="Bee Sprite"
-                  className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain filter drop-shadow-[0_0_14px_rgba(245,158,11,0.9)] transition-transform transform hover:scale-110 relative z-10"
+                  className="w-24 h-24 sm:w-28 sm:h-28 object-contain filter drop-shadow-[0_0_14px_rgba(245,158,11,0.9)] transition-transform transform hover:scale-110 relative z-10"
                 />
 
                 {/* Subtle Wing Flutter Pulse Indicator */}
@@ -650,19 +690,23 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         </button>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-3 right-4 z-40 w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer active:scale-95"
-        style={{ color: mutedColor }}
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-[22px] h-[22px]" />
-      </button>
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button
+          type="button"
+          onClick={() => setIsMenuOpen(true)}
+          className="w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer active:scale-95"
+          style={{ color: mutedColor }}
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-[22px] h-[22px]" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           exitFullScreenSafe();
           onExit();
@@ -686,6 +730,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       />
 
       {/* Shared Clinical Settings Modal */}
+      <HowToPlayManual
+        moduleId="bee_tracing"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -704,6 +755,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
             beeSpeedSec: applied.beeSpeedSec || prev.beeSpeedSec,
             orientation: applied.orientation || prev.orientation,
             targetDotColor: applied.targetDotColor || prev.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR,
+            bgColor: applied.bgColor || prev.bgColor,
+            pathColor: applied.shapeColor || prev.pathColor,
+            contrastSensitivity: applied.contrastSensitivity ?? prev.contrastSensitivity ?? 1,
           }));
           setCurrentRoundNumber(1);
           setRoundResults([]);
@@ -724,6 +778,9 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         beeSpeedSec={settings.beeSpeedSec}
         orientation={settings.orientation}
         targetDotColor={settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR}
+        bgColor={settings.bgColor || fieldColor}
+        shapeColor={settings.pathColor || rawPathColor}
+        contrastSensitivity={settings.contrastSensitivity ?? 1}
         sessionLocked={gameStarted && !isResultsOpen}
       />
 

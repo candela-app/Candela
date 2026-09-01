@@ -9,6 +9,9 @@ import {
   resolveBubblePaint,
   resolveBubbleAppearance,
   type BubbleAppearance,
+  ClinicalColorFields,
+  CLINICAL_INK,
+  getContrastAdjustedColor,
 } from '@candela/shared';
 import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
 
@@ -63,6 +66,10 @@ export function MobileTargetSettingsModal({
   const [tempStimuliColor, setTempStimuliColor] = useState(
     settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR
   );
+  const [tempBgColor, setTempBgColor] = useState(settings.bgColor || CLINICAL_INK);
+  const [tempContrastSensitivity, setTempContrastSensitivity] = useState(
+    settings.contrastSensitivity ?? 1
+  );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
 
   // Sync state on open
@@ -81,6 +88,8 @@ export function MobileTargetSettingsModal({
         settings.therapyColors?.length ? settings.therapyColors : THERAPY_COLOR_ITEMS.map((item) => item.code)
       );
       setTempStimuliColor(settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR);
+      setTempBgColor(settings.bgColor || CLINICAL_INK);
+      setTempContrastSensitivity(settings.contrastSensitivity ?? 1);
       setConfirmApplyOpen(false);
     }
   }, [isOpen, settings]);
@@ -102,6 +111,8 @@ export function MobileTargetSettingsModal({
       bubbleAppearance: tempBubbleAppearance,
       therapyColors: tempTherapyColors,
       stimuliColor: tempStimuliColor,
+      bgColor: tempBgColor,
+      contrastSensitivity: tempContrastSensitivity,
     });
     onClose();
   };
@@ -119,6 +130,8 @@ export function MobileTargetSettingsModal({
       bubbleAppearance: tempBubbleAppearance,
       therapyColors: tempTherapyColors,
       stimuliColor: tempStimuliColor,
+      bgColor: tempBgColor,
+      contrastSensitivity: tempContrastSensitivity,
     };
     const baseline = {
       patientName: settings.patientName,
@@ -134,6 +147,8 @@ export function MobileTargetSettingsModal({
         ? settings.therapyColors
         : THERAPY_COLOR_ITEMS.map((item) => item.code),
       stimuliColor: settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR,
+      bgColor: settings.bgColor || CLINICAL_INK,
+      contrastSensitivity: settings.contrastSensitivity ?? 1,
     };
     return JSON.stringify(next) !== JSON.stringify(baseline);
   };
@@ -168,14 +183,12 @@ export function MobileTargetSettingsModal({
           tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase())
         )?.code || '#00F0FF'
       : resolveStimuliBubbleColor(tempStimuliColor, 0);
-  const previewFilled = tempBubbleAppearance === 'solid';
-  const previewPaint = resolveBubblePaint(tempBubbleAppearance, previewColor, {
-    borderFill: '#121626',
+  const paintedPreview = getContrastAdjustedColor(previewColor, tempBgColor, tempContrastSensitivity);
+  const previewPaint = resolveBubblePaint(tempBubbleAppearance, paintedPreview, {
+    borderFill: tempBgColor,
     solidBorderColor: '#FFFFFF',
     solidBorderWidth: 3,
   });
-  const previewBg = previewPaint.backgroundColor;
-  const previewTextColor = previewPaint.textColor;
 
   return (
     <div
@@ -215,7 +228,7 @@ export function MobileTargetSettingsModal({
           <div className="flex flex-col h-full justify-between">
             <div
               className="bg-[#0D0D0D] p-6 rounded-2xl border border-gray-800 flex flex-col items-center justify-between gap-4 overflow-hidden shadow-inner relative h-full min-h-[260px] sm:min-h-[280px]"
-              style={{ backgroundColor: '#0D0D0D' }}
+              style={{ backgroundColor: tempBgColor }}
             >
               <div className="w-full flex items-center justify-between text-xs font-extrabold text-emerald-400 uppercase tracking-widest border-b border-gray-800/80 pb-2.5">
                 <div className="flex items-center gap-2">
@@ -397,8 +410,22 @@ export function MobileTargetSettingsModal({
             </div>
           </div>
 
-          {/* COLUMN 3: BACKGROUND STYLE, SPEED & PATIENT PROFILE */}
+          {/* COLUMN 3: LOOK + BUBBLE STYLE + PATIENT */}
           <div className="flex flex-col gap-5 justify-between">
+            <div
+              className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"
+              style={{ backgroundColor: '#242424' }}
+            >
+              <ClinicalColorFields
+                bgColor={tempBgColor}
+                stimulusColor={tempStimuliColor === 'mixed' ? '#FFFFFF' : tempStimuliColor}
+                contrast={tempContrastSensitivity}
+                onBgColor={setTempBgColor}
+                onStimulusColor={setTempStimuliColor}
+                onContrast={setTempContrastSensitivity}
+                hint="Field behind the bubbles. Lower contrast fades the target toward the field."
+              />
+            </div>
             {/* BUBBLE STYLE — solid vs border */}
             <div
               className="bg-[#242424] p-5 rounded-2xl border border-gray-800 flex flex-col gap-3 shadow-lg"

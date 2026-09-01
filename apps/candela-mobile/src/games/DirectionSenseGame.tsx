@@ -48,8 +48,11 @@ import {
   type DirectionSenseTrailPoint,
   type DirectionSenseTrial,
   type DirectionSenseTurnDirection,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClickToStartOverlay } from '../components/ClickToStartOverlay';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
@@ -110,8 +113,7 @@ export function DirectionSenseGame({
   const { requestExit } = useGameSessionLock(onExit);
 
   const [gameStarted, setGameStarted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<DirectionSenseSessionResultData | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
@@ -144,6 +146,11 @@ export function DirectionSenseGame({
   const [faceErrors, setFaceErrors] = useState(0);
   const [flipErrors, setFlipErrors] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const [durationSec, setDurationSec] = useState(0);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const trialShownAtRef = useRef<number | null>(null);
@@ -332,15 +339,15 @@ export function DirectionSenseGame({
   );
 
   useEffect(() => {
-    if (!gameStarted || !startTime || isResultsOpen) return;
+    if (!gameStarted || !startTime || isResultsOpen || playBlocked) return;
     const id = setInterval(() => {
       setDurationSec(Math.max(1, Math.round((Date.now() - startTime) / 1000)));
     }, 500);
     return () => clearInterval(id);
-  }, [gameStarted, isResultsOpen, startTime]);
+  }, [gameStarted, isResultsOpen, startTime, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen) return;
+    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen || playBlocked) return;
     if (timeLeft <= 0) {
       finishSession('timeout', {
         correct: correctCount,
@@ -354,7 +361,7 @@ export function DirectionSenseGame({
       });
       return;
     }
-    const id = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    const id = setTimeout(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
     return () => clearTimeout(id);
   }, [
     clicks,
@@ -364,6 +371,7 @@ export function DirectionSenseGame({
     flipErrors,
     gameStarted,
     isResultsOpen,
+    playBlocked,
     reactionTimes,
     startTime,
     timeLeft,
@@ -584,7 +592,7 @@ export function DirectionSenseGame({
         </View>
       ) : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={levelTitle}
           onStart={() => startGame()}
@@ -809,6 +817,7 @@ export function DirectionSenseGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           setIsMenuOpen(false);
           requestExit();
@@ -838,6 +847,13 @@ export function DirectionSenseGame({
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="direction_sense"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

@@ -1,11 +1,8 @@
 import React from 'react';
 import {
   RotatoryIcon,
-  PuzzleIcon,
   BeePathIcon,
   TargetIcon,
-  MobileTargetIcon,
-  GeoboardIcon,
   PeripheralIcon,
   SearchIcon,
   SlidersIcon,
@@ -16,16 +13,25 @@ import {
   ArrowRightIcon,
   ArrowDownIcon,
 } from '@/components/icons/VectorIcons';
+import { GAME_FAMILIES, type TherapyFamilyId } from '@candela/shared';
 import logoPng from '@candela/shared/assets/updated_Web logo.png';
 
 const logoSrc = typeof logoPng === 'string' ? logoPng : logoPng.src;
 
+const FAMILY_ICONS: Record<TherapyFamilyId, React.ComponentType<{ className?: string }>> = {
+  spin_field: RotatoryIcon,
+  tap_timing: TargetIcon,
+  look_jumps: PeripheralIcon,
+  glimpse_hold: SearchIcon,
+  trace_build: BeePathIcon,
+};
+
 interface HomePageContentProps {
   onOpenDashboard: () => void;
-  onSelectModule?: (moduleId: string) => void;
+  onSelectFamily?: (familyId: string) => void;
 }
 
-export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageContentProps) {
+export function HomePageContent({ onOpenDashboard, onSelectFamily }: HomePageContentProps) {
   return (
     <div className="w-full flex-1 flex flex-col bg-[#F4F7FC]">
       {/* HERO SECTION */}
@@ -68,320 +74,54 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
         </div>
       </section>
 
-      {/* QUICK LAUNCH MODULE PREVIEWS */}
+      {/* QUICK LAUNCH FAMILY PREVIEWS */}
       <section className="max-w-6xl mx-auto px-6 -mt-10 relative z-20 w-full">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div
-            onClick={() => onSelectModule ? onSelectModule('wheel') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-blue-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <RotatoryIcon className="w-6 h-6" />
+          {GAME_FAMILIES.map((family) => {
+            const Icon = FAMILY_ICONS[family.id];
+            const count = family.moduleIds.length;
+            return (
+              <div
+                key={family.id}
+                onClick={() => (onSelectFamily ? onSelectFamily(family.id) : onOpenDashboard())}
+                className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"
+                    style={{ backgroundColor: `${family.accent}14`, color: family.accent }}
+                  >
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {family.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
+                    {family.body}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold border"
+                    style={{
+                      color: family.accent,
+                      backgroundColor: `${family.accent}14`,
+                      borderColor: `${family.accent}33`,
+                    }}
+                  >
+                    {count} {count === 1 ? 'activity' : 'activities'}
+                  </span>
+                  <div
+                    className="text-xs font-bold flex items-center gap-1 group-hover:gap-2 transition-all"
+                    style={{ color: family.accent }}
+                  >
+                    <span>Open</span>
+                    <ArrowRightIcon className="w-3.5 h-3.5" />
+                  </div>
+                </div>
               </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                Rotatory Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Rotational target tracking with custom speeds and alphabet/number/color modes.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
-                For Tabs
-              </span>
-              <div className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('sorting') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-purple-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <PuzzleIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
-                Sorting Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Visual discrimination and sequential target recognition drills.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
-                For Tabs & Mobile
-              </span>
-              <div className="text-xs font-bold text-purple-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('tracing') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-amber-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <BeePathIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                Bee Path Tracing
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Smooth pursuit path control & motor-visual coordination.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
-                For Touch & Stylus
-              </span>
-              <div className="text-xs font-bold text-amber-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('pursuit') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-cyan-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <TargetIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-cyan-600 transition-colors">
-                Pursuit Module
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Continuous smooth pursuit tracking with full customizable velocity controls.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-cyan-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('mobile_target') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-emerald-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <MobileTargetIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                Bubble Chase
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                2-target bouncing pursuit & dark field tracking.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                For Mobile & Tabs
-              </span>
-              <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('geoboard') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-teal-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <GeoboardIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
-                Draw a Pattern
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Five pattern boards for visual-motor integration & spatial recall.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-teal-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('peripheral') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-indigo-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <PeripheralIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                Peripheral View
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Hex-hive peripheral field awareness — pop A–Z on left, right, or both sides.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                For Tabs & Desktop
-              </span>
-              <div className="text-xs font-bold text-indigo-600 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('number_search') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-amber-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <SearchIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-700 transition-colors">
-                Crowded Search
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Find digits hidden in a crowded field of mixed upper and lowercase letters.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-amber-700 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('pattern_match') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-rose-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <SearchIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-rose-700 transition-colors">
-                Hold the Code
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Hold a flashed code, then tap every exact match among near-miss distractors.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-rose-700 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('location_memory') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-amber-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <SearchIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-700 transition-colors">
-                Location Memory
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Open boxes one at a time to learn number locations, then recall them from memory.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-amber-700 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('direction_sense') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-sky-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <SearchIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-sky-700 transition-colors">
-                Direction Sense
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                See a letter and a rotate arrow, then pick the matching 90° turn.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-sky-700 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onSelectModule ? onSelectModule('computer_vision') : onOpenDashboard()}
-            className="bg-white rounded-2xl p-5 shadow-xl border border-gray-100 hover:border-cyan-500/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <SearchIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 group-hover:text-cyan-800 transition-colors">
-                Look Pursuit
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium leading-relaxed">
-                Look at the bright target among dim decoys — same Pursuit, look to pop.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-900 border border-cyan-200/60">
-                For All Devices
-              </span>
-              <div className="text-xs font-bold text-cyan-800 flex items-center gap-1 group-hover:gap-2 transition-all">
-                <span>Launch</span>
-                <ArrowRightIcon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </section>
 
@@ -444,8 +184,8 @@ export function HomePageContent({ onOpenDashboard, onSelectModule }: HomePageCon
             </p>
             <div className="pt-2 flex items-center gap-6">
               <div>
-                <span className="block text-2xl font-extrabold text-blue-600">4+</span>
-                <span className="text-xs text-gray-500 font-medium">Core Therapy Modules</span>
+                <span className="block text-2xl font-extrabold text-blue-600">5</span>
+                <span className="text-xs text-gray-500 font-medium">Activity Families</span>
               </div>
               <div className="h-8 w-px bg-gray-200" />
               <div>

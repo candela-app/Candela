@@ -1,14 +1,12 @@
 import { BubblePosition, GameMode, ColorItem, SessionResultData, DeviceTier, BubbleAppearance, DEFAULT_BUBBLE_APPEARANCE } from './types';
+import { handheldMarkSizePx } from './handheld-field';
 import {
   ALPHABETS,
   NUMBERS,
   BRIGHT_COLORS,
   DEFAULT_STIMULI_BUBBLE_COLOR,
-  PHONE_BUBBLE_SIZE_PX,
-  PHONE_SORTING_BUBBLE_SIZE_PX,
   STIMULI_BUBBLE_COLOR_OPTIONS,
   STIMULI_COLOR_MIXED,
-  TABLET_BUBBLE_SIZE_PX,
   THERAPY_COLORS,
   DEFAULT_SORTING_NUMBER_FROM,
   DEFAULT_SORTING_NUMBER_TO,
@@ -31,13 +29,12 @@ export function getDeviceTier(width?: number, height?: number): DeviceTier {
   return 'tv';
 }
 
-/** Rotatory/sorting bubble default: phones keep the smaller size; tabs and up use 100px. */
+/** Rotatory/sorting bubble default: scales with short side so marks stay large and apart. */
 export function defaultBubbleSizePx(
   tier: DeviceTier = getDeviceTier(),
-  game: 'rotatory' | 'sorting' = 'rotatory',
+  _game: 'rotatory' | 'sorting' = 'rotatory',
 ): number {
-  if (tier === 'mobile') return game === 'sorting' ? PHONE_SORTING_BUBBLE_SIZE_PX : PHONE_BUBBLE_SIZE_PX;
-  return TABLET_BUBBLE_SIZE_PX;
+  return handheldMarkSizePx(tier);
 }
 
 export function clampSortingNumberRange(from: number, to: number): { from: number; to: number } {
@@ -175,7 +172,8 @@ export function findNonOverlappingBubblePosition(
   }
 
   // Try several rings / slot offsets so fallback never lands on an occupied seat
-  const rings = [0.55, 0.65, 0.75, 0.82];
+  // Few large marks sit on a wider ring so they do not collide.
+  const rings = totalSlots <= 3 ? [0.72, 0.8, 0.88, 0.92] : [0.55, 0.65, 0.75, 0.82];
   for (const ring of rings) {
     for (let offset = 0; offset < totalSlots; offset++) {
       const pos = getSlotFallbackPosition(
@@ -338,8 +336,11 @@ export function reactionStatsFromMs(reactionMs: number[]): {
 
 export function exportSessionCSV(data: SessionResultData): void {
   if (typeof window === 'undefined') return;
-  const headers = Object.keys(data).join(',');
-  const values = Object.values(data).join(',');
+  const entries = Object.entries(data).map(([key, value]) =>
+    key === 'wrong' ? (['misses', value] as const) : ([key, value] as const),
+  );
+  const headers = entries.map(([key]) => key).join(',');
+  const values = entries.map(([, value]) => value).join(',');
   const csvContent = 'data:text/csv;charset=utf-8,' + headers + '\n' + values;
   const encodedUri = encodeURI(csvContent);
   const gameSlug = data.gameName

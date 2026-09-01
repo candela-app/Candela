@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   APPLAUSE_EARLY_MS,
+  clapLineSpeakMs,
   type GeoboardSessionResultData,
   type NumberSearchSessionResultData,
   type SessionResultData,
@@ -39,15 +40,18 @@ export function GameResultsModal({
     };
     void preloadClapBed();
     void playPartyBlast();
+    const speakMs = clapLineSpeakMs(data.patientName);
     const speakTimer = setTimeout(() => {
       if (stopped) return;
-      speakClapFor(data.patientName);
+      speakClapFor(data.patientName, clapOnce);
     }, 420);
-    const clapTimer = setTimeout(clapOnce, 2100 - APPLAUSE_EARLY_MS);
+    const clapTimer = setTimeout(clapOnce, 420 + Math.max(0, speakMs - APPLAUSE_EARLY_MS));
+    const fallbackTimer = setTimeout(clapOnce, 420 + speakMs + 1400);
     return () => {
       stopped = true;
       clearTimeout(speakTimer);
       clearTimeout(clapTimer);
+      clearTimeout(fallbackTimer);
       stopSpeaking();
       stopClapBed();
     };

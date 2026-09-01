@@ -12,6 +12,8 @@ import {
   DEFAULT_LOCATION_MEMORY_RECALL_SEC,
   DEFAULT_LOCATION_MEMORY_ROUNDS,
   LOCATION_MEMORY_MISMATCH_MS,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   buildLocationMemoryBoard,
   buildLocationMemoryPairsBoard,
   buildLocationMemoryRecallQueue,
@@ -30,12 +32,16 @@ import {
   requestFullScreenSafe,
   type LocationMemoryCell,
   type LocationMemorySessionResultData,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './LocationMemoryGame.module.css';
 
@@ -70,8 +76,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
 
   const [gameStarted, setGameStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<LocationMemorySessionResultData | null>(null);
@@ -86,6 +91,8 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   const [letterSize, setLetterSize] = useState(defaults.letterSize || DEFAULT_LOCATION_MEMORY_LETTER_SIZE);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_LOCATION_MEMORY_BG);
   const [charColor, setCharColor] = useState(DEFAULT_LOCATION_MEMORY_CHAR_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayCharColor = getContrastAdjustedColor(charColor, engineBgColor, contrastSensitivity);
 
   const [currentRound, setCurrentRound] = useState(1);
   const [cells, setCells] = useState<LocationMemoryCell[]>([]);
@@ -124,6 +131,12 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   });
   const startTimeRef = useRef<number | null>(null);
 
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+  }, startTime);
+
   useEffect(() => {
     roundsPerSessionRef.current = roundsPerSession;
   }, [roundsPerSession]);
@@ -139,12 +152,12 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime == null || isSettingsOpen || isMenuOpen || isResultsOpen) return;
+    if (!gameStarted || startTime == null || playBlocked || isMenuOpen || isResultsOpen) return;
     const id = setInterval(() => {
-      setDurationSec(Math.floor((Date.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(id);
-  }, [gameStarted, startTime, isSettingsOpen, isMenuOpen, isResultsOpen]);
+  }, [gameStarted, startTime, playBlocked, isMenuOpen, isResultsOpen]);
 
   const currentTarget = recallQueue[recallIndex] ?? null;
   const targetsRemaining = Math.max(0, recallQueue.length - recallIndex);
@@ -199,6 +212,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         playMode,
         endedBy,
         deviceTier,
+        ...clinicalColorSessionFields(engineBgColor, charColor, contrastSensitivity),
       };
       setResultsData(data);
       setIsResultsOpen(true);
@@ -216,6 +230,9 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       isPairs,
       playMode,
       cells.length,
+      engineBgColor,
+      charColor,
+      contrastSensitivity,
     ],
   );
 
@@ -301,34 +318,34 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
   }, [finishSession, launchRound]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'explore' || exploreSec <= 0) return;
+    if (!gameStarted || phase !== 'explore' || exploreSec <= 0 || playBlocked) return;
     if (exploreTimeLeft <= 0) {
       beginRecallPhase();
       return;
     }
     const t = setTimeout(() => setExploreTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, exploreSec, exploreTimeLeft, beginRecallPhase]);
+  }, [gameStarted, phase, exploreSec, exploreTimeLeft, beginRecallPhase, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'recall' || recallSec <= 0) return;
+    if (!gameStarted || phase !== 'recall' || recallSec <= 0 || playBlocked) return;
     if (recallTimeLeft <= 0) {
       finishSession('timeout');
       return;
     }
     const t = setTimeout(() => setRecallTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, recallSec, recallTimeLeft, finishSession]);
+  }, [gameStarted, phase, recallSec, recallTimeLeft, finishSession, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || phase !== 'match' || recallSec <= 0) return;
+    if (!gameStarted || phase !== 'match' || recallSec <= 0 || playBlocked) return;
     if (sessionTimeLeft <= 0) {
       finishSession('timeout');
       return;
     }
     const t = setTimeout(() => setSessionTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [gameStarted, phase, recallSec, sessionTimeLeft, finishSession]);
+  }, [gameStarted, phase, recallSec, sessionTimeLeft, finishSession, playBlocked]);
 
   const onExploreCell = useCallback(
     (cell: LocationMemoryCell) => {
@@ -457,6 +474,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
     if (newSettings.letterSize != null) setLetterSize(newSettings.letterSize);
     if (newSettings.bgColor) setEngineBgColor(newSettings.bgColor);
     if (newSettings.shapeColor) setCharColor(newSettings.shapeColor);
+    if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
     if (newSettings.locationMemoryActiveCells != null) setActiveCells(newSettings.locationMemoryActiveCells);
     if (newSettings.locationMemoryGridSize != null) setGridSize(newSettings.locationMemoryGridSize);
     if (newSettings.locationMemoryRounds != null) setRoundsPerSession(newSettings.locationMemoryRounds);
@@ -492,7 +510,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.notification}>{notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={`Location Memory — ${levelTitle}`}
           hint={levelHint}
@@ -520,7 +538,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                     className={`${styles.cell} ${isOpen ? styles.cellOpen : ''} ${isExplored ? styles.cellExplored : ''} ${cell.value == null ? styles.cellBlank : ''}`}
                     style={{
                       fontSize: `${letterSize * (isOpen ? 2.15 : 1.75)}rem`,
-                      color: isOpen ? '#0F172A' : charColor,
+                      color: isOpen ? '#0F172A' : displayCharColor,
                     }}
                     onClick={() => onExploreCell(cell)}
                     aria-pressed={isOpen}
@@ -565,7 +583,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                   key={cell.id}
                   type="button"
                   className={`${styles.cell} ${wrongIds.has(cell.id) ? styles.cellWrong : ''} ${matchedIds.has(cell.id) ? styles.cellCorrect : ''}`}
-                  style={{ fontSize: `${letterSize * 1.75}rem`, color: charColor }}
+                  style={{ fontSize: `${letterSize * 1.75}rem`, color: displayCharColor }}
                   onClick={() => onRecallCell(cell)}
                   disabled={matchedIds.has(cell.id)}
                 >
@@ -586,7 +604,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
               className={styles.grid}
               style={{
                 gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                width: 'min(480px, 94vw)',
+                width: 'min(88vmin, 94vw)',
               }}
             >
               {cells.map((cell) => {
@@ -600,7 +618,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
                     className={`${styles.cell} ${revealed && !isWrong && !isMatched ? styles.cellOpen : ''} ${isWrong ? styles.cellWrong : ''} ${isMatched ? styles.cellCorrect : ''} ${cell.value == null ? styles.cellBlank : ''}`}
                     style={{
                       fontSize: `${letterSize * (revealed ? 1.75 : 1.4)}rem`,
-                      color: revealed && !isWrong && !isMatched ? '#0F172A' : charColor,
+                      color: revealed && !isWrong && !isMatched ? '#0F172A' : displayCharColor,
                     }}
                     onClick={() => onMatchCell(cell)}
                     disabled={matchedIds.has(cell.id) || lockBoard || cell.value == null}
@@ -620,20 +638,24 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
             {phase === 'match'
               ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} misses`
               : phase === 'recall'
-                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}`
+                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} misses` : ''}`
                 : `Explored ${exploredCount}/${activeCells}`}
           </span>
           <span className={styles.hudAccent}>{durationSec}s</span>
         </div>
       ) : null}
 
-      <button type="button" className={styles.menuFab} onClick={() => setIsMenuOpen(true)} aria-label="Menu">
-        <SlidersIcon className="w-6 h-6" />
-      </button>
+      <div className="absolute bottom-5 right-4 z-20 flex items-center gap-2">
+        <FullscreenToggleButton />
+        <button type="button" className={styles.menuFab} onClick={() => setIsMenuOpen(true)} aria-label="Menu">
+          <SlidersIcon className="w-6 h-6" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => onExit?.()}
         onReset={() => {
           endingRef.current = true;
@@ -662,6 +684,13 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="location_memory"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -686,6 +715,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         locationMemoryRecallSec={recallSec}
         bgColor={engineBgColor}
         shapeColor={charColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

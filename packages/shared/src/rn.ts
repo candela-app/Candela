@@ -16,3 +16,8 @@ export * from './direction-sense-logic';
 export * from './computer-vision-logic';
 export * from './celebration';
 export * from './clap-synth';
+export * from './how-to-play';
+export * from './use-how-to-play-gate';
+export * from './use-pause-shifted-clock';
+export * from './clinical-color';
+export * from './handheld-field';

@@ -21,20 +21,20 @@ export const PERIPHERAL_BATCHES_MAX = 20;
 export const PERIPHERAL_DEFAULT_BATCHES = 6;
 
 /** Few fixed steps — same pattern as bubble / letter size presets elsewhere. */
-export const PERIPHERAL_HEX_SIZE_PRESETS = [48, 56, 64, 72, 80] as const;
+export const PERIPHERAL_HEX_SIZE_PRESETS = [64, 72, 80, 96, 120] as const;
 /** Few fixed steps — tier caps keep phone batches smaller than iPad / desktop. */
 export const PERIPHERAL_STIMULI_PRESETS_BY_TIER: Record<DeviceTier, readonly number[]> = {
-  mobile: [8, 12, 16, 20, 24],
-  tablet: [12, 16, 20, 24, 32, 36],
-  tv: [16, 20, 24, 32, 40, 48],
+  mobile: [2, 3, 4, 6],
+  tablet: [4, 6, 8, 12],
+  tv: [8, 12, 16, 20],
 };
 
 /** @deprecated Use peripheralStimuliPresets(tier) — mobile tier presets. */
 export const PERIPHERAL_STIMULI_PRESETS = PERIPHERAL_STIMULI_PRESETS_BY_TIER.mobile;
 export const PERIPHERAL_BATCH_PRESETS = [4, 6, 8, 10] as const;
 /** Same stepped presets as rotatory wheel letter size. */
-export const PERIPHERAL_LETTER_SIZE_PRESETS = [1, 1.5, 2, 2.5, 3] as const;
-export const DEFAULT_PERIPHERAL_LETTER_SIZE = 2;
+export const PERIPHERAL_LETTER_SIZE_PRESETS = [2, 2.5, 3, 3.5, 4] as const;
+export const DEFAULT_PERIPHERAL_LETTER_SIZE = 3;
 /** Per-target response timer: 0 = off. */
 export const PERIPHERAL_TARGET_TIMEOUT_PRESETS = [0, 4, 5, 6] as const;
 /** Hex stimulus rendering — filled vs outline-only. */
@@ -192,12 +192,12 @@ export function peripheralDeviceDefaults(tier: DeviceTier = getDeviceTier()): {
   batchesPerSession: number;
 } {
   if (tier === 'mobile') {
-    return { hexSizePx: 56, stimuliCount: 12, batchesPerSession: PERIPHERAL_DEFAULT_BATCHES };
+    return { hexSizePx: 96, stimuliCount: 3, batchesPerSession: PERIPHERAL_DEFAULT_BATCHES };
   }
   if (tier === 'tablet') {
-    return { hexSizePx: 64, stimuliCount: 16, batchesPerSession: 6 };
+    return { hexSizePx: 96, stimuliCount: 6, batchesPerSession: 6 };
   }
-  return { hexSizePx: 72, stimuliCount: 20, batchesPerSession: 6 };
+  return { hexSizePx: 80, stimuliCount: 12, batchesPerSession: 6 };
 }
 
 /**
@@ -321,10 +321,23 @@ export function spawnBatch(
   count: number,
   rng: () => number = Math.random,
   tier: DeviceTier = getDeviceTier(),
+  cells: HexCell[] = [],
+  width: number = 0,
 ): Record<string, string> {
   if (eligibleIds.length === 0 || count <= 0) return {};
   const n = effectiveStimuliCount(count, eligibleIds.length, tier);
-  const picks = shuffleInPlace([...eligibleIds], rng).slice(0, n);
+  let pool = [...eligibleIds];
+  if (cells.length > 0 && width > 0 && n <= 8) {
+    const byId = new Map(cells.map((cell) => [cell.id, cell]));
+    const mid = width / 2;
+    pool = [...eligibleIds].sort((a, b) => {
+      const ca = byId.get(a);
+      const cb = byId.get(b);
+      return Math.abs((cb?.cx ?? 0) - mid) - Math.abs((ca?.cx ?? 0) - mid);
+    });
+    pool = pool.slice(0, Math.max(n, Math.min(pool.length, n * 3)));
+  }
+  const picks = shuffleInPlace(pool, rng).slice(0, n);
   const out: Record<string, string> = {};
   for (const id of picks) {
     const letter = PERIPHERAL_LETTERS[Math.floor(rng() * PERIPHERAL_LETTERS.length)];

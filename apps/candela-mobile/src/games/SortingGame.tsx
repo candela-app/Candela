@@ -23,8 +23,11 @@ import {
   bubbleAppearanceLabel,
   wheelColorLabel,
   type BubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon } from '../components/icons';
@@ -38,8 +41,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const { session } = useAuth();
   const { width, height, s, fs, isTablet } = useLayout();
   const [gameStarted, setGameStarted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<SessionResultData | null>(null);
   const [patientName, setPatientName] = useState(sessionDisplayName(session));
@@ -66,6 +68,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const [playArea, setPlayArea] = useState({ w: width, h: height });
   const reactionTimesRef = useRef<number[]>([]);
   const targetShownAtRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (targetShownAtRef.current != null) targetShownAtRef.current += delta;
+  }, startTime);
 
   useEffect(() => {
     const name = session?.user.name?.trim();
@@ -236,7 +244,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           <Text style={{ color: '#fff', fontWeight: '700' }}>✓ {notification}</Text>
         </View>
       ) : null}
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: 'rgba(6,7,13,0.98)' }}>
           <Text style={{ color: '#fff', fontSize: fs(26), fontWeight: '900', marginBottom: s(12) }}>Sorting Module</Text>
           <Pressable onPress={startGame} style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}>
@@ -309,6 +317,13 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
       >
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
+      <HowToPlayManual
+        moduleId="sorting"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -363,6 +378,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => requestExit()}
         onReset={() => startGame()}
         onOpenSettings={() => setIsSettingsOpen(true)}

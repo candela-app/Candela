@@ -25,7 +25,7 @@
   margin: 0;
   max-width: 640px;
   text-align: center;
-  font-size: clamp(15px, 2.2vw, 18px);
+  font-size: clamp(16px, 2.4vw, 20px);
   font-weight: 700;
   letter-spacing: 0.02em;
   color: rgba(248, 250, 252, 0.88);
@@ -35,7 +35,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(18px, 4vw, 36px);
+  gap: clamp(24px, 5vw, 48px);
   flex-wrap: wrap;
 }
 
@@ -55,11 +55,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20px;
+  border-radius: 24px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.45);
-  padding: clamp(10px, 2vw, 16px);
+  padding: clamp(16px, 3vw, 24px);
   box-sizing: border-box;
+  min-width: min(42vw, 220px);
+  min-height: min(42vw, 220px);
 }
 
 .arrowCard {
@@ -197,11 +199,17 @@
   font-weight: 800;
 }
 
-.settingsBtn {
+.fabCluster {
   position: absolute;
   bottom: 16px;
   right: 16px;
   z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settingsBtn {
   width: 44px;
   height: 44px;
   display: flex;

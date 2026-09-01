@@ -14,14 +14,22 @@ import {
   resolveStimuliBubbleColor,
   resolveBubblePaint,
   resolveBubbleAppearance,
+  useHowToPlayGate,
+  usePauseShiftedClock,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
+  isDarkClinicalBg,
+  CLINICAL_INK,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
 import { MobileTargetResultsModal } from './MobileTargetResultsModal';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
 
 interface MobileTargetGameProps {
@@ -64,14 +72,17 @@ export function MobileTargetGame({
     patientName: sessionDisplayName(session),
     gameMode: initialMode,
     alphabetVariant: initialVariant,
-    speedPxPerSec: 70,
+    speedPxPerSec: 50,
     setDurationSec: 7,
     totalSets: 10,
-    bubbleSize: 96,
-    letterSize: 32,
+    bubbleSize: 140,
+    letterSize: 42,
+    movementAxis: 'horizontal',
     hasBackground: false,
     therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
     stimuliColor: DEFAULT_STIMULI_BUBBLE_COLOR,
+    bgColor: CLINICAL_INK,
+    contrastSensitivity: 1,
   }));
 
   useEffect(() => {
@@ -129,13 +140,12 @@ export function MobileTargetGame({
   const [bubbles, setBubbles] = useState<MovingBubble[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(true);
-  const [showSettings, setShowSettings] = useState<boolean>(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen: showSettings, setIsSettingsOpen: setShowSettings, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [showClickToStart, setShowClickToStart] = useState<boolean>(false);
   const [showResults, setShowResults] = useState<boolean>(false);
-  const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const [isAssistiveTouchOpen, setIsAssistiveTouchOpen] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [shakeError, setShakeError] = useState<boolean>(false);
@@ -150,6 +160,10 @@ export function MobileTargetGame({
   const canvasRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const setStartTimeRef = useRef<number>(performance.now());
+  const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || showResults;
+  usePauseShiftedClock(engineFrozen, isPlaying, (delta) => {
+    setStartTimeRef.current += delta;
+  }, setStartTimeRef.current);
   const bubblesRef = useRef<MovingBubble[]>([]);
   const wrongClicksSetRef = useRef<number>(0);
 
@@ -157,22 +171,6 @@ export function MobileTargetGame({
   useEffect(() => {
     bubblesRef.current = bubbles;
   }, [bubbles]);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-    }
-  };
 
   // Ref for shuffled pool deck
   const shuffledPoolRef = useRef<string[]>([]);
@@ -441,6 +439,11 @@ export function MobileTargetGame({
           timeoutCount: 0,
           setMetrics: updatedMetrics,
           starRating: rating,
+          ...clinicalColorSessionFields(
+            settings.bgColor || CLINICAL_INK,
+            settings.stimuliColor === 'mixed' ? '#FFFFFF' : settings.stimuliColor || '#FFFFFF',
+            settings.contrastSensitivity ?? 1,
+          ),
         };
 
         setSessionResult(sessionSummary);
@@ -461,7 +464,7 @@ export function MobileTargetGame({
       const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05); // Cap dt
       lastTimestamp = timestamp;
 
-      if (isPlaying && !isPaused && !showResults && !showSettings && canvasRef.current) {
+      if (isPlaying && !engineFrozen && canvasRef.current) {
         const bounds = canvasRef.current.getBoundingClientRect();
         const halfW = bounds.width / 2;
         const halfH = bounds.height / 2;
@@ -590,11 +593,11 @@ export function MobileTargetGame({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isPlaying, isPaused, showResults, showSettings]);
+  }, [isPlaying, engineFrozen]);
 
   // Handle Bubble Tap
   const handleBubbleTap = (bubble: MovingBubble) => {
-    if (!isPlaying || isPaused || showResults) return;
+    if (!isPlaying || engineFrozen) return;
 
     if (bubble.isTarget) {
       // Correct Tap -> Advance Set
@@ -639,21 +642,33 @@ export function MobileTargetGame({
     generateSetPair(0, settings.gameMode, settings.alphabetVariant);
   };
 
+  const fieldColor = settings.bgColor || CLINICAL_INK;
+  const fieldIsDark = isDarkClinicalBg(fieldColor);
+
   return (
-    <div className="w-screen h-screen bg-[#0A0A12] text-white select-none overflow-hidden touch-none relative font-sans">
+    <div className="w-screen h-screen text-white select-none overflow-hidden touch-none relative font-sans" style={{ backgroundColor: fieldColor }}>
       <main
         ref={canvasRef}
         className={`absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center ${
           shakeError ? 'animate-shake' : ''
         }`}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(#1E2640_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />
+        <div
+          className={`absolute inset-0 bg-[radial-gradient(#1E2640_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none ${
+            fieldIsDark ? 'opacity-20' : 'opacity-0'
+          }`}
+        />
 
         {bubbles.map((bubble) => {
           const appearance = resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
-          const paint = resolveBubblePaint(appearance, bubble.color, {
-            borderFill: '#121626',
-            solidBorderColor: '#FFFFFF',
+          const paintedFill = getContrastAdjustedColor(
+            bubble.color,
+            fieldColor,
+            settings.contrastSensitivity ?? 1,
+          );
+          const paint = resolveBubblePaint(appearance, paintedFill, {
+            borderFill: fieldIsDark ? '#121626' : '#E8ECF0',
+            solidBorderColor: fieldIsDark ? '#FFFFFF' : '#0F172A',
             solidBorderWidth: 3,
           });
           const textColor = paint.textColor;
@@ -699,27 +714,7 @@ export function MobileTargetGame({
       </main>
 
       <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity duration-200">
-        <button
-          onClick={toggleFullscreen}
-          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#121626]/90 hover:bg-[#1A2035] border border-gray-800/90 hover:border-gray-700 text-gray-300 hover:text-white flex items-center justify-center shadow-md transition-all cursor-pointer backdrop-blur-md active:scale-95"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-        >
-          {isFullscreen ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 3h6v6" />
-              <path d="M9 21H3v-6" />
-              <path d="M21 3l-7 7" />
-              <path d="M3 21l7-7" />
-            </svg>
-          )}
-        </button>
+        <FullscreenToggleButton />
         <button
           onClick={() => announceChaseTarget(targetItem.value, targetItem.name)}
           className="w-7 h-7 sm:w-8 sm:h-8 bg-transparent border-0 text-slate-500/40 hover:text-slate-400 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
@@ -877,7 +872,7 @@ export function MobileTargetGame({
               <span className="text-emerald-400 font-bold">{correctCount} / {settings.totalSets}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Wrong Clicks:</span>
+              <span className="text-gray-400">Misses:</span>
               <span className="text-rose-400 font-bold">{wrongCount}</span>
             </div>
           </div>
@@ -885,7 +880,7 @@ export function MobileTargetGame({
       )}
 
       {/* Click to Start overlay */}
-      {showClickToStart && !showSettings && !showResults && (
+      {showClickToStart && !showHowToPlay && !showSettings && !showResults && (
         <ClickToStartOverlay
           title={gameTitle}
           onStart={handleStartGameFromOverlay}
@@ -895,6 +890,13 @@ export function MobileTargetGame({
       )}
 
       {/* MODALS */}
+      <HowToPlayManual
+        moduleId="mobile_target"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <MobileTargetSettingsModal
         isOpen={showSettings}
         onClose={() => {
@@ -933,13 +935,14 @@ export function MobileTargetGame({
       />
 
       <GameMenuDrawer
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={onExit}
         sessionInProgress={!showResults && !showClickToStart && isPlaying}
         onReset={handleRestartSession}
         onOpenSettings={() => {
-          setMenuOpen(false);
+          setIsMenuOpen(false);
           setShowSettings(true);
         }}
         resetButtonLabel="Restart Session"
@@ -948,6 +951,8 @@ export function MobileTargetGame({
           { label: 'Mode', value: settings.gameMode },
           { label: 'Speed', value: `${settings.speedPxPerSec} px/s` },
           { label: 'Set Duration', value: `${settings.setDurationSec}s` },
+          { label: 'Look', value: settings.bgColor || CLINICAL_INK },
+          { label: 'Contrast', value: `${Math.round((settings.contrastSensitivity ?? 1) * 100)}%` },
         ]}
       />
       <ResetConfirmDialog

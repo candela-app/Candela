@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
 import { ResultsConfetti } from './ResultsConfetti';
 
@@ -210,6 +210,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           <div className="text-xs text-gray-400 mt-1.5 font-medium tracking-wide">
             Date: <span className="text-gray-300">{formattedDate}</span>
           </div>
+          <ClinicalLookBadge
+            bgColor={data.bgColor}
+            stimulusColor={data.stimulusColor}
+            contrastPercent={data.contrastPercent}
+          />
         </div>
 
         {/* VISUAL TRACED PATH OVERLAY (FOR BEE TRACING) */}
@@ -375,8 +380,8 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
             <div className="grid grid-cols-3 gap-2 text-center">
               {[
-                { label: 'Wrong Dot', value: beeData.errorBreakdown?.wrongDot ?? 0, tone: 'text-rose-400' },
-                { label: 'Wrong Shape', value: beeData.errorBreakdown?.wrongShape ?? 0, tone: 'text-amber-400' },
+                { label: 'Missed Dot', value: beeData.errorBreakdown?.wrongDot ?? 0, tone: 'text-rose-400' },
+                { label: 'Missed Shape', value: beeData.errorBreakdown?.wrongShape ?? 0, tone: 'text-amber-400' },
                 { label: 'Incomplete', value: beeData.errorBreakdown?.incomplete ?? 0, tone: 'text-sky-400' },
               ].map((item) => (
                 <div key={item.label} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">

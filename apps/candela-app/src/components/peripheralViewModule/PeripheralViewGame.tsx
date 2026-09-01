@@ -25,6 +25,8 @@ import {
   peripheralLetterColor,
   peripheralLetterFontPx,
   peripheralSessionAccuracy,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   clampPeripheralLetterSize,
   clampPeripheralTargetTimeoutSec,
   playCorrectSoundAndHaptic,
@@ -38,11 +40,15 @@ import {
   type HexCell,
   type PeripheralSessionResultData,
   type PeripheralTrialOutcome,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { ChevronUpIcon, ReplayIcon, SlidersIcon, VolumeIcon } from '../icons/VectorIcons';
 import { useAuth } from '@/lib/auth-context';
 import styles from './PeripheralViewGame.module.css';
@@ -68,7 +74,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
@@ -82,6 +88,8 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   const [batchesPerSession, setBatchesPerSession] = useState(defaults.batchesPerSession);
   const [stimulusColor, setStimulusColor] = useState(DEFAULT_PERIPHERAL_STIMULUS_COLOR);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_PERIPHERAL_BG_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const paintedStimulus = getContrastAdjustedColor(stimulusColor, engineBgColor, contrastSensitivity);
   const [bubbleType, setBubbleType] = useState<'solid' | 'boundary'>(DEFAULT_PERIPHERAL_BUBBLE_TYPE);
 
   const [cells, setCells] = useState<HexCell[]>([]);
@@ -111,8 +119,15 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
     stimuliPresented: 0,
   });
   const startTimeRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen || isAssistiveTouchOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+    setTargetShownAt((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const currentTargetRef = useRef('');
-  const isSettingsOpenRef = useRef(isSettingsOpen);
+  const isSettingsOpenRef = useRef(playBlocked);
   const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const cellsRef = useRef<HexCell[]>([]);
   const sizeRef = useRef(size);
@@ -133,8 +148,8 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, [session?.user.name]);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
 
   useEffect(() => {
     startTimeRef.current = startTime;
@@ -229,7 +244,10 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
     if (!el) return;
     const measure = () => {
       const rect = el.getBoundingClientRect();
-      setSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
+      const w = Math.floor(rect.width);
+      const h = Math.floor(rect.height);
+      if (w <= 0 || h <= 0) return;
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     };
     measure();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
@@ -242,12 +260,12 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || startTime === null) return;
+    if (!gameStarted || startTime === null || sessionFrozen) return;
     const interval = setInterval(() => {
-      setDurationSec(Math.floor((performance.now() - startTime) / 1000));
+      setDurationSec(Math.max(0, Math.floor((performance.now() - startTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [gameStarted, startTime]);
+  }, [gameStarted, startTime, sessionFrozen]);
 
   const clearBoard = useCallback(() => {
     setActiveMap({});
@@ -313,52 +331,82 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
   }, [clearTargetTimeout, handleTargetTimeout]);
 
   useEffect(() => {
-    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || isSettingsOpen) {
+    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || playBlocked || isAssistiveTouchOpen) {
       clearTargetTimeout();
       return;
     }
-    scheduleTargetTimeout();
+    clearTargetTimeout();
+    const remaining =
+      targetShownAt != null
+        ? Math.max(0, targetTimeoutSec * 1000 - (performance.now() - targetShownAt))
+        : targetTimeoutSec * 1000;
+    targetTimeoutTimerRef.current = setTimeout(() => {
+      handleTargetTimeout();
+    }, remaining);
     return clearTargetTimeout;
-  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, isSettingsOpen, scheduleTargetTimeout, clearTargetTimeout]);
+  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, playBlocked, isAssistiveTouchOpen, handleTargetTimeout, clearTargetTimeout]);
 
   useEffect(() => () => clearTargetTimeout(), [clearTargetTimeout]);
 
   const refillBatch = useCallback(
-    (nextBatch: number, hive: HexCell[], width: number, height: number) => {
-      if (!isPeripheralLandscape(width, height)) {
-        clearBoard();
-        return;
-      }
+    (
+      nextBatch: number,
+      hive: HexCell[],
+      width: number,
+      height: number,
+      options?: { countPresented?: boolean },
+    ) => {
+      if (!isPeripheralLandscape(width, height)) return;
       const eligible = eligibleCellIds(hive, field, width, height, hexSizePx);
-      const map = spawnBatch(eligible, stimuliCount, Math.random, deviceTier);
-      statsRef.current.stimuliPresented += Object.keys(map).length;
+      const map = spawnBatch(eligible, stimuliCount, Math.random, deviceTier, hive, width);
+      if (options?.countPresented !== false) {
+        statsRef.current.stimuliPresented += Object.keys(map).length;
+      }
       setActiveMap(map);
       setBatchIndex(nextBatch);
       chooseNextTarget(map);
     },
-    [chooseNextTarget, clearBoard, deviceTier, field, hexSizePx, stimuliCount],
+    [chooseNextTarget, deviceTier, field, hexSizePx, stimuliCount],
   );
 
-  // Rebuild hive on size change; drop stale pops in portrait; refill when landscape while session active.
+  // Rebuild hive geometry on resize (fullscreen exit, browser chrome). Keep the
+  // current letters — do not treat a size change as a new round.
   useEffect(() => {
     if (size.w <= 0 || size.h <= 0) return;
     const landscape = isPeripheralLandscape(size.w, size.h);
-    const hive = landscape ? buildHexHive(size.w, size.h, hexSizePx) : [];
-    setCells(hive);
-    cellsRef.current = hive;
-
     if (!landscape) {
-      clearBoard();
       wasLandscapeRef.current = false;
       return;
     }
 
+    const hive = buildHexHive(size.w, size.h, hexSizePx);
+    setCells(hive);
+    cellsRef.current = hive;
     wasLandscapeRef.current = true;
-    // Re-seed on size/hex change mid-session so pops never stick to a stale hive.
-    if (gameStartedRef.current) {
-      refillBatch(batchIndexRef.current, hive, size.w, size.h);
+
+    if (!gameStartedRef.current) return;
+
+    const liveIds = new Set(hive.map((cell) => cell.id));
+    const prev = activeMapRef.current;
+    const kept: Record<string, string> = {};
+    for (const [id, letter] of Object.entries(prev)) {
+      if (liveIds.has(id)) kept[id] = letter;
     }
-  }, [size.w, size.h, hexSizePx, clearBoard, refillBatch]);
+
+    if (Object.keys(kept).length > 0) {
+      if (Object.keys(kept).length !== Object.keys(prev).length) {
+        setActiveMap(kept);
+        if (currentTargetRef.current && !Object.values(kept).includes(currentTargetRef.current)) {
+          chooseNextTarget(kept);
+        }
+      }
+      return;
+    }
+
+    if (Object.keys(prev).length > 0) {
+      refillBatch(batchIndexRef.current, hive, size.w, size.h, { countPresented: false });
+    }
+  }, [size.w, size.h, hexSizePx, chooseNextTarget, refillBatch]);
 
   const finishSession = useCallback(() => {
     playSuccessSoundAndHaptic();
@@ -391,12 +439,13 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
       bubbleType,
       deviceTier,
       trials,
+      ...clinicalColorSessionFields(engineBgColor, stimulusColor, contrastSensitivity),
     };
     // TODO: persist once DB is configured
     setResultsData(data);
     setIsResultsOpen(true);
     setTimeout(() => setGameStarted(false), 400);
-  }, [batchesPerSession, bubbleType, deviceTier, field, hexSizePx, letterSize, patientName, startTime, stimuliCount, targetTimeoutSec]);
+  }, [batchesPerSession, bubbleType, deviceTier, field, hexSizePx, letterSize, patientName, startTime, stimuliCount, targetTimeoutSec, engineBgColor, stimulusColor, contrastSensitivity]);
 
   const startGame = () => {
     if (!isPeripheralLandscape(size.w, size.h)) return;
@@ -501,7 +550,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
     : 0;
 
   const fontPx = peripheralLetterFontPx(hexSizePx, letterSize);
-  const letterColor = peripheralLetterColor({ bubbleType, stimulusColor });
+  const letterColor = peripheralLetterColor({ bubbleType, stimulusColor: paintedStimulus });
   const fieldTitle = peripheralFieldLabel(field);
 
   const resetSession = () => {
@@ -539,7 +588,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         </div>
       ) : null}
 
-      {isLandscape && !gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {isLandscape && !gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={`Peripheral View · ${peripheralFieldLabel(field)}`}
           hint="Tap the triangle to start · keep eyes on center"
@@ -596,7 +645,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
               const isActive = Boolean(letter);
               const isPopping = poppingIds.has(cell.id);
               const isWrong = wrongIds.has(cell.id);
-              const paint = peripheralHexPaint({ bubbleType, isActive, stimulusColor });
+              const paint = peripheralHexPaint({ bubbleType, isActive, stimulusColor: paintedStimulus });
               const hexR = peripheralHexRenderRadius(hexSizePx);
               return (
                 <g
@@ -624,7 +673,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
                       dominantBaseline="central"
                       fill={
                         bubbleType === 'boundary'
-                          ? peripheralLetterColor({ bubbleType, stimulusColor })
+                          ? peripheralLetterColor({ bubbleType, stimulusColor: paintedStimulus })
                           : letterColor
                       }
                       fontWeight={900}
@@ -647,8 +696,15 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         ) : null}
       </div>
 
+      {!(isLandscape && gameStarted) && !isSettingsOpen && !isResultsOpen ? (
+        <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40">
+          <FullscreenToggleButton />
+        </div>
+      ) : null}
+
       {isLandscape && gameStarted ? (
         <div className={styles.fabRow}>
+          <FullscreenToggleButton />
           <button
             type="button"
             onClick={() => speakTarget(currentTarget)}
@@ -666,7 +722,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
             className={`${styles.targetFab} ${isAssistiveTouchOpen ? styles.targetFabOpen : ''}`}
             title="Current target — tap to open menu"
           >
-            <span className={styles.targetFabGlyph} style={{ color: stimulusColor }}>
+            <span className={styles.targetFabGlyph} style={{ color: paintedStimulus }}>
               {currentTarget || '—'}
             </span>
             <span className={styles.targetFabChevron}>
@@ -708,7 +764,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
           <button type="button" onClick={() => speakTarget(currentTarget)} className={styles.assistiveTargetCard}>
             <div className={styles.assistiveTargetLeft}>
               <span>Target:</span>
-              <strong style={{ color: stimulusColor }}>{currentTarget || '—'}</strong>
+              <strong style={{ color: paintedStimulus }}>{currentTarget || '—'}</strong>
             </div>
             <span className={styles.assistiveReplay}>
               <VolumeIcon className="w-3.5 h-3.5" /> Replay
@@ -759,12 +815,12 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
           <div className={styles.infoDivider} />
           <div className={styles.infoSectionLabel}>Live metrics</div>
           <InfoRow label="Correct" value={String(correctCount)} accent="#34D399" />
-          <InfoRow label="Wrong" value={String(wrongCount)} accent="#FB7185" />
+          <InfoRow label="Misses" value={String(wrongCount)} accent="#FB7185" />
           <InfoRow
             label="Batch"
             value={`${Math.min(batchIndex + 1, batchesPerSession)} / ${batchesPerSession}`}
           />
-          {currentTarget ? <InfoRow label="Target" value={currentTarget} accent={stimulusColor} /> : null}
+          {currentTarget ? <InfoRow label="Target" value={currentTarget} accent={paintedStimulus} /> : null}
         </div>
       ) : null}
 
@@ -790,6 +846,13 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         }}
       />
 
+      <HowToPlayManual
+        moduleId="peripheral_view"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen && (!sizeReady || isLandscape)}
         onClose={() => setIsSettingsOpen(false)}
@@ -805,6 +868,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
           }
           if (newSettings.stimulusColor) setStimulusColor(newSettings.stimulusColor);
           if (newSettings.bgColor) setEngineBgColor(newSettings.bgColor);
+          if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
           if (newSettings.letterSize != null) setLetterSize(clampPeripheralLetterSize(newSettings.letterSize));
           if (newSettings.peripheralTargetTimeoutSec != null) {
             setTargetTimeoutSec(clampPeripheralTargetTimeoutSec(newSettings.peripheralTargetTimeoutSec));
@@ -826,6 +890,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         batchesPerSession={batchesPerSession}
         stimulusColor={stimulusColor}
         bgColor={engineBgColor}
+        contrastSensitivity={contrastSensitivity}
         peripheralTargetTimeoutSec={targetTimeoutSec}
         peripheralBubbleType={bubbleType}
         sampleSymbol="A"

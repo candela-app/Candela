@@ -42,6 +42,8 @@ import {
   resetDirectionSenseMoveCue,
   shouldAppendTrailPoint,
   takeDirectionSenseMoveCue,
+  clinicalColorSessionFields,
+  getContrastAdjustedColor,
   reactionStatsFromMs,
   requestFullScreenSafe,
   getDeviceTier,
@@ -51,12 +53,16 @@ import {
   type DirectionSenseTrailPoint,
   type DirectionSenseTrial,
   type DirectionSenseTurnDirection,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
+import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './DirectionSenseGame.module.css';
 
@@ -107,8 +113,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const levelTitle = directionSenseLevelLabel(levelId);
 
   const [gameStarted, setGameStarted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<DirectionSenseSessionResultData | null>(null);
@@ -124,6 +129,8 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const [timeLimitSec, setTimeLimitSec] = useState(0);
   const [engineBgColor, setEngineBgColor] = useState(DEFAULT_DIRECTION_SENSE_BG);
   const [shapeColor, setShapeColor] = useState(DEFAULT_DIRECTION_SENSE_SHAPE_COLOR);
+  const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const displayShapeColor = getContrastAdjustedColor(shapeColor, engineBgColor, contrastSensitivity);
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [trial, setTrial] = useState<DirectionSenseTrial | null>(null);
@@ -142,6 +149,11 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   const [faceErrors, setFaceErrors] = useState(0);
   const [flipErrors, setFlipErrors] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const [durationSec, setDurationSec] = useState(0);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const trialShownAtRef = useRef<number | null>(null);
@@ -192,6 +204,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     setTimeLimitSec(nextTime);
     if (settings.bgColor) setEngineBgColor(settings.bgColor);
     if (settings.shapeColor) setShapeColor(settings.shapeColor);
+    if (settings.contrastSensitivity != null) setContrastSensitivity(settings.contrastSensitivity);
     return {
       choiceCount: nextChoice,
       trialsConfigured: nextTrials,
@@ -237,13 +250,14 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         deviceTier,
         faceErrors: stats.faceErrors,
         flipErrors: stats.flipErrors,
+        ...clinicalColorSessionFields(engineBgColor, shapeColor, contrastSensitivity),
       };
       setResultsData(data);
       setIsResultsOpen(true);
       setGameStarted(false);
       setTrial(null);
     },
-    [choiceCount, deviceTier, durationSec, isStraighten, lockedMode, patientName, shapeSizePx, timeLimitSec, trialsConfigured],
+    [choiceCount, deviceTier, durationSec, isStraighten, lockedMode, patientName, shapeSizePx, timeLimitSec, trialsConfigured, engineBgColor, shapeColor, contrastSensitivity],
   );
 
   const spawnTrial = useCallback(
@@ -303,15 +317,15 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
   );
 
   useEffect(() => {
-    if (!gameStarted || !startTime || isResultsOpen) return;
+    if (!gameStarted || !startTime || isResultsOpen || playBlocked) return;
     const id = window.setInterval(() => {
       setDurationSec(Math.max(1, Math.round((Date.now() - startTime) / 1000)));
     }, 500);
     return () => window.clearInterval(id);
-  }, [gameStarted, isResultsOpen, startTime]);
+  }, [gameStarted, isResultsOpen, startTime, playBlocked]);
 
   useEffect(() => {
-    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen) return;
+    if (!gameStarted || timeLimitSec <= 0 || isResultsOpen || playBlocked) return;
     if (timeLeft <= 0) {
       finishSession('timeout', {
         correct: correctCount,
@@ -325,7 +339,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
       });
       return;
     }
-    const id = window.setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    const id = window.setTimeout(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
     return () => window.clearTimeout(id);
   }, [
     clicks,
@@ -335,6 +349,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     flipErrors,
     gameStarted,
     isResultsOpen,
+    playBlocked,
     reactionTimes,
     startTime,
     timeLeft,
@@ -514,7 +529,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
     <div className={styles.shell} style={{ backgroundColor: engineBgColor }}>
       {notification ? <div className={styles.toast}>✓ {notification}</div> : null}
 
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           title={levelTitle}
           onStart={() => startGame()}
@@ -536,14 +551,17 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className={styles.settingsBtn}
-            aria-label="Open menu"
-            onClick={() => setIsMenuOpen(true)}
-          >
-            <SlidersIcon size={22} color="#94A3B8" />
-          </button>
+          <div className={styles.fabCluster}>
+            <FullscreenToggleButton />
+            <button
+              type="button"
+              className={styles.settingsBtn}
+              aria-label="Open menu"
+              onClick={() => setIsMenuOpen(true)}
+            >
+              <SlidersIcon size={22} color="#94A3B8" />
+            </button>
+          </div>
 
           <div className={styles.probeRow}>
             {isStraighten ? (
@@ -552,7 +570,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   <ShapeGlyph
                     shapeId={trial.shapeId}
                     pose={trial.probe}
-                    color={shapeColor}
+                    color={displayShapeColor}
                     size={shapeSizePx}
                   />
                 </div>
@@ -565,7 +583,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  style={{ ['--rotate-pad-border' as string]: shapeColor }}
+                  style={{ ['--rotate-pad-border' as string]: displayShapeColor }}
                   role="slider"
                   aria-label="Rotate the letter until it matches the reference"
                   aria-valuemin={0}
@@ -580,7 +598,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                     <ShapeGlyph
                       shapeId={trial.shapeId}
                       rotationDeg={rotateDeg}
-                      color={shapeColor}
+                      color={displayShapeColor}
                       size={Math.round(shapeSizePx * 3.2)}
                     />
                   </div>
@@ -610,7 +628,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
             ) : (
               <>
                 <div className={styles.probeCard}>
-                  <ShapeGlyph shapeId={trial.shapeId} pose={trial.probe} color={shapeColor} size={shapeSizePx} />
+                  <ShapeGlyph shapeId={trial.shapeId} pose={trial.probe} color={displayShapeColor} size={shapeSizePx} />
                 </div>
                 <div className={styles.arrowCard} aria-hidden>
                   <svg
@@ -657,7 +675,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
                   <ShapeGlyph
                     shapeId={trial.shapeId}
                     pose={opt.pose}
-                    color={shapeColor}
+                    color={displayShapeColor}
                     size={Math.round(shapeSizePx * 0.92)}
                   />
                 </button>
@@ -671,6 +689,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           setIsMenuOpen(false);
           if (onExit) onExit();
@@ -710,6 +729,13 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         ]}
       />
 
+      <HowToPlayManual
+        moduleId="direction_sense"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -734,6 +760,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         timeLimitSec={timeLimitSec}
         bgColor={engineBgColor}
         shapeColor={shapeColor}
+        contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
           <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">

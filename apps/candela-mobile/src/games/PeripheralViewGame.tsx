@@ -33,8 +33,11 @@ import {
   type PeripheralField,
   type PeripheralSessionResultData,
   type PeripheralTrialOutcome,
+  useHowToPlayGate,
+  usePauseShiftedClock,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
 import { ChevronUpIcon, ReplayIcon, SlidersIcon, VolumeIcon } from '../components/icons';
@@ -62,7 +65,7 @@ export function PeripheralViewGame({
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsData, setResultsData] = useState<PeripheralSessionResultData | null>(null);
   const [patientName, setPatientName] = useState(sessionDisplayName(session));
@@ -100,10 +103,17 @@ export function PeripheralViewGame({
     stimuliPresented: 0,
   });
   const startTimeRef = useRef<number | null>(null);
+
+  const sessionFrozen = playBlocked || isResultsOpen || isAssistiveTouchOpen;
+  usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
+    setStartTime((prev) => (prev == null ? prev : prev + delta));
+    if (startTimeRef.current != null) startTimeRef.current += delta;
+    setTargetShownAt((prev) => (prev == null ? prev : prev + delta));
+  }, startTime);
   const cellsRef = useRef<HexCell[]>([]);
   const playAreaRef = useRef(playArea);
   const currentTargetRef = useRef('');
-  const isSettingsOpenRef = useRef(isSettingsOpen);
+  const isSettingsOpenRef = useRef(playBlocked);
   const batchesPerSessionRef = useRef(batchesPerSession);
   const gameStartedRef = useRef(gameStarted);
   const wasLandscapeRef = useRef(false);
@@ -171,8 +181,8 @@ export function PeripheralViewGame({
   }, [batchesPerSession]);
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen;
-  }, [isSettingsOpen]);
+    isSettingsOpenRef.current = playBlocked;
+  }, [playBlocked]);
 
   useEffect(() => {
     gameStartedRef.current = gameStarted;
@@ -256,13 +266,20 @@ export function PeripheralViewGame({
   }, [clearTargetTimeout, handleTargetTimeout]);
 
   useEffect(() => {
-    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || isSettingsOpen) {
+    if (!gameStarted || !currentTarget || targetTimeoutSec <= 0 || playBlocked || isAssistiveTouchOpen) {
       clearTargetTimeout();
       return;
     }
-    scheduleTargetTimeout();
+    clearTargetTimeout();
+    const remaining =
+      targetShownAt != null
+        ? Math.max(0, targetTimeoutSec * 1000 - (performance.now() - targetShownAt))
+        : targetTimeoutSec * 1000;
+    targetTimeoutTimerRef.current = setTimeout(() => {
+      handleTargetTimeout();
+    }, remaining);
     return clearTargetTimeout;
-  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, isSettingsOpen, scheduleTargetTimeout, clearTargetTimeout]);
+  }, [gameStarted, currentTarget, targetTimeoutSec, targetShownAt, playBlocked, isAssistiveTouchOpen, handleTargetTimeout, clearTargetTimeout]);
 
   useEffect(() => () => clearTargetTimeout(), [clearTargetTimeout]);
 
@@ -515,7 +532,7 @@ export function PeripheralViewGame({
         </View>
       ) : null}
 
-      {isLandscape && !gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {isLandscape && !gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View
           style={{
             ...StyleSheetAbsolute,
@@ -915,6 +932,13 @@ export function PeripheralViewGame({
         }}
       />
 
+      <HowToPlayManual
+        moduleId="peripheral_view"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
