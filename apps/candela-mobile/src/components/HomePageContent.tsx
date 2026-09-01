@@ -123,6 +123,15 @@ const MODULES = [
     bg: '#F0F9FF',
     Icon: TargetIcon,
   },
+  {
+    id: 'computer_vision',
+    title: 'Look Pursuit',
+    body: 'Look at the bright target among dim decoys — same Pursuit, look to pop.',
+    badge: 'For All Devices',
+    accent: '#0E7490',
+    bg: '#ECFEFF',
+    Icon: TargetIcon,
+  },
 ] as const;
 
 export function HomePageContent({

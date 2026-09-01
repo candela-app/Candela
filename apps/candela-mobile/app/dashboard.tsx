@@ -9,6 +9,7 @@ import {
   MODULE_LEVELS,
   UI_MODULE_TO_CATALOG,
   directionSensePrescribedAllows,
+  resolveAllowedModuleIds,
   familyForModuleId,
   getGameFamily,
   isTherapyFamilyId,
@@ -16,6 +17,7 @@ import {
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { ScreenLoader } from '../src/components/ScreenLoader';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -41,6 +43,7 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'pattern_match', title: 'Hold the Code', body: 'Hold a flashed code and tap every exact match', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
   { uiId: 'location_memory', title: 'Location Memory', body: 'Explore a grid, then recall where each number was', badge: 'For All Devices', accent: '#D97706', bar: '#FBBF24' },
   { uiId: 'direction_sense', title: 'Direction Sense', body: 'Face & Flip: pick the 90° turn. Straighten: spin the letter to match.', badge: 'For All Devices', accent: '#0284C7', bar: '#38BDF8' },
+  { uiId: 'computer_vision', title: 'Look Pursuit', body: 'Look at the bright target among dim decoys — same Pursuit, look to pop', badge: 'For All Devices', accent: '#0E7490', bar: '#22D3EE' },
 ];
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -56,7 +59,7 @@ export default function DashboardScreen() {
   const pageParam = firstParam(params.page);
   const { session, loading } = useAuth();
   const { fs, s, pad, columns, width } = useLayout();
-  const allowedModuleIds = new Set(session?.allowedModuleIds ?? []);
+  const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
 
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
@@ -75,7 +78,7 @@ export default function DashboardScreen() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
-    if (catalogId === 'pursuit') {
+    if (catalogId === 'pursuit' || catalogId === 'computer_vision') {
       const known = MODULE_LEVELS.pursuit.map((level) => level.id);
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
@@ -107,13 +110,8 @@ export default function DashboardScreen() {
     [columns, width, pad, s],
   );
 
-  if (loading || !session || session.user.role !== 'patient') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
-        <Text style={{ padding: 32, textAlign: 'center', color: colors.muted, fontWeight: '600' }}>Loading…</Text>
-      </View>
-    );
+  if (session?.user.role !== 'patient') {
+    return loading ? <ScreenLoader /> : null;
   }
 
   const launchRotatory = (mode: string, variant: string) => {
@@ -148,6 +146,9 @@ export default function DashboardScreen() {
   };
   const launchLocationMemory = (levelId: string = 'standard') => {
     router.push(`/play/location-memory?level=${levelId}` as never);
+  };
+  const launchComputerVision = (pattern: string) => {
+    router.push(`/play/computer-vision?pattern=${pattern}` as never);
   };
 
   const backToModules = () => router.replace('/dashboard');
@@ -377,6 +378,24 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Hold a code — tap every exact match
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (moduleParam === 'computer_vision' && canPlayUiModule('computer_vision')) {
+    const levels = MODULE_LEVELS.computer_vision
+      .filter((level) => isLevelAllowed('computer_vision', level.id))
+      .map((level) => variantCard(level.name, () => launchComputerVision(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToFamily} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Look Pursuit</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Select a movement pattern to begin
           </Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>
