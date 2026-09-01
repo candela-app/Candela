@@ -63,6 +63,9 @@ See `.env.example`. Do not commit `.env`.
 | `ADMIN_SEED_OVERWRITE` | no | `true` updates passwords for emails that already exist; leave `false` after rotating |
 | `MAIL_TRANSPORT` | no | `smtp` to send, `log` to print confirm links locally |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | for smtp | Placeholders only in `.env.example`. Real values in local `.env` / Render |
+| `SUPABASE_URL` | Familiar Faces | Project URL |
+| `SUPABASE_SECRET_KEY` | Familiar Faces | Server-only secret key — never put this on the website |
+| `SUPABASE_STORAGE_BUCKET` | no | Default `familiar-faces` |
 
 DocID attach/change/transfer: [docs/DOCID_AND_MAIL.md](../../docs/DOCID_AND_MAIL.md).
 

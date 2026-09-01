@@ -14,6 +14,7 @@ import { PatternMatchGame } from '@/components/patternMatchModule/PatternMatchGa
 import { LocationMemoryGame } from '@/components/locationMemoryModule/LocationMemoryGame';
 import { DirectionSenseGame } from '@/components/directionSenseModule/DirectionSenseGame';
 import { LookPursuitGame } from '@/components/lookPursuitModule/LookPursuitGame';
+import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFacesGame';
 import {
   EyeIcon,
   AnalyticsIcon,
@@ -36,6 +37,7 @@ import {
   isTherapyFamilyId,
   resolveBeePathType,
   resolvePursuitPattern,
+  resolveFamiliarFacesLevelId,
   resolvePeripheralField,
   directionSensePrescribedAllows,
   normalizeDirectionSenseLevelId,
@@ -53,7 +55,7 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
-type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision';
+type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
 function MainContent() {
   const router = useRouter();
@@ -122,6 +124,7 @@ function MainContent() {
   const [locationMemoryLevelId, setLocationMemoryLevelId] = useState<string>('standard');
   const [directionSenseLevelId, setDirectionSenseLevelId] = useState<string>('face');
   const [computerVisionPattern, setComputerVisionPattern] = useState<PursuitMovementPattern>('linear_bounce');
+  const [familiarFacesLevelId, setFamiliarFacesLevelId] = useState('name_it');
 
   // Sync state from URL Query Params
   useEffect(() => {
@@ -224,6 +227,12 @@ function MainContent() {
         setSelectedFamily(familyParam || 'tap_timing');
         setView('game');
       }
+    } else if (gameParam === 'familiar_faces') {
+      setFamiliarFacesLevelId(resolveFamiliarFacesLevelId(searchParams.get('variant')));
+      setSelectedTherapy('vision');
+      setSelectedModule('familiar_faces');
+      setSelectedFamily(familyParam || 'glimpse_hold');
+      setView('play_familiar_faces');
     } else if (gameParam === 'mobile_target' || (moduleParam === 'mobile_target' && modeParam)) {
       setMobileTargetConfig({
         mode: modeParam || 'alphabets',
@@ -526,6 +535,20 @@ function MainContent() {
     });
   };
 
+  const handleLaunchFamiliarFaces = (levelId: string = 'name_it') => {
+    requestFullScreenSafe();
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      family: familyQueryFor('familiar_faces'),
+      module: 'familiar_faces',
+      game: 'familiar_faces',
+      mode: null,
+      variant: levelId,
+      board: null,
+    });
+  };
+
   const handleExitGame = () => {
     if (selectedModule) {
       updateQueryParams({
@@ -543,7 +566,7 @@ function MainContent() {
     }
   };
 
-  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision';
+  const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision' || view === 'play_familiar_faces';
 
   const visibleFamilies = GAME_FAMILIES.filter((family) =>
     family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
@@ -727,6 +750,7 @@ function MainContent() {
               {selectedModule === 'location_memory' && 'Location Memory'}
               {selectedModule === 'direction_sense' && 'Direction Sense'}
               {selectedModule === 'computer_vision' && 'Look Pursuit'}
+              {selectedModule === 'familiar_faces' && 'Familiar Faces'}
             </h2>
             <p className="text-[13px] text-shell-muted font-medium mt-1">
               {selectedModule === 'wheel' && 'Select an exercise mode to begin'}
@@ -741,6 +765,7 @@ function MainContent() {
               {selectedModule === 'location_memory' && 'Explore the grid, then find each number from memory'}
               {selectedModule === 'direction_sense' && 'See a letter and a rotate arrow — pick the matching 90° turn'}
               {selectedModule === 'computer_vision' && 'Select a movement pattern to begin'}
+              {selectedModule === 'familiar_faces' && 'Add family photos, then name, find, or hold a face'}
             </p>
           </div>
 
@@ -1049,6 +1074,31 @@ function MainContent() {
               )}
             </main>
           )}
+
+          {selectedModule === 'familiar_faces' && (
+            <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+              {MODULE_LEVELS.familiar_faces.map((level) =>
+                isLevelAllowed('familiar_faces', level.id) ? (
+                  <button
+                    type="button"
+                    key={level.id}
+                    className={VARIANT_TILE}
+                    onClick={() => handleLaunchFamiliarFaces(level.id)}
+                  >
+                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                  </button>
+                ) : null,
+              )}
+              {MODULE_LEVELS.familiar_faces.every((level) => !isLevelAllowed('familiar_faces', level.id)) && (
+                <div className={EMPTY_LEVELS}>
+                  <h3 className="text-lg font-bold text-shell-ink">No levels assigned yet</h3>
+                  <p className="text-[13px] text-shell-muted mt-2">
+                    Your doctor has not enabled any specific levels for this module.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
         </>
       )}
 
@@ -1115,6 +1165,12 @@ function MainContent() {
         canPlayUiModule('computer_vision') &&
         isLevelAllowed('computer_vision', computerVisionPattern) && (
           <LookPursuitGame initialMovementPattern={computerVisionPattern} onExit={handleExitGame} />
+        )}
+
+      {view === 'play_familiar_faces' &&
+        canPlayUiModule('familiar_faces') &&
+        isLevelAllowed('familiar_faces', familiarFacesLevelId) && (
+          <FamiliarFacesGame levelId={familiarFacesLevelId} onExit={handleExitGame} />
         )}
     </div>
   );

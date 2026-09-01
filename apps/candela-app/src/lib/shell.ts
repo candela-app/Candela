@@ -117,4 +117,12 @@ export const MODULE_CARDS: ModuleCard[] = [
     accent: '#0E7490',
     bar: '#22D3EE',
   },
+  {
+    uiId: 'familiar_faces',
+    title: 'Familiar Faces',
+    body: 'Name, find, or hold a face you know',
+    badge: 'For All Devices',
+    accent: '#BE123C',
+    bar: '#FB7185',
+  },
 ];

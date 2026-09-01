@@ -238,7 +238,8 @@ export type TherapyModuleId =
   | 'pattern_match'
   | 'location_memory'
   | 'direction_sense'
-  | 'computer_vision';
+  | 'computer_vision'
+  | 'familiar_faces';
 
 export type TherapyFamilyId =
   | 'spin_field'
@@ -433,6 +434,18 @@ export interface GeoboardSessionResultData extends SessionResultData {
   penColorName: string;
   starRating: number;
   status: 'completed' | 'incomplete';
+}
+
+export type FamiliarFacesLevelId = 'name_it' | 'find_them' | 'flash_match';
+
+export interface FamiliarFacesSessionResultData extends SessionResultData {
+  levelId: FamiliarFacesLevelId;
+  flashMs: number;
+  photosConfigured: number;
+  trialsCompleted: number;
+  endedBy: 'cleared';
+  deviceTier: DeviceTier;
+  medianReactionSec: number;
 }
 
 

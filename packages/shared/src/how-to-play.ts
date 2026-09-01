@@ -134,6 +134,16 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
       { title: 'Look to pop', body: 'Hold your look on the bright target until it pops. Several short trials make one session.' },
     ],
   },
+  familiar_faces: {
+    moduleId: 'familiar_faces',
+    title: GAME_CATALOG.familiar_faces.name,
+    subtitle: 'Name, find, or hold a face you know',
+    steps: [
+      { title: 'Add the people', body: 'A parent uploads photos and types who each person is — Mother, Nani, or any name you use.' },
+      { title: 'Watch the prompt', body: 'You may see one face to name, all faces to find a relation, or a face that flashes then hides.' },
+      { title: 'Tap the match', body: 'Tap the relation or the photo that matches. After every photo, the results card opens.' },
+    ],
+  },
 };
 
 export const HOW_TO_PLAY_CLAP_STEP: HowToPlayStep = {
