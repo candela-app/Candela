@@ -77,3 +77,53 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
 export function fetchSession() {
   return api<SessionUser>('/api/auth/me');
 }
+
+export type FamiliarFaceRecord = {
+  id: string;
+  relationLabel: string;
+  imageUrl: string;
+  createdAt: string;
+};
+
+async function apiForm<T>(path: string, form: FormData, retry = true): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  });
+
+  if (res.status === 401 && retry) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      return apiForm<T>(path, form, false);
+    }
+  }
+
+  const body = await parseBody(res);
+  if (!res.ok) {
+    throw new ApiError(res.status, errorMessage(body, res.statusText));
+  }
+  return body as T;
+}
+
+export function listFamiliarFaces() {
+  return api<FamiliarFaceRecord[]>('/api/familiar-faces');
+}
+
+export function uploadFamiliarFace(file: File, relationLabel: string) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('relationLabel', relationLabel);
+  return apiForm<FamiliarFaceRecord>('/api/familiar-faces', form);
+}
+
+export function updateFamiliarFaceLabel(id: string, relationLabel: string) {
+  return api<FamiliarFaceRecord>(`/api/familiar-faces/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ relationLabel }),
+  });
+}
+
+export function deleteFamiliarFace(id: string) {
+  return api<{ ok?: boolean }>(`/api/familiar-faces/${id}`, { method: 'DELETE' });
+}

@@ -35,6 +35,9 @@ graph LR
 | `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
 | `GOOGLE_CLIENT_ID_WEB` | Google Sign-In | Web OAuth client ID | `….apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_ID_ANDROID` | Google Sign-In | Android OAuth client ID | `….apps.googleusercontent.com` |
+| `SUPABASE_URL` | Familiar Faces | Project URL, e.g. `https://PROJECT_REF.supabase.co` | set on Render / local `.env` |
+| `SUPABASE_SECRET_KEY` | Familiar Faces | Server-only secret key (never put this on Vercel) | set on Render / local `.env` |
+| `SUPABASE_STORAGE_BUCKET` | Familiar Faces | Private bucket name | `familiar-faces` |
 
 ### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
 

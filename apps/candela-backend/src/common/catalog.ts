@@ -11,6 +11,7 @@ export const ALL_MODULE_IDS = [
   'location_memory',
   'direction_sense',
   'computer_vision',
+  'familiar_faces',
 ] as const;
 
 export type TherapyModuleId = (typeof ALL_MODULE_IDS)[number];

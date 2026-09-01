@@ -14,6 +14,7 @@ export * from './pattern-match-logic';
 export * from './location-memory-logic';
 export * from './direction-sense-logic';
 export * from './computer-vision-logic';
+export * from './familiar-faces-logic';
 export * from './celebration';
 export * from './clap-synth';
 export * from './how-to-play';
