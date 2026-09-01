@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppHeader } from '../src/components/AppHeader';
+import { ScreenLoader } from '../src/components/ScreenLoader';
 import { DocIdRequestCard } from '../src/components/DocIdRequestCard';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
@@ -24,12 +25,7 @@ export default function DocIdScreen() {
   }, [loading, session, router]);
 
   if (loading || !session || session.user.role !== 'patient') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader />
-        <Text style={{ padding: 32, textAlign: 'center', color: colors.muted, fontWeight: '600' }}>Loading…</Text>
-      </View>
-    );
+    return <ScreenLoader />;
   }
 
   return (

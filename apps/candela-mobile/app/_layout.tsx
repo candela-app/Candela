@@ -19,7 +19,14 @@ export default function RootLayout() {
         <AuthProvider>
           <StatusBar style="dark" />
           <Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: 'fade' }}>
-            <Stack.Screen name="index" />
+            <Stack.Screen name="index" options={{ animation: 'none' }} />
+            <Stack.Screen name="login" options={{ animation: 'none' }} />
+            <Stack.Screen name="signup" options={{ animation: 'none' }} />
+            <Stack.Screen name="oauth" options={{ animation: 'none' }} />
+            <Stack.Screen name="dashboard" options={{ animation: 'none' }} />
+            <Stack.Screen name="docid" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin" options={{ animation: 'none' }} />
+            <Stack.Screen name="doctor" options={{ animation: 'none' }} />
             <Stack.Screen
               name="play/geoboard"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
@@ -38,6 +45,10 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="play/pursuit"
+              options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="play/computer-vision"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}
             />
             <Stack.Screen

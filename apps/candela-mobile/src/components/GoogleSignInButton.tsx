@@ -5,7 +5,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { GOOGLE_WEB_CLIENT_ID, googleOAuthRedirectUri } from '../lib/google';
+import { GOOGLE_WEB_CLIENT_ID, consumeGoogleIdToken, googleOAuthRedirectUri } from '../lib/google';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 
@@ -14,6 +14,8 @@ WebBrowser.maybeCompleteAuthSession();
 const GOOGLE_DISCOVERY: AuthSession.DiscoveryDocument = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
 };
+
+const DISMISS_HOLD_MS = 2500;
 
 function GoogleMark({ size }: { size: number }) {
   return (
@@ -38,22 +40,35 @@ function GoogleMark({ size }: { size: number }) {
   );
 }
 
+function readIdTokenFromUrl(url: string): string | null {
+  const hash = url.split('#')[1];
+  const query = url.split('?')[1]?.split('#')[0];
+  return (
+    (hash ? new URLSearchParams(hash).get('id_token') : null) ??
+    (query ? new URLSearchParams(query).get('id_token') : null)
+  );
+}
+
 export function GoogleSignInButton({
   disabled,
   busy,
   onIdToken,
+  returnPath = 'login',
 }: {
   disabled?: boolean;
   busy?: boolean;
   onIdToken: (idToken: string) => Promise<void>;
+  returnPath?: 'login' | 'signup';
 }) {
   const { fs, s } = useLayout();
   const onIdTokenRef = useRef(onIdToken);
   onIdTokenRef.current = onIdToken;
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nonce, setNonce] = useState<string | null>(null);
+  const [prompting, setPrompting] = useState(false);
   const returnTo = useMemo(
-    () => AuthSession.makeRedirectUri({ scheme: 'candela', path: 'oauth' }),
-    [],
+    () => AuthSession.makeRedirectUri({ scheme: 'candela', path: returnPath }),
+    [returnPath],
   );
 
   useEffect(() => {
@@ -64,21 +79,13 @@ export function GoogleSignInButton({
 
   useEffect(() => {
     function takeIdToken(url: string): void {
-      const hash = url.split('#')[1];
-      const query = url.split('?')[1]?.split('#')[0];
-      const token =
-        (hash ? new URLSearchParams(hash).get('id_token') : null) ??
-        (query ? new URLSearchParams(query).get('id_token') : null);
-      if (token) {
-        void onIdTokenRef.current(token);
+      const token = readIdTokenFromUrl(url);
+      if (!token || !consumeGoogleIdToken(token)) {
+        return;
       }
+      void onIdTokenRef.current(token);
     }
     const sub = Linking.addEventListener('url', ({ url }) => takeIdToken(url));
-    void Linking.getInitialURL().then((url) => {
-      if (url) {
-        takeIdToken(url);
-      }
-    });
     return () => sub.remove();
   }, []);
 
@@ -100,17 +107,57 @@ export function GoogleSignInButton({
       return;
     }
     const idToken = response.params.id_token;
-    if (idToken) {
+    if (idToken && consumeGoogleIdToken(idToken)) {
       void onIdTokenRef.current(idToken);
     }
   }, [response]);
 
+  useEffect(() => {
+    if (!busy) {
+      return;
+    }
+    if (dismissTimer.current) {
+      clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+    }
+    setPrompting(false);
+  }, [busy]);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimer.current) {
+        clearTimeout(dismissTimer.current);
+      }
+    };
+  }, []);
+
   const ready = Boolean(request && nonce);
+  const spinning = Boolean(busy || prompting);
+
+  async function startGoogle(): Promise<void> {
+    if (dismissTimer.current) {
+      clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+    }
+    setPrompting(true);
+    const result = await promptAsync({ showInRecents: true });
+    if (result.type === 'success') {
+      return;
+    }
+    if (result.type === 'cancel' || result.type === 'error') {
+      setPrompting(false);
+      return;
+    }
+    dismissTimer.current = setTimeout(() => {
+      setPrompting(false);
+      dismissTimer.current = null;
+    }, DISMISS_HOLD_MS);
+  }
 
   return (
     <Pressable
-      disabled={disabled || busy || !ready}
-      onPress={() => void promptAsync({ showInRecents: true })}
+      disabled={disabled || spinning || !ready}
+      onPress={() => void startGoogle()}
       style={{
         borderWidth: 1,
         borderColor: colors.border,
@@ -123,10 +170,10 @@ export function GoogleSignInButton({
         gap: s(10),
         backgroundColor: colors.white,
         minHeight: s(48),
-        opacity: disabled && !busy ? 0.6 : 1,
+        opacity: disabled && !spinning ? 0.6 : 1,
       }}
     >
-      {busy ? (
+      {spinning ? (
         <ActivityIndicator color={colors.text} />
       ) : (
         <>

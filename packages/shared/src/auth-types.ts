@@ -1,3 +1,5 @@
+import { ALL_MODULE_IDS } from './game-registry';
+
 export type UserRole = 'admin' | 'doctor' | 'patient';
 export type PatientOrigin = 'doctor_created' | 'self_signup';
 export type DocIdRequestSource = 'self' | 'change' | 'internal';
@@ -88,6 +90,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   pattern_match: 'pattern_match',
   location_memory: 'location_memory',
   direction_sense: 'direction_sense',
+  computer_vision: 'computer_vision',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -102,4 +105,20 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   pattern_match: 'pattern_match',
   location_memory: 'location_memory',
   direction_sense: 'direction_sense',
+  computer_vision: 'computer_vision',
 };
+
+export function resolveAllowedModuleIds(session: {
+  user: { role: string };
+  allowedModuleIds?: string[];
+  patient?: { origin?: string; doctorId?: string | null } | null;
+} | null | undefined): string[] {
+  const fromApi = session?.allowedModuleIds ?? [];
+  if (!session || session.user.role !== 'patient') {
+    return fromApi;
+  }
+  if (session.patient?.origin === 'self_signup' || !session.patient?.doctorId) {
+    return Array.from(new Set([...fromApi, ...ALL_MODULE_IDS]));
+  }
+  return fromApi;
+}

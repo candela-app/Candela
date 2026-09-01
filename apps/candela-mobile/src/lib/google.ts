@@ -12,4 +12,14 @@ export function googleOAuthRedirectUri(): string {
   return GOOGLE_OAUTH_REDIRECT_URI;
 }
 
+const consumedIdTokens = new Set<string>();
+
+export function consumeGoogleIdToken(token: string): boolean {
+  if (consumedIdTokens.has(token)) {
+    return false;
+  }
+  consumedIdTokens.add(token);
+  return true;
+}
+
 export const googleExpoRedirectUri = googleOAuthRedirectUri;

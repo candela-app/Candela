@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@candela/shared": "*",
+    "@mediapipe/tasks-vision": "0.10.18",
     "html-to-image": "^1.11.13",
     "lucide-react": "^1.30.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "webeyetrack": "^0.0.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

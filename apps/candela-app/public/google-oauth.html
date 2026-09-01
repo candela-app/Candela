@@ -4,9 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kandela</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f4f7fc; }
+      .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; }
+      .spin {
+        width: 32px; height: 32px; border-radius: 9999px;
+        border: 2px solid #cbd5e1; border-top-color: #1e293b;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
-  <body style="font-family: sans-serif; background: #f4f7fc; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-    <p id="msg" style="font-weight: 600; color: #475569;">Returning to Kandela…</p>
+  <body>
+    <div class="wrap"><div class="spin"></div></div>
     <script>
       (function () {
         var params = new URLSearchParams(window.location.search);
@@ -20,7 +30,6 @@
         var returnTo = params.get('state') || '';
         var ok = /^(exp:\/\/|candela:\/\/)/i.test(returnTo);
         if (!idToken || !ok) {
-          document.getElementById('msg').textContent = 'Signed in. Return to the Kandela app.';
           return;
         }
         var join = returnTo.indexOf('?') >= 0 ? '&' : '?';
