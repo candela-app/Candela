@@ -91,6 +91,7 @@ export const UI_MODULE_TO_CATALOG: Record<string, string> = {
   location_memory: 'location_memory',
   direction_sense: 'direction_sense',
   computer_vision: 'computer_vision',
+  familiar_faces: 'familiar_faces',
 };
 
 export const CATALOG_TO_UI_MODULE: Record<string, string> = {
@@ -106,6 +107,7 @@ export const CATALOG_TO_UI_MODULE: Record<string, string> = {
   location_memory: 'location_memory',
   direction_sense: 'direction_sense',
   computer_vision: 'computer_vision',
+  familiar_faces: 'familiar_faces',
 };
 
 export function resolveAllowedModuleIds(session: {

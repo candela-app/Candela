@@ -3,15 +3,19 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { DocIdModule } from './docid/docid.module';
+import { FamiliarFacesModule } from './familiar-faces/familiar-faces.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BACKEND_ENV_PATH, loadBackendEnv } from './common/load-env';
 import { postgresConnectionUrl } from './common/postgres-url';
+
+loadBackendEnv();
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: BACKEND_ENV_PATH,
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -27,6 +31,7 @@ import { postgresConnectionUrl } from './common/postgres-url';
     }),
     AuthModule,
     DocIdModule,
+    FamiliarFacesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

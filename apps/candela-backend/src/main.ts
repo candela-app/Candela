@@ -2,9 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { loadBackendEnv } from './common/load-env';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  loadBackendEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.set('trust proxy', 1);
   app.use(cookieParser());

@@ -92,6 +92,14 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile', 'tablet'],
   },
+  familiar_faces: {
+    id: 'familiar_faces',
+    name: 'Familiar Faces',
+    description:
+      'Know the people around you — name them, find them, then hold a flashed face and pick it back.',
+    supportedDevices: ['mobile', 'tablet', 'tv'],
+    recommendedDevices: ['tablet', 'mobile'],
+  },
 };
 
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
@@ -183,6 +191,11 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'random_walk', name: 'Random Walk' },
     { id: 'freeze_drift', name: 'Freeze & Drift' },
   ],
+  familiar_faces: [
+    { id: 'name_it', name: 'Name It' },
+    { id: 'find_them', name: 'Find Them' },
+    { id: 'flash_match', name: 'Hold the Face' },
+  ],
 };
 
 export function resolveBeePathType(value?: string | null): BeePathType | 'auto' {
@@ -242,7 +255,7 @@ export const GAME_FAMILIES: GameFamily[] = [
     body: 'See it briefly, then use what you held',
     accent: '#BE123C',
     bar: '#FB7185',
-    moduleIds: ['pattern_match', 'location_memory', 'direction_sense'],
+    moduleIds: ['pattern_match', 'location_memory', 'direction_sense', 'familiar_faces'],
   },
   {
     id: 'trace_build',

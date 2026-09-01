@@ -1,0 +1,174 @@
+.shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  color: #f8fafc;
+  user-select: none;
+  -webkit-user-select: none;
+  background: #0b0f14;
+}
+
+.playField {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.4vh, 24px);
+  padding: 72px 16px 88px;
+  box-sizing: border-box;
+}
+
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hudText {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.hudAccent {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fb7185;
+}
+
+.menuFab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 10px;
+  color: #cbd5e1;
+  pointer-events: auto;
+}
+
+.prompt {
+  margin: 0;
+  max-width: 640px;
+  text-align: center;
+  font-size: clamp(18px, 3vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+}
+
+.probePhoto {
+  width: min(58vmin, 320px);
+  height: min(58vmin, 320px);
+  border-radius: 28px;
+  overflow: hidden;
+  border: 3px solid rgba(251, 113, 133, 0.7);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  background: #111827;
+  padding: 0;
+  cursor: pointer;
+}
+
+.probePhoto img,
+.choicePhoto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.choiceGrid {
+  display: grid;
+  gap: 12px;
+  width: min(92vw, 720px);
+  justify-content: center;
+}
+
+/* Phones: two photos stack so each face stays large enough to tap. */
+.choiceGridTwo {
+  grid-template-columns: minmax(0, 1fr);
+  width: min(72vw, 280px);
+  gap: 10px;
+}
+
+.choiceGridTwo .choicePhoto {
+  max-height: 34vh;
+}
+
+@media (min-width: 768px) {
+  .choiceGridTwo {
+    width: min(92vw, 720px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .choiceGridTwo .choicePhoto {
+    max-height: none;
+  }
+}
+
+.choicePhoto,
+.choiceLabel {
+  appearance: none;
+  border-radius: 22px;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  overflow: hidden;
+  cursor: pointer;
+  color: #f8fafc;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.choicePhoto {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+}
+
+.choiceLabel {
+  min-height: 64px;
+  padding: 14px 18px;
+  font-size: clamp(16px, 2.4vw, 22px);
+}
+
+.choiceWrong {
+  border-color: #fb7185;
+  animation: shake 0.28s ease;
+}
+
+.choiceCorrect {
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.4);
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.tapHint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.7);
+}

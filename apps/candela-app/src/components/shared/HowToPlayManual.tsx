@@ -183,6 +183,19 @@ function HowToPlayVisual({ moduleId }: { moduleId: TherapyModuleId }) {
           </div>
         </VisualFrame>
       );
+    case 'familiar_faces':
+      return (
+        <VisualFrame>
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-rose-400/90 border-2 border-rose-200" />
+            <span className="text-slate-500 font-black text-xl">→</span>
+            <div className="flex flex-col gap-1.5">
+              <span className="px-3 py-1 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black">Mother</span>
+              <span className="px-3 py-1 rounded-full bg-gray-800 text-gray-200 text-[10px] font-black">Father</span>
+            </div>
+          </div>
+        </VisualFrame>
+      );
     default:
       return null;
   }
