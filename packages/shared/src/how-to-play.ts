@@ -124,6 +124,16 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
       { title: 'Pick the match', body: 'Tap the option that matches the turned letter.' },
     ],
   },
+  computer_vision: {
+    moduleId: 'computer_vision',
+    title: GAME_CATALOG.computer_vision.name,
+    subtitle: 'Track the bright target and pop it by looking',
+    steps: [
+      { title: 'Face the camera', body: 'Keep your face in view. The session pauses if the camera loses you.' },
+      { title: 'Watch the bright bubble', body: 'One bubble is bright. Dim bubbles are decoys — ignore those.' },
+      { title: 'Look to pop', body: 'Hold your look on the bright target until it pops. Several short trials make one session.' },
+    ],
+  },
 };
 
 export const HOW_TO_PLAY_CLAP_STEP: HowToPlayStep = {
