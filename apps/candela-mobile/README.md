@@ -31,7 +31,7 @@ See [WALKTHROUGH.md](./WALKTHROUGH.md) for screens and architecture.
 
 ## CI APK builds (EAS)
 
-Pushes to `main` that touch `apps/candela-mobile/**` or `packages/shared/**` trigger an Android APK build on Expo EAS. Slack notifications go to the `#mobile-app` channel.
+Pushes to `main` that touch `apps/candela-mobile/**` or `packages/shared/**` trigger an Android APK build on Expo EAS. Website-only merges skip that job; run **EAS Android APK** from GitHub Actions to start one anyway. Slack notifications go to the `#mobile-app` channel.
 
 CI tries **candelaapp** first, then **satvik-27s-team**, then **srisais-team** when that account has used its Free-plan Android builds for the month.
 
