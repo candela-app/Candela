@@ -13,7 +13,7 @@ import { NumberSearchGame } from '@/components/numberSearchModule/NumberSearchGa
 import { PatternMatchGame } from '@/components/patternMatchModule/PatternMatchGame';
 import { LocationMemoryGame } from '@/components/locationMemoryModule/LocationMemoryGame';
 import { DirectionSenseGame } from '@/components/directionSenseModule/DirectionSenseGame';
-import { LookPursuitGame } from '@/components/lookPursuitModule/LookPursuitGame';
+import { GazeHoldGame } from '@/components/lookPursuitModule/GazeHoldGame';
 import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFacesGame';
 import {
   EyeIcon,
@@ -37,6 +37,7 @@ import {
   isTherapyFamilyId,
   resolveBeePathType,
   resolvePursuitPattern,
+  resolveLookPursuitPattern,
   resolveFamiliarFacesLevelId,
   resolvePeripheralField,
   directionSensePrescribedAllows,
@@ -90,12 +91,18 @@ function MainContent() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
-    if (catalogId === 'pursuit' || catalogId === 'computer_vision') {
+    if (catalogId === 'pursuit') {
       const known = MODULE_LEVELS.pursuit.map((level) => level.id);
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
+    if (catalogId === 'computer_vision') {
+      const known = MODULE_LEVELS.computer_vision.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
     if (catalogId === 'geoboard' && String(levelId) === '6') return true;
+    if (catalogId === 'computer_vision' && String(levelId) === 'stationary') return true;
     if (catalogId === 'direction_sense') {
       return directionSensePrescribedAllows(String(levelId), prescribedLevels);
     }
@@ -123,7 +130,7 @@ function MainContent() {
   const [patternMatchLevelId, setPatternMatchLevelId] = useState<string>('standard');
   const [locationMemoryLevelId, setLocationMemoryLevelId] = useState<string>('standard');
   const [directionSenseLevelId, setDirectionSenseLevelId] = useState<string>('face');
-  const [computerVisionPattern, setComputerVisionPattern] = useState<PursuitMovementPattern>('linear_bounce');
+  const [computerVisionPattern, setComputerVisionPattern] = useState<PursuitMovementPattern>('stationary');
   const [familiarFacesLevelId, setFamiliarFacesLevelId] = useState('name_it');
 
   // Sync state from URL Query Params
@@ -216,7 +223,7 @@ function MainContent() {
       setView('play_direction_sense');
     } else if (gameParam === 'computer_vision') {
       if (variantParam) {
-        setComputerVisionPattern(resolvePursuitPattern(variantParam));
+        setComputerVisionPattern(resolveLookPursuitPattern(variantParam));
         setSelectedTherapy('vision');
         setSelectedModule('computer_vision');
         setSelectedFamily(familyParam || 'tap_timing');
@@ -521,8 +528,13 @@ function MainContent() {
     });
   };
 
-  const handleLaunchComputerVision = (pattern: string) => {
+  const handleLaunchComputerVision = (pattern: string = 'stationary') => {
     requestFullScreenSafe();
+    const locked = resolveLookPursuitPattern(pattern);
+    setComputerVisionPattern(locked);
+    setSelectedTherapy('vision');
+    setSelectedModule('computer_vision');
+    setView('play_computer_vision');
     updateQueryParams({
       page: null,
       therapy: 'vision',
@@ -530,7 +542,7 @@ function MainContent() {
       module: 'computer_vision',
       game: 'computer_vision',
       mode: null,
-      variant: pattern,
+      variant: locked,
       board: null,
     });
   };
@@ -749,7 +761,7 @@ function MainContent() {
               {selectedModule === 'pattern_match' && 'Hold the Code'}
               {selectedModule === 'location_memory' && 'Location Memory'}
               {selectedModule === 'direction_sense' && 'Direction Sense'}
-              {selectedModule === 'computer_vision' && 'Look Pursuit'}
+              {selectedModule === 'computer_vision' && 'Gaze Hold'}
               {selectedModule === 'familiar_faces' && 'Familiar Faces'}
             </h2>
             <p className="text-[13px] text-shell-muted font-medium mt-1">
@@ -764,7 +776,7 @@ function MainContent() {
               {selectedModule === 'pattern_match' && 'Hold a code — tap every exact match'}
               {selectedModule === 'location_memory' && 'Explore the grid, then find each number from memory'}
               {selectedModule === 'direction_sense' && 'See a letter and a rotate arrow — pick the matching 90° turn'}
-              {selectedModule === 'computer_vision' && 'Select a movement pattern to begin'}
+              {selectedModule === 'computer_vision' && 'Look at the still bubble and hold your gaze to pop it'}
               {selectedModule === 'familiar_faces' && 'Add family photos, then name, find, or hold a face'}
             </p>
           </div>
@@ -1164,7 +1176,7 @@ function MainContent() {
       {view === 'play_computer_vision' &&
         canPlayUiModule('computer_vision') &&
         isLevelAllowed('computer_vision', computerVisionPattern) && (
-          <LookPursuitGame initialMovementPattern={computerVisionPattern} onExit={handleExitGame} />
+          <GazeHoldGame onExit={handleExitGame} />
         )}
 
       {view === 'play_familiar_faces' &&

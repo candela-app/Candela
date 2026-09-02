@@ -7,7 +7,8 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   rotatory: {
     id: 'rotatory',
     name: 'Rotatory Wheel',
-    description: 'Dynamic wheel tracking & visual pursuit exercises with rotating targets.',
+    description:
+      'Moving visual-search-and-touch on a rotating wheel. Measures search time and tap errors, not acuity or letter knowledge.',
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['tablet', 'tv'],
   },
@@ -86,9 +87,8 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   },
   computer_vision: {
     id: 'computer_vision',
-    name: 'Look Pursuit',
-    description:
-      'Pursuit with look-to-select — track the bright target among dim decoys and pop it by looking.',
+    name: 'Gaze Hold',
+    description: 'Look-to-select — hold gaze on a still bubble until it pops.',
     supportedDevices: ['mobile', 'tablet', 'tv'],
     recommendedDevices: ['mobile', 'tablet'],
   },
@@ -184,13 +184,7 @@ export const MODULE_LEVELS: Record<TherapyModuleId, GameLevelDef[]> = {
     { id: 'flip', name: 'Flip' },
     { id: 'straighten', name: 'Straighten' },
   ],
-  computer_vision: [
-    { id: 'linear_bounce', name: 'Linear Bounce' },
-    { id: 'circular_orbit', name: 'Circular Orbit' },
-    { id: 'figure_eight', name: 'Figure Eight' },
-    { id: 'random_walk', name: 'Random Walk' },
-    { id: 'freeze_drift', name: 'Freeze & Drift' },
-  ],
+  computer_vision: [{ id: 'stationary', name: 'Gaze Hold' }],
   familiar_faces: [
     { id: 'name_it', name: 'Name It' },
     { id: 'find_them', name: 'Find Them' },
@@ -210,8 +204,22 @@ export function resolvePursuitPattern(value?: string | null): PursuitMovementPat
   return 'linear_bounce';
 }
 
+export function resolveLookPursuitPattern(value?: string | null): PursuitMovementPattern {
+  const known = MODULE_LEVELS.computer_vision.map((level) => level.id);
+  if (value && known.includes(value)) return value as PursuitMovementPattern;
+  return 'stationary';
+}
+
+export function isStationaryLookPattern(pattern: string): boolean {
+  return pattern === 'stationary';
+}
+
 export function pursuitPatternName(pattern: PursuitMovementPattern): string {
-  return MODULE_LEVELS.pursuit.find((level) => level.id === pattern)?.name ?? 'Linear Bounce';
+  return (
+    MODULE_LEVELS.computer_vision.find((level) => level.id === pattern)?.name ??
+    MODULE_LEVELS.pursuit.find((level) => level.id === pattern)?.name ??
+    'Linear Bounce'
+  );
 }
 
 export interface GameFamily {

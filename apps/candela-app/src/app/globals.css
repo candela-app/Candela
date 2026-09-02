@@ -118,6 +118,17 @@ html, body {
   }
 }
 
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes slideInRight {
   from {
     opacity: 0;
@@ -127,6 +138,37 @@ html, body {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+.candela-toast-viewport {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  width: min(24rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.candela-toast-slot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  pointer-events: auto;
+  transform-origin: top right;
+  z-index: calc(100 - var(--toast-index, 0));
+  transform: translateY(calc(var(--toast-index, 0) * 14px)) scale(calc(1 - var(--toast-index, 0) * 0.05));
+  opacity: calc(1 - min(var(--toast-index, 0) * 0.08, 0.35));
+  transition: transform 0.4s cubic-bezier(0.21, 1.02, 0.73, 1), opacity 0.35s ease;
+}
+
+.candela-toast-slot:nth-child(1) > * {
+  animation: toastSlideIn 0.38s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+.candela-toast-viewport:hover .candela-toast-slot {
+  transform: translateY(calc(var(--toast-index, 0) * 5.75rem)) scale(1);
+  opacity: 1;
 }
 
 @keyframes slideInUp {

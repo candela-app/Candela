@@ -20,7 +20,7 @@ export function speakClapFor(patientName?: string | null, onDone?: () => void) {
     Speech.speak(clapForLine(patientName), {
       language: 'en-US',
       rate: 0.92,
-      pitch: 1.05,
+      pitch: 1.04,
       onDone,
       onError: onDone,
     });

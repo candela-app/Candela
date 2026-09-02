@@ -54,6 +54,21 @@
   will-change: left, top;
 }
 
+.gazeHoldPop {
+  animation: gazeHoldPop 0.22s ease-out forwards;
+}
+
+@keyframes gazeHoldPop {
+  from {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+  }
+}
+
 .decoyBubble {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -90,6 +105,7 @@
   opacity: 0.85;
   z-index: 40;
   pointer-events: none;
+  transform: scaleX(-1);
 }
 
 .faceLost {

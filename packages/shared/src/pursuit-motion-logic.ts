@@ -213,6 +213,14 @@ export function getMovementPath(
       break;
     }
 
+    case 'stationary': {
+      x = centerX;
+      y = centerY;
+      vx = 0;
+      vy = 0;
+      break;
+    }
+
     case 'freeze_drift': {
       // Slow harmonic drift that actually pauses in place, then eases back into motion.
       // Wall-clock time keeps running during a freeze; motion time does not, so there is no teleport.

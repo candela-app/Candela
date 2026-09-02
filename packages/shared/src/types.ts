@@ -262,7 +262,8 @@ export type PursuitMovementPattern =
   | 'circular_orbit'
   | 'figure_eight'
   | 'random_walk'
-  | 'freeze_drift';
+  | 'freeze_drift'
+  | 'stationary';
 
 export type PursuitTargetColor = '#FFFFFF' | '#FFD600' | '#00E5FF' | '#0F172A';
 

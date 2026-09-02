@@ -125,11 +125,20 @@ const MODULES = [
   },
   {
     id: 'computer_vision',
-    title: 'Look Pursuit',
-    body: 'Look at the bright target among dim decoys — same Pursuit, look to pop.',
+    title: 'Gaze Hold',
+    body: 'Look at the still bubble and hold your gaze to pop it.',
     badge: 'For All Devices',
     accent: '#0E7490',
     bg: '#ECFEFF',
+    Icon: TargetIcon,
+  },
+  {
+    id: 'familiar_faces',
+    title: 'Familiar Faces',
+    body: 'Name, find, or hold a face you know.',
+    badge: 'For All Devices',
+    accent: '#BE123C',
+    bg: '#FFF1F2',
     Icon: TargetIcon,
   },
 ] as const;

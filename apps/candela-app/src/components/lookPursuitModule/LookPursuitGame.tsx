@@ -15,7 +15,7 @@ import {
   PursuitMovementPattern,
   AppliedClinicalSettings,
   ClinicalSettingsModal,
-  resolvePursuitPattern,
+  resolveLookPursuitPattern,
   pursuitPatternName,
   reactionStatsFromMs,
   advanceLookDwell,
@@ -29,6 +29,7 @@ import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { PursuitResultsModal } from '../pursuitModule/PursuitResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
+import { GazeHoldGame } from './GazeHoldGame';
 import styles from './LookPursuitGame.module.css';
 
 interface LookPursuitGameProps {
@@ -44,9 +45,19 @@ export const LookPursuitGame: React.FC<LookPursuitGameProps> = ({
   onExit,
   initialMovementPattern = 'linear_bounce',
 }) => {
+  if (initialMovementPattern === 'stationary') {
+    return <GazeHoldGame onExit={onExit} />;
+  }
+  const lockedPattern = resolveLookPursuitPattern(initialMovementPattern);
+  return <LookPursuitMovingGame onExit={onExit} lockedPattern={lockedPattern} />;
+};
+
+const LookPursuitMovingGame: React.FC<{
+  onExit: () => void;
+  lockedPattern: PursuitMovementPattern;
+}> = ({ onExit, lockedPattern }) => {
   const { session } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
-  const lockedPattern = resolvePursuitPattern(initialMovementPattern);
   const look = useFaceLook(true);
 
   const [settings, setSettings] = useState<PursuitSettings>(() => ({

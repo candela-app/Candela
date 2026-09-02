@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlphabetVariant,
   BRIGHT_COLORS,
   BubbleItem,
   DEFAULT_BASE_ANIMATION_DURATION,
+  SPEED_PRESETS,
   GameMode,
   SessionResultData,
   createRotatorySession,
@@ -15,13 +16,22 @@ import {
   beginRotatoryTrial,
   noteRotatoryWrong,
   completeRotatoryTrial,
+  interruptRotatoryTrial,
+  finalizeRotatoryOpenTrial,
   rotatoryDeckComplete,
+  rotatoryWarmupComplete,
+  advanceRotatoryToScored,
   summarizeRotatorySession,
   rotatoryBubbleValue,
   pickBalancedRotatoryTarget,
   placeInitialRotatoryPositions,
   nextRotatoryRefillPosition,
+  rotatoryCueShouldSpeak,
+  rotatoryCueShowsBanner,
+  getDeviceTier,
   type RotatorySessionState,
+  type RotatoryCueMode,
+  type RotatoryHandUsed,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   DEFAULT_BUBBLE_APPEARANCE,
   resolveBubblePaint,
@@ -72,6 +82,9 @@ export function RotatoryWheelGame({
   const [wheelColor, setWheelColor] = useState('#000000');
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
+  const [cueMode, setCueMode] = useState<RotatoryCueMode>('both');
+  const [handUsed, setHandUsed] = useState<RotatoryHandUsed>('unspecified');
+  const [viewingDistanceCm, setViewingDistanceCm] = useState('');
   const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
@@ -106,19 +119,30 @@ export function RotatoryWheelGame({
   const stimuliColorRef = useRef(stimuliColor);
   const wheelPxRef = useRef(wheelPx);
   const bubblesRef = useRef<BubbleItem[]>([]);
+  const cueModeRef = useRef(cueMode);
+  const isGameStartedRef = useRef(false);
   bubbleSizeRef.current = bubbleSize;
   stimuliColorRef.current = stimuliColor;
   wheelPxRef.current = wheelPx;
   bubblesRef.current = bubbles;
+  cueModeRef.current = cueMode;
+  isGameStartedRef.current = isGameStarted;
   const isSettingsOpenRef = useRef(playBlocked);
   const currentTargetRef = useRef('');
   const pausedRef = useRef(isPaused);
   const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || isResultsOpen;
+  const assessmentLocked = isGameStarted && !isResultsOpen;
   usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
     if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
     if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
     if (sessionRef.current?.openTrial) sessionRef.current.openTrial.targetShownAt += delta;
   }, statsRef.current.startTime);
+
+  useEffect(() => {
+    if (engineFrozen && isGameStarted && sessionRef.current?.openTrial) {
+      interruptRotatoryTrial(sessionRef.current);
+    }
+  }, [engineFrozen, isGameStarted]);
 
   useEffect(() => {
     isSettingsOpenRef.current = playBlocked;
@@ -152,6 +176,7 @@ export function RotatoryWheelGame({
   }, [engineFrozen, isResultsOpen, isGameStarted, animationDurationSeconds]);
 
   const speakTarget = useCallback((text: string, currentMode: GameMode) => {
+    if (!rotatoryCueShouldSpeak(cueModeRef.current)) return;
     speak(currentMode !== 'colors' ? `target ${text.toLowerCase()}` : text, {
       rate: 0.95,
       pitch: 1,
@@ -168,7 +193,7 @@ export function RotatoryWheelGame({
         currentBubbles,
         currentMode,
         angleRef.current,
-        sessionRef.current.trials,
+        sessionRef.current,
       );
       if (!nextTarget) return;
       setCurrentTarget(nextTarget);
@@ -237,30 +262,43 @@ export function RotatoryWheelGame({
     setBubbles(newBubbles);
     setTimeout(() => {
       dealingRef.current = false;
-      chooseNextTarget(newBubbles, mode);
+      if (isGameStartedRef.current) chooseNextTarget(newBubbles, mode);
     }, 300);
     return true;
   }, [mode, width, height, chooseNextTarget]);
 
   const startNewSession = useCallback(() => {
-    sessionRef.current = createRotatorySession(mode, variant, 'mobile', 4);
-    setSessionGoal(sessionRef.current.deck.length);
+    const deviceTier = getDeviceTier(width, height);
+    const parsedDistance = Number.parseFloat(viewingDistanceCm);
+    sessionRef.current = createRotatorySession(mode, variant, deviceTier, undefined, {
+      cueMode,
+      handUsed,
+      viewingDistanceCm: Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : null,
+    });
+    setSessionGoal(sessionRef.current.deck.length + 3);
     dealingRef.current = false;
     hitLockRef.current = false;
     resetStats();
     setBubbles([]);
     dealNextBatch();
-  }, [mode, variant, resetStats, dealNextBatch]);
+  }, [mode, variant, cueMode, handUsed, viewingDistanceCm, width, height, resetStats, dealNextBatch]);
 
   useEffect(() => {
     startNewSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, variant]);
 
-  const finishSession = () => {
+  const finishSession = (opts?: { abandoned?: boolean }) => {
     const session = sessionRef.current;
     if (!session) return;
     setPoppingActive(false);
+    if (opts?.abandoned) session.abandoned = true;
+    if (session.openTrial) {
+      finalizeRotatoryOpenTrial(session, {
+        nowMs: performance.now(),
+        wheelRotationDeg: angleRef.current,
+      });
+    }
     const st = statsRef.current.startTime;
     const totalTime = st ? (performance.now() - st) / 1000 : 0;
     const finalData = summarizeRotatorySession(session, {
@@ -273,6 +311,9 @@ export function RotatoryWheelGame({
       durationSec: Math.round(totalTime),
       clicksTotal: statsRef.current.clicks,
       wrong: statsRef.current.wrongCount,
+      screenWidthPx: width,
+      screenHeightPx: height,
+      orientation: width >= height ? 'landscape' : 'portrait',
       ...clinicalColorSessionFields(wheelColor, stimuliColor, 1),
     });
     setResultsData(finalData);
@@ -297,7 +338,7 @@ export function RotatoryWheelGame({
           wheelRotationDeg: angleRef.current,
           nowMs: now,
         });
-        if (trial) statsRef.current.reactionTimes.push(trial.reactionMs);
+        if (trial?.validForRt) statsRef.current.reactionTimes.push(trial.reactionMs);
       }
       statsRef.current.targetShownAt = null;
       statsRef.current.correctCount += 1;
@@ -305,6 +346,12 @@ export function RotatoryWheelGame({
       setPoppingIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
         let remaining = bubblesRef.current.filter((b) => b.id !== clickedBubble.id);
+        if (sessionRef.current && rotatoryWarmupComplete(sessionRef.current) && sessionRef.current.phase === 'warmup') {
+          advanceRotatoryToScored(sessionRef.current);
+          dealingRef.current = false;
+          dealNextBatch();
+          return;
+        }
         if (sessionRef.current && rotatoryDeckComplete(sessionRef.current)) {
           bubblesRef.current = remaining;
           setBubbles(remaining);
@@ -346,6 +393,12 @@ export function RotatoryWheelGame({
         setPoppingActive(false);
 
         if (remaining.length === 0) {
+          if (sessionRef.current?.phase === 'warmup') {
+            advanceRotatoryToScored(sessionRef.current);
+            dealingRef.current = false;
+            dealNextBatch();
+            return;
+          }
           finishSession();
           return;
         }
@@ -353,7 +406,7 @@ export function RotatoryWheelGame({
       }, 250);
     } else {
       void hapticWrong();
-      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'discrimination');
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'discrimination', { nowMs: performance.now() });
       statsRef.current.wrongCount += 1;
       bumpStats();
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
@@ -371,7 +424,7 @@ export function RotatoryWheelGame({
     if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
-      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'aim');
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'aim', { nowMs: performance.now() });
       bumpStats();
       void hapticMiss();
     }
@@ -383,20 +436,23 @@ export function RotatoryWheelGame({
     const now = performance.now();
     statsRef.current.clicks = 0;
     statsRef.current.wrongCount = 0;
-    statsRef.current.correctCount = sessionRef.current?.trials.length ?? 0;
+    statsRef.current.correctCount = 0;
     statsRef.current.startTime = now;
     statsRef.current.reactionTimes = [];
     statsRef.current.targetShownAt = now;
+    if (sessionRef.current) {
+      sessionRef.current.cueMode = cueMode;
+      sessionRef.current.handUsed = handUsed;
+      const parsedDistance = Number.parseFloat(viewingDistanceCm);
+      sessionRef.current.viewingDistanceCm =
+        Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : null;
+    }
     if (sessionRef.current?.openTrial) {
       sessionRef.current.openTrial.targetShownAt = now;
-      sessionRef.current.openTrial.wrongTaps = 0;
-      sessionRef.current.openTrial.aimTaps = 0;
+    } else if (bubblesRef.current.length) {
+      chooseNextTarget(bubblesRef.current, mode);
     }
     bumpStats();
-    if (currentTargetRef.current) {
-      const targetText = currentTargetRef.current;
-      setTimeout(() => speakTarget(targetText, mode), 200);
-    }
   };
 
   const openSettings = () => {
@@ -567,7 +623,8 @@ export function RotatoryWheelGame({
             justifyContent: 'center',
           }}
         >
-          {mode === 'colors' ? (
+          {rotatoryCueShowsBanner(cueMode) ? (
+            mode === 'colors' ? (
             <View
               style={{
                 width: s(14),
@@ -580,6 +637,9 @@ export function RotatoryWheelGame({
             />
           ) : (
             <Text style={{ color: targetColor, fontWeight: '900', fontSize: fs(14) }}>{currentTarget || '—'}</Text>
+          )
+          ) : (
+            <Text style={{ color: '#BFDBFE', fontWeight: '800', fontSize: fs(9) }}>Listen</Text>
           )}
           <View
             style={{
@@ -678,7 +738,15 @@ export function RotatoryWheelGame({
             </View>
           </Pressable>
           <Pressable
-            onPress={() => setIsPaused((prev) => !prev)}
+            onPress={() =>
+              setIsPaused((prev) => {
+                const next = !prev;
+                if (next && isGameStarted && sessionRef.current?.openTrial) {
+                  interruptRotatoryTrial(sessionRef.current);
+                }
+                return next;
+              })
+            }
             style={{
               backgroundColor: isPaused ? '#059669' : '#1F2937',
               borderRadius: s(16),
@@ -836,16 +904,9 @@ export function RotatoryWheelGame({
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
-          if (isGameStarted) {
-            setIsPaused(false);
-            startNewSession();
-            if (currentTargetRef.current) {
-              const targetText = currentTargetRef.current;
-              setTimeout(() => speakTarget(targetText, mode), 200);
-            }
-          } else {
-            setIsPaused(true);
-          }
+          setIsGameStarted(false);
+          setIsPaused(true);
+          startNewSession();
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -871,9 +932,9 @@ export function RotatoryWheelGame({
           }}
           onReplay={() => {
             setIsResultsOpen(false);
+            setIsGameStarted(false);
+            setIsPaused(true);
             startNewSession();
-            setIsPaused(false);
-            setIsGameStarted(true);
           }}
         />
       ) : null}
@@ -881,9 +942,115 @@ export function RotatoryWheelGame({
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onOpenHowToPlay={openHowToPlay}
-        onQuit={() => requestExit()}
+        onQuit={() => {
+          if (isGameStarted && !isResultsOpen && sessionRef.current?.trials.length) {
+            finishSession({ abandoned: true });
+            return;
+          }
+          requestExit();
+        }}
         sessionInProgress={isGameStarted && !isResultsOpen}
-        onReset={startNewSession}
+        onReset={() => {
+          setIsGameStarted(false);
+          setIsPaused(true);
+          startNewSession();
+        }}
+        extraControls={
+          <View style={{ gap: 10 }}>
+            <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>
+              Speed {assessmentLocked ? '(locked)' : ''}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {SPEED_PRESETS.map((s) => (
+                <Pressable
+                  key={s}
+                  disabled={assessmentLocked}
+                  onPress={() => {
+                    if (!assessmentLocked) setSpeed(s);
+                  }}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: speed === s ? '#3B82F6' : '#374151',
+                    opacity: assessmentLocked ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ color: speed === s ? '#60A5FA' : '#D1D5DB', fontWeight: '700' }}>{s}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>Cue mode</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['both', 'visual', 'audio'] as RotatoryCueMode[]).map((item) => (
+                <Pressable
+                  key={item}
+                  disabled={assessmentLocked}
+                  onPress={() => {
+                    if (!assessmentLocked) setCueMode(item);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: cueMode === item ? '#3B82F6' : '#374151',
+                    opacity: assessmentLocked ? 0.5 : 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: cueMode === item ? '#60A5FA' : '#D1D5DB', fontWeight: '700', fontSize: 12 }}>
+                    {item}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>Hand used</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['unspecified', 'left', 'right'] as RotatoryHandUsed[]).map((item) => (
+                <Pressable
+                  key={item}
+                  disabled={assessmentLocked}
+                  onPress={() => {
+                    if (!assessmentLocked) setHandUsed(item);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: handUsed === item ? '#3B82F6' : '#374151',
+                    opacity: assessmentLocked ? 0.5 : 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: handUsed === item ? '#60A5FA' : '#D1D5DB', fontWeight: '700', fontSize: 11 }}>
+                    {item === 'unspecified' ? 'Not set' : item}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>Viewing distance (cm)</Text>
+            <TextInput
+              editable={!assessmentLocked}
+              keyboardType="numeric"
+              value={viewingDistanceCm}
+              onChangeText={setViewingDistanceCm}
+              placeholder="e.g. 40"
+              placeholderTextColor="#6B7280"
+              style={{
+                borderWidth: 1,
+                borderColor: '#374151',
+                borderRadius: 8,
+                color: '#fff',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                opacity: assessmentLocked ? 0.5 : 1,
+              }}
+            />
+          </View>
+        }
         resetButtonLabel="Reset Level"
         onOpenSettings={() => setIsSettingsOpen(true)}
         settingsSummary={[
@@ -926,12 +1093,16 @@ export function RotatoryWheelGame({
       <ResetConfirmDialog
         visible={confirmQuit}
         title="Leave this game?"
-        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        message="This session isn't finished yet. Leaving will save it as abandoned so the taps are not lost."
         confirmLabel="Leave"
         onCancel={() => setConfirmQuit(false)}
         onConfirm={() => {
           setConfirmQuit(false);
           setIsAssistiveTouchOpen(false);
+          if (sessionRef.current?.trials.length) {
+            finishSession({ abandoned: true });
+            return;
+          }
           requestExit();
         }}
       />

@@ -139,6 +139,18 @@ import {
   type PatternMatchHardness,
   type PatternMatchStimulusMode,
   type PeripheralBubbleType,
+  LOOK_STATIONARY_BUBBLE_PX,
+  LOOK_STATIONARY_COLOR,
+  LOOK_STATIONARY_DWELL_MS,
+  LOOK_GAZE_HOLD_GLYPH_COUNT,
+  LOOK_GAZE_HOLD_DWELL_PRESETS,
+  LOOK_GAZE_HOLD_SIZE_PRESETS,
+  LOOK_GAZE_HOLD_COLOR_OPTIONS,
+  clampGazeHoldDwellMs,
+  clampGazeHoldGlyphCount,
+  clampGazeHoldGlyphSize,
+  resolveGazeHoldGlyphColor,
+  pursuitPatternName,
 } from '@candela/shared/rn';
 import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
 import Svg, { Circle, Path, Polygon, Text as SvgText } from 'react-native-svg';
@@ -164,6 +176,9 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  gazeHoldDwellMs?: number;
+  gazeHoldGlyphColor?: string;
+  gazeHoldGlyphCount?: number;
   therapyColors?: string[];
   numberRangeFrom?: number;
   numberRangeTo?: number;
@@ -346,11 +361,16 @@ export function ClinicalSettingsModal({
   beeSpeedSec = 5,
   orientation = 'auto',
   showPursuitControls = false,
+  lookStationaryMode = false,
+  showGazeHoldControls = false,
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 2,
   pursuitSpeedPxPerSec = 110,
   pursuitTrialTimeoutSec = 0,
+  gazeHoldDwellMs = LOOK_STATIONARY_DWELL_MS,
+  gazeHoldGlyphColor = LOOK_STATIONARY_COLOR,
+  gazeHoldGlyphCount = LOOK_GAZE_HOLD_GLYPH_COUNT,
   showTherapyColorPicker = false,
   therapyColors = DEFAULT_THERAPY_COLORS,
   showStimuliColorPicker = false,
@@ -421,11 +441,16 @@ export function ClinicalSettingsModal({
   beeSpeedSec?: number;
   orientation?: DeviceOrientation;
   showPursuitControls?: boolean;
+  lookStationaryMode?: boolean;
+  showGazeHoldControls?: boolean;
   pursuitMovementPattern?: PursuitMovementPattern;
   pursuitTargetColor?: PursuitTargetColor;
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  gazeHoldDwellMs?: number;
+  gazeHoldGlyphColor?: string;
+  gazeHoldGlyphCount?: number;
   showTherapyColorPicker?: boolean;
   therapyColors?: string[];
   /** Letter/number bubble fill picker (White default + therapy colors + Mixed). Hide for color-discrimination modes. */
@@ -497,6 +522,9 @@ export function ClinicalSettingsModal({
   const [tempDecoys, setTempDecoys] = useState(pursuitDecoyCount);
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
+  const [tempGazeHoldDwellMs, setTempGazeHoldDwellMs] = useState(clampGazeHoldDwellMs(gazeHoldDwellMs));
+  const [tempGazeHoldGlyphColor, setTempGazeHoldGlyphColor] = useState(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
+  const [tempGazeHoldGlyphCount, setTempGazeHoldGlyphCount] = useState(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
   const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(therapyColors);
   const [tempStimuliColor, setTempStimuliColor] = useState(stimuliColor);
   const [tempBubbleAppearance, setTempBubbleAppearance] = useState<BubbleAppearance>(bubbleAppearance);
@@ -564,7 +592,14 @@ export function ClinicalSettingsModal({
     setTempPatientName(patientName);
     setTempLetterSize(nearestStep(LETTER_SIZES, letterSize));
     setTempBubbleSize(
-      nearestStep(showPursuitControls ? PURSUIT_BUBBLE_SIZES : BUBBLE_SIZES, bubbleSize),
+      nearestStep(
+        showGazeHoldControls
+          ? [...LOOK_GAZE_HOLD_SIZE_PRESETS]
+          : showPursuitControls
+            ? PURSUIT_BUBBLE_SIZES
+            : BUBBLE_SIZES,
+        bubbleSize,
+      ),
     );
     setTempSpeed(nearestStep(SPEED_PRESETS, speed));
     setTempWheelColor(wheelColor);
@@ -582,6 +617,9 @@ export function ClinicalSettingsModal({
     setTempDecoys(pursuitDecoyCount);
     setTempPursuitSpeed(pursuitSpeedPxPerSec);
     setTempTimeout(pursuitTrialTimeoutSec);
+    setTempGazeHoldDwellMs(clampGazeHoldDwellMs(gazeHoldDwellMs));
+    setTempGazeHoldGlyphColor(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
+    setTempGazeHoldGlyphCount(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
     setTempNumberRangeFrom(numberRangeFrom);
     setTempNumberRangeTo(numberRangeTo);
     setTempHexSizePx(hexSizePx);
@@ -671,7 +709,7 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(tempLetterSize)
             : tempLetterSize,
-      bubbleSize: tempBubbleSize,
+      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(tempBubbleSize) : tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
@@ -688,6 +726,13 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount: tempDecoys,
       pursuitSpeedPxPerSec: tempPursuitSpeed,
       pursuitTrialTimeoutSec: tempTimeout,
+      gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(tempGazeHoldDwellMs) : tempGazeHoldDwellMs,
+      gazeHoldGlyphColor: showGazeHoldControls
+        ? resolveGazeHoldGlyphColor(tempGazeHoldGlyphColor)
+        : tempGazeHoldGlyphColor,
+      gazeHoldGlyphCount: showGazeHoldControls
+        ? clampGazeHoldGlyphCount(tempGazeHoldGlyphCount)
+        : tempGazeHoldGlyphCount,
       therapyColors: tempTherapyColors,
       stimuliColor: tempStimuliColor,
       bubbleAppearance: tempBubbleAppearance,
@@ -768,7 +813,7 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(letterSize)
             : letterSize,
-      bubbleSize,
+      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize,
       speed,
       wheelColor,
       tracingMode,
@@ -785,6 +830,13 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount,
       pursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec,
+      gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(gazeHoldDwellMs) : gazeHoldDwellMs,
+      gazeHoldGlyphColor: showGazeHoldControls
+        ? resolveGazeHoldGlyphColor(gazeHoldGlyphColor)
+        : gazeHoldGlyphColor,
+      gazeHoldGlyphCount: showGazeHoldControls
+        ? clampGazeHoldGlyphCount(gazeHoldGlyphCount)
+        : gazeHoldGlyphCount,
       therapyColors,
       stimuliColor,
       bubbleAppearance,
@@ -874,6 +926,7 @@ export function ClinicalSettingsModal({
   const isBubbleGame =
     !showBeeTracingControls &&
     !showPursuitControls &&
+    !showGazeHoldControls &&
     !showPeripheralViewControls &&
     !showNumberSearchControls &&
     !showPatternMatchControls &&
@@ -951,7 +1004,9 @@ export function ClinicalSettingsModal({
                   </View>
                 </View>
                 <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(6) }}>
-                  {showPursuitControls
+                  {showGazeHoldControls
+                    ? 'Configure gaze hold time, a neutral glyph color, and glyph size.'
+                    : showPursuitControls
                     ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
                     : showDirectionSenseControls
                       ? 'Configure turn direction, choice count, trials, shape size, and field colors.'
@@ -1665,6 +1720,117 @@ export function ClinicalSettingsModal({
               </>
             ) : null}
 
+            {showGazeHoldControls ? (
+              <>
+                <Card>
+                  <Text
+                    style={{
+                      color: '#CBD5E1',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#1F2937',
+                      paddingBottom: s(8),
+                      marginBottom: s(12),
+                    }}
+                  >
+                    Patient & Glyph
+                  </Text>
+                  <FloatingLabelInput
+                    label="Patient Name"
+                    value={tempPatientName}
+                    onChangeText={setTempPatientName}
+                    variant="dark"
+                    style={{ marginBottom: s(14) }}
+                  />
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    GLYPH COLOR
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    {LOOK_GAZE_HOLD_COLOR_OPTIONS.map((option) => {
+                      const selected = tempGazeHoldGlyphColor === option.hex;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          onPress={() => setTempGazeHoldGlyphColor(option.hex)}
+                          style={{ alignItems: 'center', width: s(56) }}
+                        >
+                          <View
+                            style={{
+                              width: s(36),
+                              height: s(36),
+                              borderRadius: 999,
+                              backgroundColor: option.hex,
+                              borderWidth: selected ? 3 : 1,
+                              borderColor: selected ? '#fff' : '#374151',
+                            }}
+                          />
+                          <Text
+                            style={{
+                              color: selected ? '#fff' : '#9CA3AF',
+                              fontSize: fs(10),
+                              fontWeight: '800',
+                              marginTop: s(4),
+                            }}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(8) }}>
+                    Neutral fills only — no high-salience therapy colors.
+                  </Text>
+                </Card>
+                <Card>
+                  <Text
+                    style={{
+                      color: '#CBD5E1',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#1F2937',
+                      paddingBottom: s(8),
+                      marginBottom: s(12),
+                    }}
+                  >
+                    Gaze Hold Controls
+                  </Text>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    GAZE TIME
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {LOOK_GAZE_HOLD_DWELL_PRESETS.map((ms) => (
+                      <Chip
+                        key={ms}
+                        label={`${ms} ms`}
+                        active={tempGazeHoldDwellMs === ms}
+                        onPress={() => setTempGazeHoldDwellMs(ms)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginTop: s(12), marginBottom: s(8) }}>
+                    GLYPH SIZE
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {LOOK_GAZE_HOLD_SIZE_PRESETS.map((px) => (
+                      <Chip
+                        key={px}
+                        label={`${px} px`}
+                        active={tempBubbleSize === px}
+                        onPress={() => setTempBubbleSize(px)}
+                      />
+                    ))}
+                  </View>
+                </Card>
+              </>
+            ) : null}
+
             {showPursuitControls ? (
               <>
                 <Card>
@@ -1704,12 +1870,36 @@ export function ClinicalSettingsModal({
                     }}
                   >
                     <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '800' }}>
-                      {PURSUIT_PATTERN_OPTIONS.find((opt) => opt.val === tempPattern)?.label.replace(/^\d+\.\s/, '') || tempPattern}
+                      {pursuitPatternName(tempPattern)}
                     </Text>
                     <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(4) }}>
-                      Chosen from the pursuit level list. Switch levels to change trajectory.
+                      {lookStationaryMode
+                        ? 'Gaze Hold stays still at the center. Switch levels to change the exercise.'
+                        : 'Chosen from the pursuit level list. Switch levels to change trajectory.'}
                     </Text>
                   </View>
+                  {lookStationaryMode ? (
+                    <View
+                      style={{
+                        backgroundColor: '#141414',
+                        borderWidth: 1,
+                        borderColor: '#1F2937',
+                        borderRadius: s(12),
+                        padding: s(12),
+                      }}
+                    >
+                      <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
+                        TARGET
+                      </Text>
+                      <Text style={{ color: '#fff', fontSize: fs(14), fontWeight: '800', marginTop: s(4) }}>
+                        Large neutral bubble ({LOOK_STATIONARY_BUBBLE_PX}px)
+                      </Text>
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(4) }}>
+                        Gray, still, and sized so a real look pops it without chasing motion.
+                      </Text>
+                    </View>
+                  ) : (
+                  <>
                   <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
                     TARGET LUMINANCE COLOR
                   </Text>
@@ -1732,6 +1922,8 @@ export function ClinicalSettingsModal({
                       </Pressable>
                     ))}
                   </View>
+                  </>
+                  )}
                 </Card>
 
                 <Card>
@@ -1748,8 +1940,10 @@ export function ClinicalSettingsModal({
                       marginBottom: s(12),
                     }}
                   >
-                    Dynamics & Selective Attention
+                    Dynamics {lookStationaryMode ? 'Hold' : '& Selective Attention'}
                   </Text>
+                  {!lookStationaryMode ? (
+                  <>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(8) }}>
                     <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, flex: 1, paddingRight: s(8) }}>
                       DECOY ELEMENT COUNT
@@ -1832,6 +2026,8 @@ export function ClinicalSettingsModal({
                       </Pressable>
                     ))}
                   </View>
+                  </>
+                  ) : null}
                   <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
                     TRIAL TIMEOUT
                   </Text>

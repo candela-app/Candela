@@ -17,11 +17,12 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
   rotatory: {
     moduleId: 'rotatory',
     title: GAME_CATALOG.rotatory.name,
-    subtitle: 'Pop the matching bubble on the spinning wheel',
+    subtitle: 'Find and tap the matching mark on the spinning wheel',
     steps: [
       { title: 'Watch the wheel', body: 'Bubbles ride around the spinning wheel. Keep your eyes on them as they turn.' },
-      { title: 'Find the target', body: 'A letter, number, or color is called. Each letter or number appears once; colors come in unique sets.' },
-      { title: 'Tap the match', body: 'Tap only the matching bubble. Wrong taps count as misses.' },
+      { title: 'Three practice taps', body: 'The first three targets are just to learn the motion. They are not scored. After the third tap, the bubbles rearrange into a new layout for the scored round.' },
+      { title: 'Find the target', body: 'A letter, number, or color is shown and/or spoken. Each scored letter or number appears once.' },
+      { title: 'Tap the match', body: 'Tap only the matching bubble. A wrong bubble and a miss on empty space are different errors.' },
     ],
   },
   sorting: {
@@ -127,11 +128,11 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
   computer_vision: {
     moduleId: 'computer_vision',
     title: GAME_CATALOG.computer_vision.name,
-    subtitle: 'Track the bright target and pop it by looking',
+    subtitle: 'Look at the still bubble and hold your gaze until it pops',
     steps: [
       { title: 'Face the camera', body: 'Keep your face in view. The session pauses if the camera loses you.' },
-      { title: 'Watch the bright bubble', body: 'One bubble is bright. Dim bubbles are decoys — ignore those.' },
-      { title: 'Look to pop', body: 'Hold your look on the bright target until it pops. Several short trials make one session.' },
+      { title: 'Hold your look', body: 'One still bubble sits in the center. Look at it to pop it. It comes back so you can pop again until you quit.' },
+      { title: 'Quit when done', body: 'Open the menu and tap Quit to leave and turn the camera off.' },
     ],
   },
   familiar_faces: {

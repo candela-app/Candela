@@ -235,6 +235,29 @@ function HowToPlayVisual({ moduleId }: { moduleId: TherapyModuleId }) {
           </View>
         </VisualFrame>
       );
+    case 'computer_vision':
+      return (
+        <VisualFrame>
+          <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: '#94A3B8' }} />
+        </VisualFrame>
+      );
+    case 'familiar_faces':
+      return (
+        <VisualFrame>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#FB7185', borderWidth: 2, borderColor: '#FECDD3' }} />
+            <Text style={{ color: '#64748B', fontWeight: '900', fontSize: 22 }}>→</Text>
+            <View style={{ gap: 6 }}>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: '#34D399' }}>
+                <Text style={{ color: '#052e1c', fontWeight: '900', fontSize: 10 }}>Mother</Text>
+              </View>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: '#1F2937' }}>
+                <Text style={{ color: '#E5E7EB', fontWeight: '900', fontSize: 10 }}>Father</Text>
+              </View>
+            </View>
+          </View>
+        </VisualFrame>
+      );
     default:
       return null;
   }

@@ -24,14 +24,23 @@ import {
   beginRotatoryTrial,
   noteRotatoryWrong,
   completeRotatoryTrial,
+  interruptRotatoryTrial,
+  noteRotatoryTts,
+  finalizeRotatoryOpenTrial,
   rotatoryDeckComplete,
+  rotatoryWarmupComplete,
+  advanceRotatoryToScored,
   summarizeRotatorySession,
   rotatoryBubbleValue,
   pickBalancedRotatoryTarget,
   placeInitialRotatoryPositions,
   nextRotatoryRefillPosition,
   cssMatrixRotationDeg,
+  rotatoryCueShouldSpeak,
+  rotatoryCueShowsBanner,
   type RotatorySessionState,
+  type RotatoryCueMode,
+  type RotatoryHandUsed,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   DEFAULT_BUBBLE_APPEARANCE,
   resolveBubblePaint,
@@ -53,6 +62,20 @@ import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { ResetConfirmDialog } from '../shared/ResetConfirmDialog';
 import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, VolumeIcon, ChevronUpIcon, ReplayIcon } from '../icons/VectorIcons';
+
+function localPctFromPointer(
+  clientX: number,
+  clientY: number,
+  el: HTMLElement | null,
+): { xPct: number; yPct: number } | null {
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  return {
+    xPct: ((clientX - rect.left) / rect.width) * 100,
+    yPct: ((clientY - rect.top) / rect.height) * 100,
+  };
+}
 
 interface RotatoryWheelGameProps {
   initialMode?: GameMode;
@@ -82,6 +105,9 @@ export function RotatoryWheelGame({
   const [stimuliColor, setStimuliColor] = useState(DEFAULT_STIMULI_BUBBLE_COLOR);
   const [bubbleAppearance, setBubbleAppearance] = useState<BubbleAppearance>(DEFAULT_BUBBLE_APPEARANCE);
   const [contrastSensitivity, setContrastSensitivity] = useState(1);
+  const [cueMode, setCueMode] = useState<RotatoryCueMode>('both');
+  const [handUsed, setHandUsed] = useState<RotatoryHandUsed>('unspecified');
+  const [viewingDistanceCm, setViewingDistanceCm] = useState('');
 
   useEffect(() => {
     const name = session?.user?.name?.trim();
@@ -130,20 +156,31 @@ export function RotatoryWheelGame({
   const bubbleSizeRef = useRef(bubbleSize);
   const stimuliColorRef = useRef(stimuliColor);
   const bubblesRef = useRef<BubbleItem[]>([]);
+  const cueModeRef = useRef(cueMode);
+  const isGameStartedRef = useRef(false);
   bubbleSizeRef.current = bubbleSize;
   stimuliColorRef.current = stimuliColor;
   bubblesRef.current = bubbles;
+  cueModeRef.current = cueMode;
+  isGameStartedRef.current = isGameStarted;
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const bubbleContainerRef = useRef<HTMLDivElement>(null);
   const isSettingsOpenRef = useRef<boolean>(playBlocked);
   const currentTargetRef = useRef<string>('');
   const engineFrozen = playBlocked || isPaused || isAssistiveTouchOpen || isResultsOpen;
+  const assessmentLocked = isGameStarted && !isResultsOpen;
   usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
     if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
     if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
     if (sessionRef.current?.openTrial) sessionRef.current.openTrial.targetShownAt += delta;
   }, statsRef.current.startTime);
+
+  useEffect(() => {
+    if (engineFrozen && isGameStarted && sessionRef.current?.openTrial) {
+      interruptRotatoryTrial(sessionRef.current);
+    }
+  }, [engineFrozen, isGameStarted]);
 
   // Original English target voice (device en-US, e.g. Samantha)
   const targetVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -216,6 +253,7 @@ export function RotatoryWheelGame({
   }, []);
 
   const speak = useCallback((text: string, currentMode: GameMode) => {
+    if (!rotatoryCueShouldSpeak(cueModeRef.current)) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance();
@@ -230,6 +268,13 @@ export function RotatoryWheelGame({
     } else {
       utter.lang = 'en-US';
     }
+
+    utter.onstart = () => {
+      if (sessionRef.current) noteRotatoryTts(sessionRef.current, 'start', performance.now());
+    };
+    utter.onend = () => {
+      if (sessionRef.current) noteRotatoryTts(sessionRef.current, 'end', performance.now());
+    };
 
     window.speechSynthesis.speak(utter);
   }, []);
@@ -252,7 +297,7 @@ export function RotatoryWheelGame({
         currentBubbles,
         currentMode,
         wheelAngleRef.current,
-        sessionRef.current.trials,
+        sessionRef.current,
       );
       if (!nextTarget) return;
       setCurrentTarget(nextTarget);
@@ -337,7 +382,7 @@ export function RotatoryWheelGame({
     setBubbles(newBubbles);
     setTimeout(() => {
       dealingRef.current = false;
-      chooseNextTarget(newBubbles, mode);
+      if (isGameStartedRef.current) chooseNextTarget(newBubbles, mode);
     }, 300);
     return true;
   }, [mode, chooseNextTarget]);
@@ -347,14 +392,19 @@ export function RotatoryWheelGame({
       typeof window !== 'undefined' ? window.innerWidth : undefined,
       typeof window !== 'undefined' ? window.innerHeight : undefined,
     );
-    sessionRef.current = createRotatorySession(mode, variant, deviceTier);
-    setSessionGoal(sessionRef.current.deck.length);
+    const parsedDistance = Number.parseFloat(viewingDistanceCm);
+    sessionRef.current = createRotatorySession(mode, variant, deviceTier, undefined, {
+      cueMode,
+      handUsed,
+      viewingDistanceCm: Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : null,
+    });
+    setSessionGoal(sessionRef.current.deck.length + 3);
     dealingRef.current = false;
     hitLockRef.current = false;
     resetStats();
     setBubbles([]);
     dealNextBatch();
-  }, [mode, variant, resetStats, dealNextBatch]);
+  }, [mode, variant, cueMode, handUsed, viewingDistanceCm, resetStats, dealNextBatch]);
 
   useEffect(() => {
     startNewSession();
@@ -362,11 +412,18 @@ export function RotatoryWheelGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, variant]);
 
-  const finishSession = useCallback(() => {
+  const finishSession = useCallback((opts?: { abandoned?: boolean }) => {
     const session = sessionRef.current;
     if (!session) return;
     setPoppingActive(false);
-    playSuccessSoundAndHaptic();
+    if (opts?.abandoned) session.abandoned = true;
+    if (session.openTrial) {
+      finalizeRotatoryOpenTrial(session, {
+        nowMs: performance.now(),
+        wheelRotationDeg: wheelAngleRef.current,
+      });
+    }
+    if (!opts?.abandoned) playSuccessSoundAndHaptic();
     const st = statsRef.current.startTime;
     const totalTime = st ? (performance.now() - st) / 1000 : 0;
     const finalData = summarizeRotatorySession(session, {
@@ -379,6 +436,12 @@ export function RotatoryWheelGame({
       durationSec: Math.round(totalTime),
       clicksTotal: statsRef.current.clicks,
       wrong: statsRef.current.wrongCount,
+      screenWidthPx: typeof window !== 'undefined' ? window.innerWidth : 0,
+      screenHeightPx: typeof window !== 'undefined' ? window.innerHeight : 0,
+      orientation:
+        typeof window !== 'undefined' && window.innerWidth >= window.innerHeight
+          ? 'landscape'
+          : 'portrait',
       ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
     });
     setResultsData(finalData);
@@ -386,13 +449,16 @@ export function RotatoryWheelGame({
     setIsPaused(true);
   }, [patientName, mode, variant, letterSize, speed, wheelColor, stimuliColor, contrastSensitivity]);
 
-  const handleBubbleClick = (clickedBubble: BubbleItem) => {
+  const handleBubbleClick = (clickedBubble: BubbleItem, event?: React.MouseEvent<HTMLElement>) => {
     if (!poppingActive) return;
 
     const clickedValue = rotatoryBubbleValue(clickedBubble, mode);
     if (clickedValue === currentTarget && hitLockRef.current) return;
 
     statsRef.current.clicks += 1;
+    const finger = event
+      ? localPctFromPointer(event.clientX, event.clientY, bubbleContainerRef.current)
+      : null;
 
     if (clickedValue === currentTarget) {
       hitLockRef.current = true;
@@ -404,8 +470,12 @@ export function RotatoryWheelGame({
           tapLocalYPct: clickedBubble.y,
           wheelRotationDeg: wheelAngleRef.current,
           nowMs: now,
+          fingerXPct: finger?.xPct,
+          fingerYPct: finger?.yPct,
+          targetXPct: clickedBubble.x,
+          targetYPct: clickedBubble.y,
         });
-        if (trial) statsRef.current.reactionTimes.push(trial.reactionMs);
+        if (trial?.validForRt) statsRef.current.reactionTimes.push(trial.reactionMs);
       }
       statsRef.current.targetShownAt = null;
       statsRef.current.correctCount += 1;
@@ -414,6 +484,12 @@ export function RotatoryWheelGame({
 
       setTimeout(() => {
         let remaining = bubblesRef.current.filter((b) => b.id !== clickedBubble.id);
+        if (sessionRef.current && rotatoryWarmupComplete(sessionRef.current) && sessionRef.current.phase === 'warmup') {
+          advanceRotatoryToScored(sessionRef.current);
+          dealingRef.current = false;
+          dealNextBatch();
+          return;
+        }
         if (sessionRef.current && rotatoryDeckComplete(sessionRef.current)) {
           bubblesRef.current = remaining;
           setBubbles(remaining);
@@ -460,6 +536,12 @@ export function RotatoryWheelGame({
         setPoppingActive(false);
 
         if (remaining.length === 0) {
+          if (sessionRef.current?.phase === 'warmup') {
+            advanceRotatoryToScored(sessionRef.current);
+            dealingRef.current = false;
+            dealNextBatch();
+            return;
+          }
           finishSession();
           return;
         }
@@ -467,7 +549,13 @@ export function RotatoryWheelGame({
       }, 250);
     } else {
       playWrongBubbleSoundAndHaptic();
-      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'discrimination');
+      if (sessionRef.current) {
+        noteRotatoryWrong(sessionRef.current, 'discrimination', {
+          nowMs: performance.now(),
+          xPct: finger?.xPct,
+          yPct: finger?.yPct,
+        });
+      }
       statsRef.current.wrongCount += 1;
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
@@ -480,11 +568,18 @@ export function RotatoryWheelGame({
     }
   };
 
-  const handleWheelClick = () => {
+  const handleWheelClick = (event: React.MouseEvent<HTMLElement>) => {
     if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
-      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'aim');
+      const finger = localPctFromPointer(event.clientX, event.clientY, bubbleContainerRef.current);
+      if (sessionRef.current) {
+        noteRotatoryWrong(sessionRef.current, 'aim', {
+          nowMs: performance.now(),
+          xPct: finger?.xPct,
+          yPct: finger?.yPct,
+        });
+      }
       playMissPressSoundAndHaptic();
     }
   };
@@ -495,20 +590,21 @@ export function RotatoryWheelGame({
     const now = performance.now();
     statsRef.current.clicks = 0;
     statsRef.current.wrongCount = 0;
-    statsRef.current.correctCount = sessionRef.current?.trials.length ?? 0;
+    statsRef.current.correctCount = 0;
     statsRef.current.startTime = now;
     statsRef.current.reactionTimes = [];
     statsRef.current.targetShownAt = now;
+    if (sessionRef.current) {
+      sessionRef.current.cueMode = cueMode;
+      sessionRef.current.handUsed = handUsed;
+      const parsedDistance = Number.parseFloat(viewingDistanceCm);
+      sessionRef.current.viewingDistanceCm =
+        Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : null;
+    }
     if (sessionRef.current?.openTrial) {
       sessionRef.current.openTrial.targetShownAt = now;
-      sessionRef.current.openTrial.wrongTaps = 0;
-      sessionRef.current.openTrial.aimTaps = 0;
-    }
-    if (currentTargetRef.current) {
-      const targetText = currentTargetRef.current;
-      setTimeout(() => {
-        speak(mode === 'colors' ? targetText : `target ${targetText}`, mode);
-      }, 200);
+    } else if (bubblesRef.current.length) {
+      chooseNextTarget(bubblesRef.current, mode);
     }
   };
 
@@ -589,7 +685,8 @@ export function RotatoryWheelGame({
           title="Current Target - Tap to open menu"
         >
           {/* JUST THE TARGET SYMBOL / COLOR */}
-          {mode === 'colors' ? (
+          {rotatoryCueShowsBanner(cueMode) ? (
+            mode === 'colors' ? (
             <div
               className="w-3.5 h-3.5 rounded-full border border-white shadow-sm shrink-0"
               style={{ backgroundColor: targetColor }}
@@ -601,6 +698,9 @@ export function RotatoryWheelGame({
             >
               {currentTarget}
             </span>
+          )
+          ) : (
+            <span className="text-[9px] font-bold text-blue-200">Listen</span>
           )}
 
           {/* UP ARROW INDICATOR TO SHOW EXPANDABLE MENU */}
@@ -670,7 +770,15 @@ export function RotatoryWheelGame({
           </button>
 
           <button
-            onClick={() => setIsPaused((prev) => !prev)}
+            onClick={() => {
+              setIsPaused((prev) => {
+                const next = !prev;
+                if (next && isGameStarted && sessionRef.current?.openTrial) {
+                  interruptRotatoryTrial(sessionRef.current);
+                }
+                return next;
+              });
+            }}
             className={`w-full py-2.5 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 border ${
               isPaused
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md'
@@ -852,7 +960,7 @@ export function RotatoryWheelGame({
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleBubbleClick(bubble);
+                    handleBubbleClick(bubble, e);
                   }}
                 >
                   <span className="bubble-text inline-flex items-center justify-center pointer-events-none select-none">
@@ -872,6 +980,10 @@ export function RotatoryWheelGame({
         onClose={() => setIsMenuOpen(false)}
         onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
+          if (isGameStarted && !isResultsOpen && sessionRef.current?.trials.length) {
+            finishSession({ abandoned: true });
+            return;
+          }
           if (onExit) onExit();
         }}
         sessionInProgress={isGameStarted && !isResultsOpen}
@@ -886,23 +998,85 @@ export function RotatoryWheelGame({
         onOpenSettings={() => setIsSettingsOpen(true)}
         resetButtonLabel="Reset Level"
         extraControls={
-          <div className="flex flex-col gap-2">
-            <div className="text-sm font-semibold text-gray-400 mt-2">Speed</div>
-            <div className="grid grid-cols-3 gap-2">
-              {SPEED_PRESETS.map((s) => (
-                <button
-                  key={s}
-                  className={`py-2 border rounded-lg font-semibold cursor-pointer transition-colors ${
-                    speed === s
-                      ? 'border-blue-500 text-blue-400 bg-blue-950/40'
-                      : 'border-gray-700 text-gray-300 bg-[#222222] hover:bg-gray-800'
-                  }`}
-                  onClick={() => setSpeed(s)}
-                >
-                  {s}
-                </button>
-              ))}
+          <div className="flex flex-col gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-400 mt-2">
+                Speed {assessmentLocked ? '(locked)' : ''}
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {SPEED_PRESETS.map((s) => (
+                  <button
+                    key={s}
+                    disabled={assessmentLocked}
+                    className={`py-2 border rounded-lg font-semibold transition-colors ${
+                      speed === s
+                        ? 'border-blue-500 text-blue-400 bg-blue-950/40'
+                        : 'border-gray-700 text-gray-300 bg-[#222222] hover:bg-gray-800'
+                    } ${assessmentLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={() => {
+                      if (!assessmentLocked) setSpeed(s);
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-400">Cue mode</div>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {(['both', 'visual', 'audio'] as RotatoryCueMode[]).map((item) => (
+                  <button
+                    key={item}
+                    disabled={assessmentLocked}
+                    className={`py-2 border rounded-lg text-xs font-semibold capitalize ${
+                      cueMode === item
+                        ? 'border-blue-500 text-blue-400 bg-blue-950/40'
+                        : 'border-gray-700 text-gray-300'
+                    } ${assessmentLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={() => {
+                      if (!assessmentLocked) setCueMode(item);
+                    }}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-400">Hand used</div>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {(['unspecified', 'left', 'right'] as RotatoryHandUsed[]).map((item) => (
+                  <button
+                    key={item}
+                    disabled={assessmentLocked}
+                    className={`py-2 border rounded-lg text-xs font-semibold capitalize ${
+                      handUsed === item
+                        ? 'border-blue-500 text-blue-400 bg-blue-950/40'
+                        : 'border-gray-700 text-gray-300'
+                    } ${assessmentLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={() => {
+                      if (!assessmentLocked) setHandUsed(item);
+                    }}
+                  >
+                    {item === 'unspecified' ? 'Not set' : item}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="flex flex-col gap-1 text-sm text-gray-400">
+              Viewing distance (cm)
+              <input
+                type="number"
+                min={20}
+                max={300}
+                disabled={assessmentLocked}
+                value={viewingDistanceCm}
+                onChange={(e) => setViewingDistanceCm(e.target.value)}
+                placeholder="e.g. 40"
+                className="bg-[#222] border border-gray-700 rounded-lg px-3 py-2 text-white disabled:opacity-50"
+              />
+            </label>
           </div>
         }
         settingsSummary={[
@@ -928,6 +1102,8 @@ export function RotatoryWheelGame({
             ),
           },
           { label: 'Wheel Speed', value: <span className="text-emerald-400 font-bold">{speed}</span> },
+          { label: 'Cue', value: cueMode },
+          { label: 'Hand', value: handUsed === 'unspecified' ? 'Not set' : handUsed },
         ]}
       />
 
@@ -960,15 +1136,10 @@ export function RotatoryWheelGame({
           setTimeout(() => setNotification(null), 2500);
 
           setIsSettingsOpen(false);
-          setIsPaused(false);
+          setIsGameStarted(false);
+          setIsPaused(true);
           startNewSession();
           requestFullScreenSafe();
-          if (currentTargetRef.current) {
-            const targetText = currentTargetRef.current;
-            setTimeout(() => {
-              speak(mode === 'colors' ? targetText : `target ${targetText}`, mode);
-            }, 200);
-          }
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -997,8 +1168,9 @@ export function RotatoryWheelGame({
           }}
           onReplay={() => {
             setIsResultsOpen(false);
+            setIsGameStarted(false);
+            setIsPaused(true);
             startNewSession();
-            setIsPaused(false);
           }}
           data={resultsData}
         />
@@ -1009,18 +1181,24 @@ export function RotatoryWheelGame({
         onConfirm={() => {
           setConfirmReset(false);
           setIsAssistiveTouchOpen(false);
+          setIsGameStarted(false);
+          setIsPaused(true);
           startNewSession();
         }}
       />
       <ResetConfirmDialog
         isOpen={confirmQuit}
         title="Leave this game?"
-        message="This session isn't finished yet. If you leave now, the current progress will be lost."
+        message="This session isn't finished yet. Leaving will save it as abandoned so the taps are not lost."
         confirmLabel="Leave"
         onCancel={() => setConfirmQuit(false)}
         onConfirm={() => {
           setConfirmQuit(false);
           setIsAssistiveTouchOpen(false);
+          if (sessionRef.current?.trials.length) {
+            finishSession({ abandoned: true });
+            return;
+          }
           if (onExit) onExit();
         }}
       />

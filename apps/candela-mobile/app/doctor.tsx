@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { GAME_CATALOG, GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { AnalyticsIcon, CheckIcon, ChevronUpIcon, SearchIcon, XIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { AppToastHost, pushAppToast, type AppToastItem } from '../src/components/AppToast';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import {
   FloatingLabelInput,
@@ -138,6 +139,7 @@ export default function DoctorScreen() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [phoneTab, setPhoneTab] = useState<'create' | 'patients'>('patients');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [toasts, setToasts] = useState<AppToastItem[]>([]);
   const inFlightRef = useRef(new Set<string>());
 
   const filteredPatients = useMemo(() => {
@@ -256,14 +258,18 @@ export default function DoctorScreen() {
       } else {
         await api<PatientSummary>(`/api/doctors/me/patients/${patientId}/prescriptions/${moduleId}`, { method: 'DELETE' });
       }
-      Alert.alert('Updated', enabled ? `Prescribed module for ${patientName}` : `Removed module for ${patientName}`);
+      pushAppToast(
+        setToasts,
+        'success',
+        enabled ? `Prescribed module for ${patientName}` : `Removed module for ${patientName}`,
+      );
     } catch (err) {
       setPatients((prev) =>
         prev.map((p) => (p.id === patientId ? { ...p, prescribedModuleIds: previousIds, prescribedLevels: previousLevels } : p)),
       );
       const msg = err instanceof ApiError ? err.message : 'Could not update prescription';
       setError(msg);
-      Alert.alert('Error', msg);
+      pushAppToast(setToasts, 'error', msg);
     } finally {
       setTimeout(() => {
         inFlightRef.current.delete(key);
@@ -298,12 +304,12 @@ export default function DoctorScreen() {
         method: 'POST',
         body: JSON.stringify({ moduleId, levels: newLevels }),
       });
-      Alert.alert('Updated', `Updated levels for ${patientName}`);
+      pushAppToast(setToasts, 'success', `Updated levels for ${patientName}`);
     } catch (err) {
       setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, prescribedLevels: previousLevels } : p)));
       const msg = err instanceof ApiError ? err.message : 'Could not update level';
       setError(msg);
-      Alert.alert('Error', msg);
+      pushAppToast(setToasts, 'error', msg);
     } finally {
       setTimeout(() => {
         inFlightRef.current.delete(key);
@@ -374,6 +380,7 @@ export default function DoctorScreen() {
             s={s}
           />
         </ScrollView>
+        <AppToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))} />
       </View>
     );
   }
@@ -832,6 +839,7 @@ export default function DoctorScreen() {
         </View>
         ) : null}
       </ScrollView>
+      <AppToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))} />
     </View>
   );
 }

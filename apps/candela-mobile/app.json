@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.candela.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Kandela does not record audio. Speech is used only to announce therapy targets.",
-        "NSCameraUsageDescription": "Kandela uses the camera so you can pop pursuit targets by looking at them."
+        "NSCameraUsageDescription": "Kandela uses the camera so you can pop pursuit targets by looking at them.",
+        "NSPhotoLibraryUsageDescription": "Kandela uses your photo library so a parent can add family photos for Familiar Faces."
       }
     },
     "android": {
@@ -52,7 +53,14 @@
       [
         "react-native-vision-camera",
         {
-          "cameraPermissionText": "Kandela uses the camera so you can pop pursuit targets by looking at them."
+          "cameraPermissionText": "Kandela uses the camera so you can pop pursuit targets by looking at them.",
+          "enableFrameProcessors": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Kandela uses your photo library so a parent can add family photos for Familiar Faces."
         }
       ],
       "./plugins/with-android-architectures"
