@@ -12,7 +12,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "incremental": true,
+    "incremental": false,
     "skipLibCheck": true,
     "types": ["node", "express", "multer"],
     "strictNullChecks": false,
