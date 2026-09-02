@@ -20,7 +20,7 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
     subtitle: 'Pop the matching bubble on the spinning wheel',
     steps: [
       { title: 'Watch the wheel', body: 'Bubbles ride around the spinning wheel. Keep your eyes on them as they turn.' },
-      { title: 'Find the target', body: 'A letter, number, or color is called. That is the one to pop.' },
+      { title: 'Find the target', body: 'A letter, number, or color is called. Each letter or number appears once; colors come in unique sets.' },
       { title: 'Tap the match', body: 'Tap only the matching bubble. Wrong taps count as misses.' },
     ],
   },

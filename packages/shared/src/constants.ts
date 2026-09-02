@@ -1,8 +1,8 @@
 import { ColorItem, DeviceTier } from './types';
 
 export const BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
-  mobile: 2,
-  tablet: 3,
+  mobile: 4,
+  tablet: 4,
   tv: 5,
 };
 
