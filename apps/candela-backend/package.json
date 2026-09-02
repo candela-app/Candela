@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --incremental false",
     "start": "node ../../scripts/kill-port.js 3001 && node dist/main.js",
     "start:dev": "node ../../scripts/kill-port.js 3001 && tsx watch src/main.ts",
     "dev": "node ../../scripts/kill-port.js 3001 && tsx watch src/main.ts",

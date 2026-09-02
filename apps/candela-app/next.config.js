@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+process.env.NEXT_IGNORE_INCORRECT_LOCKFILE = '1';
+
 const path = require('path');
 const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
