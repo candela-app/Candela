@@ -9,6 +9,7 @@ One pipeline, one place — runs only when code is merged (pushed) to `main`.
 | Pull request | Nothing |
 | Push / merge → `main` | CI Build → Deploy Vercel + Deploy Render (parallel) |
 | Push / merge → `main` (mobile paths only) | Also: EAS Android APK build |
+| Actions → **EAS Android APK** (Run workflow) | EAS Android APK only — use this when a website-only merge skipped the APK |
 
 If CI fails, deploys and mobile APK build are skipped.
 

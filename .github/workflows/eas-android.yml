@@ -1,0 +1,79 @@
+name: EAS Android APK
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: eas-android-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SLACK_WEBHOOK_URL_MOBILE: ${{ secrets.SLACK_WEBHOOK_URL_MOBILE }}
+
+jobs:
+  build-mobile-apk:
+    name: Build Mobile APK (EAS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN_CANDELA: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN_BACKUP1: ${{ secrets.EXPO_TOKEN_BACKUP1 }}
+      EXPO_TOKEN_BACKUP2: ${{ secrets.EXPO_TOKEN_BACKUP2 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Slack — mobile APK build started
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" \
+            ":rocket: *Mobile APK build started* (EAS Android, manual) — branch \`${{ github.ref_name }}\`, commit \`${{ github.sha }}\` by ${{ github.actor }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@candela/shared
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli@latest
+
+      - name: Require at least one Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN_CANDELA" ] && [ -z "$EXPO_TOKEN_BACKUP1" ] && [ -z "$EXPO_TOKEN_BACKUP2" ]; then
+            echo "Set EXPO_TOKEN (candelaapp) and/or EXPO_TOKEN_BACKUP1 and EXPO_TOKEN_BACKUP2"
+            echo "Access tokens are on the Expo TEAM, not Project credentials:"
+            echo "https://expo.dev/accounts/candelaapp/settings/access-tokens"
+            echo "https://expo.dev/accounts/satvik-27s-team/settings/access-tokens"
+            echo "https://expo.dev/accounts/srisais-team/settings/access-tokens"
+            exit 1
+          fi
+
+      - name: Build Android APK
+        id: eas
+        working-directory: apps/candela-mobile
+        run: |
+          chmod +x ../../.github/scripts/eas-android-preview.sh
+          ../../.github/scripts/eas-android-preview.sh
+
+      - name: Slack — mobile APK build succeeded
+        if: success()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          MSG=":white_check_mark: *Mobile APK build succeeded* (EAS Android via ${{ steps.eas.outputs.eas_account }})
+          Build: ${{ steps.eas.outputs.build_page }}
+          APK: ${{ steps.eas.outputs.apk_url }}"
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" "$MSG"
+
+      - name: Slack — mobile APK build failed
+        if: failure()
+        run: |
+          chmod +x .github/scripts/slack-notify.sh
+          .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" \
+            ":x: *Mobile APK build failed* (EAS Android) — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

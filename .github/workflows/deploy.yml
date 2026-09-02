@@ -3,6 +3,12 @@ name: Production Build and Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_eas:
+        description: 'Run EAS Android APK even if mobile/shared files did not change'
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-cd-main
@@ -28,8 +34,8 @@ jobs:
         uses: dorny/paths-filter@v3
         id: filter
         with:
-          # Use this push's commit range — not develop vs main (0 files after a merge).
-          base: ${{ github.event.before }}
+          # workflow_dispatch has no commit range; skip the filter and let force_eas decide.
+          base: ${{ github.event_name == 'push' && github.event.before || github.sha }}
           ref: ${{ github.sha }}
           filters: |
             mobile:
@@ -170,7 +176,7 @@ jobs:
   build-mobile-apk:
     name: Build Mobile APK (EAS)
     needs: [changes, ci]
-    if: needs.changes.outputs.mobile == 'true'
+    if: needs.changes.outputs.mobile == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_eas == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:

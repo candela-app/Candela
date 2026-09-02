@@ -90,6 +90,5 @@ Production deploys run on every push to `main` (`.github/workflows/deploy.yml`).
 
 **Web channel:** started / succeeded / failed for Vercel frontend; started / triggered / failed for Render backend hook.
 
-**Mobile channel:** APK build runs only when `apps/candela-mobile/**` or `packages/shared/**` change. Success message includes the expo.dev build page and direct APK URL.
-
+**Mobile channel:** APK build runs when `apps/candela-mobile/**` or `packages/shared/**` change, or when you run **EAS Android APK** (Actions → Run workflow). Success message includes the expo.dev build page and direct APK URL.
 Never commit webhook URLs or tokens to the repo.
