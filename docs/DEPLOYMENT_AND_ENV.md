@@ -58,10 +58,13 @@ graph LR
   4. Backend reflects matching `Access-Control-Allow-Origin` (not wildcard `*`) with `Access-Control-Allow-Credentials: true`.
 
 ### Database Migrations
-Run schema migrations against direct database connection:
+Pending migrations run automatically when the Nest process starts (`main.ts`).
+You can still apply them by hand against `DATABASE_URL_DIRECT`:
 ```bash
 npm run migration:run -w @candela/backend
 ```
+
+Familiar Faces also needs Render env `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and a private Storage bucket (`familiar-faces` by default).
 
 ### Initial Admin Seeding
 Seed initial system administrators on first startup or via script:

@@ -35,7 +35,7 @@ npm run migration:run
 npm run seed:admins
 ```
 
-Startup also seeds from those env vars if the accounts are missing. Confirm with `GET http://localhost:3001/api/health` → `database: connected`.
+Startup also seeds from those env vars if the accounts are missing. Confirm with `GET http://localhost:3001/api/health` → `database: connected`. Pending TypeORM migrations run on every process start.
 
 ## Scripts
 
