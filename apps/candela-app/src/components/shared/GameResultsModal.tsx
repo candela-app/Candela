@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
 import { ResultsConfetti } from './ResultsConfetti';
 
@@ -42,6 +42,8 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const isPursuit =
     data.gameName?.toLowerCase().includes('pursuit') || 'avgTrackingErrorPx' in beeData;
   const isGeoboard = 'boardId' in beeData && 'leftHalfAccuracy' in beeData;
+  const isRotatory = isRotatorySessionResult(data);
+  const rotatory = isRotatory ? data : null;
 
   const currentRound =
     beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
@@ -343,6 +345,61 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         )}
 
+        {/* ROTATORY: VISUAL FIELD + FORM DEMAND (not letter knowledge) */}
+        {rotatory && (
+          <div className="rounded-2xl border border-sky-500/25 bg-sky-950/20 p-4 mb-5 relative z-10 flex flex-col gap-4">
+            <div>
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400">
+                Visual field
+              </div>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Search time and clean-tap rate by where the target appeared — not which letter it was.
+              </p>
+            </div>
+            <div>
+              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                <span>Left {rotatory.leftFieldAccuracy}% · {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms</span>
+                <span>Right {rotatory.rightFieldAccuracy}% · {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms</span>
+              </div>
+              <div className="flex gap-1.5">
+                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden flex justify-end">
+                  <div className="h-full bg-sky-400 rounded-full" style={{ width: `${rotatory.leftFieldAccuracy}%` }} />
+                </div>
+                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${rotatory.rightFieldAccuracy}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Upper</span>
+                <span className="text-xl font-black text-sky-300">{Math.round(rotatory.upperFieldMedianRtSec * 1000)}ms</span>
+              </div>
+              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Lower</span>
+                <span className="text-xl font-black text-emerald-300">{Math.round(rotatory.lowerFieldMedianRtSec * 1000)}ms</span>
+              </div>
+            </div>
+            {rotatory.mode !== 'colors' && (
+              <div className="grid grid-cols-2 gap-2 text-center">
+                {[
+                  { label: 'Simple strokes', value: rotatory.simpleStrokeMedianRtSec },
+                  { label: 'Closed forms', value: rotatory.closedRoundMedianRtSec },
+                  { label: 'Open forms', value: rotatory.openRoundMedianRtSec },
+                  { label: 'Dense forms', value: rotatory.denseStrokeMedianRtSec },
+                ].map((item) => (
+                  <div key={item.label} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">{item.label}</span>
+                    <span className="text-lg font-black text-amber-300">
+                      {item.value > 0 ? `${Math.round(item.value * 1000)}ms` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* GEOBOARD: STARS, HEMIFIELD BALANCE & ERROR PROFILE */}
         {isGeoboard && (
           <div className="rounded-2xl border border-teal-500/25 bg-teal-950/20 p-4 mb-5 relative z-10 flex flex-col gap-4">
@@ -452,12 +509,12 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </div>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Avg Reaction
-              </span>
-              <span className="text-2xl font-black text-amber-400">
-                {Math.round(data.avgReactionSec * 1000)}ms
-              </span>
+            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+              {isRotatory ? 'Median Search' : 'Avg Reaction'}
+            </span>
+            <span className="text-2xl font-black text-amber-400">
+              {Math.round((isRotatory ? rotatory!.medianReactionSec : data.avgReactionSec) * 1000)}ms
+            </span>
             </div>
           )}
 
@@ -483,7 +540,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                {isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped'}
+                {isGeoboard ? 'Patterns Drawn' : isRotatory ? 'Targets' : 'Bubbles Popped'}
               </span>
               <span className="text-2xl font-black text-purple-400">
                 {data.stimuliCount}

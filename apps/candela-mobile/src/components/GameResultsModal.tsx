@@ -7,6 +7,7 @@ import {
   type GeoboardSessionResultData,
   type NumberSearchSessionResultData,
   type SessionResultData,
+  isRotatorySessionResult,
 } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
@@ -79,13 +80,19 @@ export function GameResultsModal({
   const geo = isGeoboard ? (data as GeoboardSessionResultData) : null;
   const isNumberSearch = 'digitsFound' in data && 'endedBy' in data;
   const numberSearch = isNumberSearch ? (data as NumberSearchSessionResultData) : null;
+  const isRotatory = isRotatorySessionResult(data);
+  const rotatory = isRotatory ? data : null;
 
   const metrics: { label: string; value: string; color: string }[] = [
     { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
     { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
-    { label: 'Avg Reaction', value: `${Math.round(data.avgReactionSec * 1000)}ms`, color: '#FBBF24' },
     {
-      label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : 'Bubbles Popped',
+      label: isRotatory ? 'Median Search' : 'Avg Reaction',
+      value: `${Math.round((isRotatory ? rotatory!.medianReactionSec : data.avgReactionSec) * 1000)}ms`,
+      color: '#FBBF24',
+    },
+    {
+      label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : isRotatory ? 'Targets' : 'Bubbles Popped',
       value: isNumberSearch ? String(numberSearch?.digitsFound ?? data.correct) : String(data.stimuliCount),
       color: '#C084FC',
     },
@@ -149,6 +156,115 @@ export function GameResultsModal({
                 Date: <Text style={{ color: '#D1D5DB' }}>{formattedDate}</Text>
               </Text>
             </View>
+
+            {rotatory ? (
+              <View
+                style={{
+                  borderRadius: s(16),
+                  borderWidth: 1,
+                  borderColor: 'rgba(56,189,248,0.25)',
+                  backgroundColor: 'rgba(8,47,73,0.35)',
+                  padding: s(14),
+                  marginBottom: s(16),
+                  gap: s(12),
+                }}
+              >
+                <Text style={{ color: '#38BDF8', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
+                  VISUAL FIELD
+                </Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>
+                  Search time and clean-tap rate by where the target appeared — not which letter it was.
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>
+                    Left {rotatory.leftFieldAccuracy}% · {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms
+                  </Text>
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>
+                    Right {rotatory.rightFieldAccuracy}% · {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: s(6) }}>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: s(8),
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                      overflow: 'hidden',
+                      alignItems: 'flex-end',
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: '100%',
+                        width: `${rotatory.leftFieldAccuracy}%`,
+                        backgroundColor: '#38BDF8',
+                        borderRadius: 999,
+                      }}
+                    />
+                  </View>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: s(8),
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: '100%',
+                        width: `${rotatory.rightFieldAccuracy}%`,
+                        backgroundColor: '#34D399',
+                        borderRadius: 999,
+                      }}
+                    />
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: s(8) }}>
+                  {[
+                    { label: 'Upper', value: `${Math.round(rotatory.upperFieldMedianRtSec * 1000)}ms`, color: '#7DD3FC' },
+                    { label: 'Lower', value: `${Math.round(rotatory.lowerFieldMedianRtSec * 1000)}ms`, color: '#6EE7B7' },
+                  ].map((item) => (
+                    <View
+                      key={item.label}
+                      style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', borderRadius: s(12), padding: s(8), alignItems: 'center' }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
+                      <Text style={{ color: item.color, fontSize: fs(16), fontWeight: '900' }}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+                {rotatory.mode !== 'colors' ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    {[
+                      { label: 'Simple strokes', value: rotatory.simpleStrokeMedianRtSec },
+                      { label: 'Closed forms', value: rotatory.closedRoundMedianRtSec },
+                      { label: 'Open forms', value: rotatory.openRoundMedianRtSec },
+                      { label: 'Dense forms', value: rotatory.denseStrokeMedianRtSec },
+                    ].map((item) => (
+                      <View
+                        key={item.label}
+                        style={{
+                          width: '47%',
+                          flexGrow: 1,
+                          backgroundColor: 'rgba(15,23,42,0.6)',
+                          borderRadius: s(12),
+                          padding: s(8),
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
+                        <Text style={{ color: '#FCD34D', fontSize: fs(15), fontWeight: '900' }}>
+                          {item.value > 0 ? `${Math.round(item.value * 1000)}ms` : '—'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
             {geo ? (
               <View

@@ -4,9 +4,10 @@
 The Rotatory Wheel Therapy Module trains continuous visual pursuit, saccadic targeting, dynamic visual acuity, and rapid target identification on a rotating circular wheel.
 
 - **Therapy Modes**: Alphabets (Uppercase/Lowercase), Numbers, Colors.
+- **Unique session deck**: 26 letters, 10 digits (0–9), or 6 unique color cycles (24). No random repeats on the wheel.
 - **Dynamic Rotation**: Speed presets (0.5x, 1x, 1.5x, 2x, 2.5x) or customized speed.
 - **Audio Feedback**: Text-to-Speech (Indian English voice priority `en-IN`), bubble pop sound effects, and haptic feedback.
-- **Device Awareness**: Adapts bubble count (8 per round), overlap avoidance (`getMinDistancePercent`), and responsive layout for Mobile, Tablet, and Desktop.
+- **Device Awareness**: Adapts bubble count per round (2 / 3 / 5), overlap avoidance (`getMinDistancePercent`), and responsive layout for Mobile, Tablet, and Desktop. Last batch is never a single bubble.
 
 ---
 
@@ -27,8 +28,8 @@ The Rotatory Wheel Therapy Module trains continuous visual pursuit, saccadic tar
 
 ### 📊 Results & CSV Export
 - Displays session performance via `GameResultsModal`:
-  - Accuracy %, Total Clicks, Correct/Wrong counts, Average Reaction Time.
-  - **CSV Export**: One-click download (`exportSessionCSV`).
+  - Accuracy %, median search time, left/right field, form-class search times (not an alphabet score).
+  - **CSV Export**: session summary plus one row per trial (`exportSessionCSV` / `sessionResultToCsv`).
 
 ---
 
@@ -36,10 +37,11 @@ The Rotatory Wheel Therapy Module trains continuous visual pursuit, saccadic tar
 
 Core game logic, mathematical placement, overlap detection, and audio/haptics are imported from `@candela/shared`:
 
+- **`buildRotatoryDeck` / `createRotatorySession`**: Unique A–Z, 0–9, or unique color cycles.
+- **`rotatoryScreenPolar`**: Screen-space hemifield / clock angle for ML and reports.
 - **`checkOverlap(pos, existingPositions, minDistance)`**: Overlap prevention math.
 - **`getMinDistancePercent(bubbleSize, containerSize)`**: Dynamic margin math.
 - **`getSlotFallbackPosition(slotIndex, totalSlots, containerSize, bubbleSize)`**: Deterministic fallback placement.
-- **`getRandomSymbol(mode, variant)`**: Random symbol generation.
 - **`getDeviceTier()`**: Responsive device tier detector.
 
 ---
