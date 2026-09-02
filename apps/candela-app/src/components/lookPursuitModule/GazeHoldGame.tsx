@@ -141,7 +141,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
             poppingRef.current = true;
             setPopping(true);
             playCorrectSoundAndHaptic();
-            popTimeoutRef.current = window.setTimeout(() => {
+            popTimeoutRef.current = setTimeout(() => {
               dwellRef.current = createLookDwellState();
               poppingRef.current = false;
               setPopping(false);
