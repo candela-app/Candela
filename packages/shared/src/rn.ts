@@ -1,6 +1,7 @@
 export * from './types';
 export * from './constants';
 export * from './game-logic';
+export * from './rotatory-logic';
 export * from './bee-path-logic';
 export * from './device-config';
 export * from './game-registry';

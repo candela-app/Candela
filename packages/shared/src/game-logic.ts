@@ -334,20 +334,43 @@ export function reactionStatsFromMs(reactionMs: number[]): {
   };
 }
 
+function csvCell(value: unknown): string {
+  const text = value == null ? '' : String(value);
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+/** Session summary on row 1; trial rows appended when `trials` is an object array. */
+export function sessionResultToCsv(data: SessionResultData): string {
+  const summaryEntries = Object.entries(data)
+    .filter(([, value]) => value == null || typeof value !== 'object')
+    .map(([key, value]) => (key === 'wrong' ? (['misses', value] as const) : ([key, value] as const)));
+  const lines = [
+    summaryEntries.map(([key]) => key).join(','),
+    summaryEntries.map(([, value]) => csvCell(value)).join(','),
+  ];
+
+  const trials = (data as { trials?: unknown }).trials;
+  if (Array.isArray(trials) && trials.length > 0 && trials.every((row) => row && typeof row === 'object' && !Array.isArray(row))) {
+    const keys = Object.keys(trials[0] as object);
+    lines.push('', keys.join(','));
+    for (const row of trials) {
+      const rec = row as Record<string, unknown>;
+      lines.push(keys.map((key) => csvCell(rec[key])).join(','));
+    }
+  }
+
+  return lines.join('\n');
+}
+
 export function exportSessionCSV(data: SessionResultData): void {
   if (typeof window === 'undefined') return;
-  const entries = Object.entries(data).map(([key, value]) =>
-    key === 'wrong' ? (['misses', value] as const) : ([key, value] as const),
-  );
-  const headers = entries.map(([key]) => key).join(',');
-  const values = entries.map(([, value]) => value).join(',');
-  const csvContent = 'data:text/csv;charset=utf-8,' + headers + '\n' + values;
-  const encodedUri = encodeURI(csvContent);
+  const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(sessionResultToCsv(data));
   const gameSlug = data.gameName
     ? data.gameName.toLowerCase().replace(/\s+/g, '-')
     : 'results';
   const link = document.createElement('a');
-  link.setAttribute('href', encodedUri);
+  link.setAttribute('href', csvContent);
   link.setAttribute('download', `game-session-completed-${gameSlug}.csv`);
   document.body.appendChild(link);
   link.click();

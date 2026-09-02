@@ -4,22 +4,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlphabetVariant,
   BRIGHT_COLORS,
-  BUBBLES_PER_ROUND,
   BubbleItem,
   DEFAULT_BASE_ANIMATION_DURATION,
   GameMode,
   SessionResultData,
-  getDeviceTier,
-  getSlotFallbackPosition,
-  getRandomSymbol,
-  reactionStatsFromMs,
+  createRotatorySession,
+  nextRotatoryBatch,
+  takeNextRotatorySymbol,
+  makeRotatoryBubbleItem,
+  beginRotatoryTrial,
+  noteRotatoryWrong,
+  completeRotatoryTrial,
+  rotatoryDeckComplete,
+  summarizeRotatorySession,
+  rotatoryBubbleValue,
+  pickBalancedRotatoryTarget,
+  placeInitialRotatoryPositions,
+  nextRotatoryRefillPosition,
+  type RotatorySessionState,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   DEFAULT_BUBBLE_APPEARANCE,
-  resolveStimuliBubbleColor,
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
   wheelColorLabel,
+  clinicalColorSessionFields,
   type BubbleAppearance,
   useHowToPlayGate,
   usePauseShiftedClock,
@@ -79,6 +88,7 @@ export function RotatoryWheelGame({
   const [angle, setAngle] = useState(0);
   const [wheelPx, setWheelPx] = useState(Math.min(width, height) * 0.98);
   const [statsTick, setStatsTick] = useState(0);
+  const [sessionGoal, setSessionGoal] = useState(26);
 
   const statsRef = useRef({
     clicks: 0,
@@ -88,6 +98,18 @@ export function RotatoryWheelGame({
     reactionTimes: [] as number[],
     targetShownAt: null as number | null,
   });
+  const sessionRef = useRef<RotatorySessionState | null>(null);
+  const angleRef = useRef(0);
+  const dealingRef = useRef(false);
+  const hitLockRef = useRef(false);
+  const bubbleSizeRef = useRef(bubbleSize);
+  const stimuliColorRef = useRef(stimuliColor);
+  const wheelPxRef = useRef(wheelPx);
+  const bubblesRef = useRef<BubbleItem[]>([]);
+  bubbleSizeRef.current = bubbleSize;
+  stimuliColorRef.current = stimuliColor;
+  wheelPxRef.current = wheelPx;
+  bubblesRef.current = bubbles;
   const isSettingsOpenRef = useRef(playBlocked);
   const currentTargetRef = useRef('');
   const pausedRef = useRef(isPaused);
@@ -95,6 +117,7 @@ export function RotatoryWheelGame({
   usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
     if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
     if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
+    if (sessionRef.current?.openTrial) sessionRef.current.openTrial.targetShownAt += delta;
   }, statsRef.current.startTime);
 
   useEffect(() => {
@@ -119,6 +142,7 @@ export function RotatoryWheelGame({
       const dt = now - last;
       last = now;
       current = (current + (360 * dt) / (animationDurationSeconds * 1000)) % 360;
+      angleRef.current = current;
       setAngle(current);
       raf = requestAnimationFrame(loop);
     };
@@ -139,15 +163,26 @@ export function RotatoryWheelGame({
 
   const chooseNextTarget = useCallback(
     (currentBubbles: BubbleItem[], currentMode: GameMode) => {
-      if (currentBubbles.length === 0) return;
-      const remainingSymbols = Array.from(
-        new Set(currentBubbles.map((b) => (currentMode === 'colors' ? b.colorName || '' : b.symbol))),
-      ).filter(Boolean);
-      if (remainingSymbols.length === 0) return;
-      const nextTarget = remainingSymbols[Math.floor(Math.random() * remainingSymbols.length)];
+      if (!sessionRef.current || currentBubbles.length === 0) return;
+      const nextTarget = pickBalancedRotatoryTarget(
+        currentBubbles,
+        currentMode,
+        angleRef.current,
+        sessionRef.current.trials,
+      );
+      if (!nextTarget) return;
       setCurrentTarget(nextTarget);
       currentTargetRef.current = nextTarget;
-      statsRef.current.targetShownAt = performance.now();
+      const now = performance.now();
+      statsRef.current.targetShownAt = now;
+      beginRotatoryTrial(sessionRef.current, {
+        glyphId: nextTarget,
+        bubbles: currentBubbles,
+        wheelRotationDeg: angleRef.current,
+        angularSpeedDegPerSec: (360 * speed) / DEFAULT_BASE_ANIMATION_DURATION,
+        nowMs: now,
+        sessionStartMs: statsRef.current.startTime,
+      });
       if (currentMode === 'colors') {
         const colorObj = BRIGHT_COLORS.find((c) => c.name === nextTarget);
         setTargetColor(colorObj ? colorObj.code : '#ff5722');
@@ -157,9 +192,10 @@ export function RotatoryWheelGame({
       if (!isSettingsOpenRef.current) {
         setTimeout(() => speakTarget(nextTarget, currentMode), 400);
       }
+      hitLockRef.current = false;
       setPoppingActive(true);
     },
-    [speakTarget],
+    [speakTarget, speed],
   );
 
   const resetStats = useCallback(() => {
@@ -174,71 +210,71 @@ export function RotatoryWheelGame({
     setStatsTick((n) => n + 1);
   }, []);
 
-  const startLevel = useCallback(() => {
-    setBubbles([]);
+  const dealNextBatch = useCallback(() => {
+    if (dealingRef.current) return true;
+    const session = sessionRef.current;
+    if (!session) return false;
+    dealingRef.current = true;
+    const symbols = nextRotatoryBatch(session);
+    if (!symbols) {
+      dealingRef.current = false;
+      return false;
+    }
     setPoppingIds(new Set());
     setWrongIds(new Set());
     setPoppingActive(false);
-    const newBubbles: BubbleItem[] = [];
     const containerSize =
-      wheelPx > 40
-        ? wheelPx
+      wheelPxRef.current > 40
+        ? wheelPxRef.current
         : Math.min(width * 0.98, height * 0.98) || 500;
-    const deviceTier = getDeviceTier(width, height);
-    const bubblesPerRound = BUBBLES_PER_ROUND[deviceTier];
-
-    for (let i = 0; i < bubblesPerRound; i += 1) {
-      const symbol = getRandomSymbol(mode, variant);
-      const pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize, 0.62);
-      let bgColor = '';
-      let colorName = '';
-      if (mode === 'colors') {
-        const colorObj = BRIGHT_COLORS.find((c) => c.name === symbol) || BRIGHT_COLORS[0];
-        bgColor = colorObj.code;
-        colorName = colorObj.name;
-      } else {
-        bgColor = resolveStimuliBubbleColor(stimuliColor, i);
-      }
-      newBubbles.push({
-        id: `bubble-${i}-${Date.now()}-${Math.random()}`,
-        symbol,
-        color: bgColor,
-        colorName,
-        x: pos.x,
-        y: pos.y,
-      });
-    }
+    const positions = placeInitialRotatoryPositions(symbols.length, {
+      containerSize,
+      bubbleSize: bubbleSizeRef.current,
+    });
+    const newBubbles: BubbleItem[] = symbols.map((symbol, i) =>
+      makeRotatoryBubbleItem(symbol, mode, positions[i]!, stimuliColorRef.current, i),
+    );
     setBubbles(newBubbles);
-    setTimeout(() => chooseNextTarget(newBubbles, mode), 300);
-  }, [mode, variant, bubbleSize, stimuliColor, chooseNextTarget, wheelPx, width, height]);
+    setTimeout(() => {
+      dealingRef.current = false;
+      chooseNextTarget(newBubbles, mode);
+    }, 300);
+    return true;
+  }, [mode, width, height, chooseNextTarget]);
+
+  const startNewSession = useCallback(() => {
+    sessionRef.current = createRotatorySession(mode, variant, 'mobile', 4);
+    setSessionGoal(sessionRef.current.deck.length);
+    dealingRef.current = false;
+    hitLockRef.current = false;
+    resetStats();
+    setBubbles([]);
+    dealNextBatch();
+  }, [mode, variant, resetStats, dealNextBatch]);
 
   useEffect(() => {
-    resetStats();
-    startLevel();
-  }, [mode, variant, resetStats, startLevel]);
+    startNewSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, variant]);
 
-  const finishSession = (currentMode: GameMode) => {
+  const finishSession = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    setPoppingActive(false);
     const st = statsRef.current.startTime;
     const totalTime = st ? (performance.now() - st) / 1000 : 0;
-    const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
-    const finalData: SessionResultData = {
+    const finalData = summarizeRotatorySession(session, {
       patientName,
       sessionId: Math.floor(1000 + Math.random() * 9000),
       date: new Date().toLocaleDateString('en-GB'),
-      gameName: `Rotatory Wheel (${currentMode} - ${variant})`,
-      stimuliCount: statsRef.current.correctCount,
+      gameName: `Rotatory Wheel (${mode} - ${variant})`,
       letterSize,
       speed: `${speed}x`,
       durationSec: Math.round(totalTime),
       clicksTotal: statsRef.current.clicks,
-      correct: statsRef.current.correctCount,
       wrong: statsRef.current.wrongCount,
-      accuracy:
-        statsRef.current.clicks > 0
-          ? Math.round((statsRef.current.correctCount / statsRef.current.clicks) * 100)
-          : 100,
-      avgReactionSec: avgReact,
-    };
+      ...clinicalColorSessionFields(wheelColor, stimuliColor, 1),
+    });
     setResultsData(finalData);
     setIsResultsOpen(true);
     setIsPaused(true);
@@ -247,43 +283,77 @@ export function RotatoryWheelGame({
 
   const handleBubbleClick = (clickedBubble: BubbleItem) => {
     if (!poppingActive) return;
+    const clickedValue = rotatoryBubbleValue(clickedBubble, mode);
+    if (clickedValue === currentTarget && hitLockRef.current) return;
     statsRef.current.clicks += 1;
-    const clickedValue = mode === 'colors' ? clickedBubble.colorName : clickedBubble.symbol;
     if (clickedValue === currentTarget) {
+      hitLockRef.current = true;
       void hapticCorrect();
-      if (statsRef.current.targetShownAt) {
-        statsRef.current.reactionTimes.push(performance.now() - statsRef.current.targetShownAt);
+      const now = performance.now();
+      if (sessionRef.current) {
+        const trial = completeRotatoryTrial(sessionRef.current, {
+          tapLocalXPct: clickedBubble.x,
+          tapLocalYPct: clickedBubble.y,
+          wheelRotationDeg: angleRef.current,
+          nowMs: now,
+        });
+        if (trial) statsRef.current.reactionTimes.push(trial.reactionMs);
       }
-      statsRef.current.targetShownAt = performance.now();
+      statsRef.current.targetShownAt = null;
       statsRef.current.correctCount += 1;
       bumpStats();
       setPoppingIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
-        setBubbles((prevBubbles) => {
-          const updatedBubbles = prevBubbles.filter((b) => b.id !== clickedBubble.id);
-          if (statsRef.current.correctCount >= 20) {
-            setPoppingActive(false);
-            void hapticCorrect();
-            finishSession(mode);
-            return updatedBubbles;
-          }
-          const stillLeft = updatedBubbles.some((b) =>
-            mode === 'colors' ? b.colorName === currentTarget : b.symbol === currentTarget,
+        let remaining = bubblesRef.current.filter((b) => b.id !== clickedBubble.id);
+        if (sessionRef.current && rotatoryDeckComplete(sessionRef.current)) {
+          bubblesRef.current = remaining;
+          setBubbles(remaining);
+          setPoppingActive(false);
+          void hapticCorrect();
+          finishSession();
+          return;
+        }
+
+        const avoid = new Set(remaining.map((b) => rotatoryBubbleValue(b, mode)));
+        const nextSymbol = sessionRef.current
+          ? takeNextRotatorySymbol(sessionRef.current, avoid)
+          : null;
+        if (nextSymbol) {
+          const containerSize =
+            wheelPxRef.current > 40
+              ? wheelPxRef.current
+              : Math.min(width * 0.98, height * 0.98) || 500;
+          const pos = nextRotatoryRefillPosition(
+            { x: clickedBubble.x, y: clickedBubble.y },
+            remaining.map((b) => ({ x: b.x, y: b.y })),
+            { containerSize, bubbleSize: bubbleSizeRef.current },
           );
-          if (!stillLeft) {
-            setPoppingActive(false);
-            if (updatedBubbles.length === 0) {
-              void hapticCorrect();
-              setTimeout(() => startLevel(), 500);
-            } else {
-              setTimeout(() => chooseNextTarget(updatedBubbles, mode), 600);
-            }
-          }
-          return updatedBubbles;
-        });
+          remaining = [
+            ...remaining,
+            makeRotatoryBubbleItem(
+              nextSymbol,
+              mode,
+              pos,
+              stimuliColorRef.current,
+              sessionRef.current?.dealtCount ?? remaining.length,
+            ),
+          ];
+        }
+
+        bubblesRef.current = remaining;
+        setBubbles(remaining);
+        setPoppingIds(new Set());
+        setPoppingActive(false);
+
+        if (remaining.length === 0) {
+          finishSession();
+          return;
+        }
+        setTimeout(() => chooseNextTarget(remaining, mode), 200);
       }, 250);
     } else {
       void hapticWrong();
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'discrimination');
       statsRef.current.wrongCount += 1;
       bumpStats();
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
@@ -301,6 +371,7 @@ export function RotatoryWheelGame({
     if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'aim');
       bumpStats();
       void hapticMiss();
     }
@@ -309,7 +380,19 @@ export function RotatoryWheelGame({
   const handleStartGame = () => {
     setIsGameStarted(true);
     setIsPaused(false);
-    resetStats();
+    const now = performance.now();
+    statsRef.current.clicks = 0;
+    statsRef.current.wrongCount = 0;
+    statsRef.current.correctCount = sessionRef.current?.trials.length ?? 0;
+    statsRef.current.startTime = now;
+    statsRef.current.reactionTimes = [];
+    statsRef.current.targetShownAt = now;
+    if (sessionRef.current?.openTrial) {
+      sessionRef.current.openTrial.targetShownAt = now;
+      sessionRef.current.openTrial.wrongTaps = 0;
+      sessionRef.current.openTrial.aimTaps = 0;
+    }
+    bumpStats();
     if (currentTargetRef.current) {
       const targetText = currentTargetRef.current;
       setTimeout(() => speakTarget(targetText, mode), 200);
@@ -716,7 +799,7 @@ export function RotatoryWheelGame({
           </View>
           <View style={{ height: 1, backgroundColor: '#1F2937', marginVertical: s(8) }} />
           <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', marginBottom: s(6) }}>LIVE METRICS</Text>
-          <InfoRow label="Correct Hits" value={`${statsRef.current.correctCount} / 20`} accent="#34D399" />
+          <InfoRow label="Targets" value={`${statsRef.current.correctCount} / ${sessionGoal}`} accent="#34D399" />
           <InfoRow label="Wrong Clicks" value={String(statsRef.current.wrongCount)} accent="#FB7185" />
         </View>
       ) : null}
@@ -742,17 +825,20 @@ export function RotatoryWheelGame({
           setPatientName(next.patientName);
           setLetterSize(next.letterSize);
           setBubbleSize(next.bubbleSize);
+          bubbleSizeRef.current = next.bubbleSize;
           if (next.speed !== undefined) setSpeed(next.speed);
           if (next.wheelColor !== undefined) setWheelColor(next.wheelColor);
-          if (next.stimuliColor !== undefined) setStimuliColor(next.stimuliColor);
+          if (next.stimuliColor !== undefined) {
+            setStimuliColor(next.stimuliColor);
+            stimuliColorRef.current = next.stimuliColor;
+          }
           if (next.bubbleAppearance !== undefined) setBubbleAppearance(next.bubbleAppearance);
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
           if (isGameStarted) {
             setIsPaused(false);
-            resetStats();
-            startLevel();
+            startNewSession();
             if (currentTargetRef.current) {
               const targetText = currentTargetRef.current;
               setTimeout(() => speakTarget(targetText, mode), 200);
@@ -785,8 +871,7 @@ export function RotatoryWheelGame({
           }}
           onReplay={() => {
             setIsResultsOpen(false);
-            resetStats();
-            startLevel();
+            startNewSession();
             setIsPaused(false);
             setIsGameStarted(true);
           }}
@@ -798,7 +883,7 @@ export function RotatoryWheelGame({
         onOpenHowToPlay={openHowToPlay}
         onQuit={() => requestExit()}
         sessionInProgress={isGameStarted && !isResultsOpen}
-        onReset={startLevel}
+        onReset={startNewSession}
         resetButtonLabel="Reset Level"
         onOpenSettings={() => setIsSettingsOpen(true)}
         settingsSummary={[
@@ -835,8 +920,7 @@ export function RotatoryWheelGame({
         onConfirm={() => {
           setConfirmReset(false);
           setIsAssistiveTouchOpen(false);
-          resetStats();
-          startLevel();
+          startNewSession();
         }}
       />
       <ResetConfirmDialog

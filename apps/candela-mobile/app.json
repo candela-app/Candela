@@ -54,7 +54,8 @@
         {
           "cameraPermissionText": "Kandela uses the camera so you can pop pursuit targets by looking at them."
         }
-      ]
+      ],
+      "./plugins/with-android-architectures"
     ],
     "updates": {
       "enabled": false

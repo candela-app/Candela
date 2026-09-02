@@ -7,26 +7,33 @@ import {
   BubbleItem,
   BRIGHT_COLORS,
   SPEED_PRESETS,
-  BUBBLES_PER_ROUND,
   DEFAULT_BASE_ANIMATION_DURATION,
   defaultBubbleSizePx,
   getDeviceTier,
-  getSlotFallbackPosition,
-  getRandomSymbol,
-  getContrastColor,
-  exportSessionCSV,
   playCorrectSoundAndHaptic,
-  playWrongSoundAndHaptic,
   playWrongBubbleSoundAndHaptic,
   playMissPressSoundAndHaptic,
   playSuccessSoundAndHaptic,
   requestFullScreenSafe,
   ClinicalSettingsModal,
   SessionResultData,
-  reactionStatsFromMs,
+  createRotatorySession,
+  nextRotatoryBatch,
+  takeNextRotatorySymbol,
+  makeRotatoryBubbleItem,
+  beginRotatoryTrial,
+  noteRotatoryWrong,
+  completeRotatoryTrial,
+  rotatoryDeckComplete,
+  summarizeRotatorySession,
+  rotatoryBubbleValue,
+  pickBalancedRotatoryTarget,
+  placeInitialRotatoryPositions,
+  nextRotatoryRefillPosition,
+  cssMatrixRotationDeg,
+  type RotatorySessionState,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   DEFAULT_BUBBLE_APPEARANCE,
-  resolveStimuliBubbleColor,
   resolveBubblePaint,
   stimuliColorLabel,
   bubbleAppearanceLabel,
@@ -106,8 +113,8 @@ export function RotatoryWheelGame({
   const [poppingActive, setPoppingActive] = useState<boolean>(false);
   const [poppingIds, setPoppingIds] = useState<Set<string>>(new Set());
   const [wrongIds, setWrongIds] = useState<Set<string>>(new Set());
+  const [sessionGoal, setSessionGoal] = useState(26);
 
-  // UseRef for stats to prevent re-creating callbacks and restarting animations
   const statsRef = useRef({
     clicks: 0,
     correctCount: 0,
@@ -116,6 +123,16 @@ export function RotatoryWheelGame({
     reactionTimes: [] as number[],
     targetShownAt: null as number | null,
   });
+  const sessionRef = useRef<RotatorySessionState | null>(null);
+  const wheelAngleRef = useRef(0);
+  const dealingRef = useRef(false);
+  const hitLockRef = useRef(false);
+  const bubbleSizeRef = useRef(bubbleSize);
+  const stimuliColorRef = useRef(stimuliColor);
+  const bubblesRef = useRef<BubbleItem[]>([]);
+  bubbleSizeRef.current = bubbleSize;
+  stimuliColorRef.current = stimuliColor;
+  bubblesRef.current = bubbles;
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const bubbleContainerRef = useRef<HTMLDivElement>(null);
@@ -125,6 +142,7 @@ export function RotatoryWheelGame({
   usePauseShiftedClock(engineFrozen, isGameStarted, (delta) => {
     if (statsRef.current.startTime != null) statsRef.current.startTime += delta;
     if (statsRef.current.targetShownAt != null) statsRef.current.targetShownAt += delta;
+    if (sessionRef.current?.openTrial) sessionRef.current.openTrial.targetShownAt += delta;
   }, statsRef.current.startTime);
 
   // Original English target voice (device en-US, e.g. Samantha)
@@ -162,16 +180,13 @@ export function RotatoryWheelGame({
     const syncRotation = () => {
       if (wheelRef.current) {
         const transform = window.getComputedStyle(wheelRef.current).transform;
-        if (transform && transform !== 'none') {
-          const match = transform.match(/matrix\(([^)]+)\)/);
-          if (match && match[1]) {
-            const values = match[1].split(',').map(Number);
-            const angle = Math.atan2(values[1], values[0]) * (180 / Math.PI);
-            const spans = wheelRef.current.querySelectorAll('.bubble-text');
-            spans.forEach((span) => {
-              (span as HTMLElement).style.transform = `rotate(${-angle}deg)`;
-            });
-          }
+        const angle = cssMatrixRotationDeg(transform);
+        if (angle != null) {
+          wheelAngleRef.current = angle;
+          const spans = wheelRef.current.querySelectorAll('.bubble-text');
+          spans.forEach((span) => {
+            (span as HTMLElement).style.transform = `rotate(${-angle}deg)`;
+          });
         }
       }
       animId = requestAnimationFrame(syncRotation);
@@ -229,54 +244,29 @@ export function RotatoryWheelGame({
     }
   }, [isSettingsOpen, patientName, letterSize, bubbleSize, wheelColor]);
 
-  // Choose Next Target
   const chooseNextTarget = useCallback(
     (currentBubbles: BubbleItem[], currentMode: GameMode) => {
-      if (currentBubbles.length === 0) return;
+      if (!sessionRef.current || currentBubbles.length === 0) return;
 
-      const remainingSymbols = Array.from(
-        new Set(
-          currentBubbles.map((b) =>
-            currentMode === 'colors' ? b.colorName || '' : b.symbol
-          )
-        )
-      ).filter(Boolean);
-
-      if (remainingSymbols.length === 0) {
-        const st = statsRef.current.startTime;
-        const totalTime = st ? (performance.now() - st) / 1000 : 0;
-        const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
-
-        exportSessionCSV({
-          patientName,
-          sessionId: Math.floor(1000 + Math.random() * 9000),
-          date: new Date().toLocaleDateString('en-GB'),
-          gameName: `Rotatory Wheel (${currentMode} - ${variant})`,
-          stimuliCount: 10,
-          letterSize,
-          speed: `${speed}x`,
-          durationSec: Math.round(totalTime),
-          clicksTotal: statsRef.current.clicks,
-          correct: statsRef.current.correctCount,
-          wrong: statsRef.current.wrongCount,
-          accuracy:
-            statsRef.current.clicks > 0
-              ? Math.round(
-                  (statsRef.current.correctCount / statsRef.current.clicks) * 100
-                )
-              : 100,
-          avgReactionSec: avgReact,
-          ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
-        });
-        return;
-      }
-
-      const nextTarget =
-        remainingSymbols[Math.floor(Math.random() * remainingSymbols.length)];
-
+      const nextTarget = pickBalancedRotatoryTarget(
+        currentBubbles,
+        currentMode,
+        wheelAngleRef.current,
+        sessionRef.current.trials,
+      );
+      if (!nextTarget) return;
       setCurrentTarget(nextTarget);
       currentTargetRef.current = nextTarget;
-      statsRef.current.targetShownAt = performance.now();
+      const now = performance.now();
+      statsRef.current.targetShownAt = now;
+      beginRotatoryTrial(sessionRef.current, {
+        glyphId: nextTarget,
+        bubbles: currentBubbles,
+        wheelRotationDeg: wheelAngleRef.current,
+        angularSpeedDegPerSec: (360 * speed) / DEFAULT_BASE_ANIMATION_DURATION,
+        nowMs: now,
+        sessionStartMs: statsRef.current.startTime,
+      });
 
       if (currentMode === 'colors') {
         const colorObj = BRIGHT_COLORS.find((c) => c.name === nextTarget);
@@ -285,7 +275,6 @@ export function RotatoryWheelGame({
         setTargetColor('#ff5722');
       }
 
-      // ONLY speak if settings modal is NOT open
       if (!isSettingsOpenRef.current) {
         if (currentMode === 'colors') {
           setTimeout(() => speak(nextTarget, currentMode), 400);
@@ -294,9 +283,10 @@ export function RotatoryWheelGame({
         }
       }
 
+      hitLockRef.current = false;
       setPoppingActive(true);
     },
-    [speak, patientName, variant, letterSize, speed]
+    [speak, speed],
   );
 
   const resetStats = useCallback(() => {
@@ -310,21 +300,25 @@ export function RotatoryWheelGame({
     };
   }, []);
 
-  // Generate Level (Round)
-  const startLevel = useCallback(() => {
-    setBubbles([]);
+  const dealNextBatch = useCallback(() => {
+    if (dealingRef.current) return true;
+    const session = sessionRef.current;
+    if (!session) return false;
+    dealingRef.current = true;
+    const symbols = nextRotatoryBatch(session);
+    if (!symbols) {
+      dealingRef.current = false;
+      return false;
+    }
+
     setPoppingIds(new Set());
     setWrongIds(new Set());
     setPoppingActive(false);
-
-    const newBubbles: BubbleItem[] = [];
 
     const rawContainer = bubbleContainerRef.current;
     const measured = rawContainer
       ? Math.min(rawContainer.clientWidth, rawContainer.clientHeight)
       : 0;
-    // When the wheel is hidden (settings open) the ref is empty — estimate from viewport
-    // so %-space min-distance matches the on-screen 98vh wheel.
     const containerSize =
       measured > 40
         ? measured
@@ -332,134 +326,148 @@ export function RotatoryWheelGame({
           ? Math.min(window.innerWidth * 0.98, window.innerHeight * 0.98)
           : 500;
 
-    const deviceTier = getDeviceTier(
-      typeof window !== 'undefined' ? window.innerWidth : undefined,
-      typeof window !== 'undefined' ? window.innerHeight : undefined
+    const positions = placeInitialRotatoryPositions(symbols.length, {
+      containerSize,
+      bubbleSize: bubbleSizeRef.current,
+    });
+    const newBubbles: BubbleItem[] = symbols.map((symbol, i) =>
+      makeRotatoryBubbleItem(symbol, mode, positions[i]!, stimuliColorRef.current, i),
     );
-    const bubblesPerRound = BUBBLES_PER_ROUND[deviceTier];
-
-    for (let i = 0; i < bubblesPerRound; i++) {
-      const symbol = getRandomSymbol(mode, variant);
-      const pos = getSlotFallbackPosition(i, bubblesPerRound, containerSize, bubbleSize, 0.62);
-
-      let bgColor = '';
-      let colorName = '';
-
-      if (mode === 'colors') {
-        const colorObj =
-          BRIGHT_COLORS.find((c) => c.name === symbol) || BRIGHT_COLORS[0];
-        bgColor = colorObj.code;
-        colorName = colorObj.name;
-      } else {
-        bgColor = resolveStimuliBubbleColor(stimuliColor, i);
-      }
-
-      newBubbles.push({
-        id: `bubble-${i}-${Date.now()}-${Math.random()}`,
-        symbol,
-        color: bgColor,
-        colorName,
-        x: pos.x,
-        y: pos.y,
-      });
-    }
 
     setBubbles(newBubbles);
-
     setTimeout(() => {
+      dealingRef.current = false;
       chooseNextTarget(newBubbles, mode);
     }, 300);
-  }, [mode, variant, bubbleSize, stimuliColor, chooseNextTarget]);
+    return true;
+  }, [mode, chooseNextTarget]);
+
+  const startNewSession = useCallback(() => {
+    const deviceTier = getDeviceTier(
+      typeof window !== 'undefined' ? window.innerWidth : undefined,
+      typeof window !== 'undefined' ? window.innerHeight : undefined,
+    );
+    sessionRef.current = createRotatorySession(mode, variant, deviceTier);
+    setSessionGoal(sessionRef.current.deck.length);
+    dealingRef.current = false;
+    hitLockRef.current = false;
+    resetStats();
+    setBubbles([]);
+    dealNextBatch();
+  }, [mode, variant, resetStats, dealNextBatch]);
 
   useEffect(() => {
-    resetStats();
-    startLevel();
-  }, [mode, variant, resetStats, startLevel]);
+    startNewSession();
+    // Settings apply / replay call startNewSession explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, variant]);
+
+  const finishSession = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    setPoppingActive(false);
+    playSuccessSoundAndHaptic();
+    const st = statsRef.current.startTime;
+    const totalTime = st ? (performance.now() - st) / 1000 : 0;
+    const finalData = summarizeRotatorySession(session, {
+      patientName,
+      sessionId: Math.floor(1000 + Math.random() * 9000),
+      date: new Date().toLocaleDateString('en-GB'),
+      gameName: `Rotatory Wheel (${mode} - ${variant})`,
+      letterSize,
+      speed: `${speed}x`,
+      durationSec: Math.round(totalTime),
+      clicksTotal: statsRef.current.clicks,
+      wrong: statsRef.current.wrongCount,
+      ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
+    });
+    setResultsData(finalData);
+    setIsResultsOpen(true);
+    setIsPaused(true);
+  }, [patientName, mode, variant, letterSize, speed, wheelColor, stimuliColor, contrastSensitivity]);
 
   const handleBubbleClick = (clickedBubble: BubbleItem) => {
     if (!poppingActive) return;
 
+    const clickedValue = rotatoryBubbleValue(clickedBubble, mode);
+    if (clickedValue === currentTarget && hitLockRef.current) return;
+
     statsRef.current.clicks += 1;
 
-    const clickedValue =
-      mode === 'colors' ? clickedBubble.colorName : clickedBubble.symbol;
-
     if (clickedValue === currentTarget) {
+      hitLockRef.current = true;
       playCorrectSoundAndHaptic();
-
-      if (statsRef.current.targetShownAt) {
-        statsRef.current.reactionTimes.push(
-          performance.now() - statsRef.current.targetShownAt
-        );
+      const now = performance.now();
+      if (sessionRef.current) {
+        const trial = completeRotatoryTrial(sessionRef.current, {
+          tapLocalXPct: clickedBubble.x,
+          tapLocalYPct: clickedBubble.y,
+          wheelRotationDeg: wheelAngleRef.current,
+          nowMs: now,
+        });
+        if (trial) statsRef.current.reactionTimes.push(trial.reactionMs);
       }
-      statsRef.current.targetShownAt = performance.now();
+      statsRef.current.targetShownAt = null;
       statsRef.current.correctCount += 1;
 
       setPoppingIds((prev) => new Set(prev).add(clickedBubble.id));
 
       setTimeout(() => {
-        setBubbles((prevBubbles) => {
-          const updatedBubbles = prevBubbles.filter(
-            (b) => b.id !== clickedBubble.id
+        let remaining = bubblesRef.current.filter((b) => b.id !== clickedBubble.id);
+        if (sessionRef.current && rotatoryDeckComplete(sessionRef.current)) {
+          bubblesRef.current = remaining;
+          setBubbles(remaining);
+          setPoppingActive(false);
+          finishSession();
+          return;
+        }
+
+        const avoid = new Set(remaining.map((b) => rotatoryBubbleValue(b, mode)));
+        const nextSymbol = sessionRef.current
+          ? takeNextRotatorySymbol(sessionRef.current, avoid)
+          : null;
+        if (nextSymbol) {
+          const rawContainer = bubbleContainerRef.current;
+          const measured = rawContainer
+            ? Math.min(rawContainer.clientWidth, rawContainer.clientHeight)
+            : 0;
+          const containerSize =
+            measured > 40
+              ? measured
+              : typeof window !== 'undefined'
+                ? Math.min(window.innerWidth * 0.98, window.innerHeight * 0.98)
+                : 500;
+          const pos = nextRotatoryRefillPosition(
+            { x: clickedBubble.x, y: clickedBubble.y },
+            remaining.map((b) => ({ x: b.x, y: b.y })),
+            { containerSize, bubbleSize: bubbleSizeRef.current },
           );
+          remaining = [
+            ...remaining,
+            makeRotatoryBubbleItem(
+              nextSymbol,
+              mode,
+              pos,
+              stimuliColorRef.current,
+              sessionRef.current?.dealtCount ?? remaining.length,
+            ),
+          ];
+        }
 
-          if (statsRef.current.correctCount >= 20) {
-            setPoppingActive(false);
-            playSuccessSoundAndHaptic();
-            const st = statsRef.current.startTime;
-            const totalTime = st ? (performance.now() - st) / 1000 : 0;
-            const { avgSec: avgReact } = reactionStatsFromMs(statsRef.current.reactionTimes);
+        bubblesRef.current = remaining;
+        setBubbles(remaining);
+        setPoppingIds(new Set());
+        setPoppingActive(false);
 
-            const finalData: SessionResultData = {
-              patientName,
-              sessionId: Math.floor(1000 + Math.random() * 9000),
-              date: new Date().toLocaleDateString('en-GB'),
-              gameName: `Rotatory Wheel (${mode} - ${variant})`,
-              stimuliCount: statsRef.current.correctCount,
-              letterSize,
-              speed: `${speed}x`,
-              durationSec: Math.round(totalTime),
-              clicksTotal: statsRef.current.clicks,
-              correct: statsRef.current.correctCount,
-              wrong: statsRef.current.wrongCount,
-              accuracy:
-                statsRef.current.clicks > 0
-                  ? Math.round(
-                      (statsRef.current.correctCount / statsRef.current.clicks) * 100
-                    )
-                  : 100,
-              avgReactionSec: avgReact,
-              ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
-            };
-
-            setResultsData(finalData);
-            setIsResultsOpen(true);
-            setIsPaused(true);
-            return updatedBubbles;
-          }
-
-          const stillLeft = updatedBubbles.some((b) =>
-            mode === 'colors'
-              ? b.colorName === currentTarget
-              : b.symbol === currentTarget
-          );
-
-          if (!stillLeft) {
-            setPoppingActive(false);
-            if (updatedBubbles.length === 0) {
-              playSuccessSoundAndHaptic();
-              setTimeout(() => startLevel(), 500);
-            } else {
-              setTimeout(() => {
-                chooseNextTarget(updatedBubbles, mode);
-              }, 600);
-            }
-          }
-          return updatedBubbles;
-        });
+        if (remaining.length === 0) {
+          finishSession();
+          return;
+        }
+        setTimeout(() => chooseNextTarget(remaining, mode), 200);
       }, 250);
     } else {
       playWrongBubbleSoundAndHaptic();
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'discrimination');
       statsRef.current.wrongCount += 1;
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
@@ -476,6 +484,7 @@ export function RotatoryWheelGame({
     if (!engineFrozen && poppingActive) {
       statsRef.current.clicks += 1;
       statsRef.current.wrongCount += 1;
+      if (sessionRef.current) noteRotatoryWrong(sessionRef.current, 'aim');
       playMissPressSoundAndHaptic();
     }
   };
@@ -483,7 +492,18 @@ export function RotatoryWheelGame({
   const handleStartGame = () => {
     setIsGameStarted(true);
     setIsPaused(false);
-    resetStats();
+    const now = performance.now();
+    statsRef.current.clicks = 0;
+    statsRef.current.wrongCount = 0;
+    statsRef.current.correctCount = sessionRef.current?.trials.length ?? 0;
+    statsRef.current.startTime = now;
+    statsRef.current.reactionTimes = [];
+    statsRef.current.targetShownAt = now;
+    if (sessionRef.current?.openTrial) {
+      sessionRef.current.openTrial.targetShownAt = now;
+      sessionRef.current.openTrial.wrongTaps = 0;
+      sessionRef.current.openTrial.aimTaps = 0;
+    }
     if (currentTargetRef.current) {
       const targetText = currentTargetRef.current;
       setTimeout(() => {
@@ -777,8 +797,8 @@ export function RotatoryWheelGame({
               Live Metrics
             </span>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Correct Hits:</span>
-              <span className="text-emerald-400 font-bold">{statsRef.current.correctCount} / 20</span>
+              <span className="text-gray-400">Targets:</span>
+              <span className="text-emerald-400 font-bold">{statsRef.current.correctCount} / {sessionGoal}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Misses:</span>
@@ -926,9 +946,13 @@ export function RotatoryWheelGame({
           setPatientName(newSettings.patientName);
           setLetterSize(newSettings.letterSize);
           setBubbleSize(newSettings.bubbleSize);
+          bubbleSizeRef.current = newSettings.bubbleSize;
           if (newSettings.speed !== undefined) setSpeed(newSettings.speed);
           if (newSettings.wheelColor !== undefined) setWheelColor(newSettings.wheelColor);
-          if (newSettings.stimuliColor !== undefined) setStimuliColor(newSettings.stimuliColor);
+          if (newSettings.stimuliColor !== undefined) {
+            setStimuliColor(newSettings.stimuliColor);
+            stimuliColorRef.current = newSettings.stimuliColor;
+          }
           if (newSettings.bubbleAppearance !== undefined) setBubbleAppearance(newSettings.bubbleAppearance);
           if (newSettings.contrastSensitivity != null) setContrastSensitivity(newSettings.contrastSensitivity);
 
@@ -937,8 +961,7 @@ export function RotatoryWheelGame({
 
           setIsSettingsOpen(false);
           setIsPaused(false);
-          resetStats();
-          startLevel();
+          startNewSession();
           requestFullScreenSafe();
           if (currentTargetRef.current) {
             const targetText = currentTargetRef.current;
@@ -974,8 +997,7 @@ export function RotatoryWheelGame({
           }}
           onReplay={() => {
             setIsResultsOpen(false);
-            resetStats();
-            startLevel();
+            startNewSession();
             setIsPaused(false);
           }}
           data={resultsData}
@@ -987,8 +1009,7 @@ export function RotatoryWheelGame({
         onConfirm={() => {
           setConfirmReset(false);
           setIsAssistiveTouchOpen(false);
-          resetStats();
-          startLevel();
+          startNewSession();
         }}
       />
       <ResetConfirmDialog
