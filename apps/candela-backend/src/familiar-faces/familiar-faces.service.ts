@@ -3,10 +3,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { FamiliarFace } from '../entities/familiar-face.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { SupabaseStorageService } from './supabase-storage';
@@ -32,6 +33,18 @@ export type FamiliarFaceDto = {
   createdAt: string;
 };
 
+function rethrowFamiliarFacesDb(err: unknown): never {
+  if (err instanceof QueryFailedError) {
+    const detail = String(err.message);
+    if (/familiar_faces|does not exist/i.test(detail)) {
+      throw new ServiceUnavailableException(
+        'Photo library is not set up yet. Restart the backend so migrations can create the familiar_faces table.',
+      );
+    }
+  }
+  throw err;
+}
+
 @Injectable()
 export class FamiliarFacesService {
   constructor(
@@ -42,10 +55,15 @@ export class FamiliarFacesService {
 
   async list(patientId: string): Promise<FamiliarFaceDto[]> {
     await this.requirePatient(patientId);
-    const rows = await this.faces.find({
-      where: { patientId },
-      order: { createdAt: 'ASC' },
-    });
+    let rows: FamiliarFace[];
+    try {
+      rows = await this.faces.find({
+        where: { patientId },
+        order: { createdAt: 'ASC' },
+      });
+    } catch (err) {
+      rethrowFamiliarFacesDb(err);
+    }
     const urls = await this.storage.signedUrls(rows.map((row) => row.storagePath));
     const result: FamiliarFaceDto[] = [];
     for (const row of rows) {
@@ -84,7 +102,12 @@ export class FamiliarFacesService {
     if (!ext) {
       throw new BadRequestException('Use a JPG, PNG, or WebP photo');
     }
-    const count = await this.faces.count({ where: { patientId } });
+    let count: number;
+    try {
+      count = await this.faces.count({ where: { patientId } });
+    } catch (err) {
+      rethrowFamiliarFacesDb(err);
+    }
     if (count >= MAX_PHOTOS) {
       throw new BadRequestException(`You can save up to ${MAX_PHOTOS} photos`);
     }
@@ -99,7 +122,12 @@ export class FamiliarFacesService {
       relationLabel: label,
       storagePath,
     });
-    await this.faces.save(row);
+    try {
+      await this.faces.save(row);
+    } catch (err) {
+      await this.storage.remove(storagePath).catch(() => undefined);
+      rethrowFamiliarFacesDb(err);
+    }
     const imageUrl = await this.storage.signedUrl(storagePath);
     return {
       id: row.id,
@@ -136,7 +164,12 @@ export class FamiliarFacesService {
   }
 
   private async getOwned(patientId: string, id: string): Promise<FamiliarFace> {
-    const row = await this.faces.findOne({ where: { id, patientId } });
+    let row: FamiliarFace | null;
+    try {
+      row = await this.faces.findOne({ where: { id, patientId } });
+    } catch (err) {
+      rethrowFamiliarFacesDb(err);
+    }
     if (!row) {
       throw new NotFoundException('Photo not found');
     }
