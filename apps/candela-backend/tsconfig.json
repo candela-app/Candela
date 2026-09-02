@@ -14,7 +14,7 @@
     "rootDir": "./src",
     "incremental": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": ["node", "express", "multer"],
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,

@@ -18,6 +18,13 @@ import { User } from '../entities/user.entity';
 import { UpdateFamiliarFaceDto, UploadFamiliarFaceDto } from './familiar-faces.dto';
 import { FamiliarFacesService } from './familiar-faces.service';
 
+/** Avoid `Express.Multer.File` — Render production installs omit @types/express. */
+type UploadedPhoto = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+};
+
 @Controller('api/familiar-faces')
 @Roles('patient')
 export class FamiliarFacesController {
@@ -37,7 +44,7 @@ export class FamiliarFacesController {
   )
   upload(
     @CurrentUser() user: User,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedPhoto | undefined,
     @Body() dto: UploadFamiliarFaceDto,
   ) {
     return this.faces.upload(user.id, file, dto.relationLabel);
