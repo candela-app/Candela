@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
 import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
@@ -23,6 +24,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const [activeRoundTab, setActiveRoundTab] = useState<number>(0);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -34,7 +40,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     return () => stop();
   }, [isOpen, data.patientName]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalReady) return null;
 
   const beeData = data as any;
   const isBeeTracing =
@@ -153,12 +159,12 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
       year: 'numeric',
     });
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 transition-all animate-fade-in">
       <ResultsConfetti />
       <div
         ref={cardRef}
-        className="relative w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"
+        className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"
       >
         {/* Glow Background Accents */}
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
@@ -345,58 +351,151 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         )}
 
-        {/* ROTATORY: VISUAL FIELD + FORM DEMAND (not letter knowledge) */}
+        {/* ROTATORY: VISUAL SEARCH PERFORMANCE — not acuity, saccades, or letter knowledge */}
         {rotatory && (
           <div className="rounded-2xl border border-sky-500/25 bg-sky-950/20 p-4 mb-5 relative z-10 flex flex-col gap-4">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400">
-                Visual field
+                Rotatory Wheel visual search performance
               </div>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Search time and clean-tap rate by where the target appeared — not which letter it was.
+                Performance can be affected by movement, attention, device, and target crowding.
               </p>
             </div>
-            <div>
-              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-                <span>Left {rotatory.leftFieldAccuracy}% · {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms</span>
-                <span>Right {rotatory.rightFieldAccuracy}% · {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms</span>
-              </div>
-              <div className="flex gap-1.5">
-                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden flex justify-end">
-                  <div className="h-full bg-sky-400 rounded-full" style={{ width: `${rotatory.leftFieldAccuracy}%` }} />
-                </div>
-                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${rotatory.rightFieldAccuracy}%` }} />
-                </div>
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Upper</span>
-                <span className="text-xl font-black text-sky-300">{Math.round(rotatory.upperFieldMedianRtSec * 1000)}ms</span>
+              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 col-span-2">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  Median correct-target response time
+                </span>
+                <span className="text-2xl font-black text-amber-300">
+                  {Math.round(rotatory.medianReactionSec * 1000)}ms
+                </span>
+                <span className="block text-[10px] text-gray-500 mt-0.5">
+                  IQR {Math.round((rotatory.iqrReactionSec ?? 0) * 1000)}ms
+                  {rotatory.cleanTrialMedianRtSec
+                    ? ` · clean-trial ${Math.round(rotatory.cleanTrialMedianRtSec * 1000)}ms`
+                    : ''}
+                </span>
               </div>
               <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Lower</span>
-                <span className="text-xl font-black text-emerald-300">{Math.round(rotatory.lowerFieldMedianRtSec * 1000)}ms</span>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Clean taps</span>
+                <span className="text-xl font-black text-emerald-300">
+                  {Math.round((rotatory.cleanTapRate ?? 0) * 100)}%
+                </span>
+                <span className="block text-[10px] text-gray-500">First tap on the target</span>
+              </div>
+              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Wrong bubble</span>
+                <span className="text-xl font-black text-rose-300">
+                  {Math.round((rotatory.discriminationErrorRate ?? 0) * 100)}%
+                </span>
+                <span className="block text-[10px] text-gray-500">Tapped a different mark</span>
+              </div>
+              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 col-span-2">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Empty-wheel miss</span>
+                <span className="text-xl font-black text-orange-300">
+                  {Math.round((rotatory.motorMissRate ?? 0) * 100)}%
+                </span>
+                <span className="block text-[10px] text-gray-500">Tapped the wheel, not a bubble</span>
               </div>
             </div>
-            {rotatory.mode !== 'colors' && (
-              <div className="grid grid-cols-2 gap-2 text-center">
-                {[
-                  { label: 'Simple strokes', value: rotatory.simpleStrokeMedianRtSec },
-                  { label: 'Closed forms', value: rotatory.closedRoundMedianRtSec },
-                  { label: 'Open forms', value: rotatory.openRoundMedianRtSec },
-                  { label: 'Dense forms', value: rotatory.denseStrokeMedianRtSec },
-                ].map((item) => (
-                  <div key={item.label} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">{item.label}</span>
-                    <span className="text-lg font-black text-amber-300">
-                      {item.value > 0 ? `${Math.round(item.value * 1000)}ms` : '—'}
-                    </span>
-                  </div>
-                ))}
+            {rotatory.lateralityEligible ? (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                  Onset location (not eye or field loss)
+                </div>
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                  <span>
+                    Left n={rotatory.leftOnsetN} · {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms
+                  </span>
+                  <span>
+                    Right n={rotatory.rightOnsetN} · {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  Under this device, speed, bubble count, cue mode, and hand, search time differed by where the target appeared.
+                </p>
               </div>
+            ) : (
+              <p className="text-[11px] text-gray-500">
+                Left/right onset comparison hidden ({rotatory.lateralitySuppressedReason?.replace(/_/g, ' ') || 'insufficient trials'}).
+              </p>
             )}
+            <div className="border-t border-white/10 pt-3 flex flex-col gap-3">
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-sky-300">
+                Clinician details
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Valid {rotatory.validTrials ?? rotatory.trialsCompleted}/{rotatory.trialsConfigured} scored
+                · excluded {rotatory.excludedTrials ?? 0}
+                · warm-up {rotatory.warmupTrials ?? 0}
+                · field crossings {Math.round((rotatory.fieldCrossingRate ?? 0) * 100)}%
+                · {rotatory.deviceTier} · {rotatory.bubbleCount} bubbles · {rotatory.cueMode} cues
+                · {rotatory.rotationDirection} · hand {rotatory.handUsed}
+                {rotatory.viewingDistanceCm != null ? ` · ${rotatory.viewingDistanceCm} cm` : ''}
+              </p>
+              {rotatory.qualityFlags ? (
+                <p className="text-[10px] text-amber-300/90">Flags: {rotatory.qualityFlags.replace(/\|/g, ' · ')}</p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Upper n</span>
+                  <span className="text-lg font-black text-sky-300">
+                    {rotatory.upperFieldMedianRtSec > 0 ? `${Math.round(rotatory.upperFieldMedianRtSec * 1000)}ms` : 'insufficient trials'}
+                  </span>
+                </div>
+                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Lower n</span>
+                  <span className="text-lg font-black text-emerald-300">
+                    {rotatory.lowerFieldMedianRtSec > 0 ? `${Math.round(rotatory.lowerFieldMedianRtSec * 1000)}ms` : 'insufficient trials'}
+                  </span>
+                </div>
+              </div>
+              {rotatory.mode !== 'colors' && rotatory.formClasses && (
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  {(
+                    [
+                      ['simple_stroke', 'Simple strokes'],
+                      ['closed_round', 'Closed forms'],
+                      ['open_round', 'Open forms'],
+                      ['dense_stroke', 'Dense forms'],
+                      ['symmetric', 'Symmetric'],
+                      ['diagonal', 'Diagonal'],
+                    ] as const
+                  ).map(([id, label]) => {
+                    const row = rotatory.formClasses[id];
+                    return (
+                      <div key={id} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">{label}</span>
+                        <span className="text-lg font-black text-amber-300">
+                          {row?.sufficient ? `${Math.round(row.medianRtSec * 1000)}ms` : 'insufficient trials'}
+                        </span>
+                        <span className="block text-[10px] text-gray-500">n={row?.n ?? 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {rotatory.eccentricityBins?.some((b) => b.sufficient) ? (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {rotatory.eccentricityBins.map((bin) => (
+                    <div key={bin.bin} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">{bin.bin}</span>
+                      <span className="text-sm font-black text-sky-200">
+                        {bin.sufficient ? `${Math.round(bin.medianRtSec * 1000)}ms` : 'insufficient trials'}
+                      </span>
+                      <span className="block text-[10px] text-gray-500">n={bin.n}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-gray-500">Eccentricity bins: insufficient trials.</p>
+              )}
+              <p className="text-[10px] text-gray-500">
+                Crowding uses min separation relative to radial position, not visual angle.
+                Scores are not comparable across phone, tablet, and TV.
+              </p>
+            </div>
           </div>
         )}
 
@@ -479,6 +578,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
 
           {/* Accuracy */}
+          {!isRotatory && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
             <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
               Accuracy
@@ -487,6 +587,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
               {data.accuracy}%
             </span>
           </div>
+          )}
 
           {/* Deviations / Tracking Error / Avg Reaction Time */}
           {isBeeTracing ? (
@@ -510,7 +611,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
             <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              {isRotatory ? 'Median Search' : 'Avg Reaction'}
+              {isRotatory ? 'Median response' : 'Avg Reaction'}
             </span>
             <span className="text-2xl font-black text-amber-400">
               {Math.round((isRotatory ? rotatory!.medianReactionSec : data.avgReactionSec) * 1000)}ms
@@ -537,10 +638,19 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                 {beeData.speedPxPerSec ?? 180} px/s
               </span>
             </div>
+          ) : isRotatory ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Valid trials
+              </span>
+              <span className="text-2xl font-black text-purple-400">
+                {rotatory?.validTrials ?? data.stimuliCount}
+              </span>
+            </div>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                {isGeoboard ? 'Patterns Drawn' : isRotatory ? 'Targets' : 'Bubbles Popped'}
+                {isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped'}
               </span>
               <span className="text-2xl font-black text-purple-400">
                 {data.stimuliCount}
@@ -569,7 +679,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                 </span>
               </div>
             </>
-          ) : (
+          ) : isRotatory ? null : (
             <>
               {/* Visual Focus Score */}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
@@ -617,6 +727,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

@@ -14,7 +14,7 @@ import {
   getMovementPath,
   pursuitPatternName,
   resolveLookOverId,
-  resolvePursuitPattern,
+  resolveLookPursuitPattern,
   reactionStatsFromMs,
   type LookSample,
 } from '@candela/shared/rn';
@@ -27,6 +27,7 @@ import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { SlidersIcon } from '../components/icons';
 import { useLayout } from '../lib/layout';
+import { GazeHoldGame } from './GazeHoldGame';
 
 const TOTAL_TRIALS = 20;
 const TRIALS_PER_BLOCK = 5;
@@ -39,7 +40,20 @@ export function LookPursuitGame({
   onExit: () => void;
   movementPattern?: PursuitMovementPattern | string;
 }) {
-  const lockedPattern = resolvePursuitPattern(movementPattern);
+  if (movementPattern === 'stationary') {
+    return <GazeHoldGame onExit={onExit} />;
+  }
+  const lockedPattern = resolveLookPursuitPattern(movementPattern);
+  return <LookPursuitMovingGame onExit={onExit} lockedPattern={lockedPattern} />;
+}
+
+function LookPursuitMovingGame({
+  onExit,
+  lockedPattern,
+}: {
+  onExit: () => void;
+  lockedPattern: PursuitMovementPattern;
+}) {
   const { session } = useAuth();
   const { width, height, s, fs } = useLayout();
   const [settings, setSettings] = useState<PursuitSettings>({
@@ -381,6 +395,9 @@ export function LookPursuitGame({
           >
             <Text style={{ color: '#022c22', fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
           </Pressable>
+          <Text style={{ color: '#94A3B8', fontWeight: '600', textAlign: 'center', paddingHorizontal: 24 }}>
+            Track the bright bubble with your eyes. Hold your look to pop it.
+          </Text>
           {!lookReady && !lookError ? (
             <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Camera starting…</Text>
           ) : null}

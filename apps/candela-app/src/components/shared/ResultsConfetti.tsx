@@ -105,7 +105,7 @@ export function ResultsConfetti() {
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="pointer-events-none fixed inset-0 z-[80]"
+      className="pointer-events-none absolute inset-0 z-0 block h-full w-full"
     />
   );
 }

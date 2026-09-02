@@ -1,11 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
-import { lookNormFromWebEyePog, type LookSample } from '@candela/shared';
+import {
+  LOOK_FACE_HOLD_MS,
+  LOOK_SMOOTH_ALPHA,
+  lookNormFromWebEyePog,
+  smoothLookNorm,
+  type LookSample,
+} from '@candela/shared';
 
 const LOOK_TRACKER_MAX_POINTS = 9;
 const LOOK_TRACKER_CLICK_TTL_SEC = 600;
 const LOOK_CAM_VIDEO_ID = 'look-pursuit-cam';
+const LOOK_SMOOTH = Math.min(0.22, LOOK_SMOOTH_ALPHA);
+
+function stopCameraStream(video: HTMLVideoElement | null, stream: MediaStream | null): void {
+  const fromVideo = video?.srcObject instanceof MediaStream ? video.srcObject : null;
+  [stream, fromVideo].forEach((media) => {
+    media?.getTracks().forEach((track) => track.stop());
+  });
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+  }
+}
 
 function grabFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement): ImageData | null {
   const width = video.videoWidth;
@@ -46,6 +64,8 @@ export function useFaceLook(active: boolean): {
     let stream: MediaStream | null = null;
     let raf = 0;
     let busy = false;
+    let lastFaceAt = 0;
+    let lastLook: { x: number; y: number } | null = null;
 
     async function start(): Promise<void> {
       try {
@@ -55,7 +75,7 @@ export function useFaceLook(active: boolean): {
           audio: false,
         });
         if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+          stopCameraStream(videoRef.current, stream);
           return;
         }
         const video = videoRef.current;
@@ -72,6 +92,7 @@ export function useFaceLook(active: boolean): {
           window.location.origin,
         );
         if (cancelled) {
+          stopCameraStream(video, stream);
           return;
         }
         const canvas = document.createElement('canvas');
@@ -91,14 +112,20 @@ export function useFaceLook(active: boolean): {
                   if (cancelled) {
                     return;
                   }
-                  const lost = result.gazeState !== 'open' || result.facialLandmarks.length === 0;
-                  if (lost) {
-                    sampleRef.current = { x: sampleRef.current.x, y: sampleRef.current.y, faceLost: true };
-                    setFaceLost(true);
-                    setCursor(null);
+                  const now = performance.now();
+                  const hasFace = result.facialLandmarks.length > 0;
+                  if (!hasFace) {
+                    if (!lastLook || now - lastFaceAt > LOOK_FACE_HOLD_MS) {
+                      sampleRef.current = { x: sampleRef.current.x, y: sampleRef.current.y, faceLost: true };
+                      setFaceLost(true);
+                      setCursor(null);
+                    }
                     return;
                   }
-                  const norm = lookNormFromWebEyePog(result.normPog[0], result.normPog[1]);
+                  lastFaceAt = now;
+                  const raw = lookNormFromWebEyePog(result.normPog[0], result.normPog[1]);
+                  const norm = smoothLookNorm(lastLook, raw, LOOK_SMOOTH);
+                  lastLook = norm;
                   sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
                   setFaceLost(false);
                   setCursor(norm);
@@ -108,6 +135,7 @@ export function useFaceLook(active: boolean): {
                     sampleRef.current = { ...sampleRef.current, faceLost: true };
                     setFaceLost(true);
                     setCursor(null);
+                    lastLook = null;
                   }
                 })
                 .finally(() => {
@@ -129,7 +157,7 @@ export function useFaceLook(active: boolean): {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
+      stopCameraStream(videoRef.current, stream);
     };
   }, [active]);
 

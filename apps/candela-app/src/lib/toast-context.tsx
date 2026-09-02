@@ -58,9 +58,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
-        {toasts.map((t) => (
-          <ToastCard key={t.id} toast={t} onClose={() => removeToast(t.id)} />
+      <div className="candela-toast-viewport" aria-live="polite">
+        {[...toasts].reverse().slice(0, 3).map((t, index) => (
+          <div
+            key={t.id}
+            className="candela-toast-slot"
+            style={
+              {
+                '--toast-index': index,
+              } as React.CSSProperties
+            }
+          >
+            <ToastCard toast={t} onClose={() => removeToast(t.id)} />
+          </div>
         ))}
       </div>
     </ToastContext.Provider>
@@ -94,7 +104,7 @@ function ToastCard({ toast, onClose }: { toast: ToastItem; onClose: () => void }
   return (
     <div
       role="alert"
-      className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border shadow-xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-3 duration-200 ${styles.bg}`}
+      className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border shadow-xl backdrop-blur-md ${styles.bg}`}
     >
       <div className={`p-1.5 rounded-xl flex-shrink-0 ${styles.iconBg}`}>{styles.icon}</div>
       <div className="flex-1 min-w-0 pt-0.5">

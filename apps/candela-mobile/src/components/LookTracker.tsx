@@ -1,24 +1,55 @@
-import { useEffect, useRef } from 'react';
-import { NativeModules, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { lookNormFromFaceBounds, type LookSample } from '@candela/shared/rn';
-import { useLayout } from '../lib/layout';
+import {
+  LOOK_FACE_HOLD_MS,
+  LOOK_SMOOTH_ALPHA,
+  lookNormFromMlKitEulerDeg,
+  smoothLookNorm,
+  type LookPoint,
+  type LookSample,
+} from '@candela/shared/rn';
 
-function visionNativeAvailable(): boolean {
-  const names = Object.keys(NativeModules);
-  return names.some((name) => /visioncamera/i.test(name));
+function isExpoGo(): boolean {
+  return Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 }
+
+type LookTrackerProps = {
+  sampleRef: { current: LookSample };
+  onReady: () => void;
+  onError: (message: string) => void;
+  onFaceLost: (lost: boolean) => void;
+  active?: boolean;
+};
 
 export function LookTracker({
   sampleRef,
   onReady,
   onError,
   onFaceLost,
+  active = true,
+}: LookTrackerProps) {
+  if (isExpoGo()) {
+    return <ExpoLookPreview onReady={onReady} onError={onError} />;
+  }
+  return (
+    <NativeLookTracker
+      sampleRef={sampleRef}
+      onReady={onReady}
+      onError={onError}
+      onFaceLost={onFaceLost}
+      active={active}
+    />
+  );
+}
+
+function ExpoLookPreview({
+  onReady,
+  onError,
 }: {
-  sampleRef: { current: LookSample };
   onReady: () => void;
   onError: (message: string) => void;
-  onFaceLost: (lost: boolean) => void;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const asked = useRef(false);
@@ -37,30 +68,17 @@ export function LookTracker({
     }
   }, [permission, requestPermission, onError]);
 
+  useEffect(() => {
+    if (!permission?.granted) {
+      return;
+    }
+    onReady();
+    onError('Look tracking needs the Kandela APK (Expo Go cannot run ML Kit).');
+  }, [onReady, onError, permission?.granted]);
+
   if (!permission?.granted) {
     return null;
   }
-
-  if (visionNativeAvailable()) {
-    return (
-      <NativeLookTracker sampleRef={sampleRef} onReady={onReady} onFaceLost={onFaceLost} />
-    );
-  }
-
-  return <ExpoLookPreview onReady={onReady} onError={onError} />;
-}
-
-function ExpoLookPreview({
-  onReady,
-  onError,
-}: {
-  onReady: () => void;
-  onError: (message: string) => void;
-}) {
-  useEffect(() => {
-    onReady();
-    onError('Look tracking needs the Kandela APK (Expo Go cannot run ML Kit).');
-  }, [onReady, onError]);
 
   return (
     <View
@@ -83,25 +101,102 @@ function ExpoLookPreview({
 function NativeLookTracker({
   sampleRef,
   onReady,
+  onError,
   onFaceLost,
-}: {
-  sampleRef: { current: LookSample };
-  onReady: () => void;
-  onFaceLost: (lost: boolean) => void;
-}) {
-  const { width, height } = useLayout();
+  active = true,
+}: LookTrackerProps) {
+  const vision = require('react-native-vision-camera') as typeof import('react-native-vision-camera');
+  const detector = require('react-native-vision-camera-face-detector') as typeof import('react-native-vision-camera-face-detector');
+  const { Camera: VisionCamera, useCameraDevice } = vision;
+  const { Camera } = detector;
+  const device = useCameraDevice('front');
+  const [permission, setPermission] = useState(() => VisionCamera.getCameraPermissionStatus());
   const readySent = useRef(false);
   const cameraRef = useRef(null);
-  const { useCameraDevice } = require('react-native-vision-camera') as typeof import('react-native-vision-camera');
-  const { Camera } = require('react-native-vision-camera-face-detector') as typeof import('react-native-vision-camera-face-detector');
-  const device = useCameraDevice('front');
+  const onFaceLostRef = useRef(onFaceLost);
+  const lastFaceAt = useRef(0);
+  const lastLook = useRef<LookPoint | null>(null);
+  onFaceLostRef.current = onFaceLost;
+
+  const faceDetectionOptions = useRef({
+    performanceMode: 'fast' as const,
+    landmarkMode: 'none' as const,
+    contourMode: 'none' as const,
+    classificationMode: 'none' as const,
+    minFaceSize: 0.08,
+    trackingEnabled: true,
+    cameraFacing: 'front' as const,
+    autoMode: false,
+  }).current;
 
   useEffect(() => {
-    if (!readySent.current) {
-      readySent.current = true;
-      onReady();
+    if (permission === 'granted') {
+      return;
     }
-  }, [onReady]);
+    let cancelled = false;
+    void VisionCamera.requestCameraPermission()
+      .then((status) => {
+        if (cancelled) return;
+        setPermission(status);
+        if (status !== 'granted') {
+          onError('Camera permission denied');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          onError('Camera permission denied');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [VisionCamera, onError, permission]);
+
+  useEffect(() => {
+    if (permission !== 'granted') {
+      return;
+    }
+    if (device) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      onError('No front camera found');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [device, onError, permission]);
+
+  useEffect(() => {
+    if (permission !== 'granted' || !device || readySent.current) {
+      return;
+    }
+    readySent.current = true;
+    onReady();
+  }, [device, onReady, permission]);
+
+  const onFaces = useCallback(
+    (faces: { yawAngle: number; pitchAngle: number }[]) => {
+      const now = performance.now();
+      const face = faces[0];
+      if (!face) {
+        if (!lastLook.current || now - lastFaceAt.current > LOOK_FACE_HOLD_MS) {
+          sampleRef.current = { ...sampleRef.current, faceLost: true };
+          onFaceLostRef.current(true);
+        }
+        return;
+      }
+      lastFaceAt.current = now;
+      const raw = lookNormFromMlKitEulerDeg(face.yawAngle, face.pitchAngle);
+      const norm = smoothLookNorm(lastLook.current, raw, LOOK_SMOOTH_ALPHA);
+      lastLook.current = norm;
+      sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
+      onFaceLostRef.current(false);
+    },
+    [sampleRef],
+  );
+
+  if (permission !== 'granted') {
+    return null;
+  }
 
   if (!device) {
     return null;
@@ -123,34 +218,12 @@ function NativeLookTracker({
       <Camera
         ref={cameraRef}
         device={device}
-        isActive
+        isActive={active}
+        pixelFormat="yuv"
         style={{ width: 112, height: 84 }}
-        faceDetectionOptions={{
-          performanceMode: 'fast',
-          landmarkMode: 'all',
-          cameraFacing: 'front',
-          autoMode: true,
-          windowWidth: width,
-          windowHeight: height,
-        }}
-        faceDetectionCallback={(faces, frame) => {
-          if (!faces[0]) {
-            sampleRef.current = { ...sampleRef.current, faceLost: true };
-            onFaceLost(true);
-            return;
-          }
-          const bounds = faces[0].bounds;
-          const norm = lookNormFromFaceBounds(
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            bounds.height,
-            frame.width,
-            frame.height,
-          );
-          sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
-          onFaceLost(false);
-        }}
+        faceDetectionOptions={faceDetectionOptions}
+        faceDetectionCallback={onFaces}
+        onError={(err) => onError(err.message || 'Camera failed')}
       />
     </View>
   );

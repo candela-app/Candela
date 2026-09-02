@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { requestFullScreenSafe, exitFullScreenSafe } from '@candela/shared';
 import { ResetConfirmDialog } from './ResetConfirmDialog';
 
@@ -41,6 +42,11 @@ export function GameMenuDrawer({
 }: GameMenuDrawerProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -49,11 +55,11 @@ export function GameMenuDrawer({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalReady) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-end animate-fade-in"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex justify-end animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -167,6 +173,7 @@ export function GameMenuDrawer({
           onQuit();
         }}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }

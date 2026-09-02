@@ -139,6 +139,19 @@ import {
 } from './direction-sense-logic';
 import { pursuitPatternName } from './game-registry';
 import {
+  LOOK_STATIONARY_BUBBLE_PX,
+  LOOK_STATIONARY_COLOR,
+  LOOK_STATIONARY_DWELL_MS,
+  LOOK_GAZE_HOLD_GLYPH_COUNT,
+  LOOK_GAZE_HOLD_DWELL_PRESETS,
+  LOOK_GAZE_HOLD_SIZE_PRESETS,
+  LOOK_GAZE_HOLD_COLOR_OPTIONS,
+  clampGazeHoldDwellMs,
+  clampGazeHoldGlyphSize,
+  clampGazeHoldGlyphCount,
+  resolveGazeHoldGlyphColor,
+} from './computer-vision-logic';
+import {
   AlphabetVariant,
   BubbleAppearance,
   DEFAULT_BUBBLE_APPEARANCE,
@@ -221,6 +234,12 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  /** Gaze Hold: hold duration before a pop (ms). */
+  gazeHoldDwellMs?: number;
+  /** Gaze Hold: neutral glyph fill. */
+  gazeHoldGlyphColor?: string;
+  /** Gaze Hold: pops before the results card. */
+  gazeHoldGlyphCount?: number;
   alphabetVariant?: AlphabetVariant;
   bpm?: number;
   metronomeEnabled?: boolean;
@@ -314,11 +333,18 @@ export interface ClinicalSettingsModalProps {
   beeSpeedSec?: number;
   orientation?: DeviceOrientation;
   showPursuitControls?: boolean;
+  /** Gaze Hold: still bubble, no decoys/speed/color picker. */
+  lookStationaryMode?: boolean;
+  /** Gaze Hold-only settings (gaze time, neutral glyph color, size, count). */
+  showGazeHoldControls?: boolean;
   pursuitMovementPattern?: PursuitMovementPattern;
   pursuitTargetColor?: PursuitTargetColor;
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  gazeHoldDwellMs?: number;
+  gazeHoldGlyphColor?: string;
+  gazeHoldGlyphCount?: number;
   showGeoboardControls?: boolean;
   geoboardBoardId?: GeoboardBoardId;
   geoboardBoardName?: string;
@@ -427,11 +453,16 @@ export function ClinicalSettingsModal({
   beeSpeedSec = 4,
   orientation = 'auto',
   showPursuitControls = false,
+  lookStationaryMode = false,
+  showGazeHoldControls = false,
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 0,
   pursuitSpeedPxPerSec = 110,
   pursuitTrialTimeoutSec = 0,
+  gazeHoldDwellMs = LOOK_STATIONARY_DWELL_MS,
+  gazeHoldGlyphColor = LOOK_STATIONARY_COLOR,
+  gazeHoldGlyphCount = LOOK_GAZE_HOLD_GLYPH_COUNT,
   showGeoboardControls = false,
   geoboardBoardId = 1,
   geoboardBoardName = 'Geoboard',
@@ -511,6 +542,13 @@ export function ClinicalSettingsModal({
   const [tempPursuitDecoyCount, setTempPursuitDecoyCount] = useState<number>(pursuitDecoyCount);
   const [tempPursuitSpeedPxPerSec, setTempPursuitSpeedPxPerSec] = useState<number>(pursuitSpeedPxPerSec);
   const [tempPursuitTrialTimeoutSec, setTempPursuitTrialTimeoutSec] = useState<number>(pursuitTrialTimeoutSec);
+  const [tempGazeHoldDwellMs, setTempGazeHoldDwellMs] = useState<number>(clampGazeHoldDwellMs(gazeHoldDwellMs));
+  const [tempGazeHoldGlyphColor, setTempGazeHoldGlyphColor] = useState<string>(
+    resolveGazeHoldGlyphColor(gazeHoldGlyphColor),
+  );
+  const [tempGazeHoldGlyphCount, setTempGazeHoldGlyphCount] = useState<number>(
+    clampGazeHoldGlyphCount(gazeHoldGlyphCount),
+  );
 
   const [tempAlphabetVariant, setTempAlphabetVariant] = useState<AlphabetVariant>(alphabetVariant);
   const [tempBpm, setTempBpm] = useState<number>(bpm);
@@ -608,7 +646,7 @@ export function ClinicalSettingsModal({
             ? clampNumberSearchLetterSize(letterSize)
             : letterSize,
       );
-      setTempBubbleSize(bubbleSize);
+      setTempBubbleSize(showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize);
       setTempSpeed(speed);
       setTempWheelColor(wheelColor);
       setTempTracingMode(tracingMode);
@@ -625,6 +663,9 @@ export function ClinicalSettingsModal({
       setTempPursuitDecoyCount(pursuitDecoyCount);
       setTempPursuitSpeedPxPerSec(pursuitSpeedPxPerSec);
       setTempPursuitTrialTimeoutSec(pursuitTrialTimeoutSec);
+      setTempGazeHoldDwellMs(clampGazeHoldDwellMs(gazeHoldDwellMs));
+      setTempGazeHoldGlyphColor(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
+      setTempGazeHoldGlyphCount(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
       setTempAlphabetVariant(alphabetVariant);
       setTempBpm(bpm);
       setTempMetronomeEnabled(metronomeEnabled);
@@ -793,7 +834,7 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(tempLetterSize)
               : tempLetterSize,
-      bubbleSize: tempBubbleSize,
+      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(tempBubbleSize) : tempBubbleSize,
       speed: tempSpeed,
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
@@ -810,6 +851,13 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount: tempPursuitDecoyCount,
       pursuitSpeedPxPerSec: tempPursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec: tempPursuitTrialTimeoutSec,
+      gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(tempGazeHoldDwellMs) : tempGazeHoldDwellMs,
+      gazeHoldGlyphColor: showGazeHoldControls
+        ? resolveGazeHoldGlyphColor(tempGazeHoldGlyphColor)
+        : tempGazeHoldGlyphColor,
+      gazeHoldGlyphCount: showGazeHoldControls
+        ? clampGazeHoldGlyphCount(tempGazeHoldGlyphCount)
+        : tempGazeHoldGlyphCount,
       alphabetVariant: tempAlphabetVariant,
       bpm: tempBpm,
       metronomeEnabled: tempMetronomeEnabled,
@@ -909,7 +957,7 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(letterSize)
             : letterSize,
-      bubbleSize,
+      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize,
       speed,
       wheelColor,
       tracingMode,
@@ -926,6 +974,13 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount,
       pursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec,
+      gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(gazeHoldDwellMs) : gazeHoldDwellMs,
+      gazeHoldGlyphColor: showGazeHoldControls
+        ? resolveGazeHoldGlyphColor(gazeHoldGlyphColor)
+        : gazeHoldGlyphColor,
+      gazeHoldGlyphCount: showGazeHoldControls
+        ? clampGazeHoldGlyphCount(gazeHoldGlyphCount)
+        : gazeHoldGlyphCount,
       alphabetVariant,
       bpm,
       metronomeEnabled,
@@ -1066,6 +1121,8 @@ export function ClinicalSettingsModal({
               <p className="text-sm text-gray-400 mt-1.5">
                 {showGeoboardControls
                   ? `Configure ${geoboardBoardName} before the session starts. Every pattern in this board runs in order.`
+                  : showGazeHoldControls
+                    ? 'Configure gaze hold time, a neutral glyph color, and glyph size.'
                   : showNumberSearchControls
                     ? 'Configure glyph size, digit count, contrast colors, and optional session timer for figure–ground search.'
                     : showPatternMatchControls
@@ -1093,7 +1150,115 @@ export function ClinicalSettingsModal({
         </div>
 
         {/* CLINICAL CONTROL GRID */}
-        {showGeoboardControls ? (
+        {showGazeHoldControls ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-slate-300 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Patient &amp; Glyph</span>
+              </div>
+
+              <FloatingLabelField label="Patient Name" value={tempPatientName} onChange={setTempPatientName} />
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Glyph Color
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {LOOK_GAZE_HOLD_COLOR_OPTIONS.map((option) => {
+                    const selected = tempGazeHoldGlyphColor === option.hex;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setTempGazeHoldGlyphColor(option.hex)}
+                        className={`flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 transition-all ${
+                          selected ? 'bg-gray-800' : 'hover:bg-gray-800/60'
+                        }`}
+                        title={option.label}
+                      >
+                        <span
+                          className={`h-10 w-10 rounded-full border-2 ${
+                            selected ? 'border-white shadow-[0_0_0_2px_#94A3B8]' : 'border-gray-700'
+                          }`}
+                          style={{ backgroundColor: option.hex }}
+                        />
+                        <span className={`text-[11px] font-bold ${selected ? 'text-white' : 'text-gray-400'}`}>
+                          {option.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2">Neutral fills only — no high-salience therapy colors.</p>
+              </div>
+
+              <div className="flex-1 flex items-center justify-center">
+                <div
+                  className="rounded-full shadow-inner"
+                  style={{
+                    width: Math.round(tempBubbleSize * 0.55),
+                    height: Math.round(tempBubbleSize * 0.55),
+                    backgroundColor: tempGazeHoldGlyphColor,
+                  }}
+                  aria-hidden
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
+              <div className="flex justify-between items-center text-sm font-extrabold text-slate-300 uppercase tracking-wider border-b border-gray-800 pb-3">
+                <span>Gaze Hold Controls</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Gaze Time
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {LOOK_GAZE_HOLD_DWELL_PRESETS.map((ms) => (
+                    <button
+                      key={ms}
+                      type="button"
+                      onClick={() => setTempGazeHoldDwellMs(ms)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempGazeHoldDwellMs === ms
+                          ? 'bg-slate-300 text-slate-950 shadow-md'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {ms} ms
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  How long the look must stay on the glyph before it pops.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Glyph Size
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {LOOK_GAZE_HOLD_SIZE_PRESETS.map((px) => (
+                    <button
+                      key={px}
+                      type="button"
+                      onClick={() => setTempBubbleSize(px)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        tempBubbleSize === px
+                          ? 'bg-slate-300 text-slate-950 shadow-md'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {px} px
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : showGeoboardControls ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
             {/* CONTAINER 1: SESSION & STIMULUS */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-5 shadow-lg">
@@ -1469,10 +1634,23 @@ export function ClinicalSettingsModal({
                 </label>
                 <div className="rounded-xl bg-[#141414] border border-gray-800 px-4 py-3">
                   <div className="text-sm font-bold text-white">{pursuitPatternName(tempPursuitMovementPattern)}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">Chosen from the pursuit level list. Switch levels to change trajectory.</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    {lookStationaryMode
+                      ? 'Gaze Hold stays still at the center. Switch levels to change the exercise.'
+                      : 'Chosen from the pursuit level list. Switch levels to change trajectory.'}
+                  </div>
                 </div>
               </div>
 
+              {lookStationaryMode ? (
+                <div className="rounded-xl bg-[#141414] border border-gray-800 px-4 py-3">
+                  <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">Target</div>
+                  <div className="text-sm font-bold text-white">Large neutral bubble ({LOOK_STATIONARY_BUBBLE_PX}px)</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    Gray, still, and sized so a real look pops it without chasing motion.
+                  </div>
+                </div>
+              ) : (
               <ClinicalColorFields
                 bgColor={tempBgColor || '#000000'}
                 stimulusColor={tempPursuitTargetColor}
@@ -1486,12 +1664,15 @@ export function ClinicalSettingsModal({
                 onContrast={setTempContrastSensitivity}
                 hint="Bright target on a bare field. Lower contrast makes the target closer to the background — decoys stay dimmer."
               />
+              )}
             </div>
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-blue-400 uppercase tracking-wider border-b border-gray-800 pb-3">
-                <span>Dynamics & Selective Attention Controls</span>
+                <span>{lookStationaryMode ? 'Gaze Hold Controls' : 'Dynamics & Selective Attention Controls'}</span>
               </div>
 
+              {!lookStationaryMode && (
+              <>
               {/* Simultaneous Decoy Count */}
               <div>
                 <div className="flex justify-between items-center text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
@@ -1564,6 +1745,8 @@ export function ClinicalSettingsModal({
                   ))}
                 </div>
               </div>
+              </>
+              )}
 
               {/* Trial Timeout */}
               <div>
@@ -1592,7 +1775,9 @@ export function ClinicalSettingsModal({
                   ))}
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2">
-                  Off keeps the trial running until the target or a decoy is tapped.
+                  {lookStationaryMode
+                    ? 'Off keeps the trial running until you hold your look on the bubble.'
+                    : 'Off keeps the trial running until the target or a decoy is tapped.'}
                 </p>
               </div>
             </div>

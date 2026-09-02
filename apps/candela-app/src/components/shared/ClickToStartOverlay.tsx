@@ -7,7 +7,7 @@ export interface ClickToStartOverlayProps {
   title: string;
   hint?: string;
   onStart: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   onExit?: () => void;
   startLabel?: string;
   /** Replace the default start button (e.g. Peripheral triangle). */
@@ -41,6 +41,7 @@ export function ClickToStartOverlay({
         </button>
       ) : null}
 
+      {onOpenSettings ? (
       <button
         type="button"
         onClick={onOpenSettings}
@@ -50,6 +51,7 @@ export function ClickToStartOverlay({
       >
         <SlidersIcon className="w-5 h-5" />
       </button>
+      ) : null}
 
       <h2 className="text-2xl sm:text-3xl font-black text-white max-w-xl px-12">{title}</h2>
       {hint ? (

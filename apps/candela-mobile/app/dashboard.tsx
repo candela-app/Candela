@@ -32,7 +32,7 @@ type ModuleCard = {
 };
 
 const MODULE_CARDS: ModuleCard[] = [
-  { uiId: 'wheel', title: 'Rotatory Module', body: 'Dynamic wheel tracking & visual pursuit exercises', badge: 'For Tabs', accent: '#1D4ED8', bar: '#3B82F6' },
+  { uiId: 'wheel', title: 'Rotatory Module', body: 'Moving visual search and tap on a spinning wheel', badge: 'For Tabs', accent: '#1D4ED8', bar: '#3B82F6' },
   { uiId: 'sorting', title: 'Sorting Module', body: 'Visual discrimination & sequential recognition', badge: 'For Tabs & Mobile', accent: '#7C3AED', bar: '#8B5CF6' },
   { uiId: 'tracing', title: 'Bee Path Tracing', body: 'Smooth pursuit tracking & visual-motor path control', badge: 'For Touch & Stylus', accent: '#D97706', bar: '#F59E0B' },
   { uiId: 'pursuit', title: 'Pursuit Module', body: 'Continuous visual pursuit & selective attention tracking', badge: 'For All Devices', accent: '#0891B2', bar: '#22D3EE' },
@@ -43,7 +43,8 @@ const MODULE_CARDS: ModuleCard[] = [
   { uiId: 'pattern_match', title: 'Hold the Code', body: 'Hold a flashed code and tap every exact match', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
   { uiId: 'location_memory', title: 'Location Memory', body: 'Explore a grid, then recall where each number was', badge: 'For All Devices', accent: '#D97706', bar: '#FBBF24' },
   { uiId: 'direction_sense', title: 'Direction Sense', body: 'Face & Flip: pick the 90° turn. Straighten: spin the letter to match.', badge: 'For All Devices', accent: '#0284C7', bar: '#38BDF8' },
-  { uiId: 'computer_vision', title: 'Look Pursuit', body: 'Look at the bright target among dim decoys — same Pursuit, look to pop', badge: 'For All Devices', accent: '#0E7490', bar: '#22D3EE' },
+  { uiId: 'computer_vision', title: 'Gaze Hold', body: 'Look at the still bubble and hold your gaze to pop it', badge: 'For All Devices', accent: '#0E7490', bar: '#22D3EE' },
+  { uiId: 'familiar_faces', title: 'Familiar Faces', body: 'Name, find, or hold a face you know', badge: 'For All Devices', accent: '#BE123C', bar: '#FB7185' },
 ];
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -78,12 +79,18 @@ export default function DashboardScreen() {
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
-    if (catalogId === 'pursuit' || catalogId === 'computer_vision') {
+    if (catalogId === 'pursuit') {
       const known = MODULE_LEVELS.pursuit.map((level) => level.id);
       const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
       if (!hasNewLevels) return true;
     }
+    if (catalogId === 'computer_vision') {
+      const known = MODULE_LEVELS.computer_vision.map((level) => level.id);
+      const hasNewLevels = prescribedLevels.some((id) => known.includes(id));
+      if (!hasNewLevels) return true;
+    }
     if (catalogId === 'geoboard' && String(levelId) === '6') return true;
+    if (catalogId === 'computer_vision' && String(levelId) === 'stationary') return true;
     if (catalogId === 'direction_sense') {
       return directionSensePrescribedAllows(String(levelId), prescribedLevels);
     }
@@ -149,6 +156,9 @@ export default function DashboardScreen() {
   };
   const launchComputerVision = (pattern: string) => {
     router.push(`/play/computer-vision?pattern=${pattern}` as never);
+  };
+  const launchFamiliarFaces = (levelId: string = 'name_it') => {
+    router.push(`/play/familiar-faces?level=${levelId}` as never);
   };
 
   const backToModules = () => router.replace('/dashboard');
@@ -393,9 +403,27 @@ export default function DashboardScreen() {
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
         <ScrollView contentContainerStyle={{ padding: pad }}>
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Look Pursuit</Text>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Gaze Hold</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Select a movement pattern to begin
+            Look at the still bubble and hold your gaze to pop it
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (moduleParam === 'familiar_faces' && canPlayUiModule('familiar_faces')) {
+    const levels = MODULE_LEVELS.familiar_faces
+      .filter((level) => isLevelAllowed('familiar_faces', level.id))
+      .map((level) => variantCard(level.name, () => launchFamiliarFaces(level.id)));
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <AppHeader onBack={backToFamily} />
+        <ScrollView contentContainerStyle={{ padding: pad }}>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Familiar Faces</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Add family photos, then name, find, or hold a face
           </Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
         </ScrollView>

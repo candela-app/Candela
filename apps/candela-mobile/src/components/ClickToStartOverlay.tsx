@@ -9,12 +9,14 @@ export function ClickToStartOverlay({
   onStart,
   onOpenSettings,
   onExit,
+  startLabel = 'Click to Start',
 }: {
   title: string;
   hint?: string;
   onStart: () => void;
   onOpenSettings?: () => void;
   onExit?: () => void;
+  startLabel?: string;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
@@ -101,7 +103,7 @@ export function ClickToStartOverlay({
           paddingVertical: s(16),
         }}
       >
-        <Text style={{ fontWeight: '900', fontSize: fs(20), color: '#052e1c' }}>Click to Start</Text>
+        <Text style={{ fontWeight: '900', fontSize: fs(20), color: '#052e1c' }}>{startLabel}</Text>
       </Pressable>
     </View>
   );

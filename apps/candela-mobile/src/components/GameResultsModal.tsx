@@ -34,6 +34,7 @@ export function GameResultsModal({
     if (!isOpen) return;
     let clapped = false;
     let stopped = false;
+    let clapTimer: ReturnType<typeof setTimeout> | null = null;
     const clapOnce = () => {
       if (stopped || clapped) return;
       clapped = true;
@@ -45,14 +46,14 @@ export function GameResultsModal({
     const speakTimer = setTimeout(() => {
       if (stopped) return;
       speakClapFor(data.patientName, clapOnce);
+      clapTimer = setTimeout(clapOnce, Math.max(0, speakMs - APPLAUSE_EARLY_MS));
     }, 420);
-    const clapTimer = setTimeout(clapOnce, 420 + Math.max(0, speakMs - APPLAUSE_EARLY_MS));
     const fallbackTimer = setTimeout(clapOnce, 420 + speakMs + 1400);
     return () => {
       stopped = true;
       clearTimeout(speakTimer);
-      clearTimeout(clapTimer);
       clearTimeout(fallbackTimer);
+      if (clapTimer) clearTimeout(clapTimer);
       stopSpeaking();
       stopClapBed();
     };
@@ -83,22 +84,29 @@ export function GameResultsModal({
   const isRotatory = isRotatorySessionResult(data);
   const rotatory = isRotatory ? data : null;
 
-  const metrics: { label: string; value: string; color: string }[] = [
-    { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
-    { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
-    {
-      label: isRotatory ? 'Median Search' : 'Avg Reaction',
-      value: `${Math.round((isRotatory ? rotatory!.medianReactionSec : data.avgReactionSec) * 1000)}ms`,
-      color: '#FBBF24',
-    },
-    {
-      label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : isRotatory ? 'Targets' : 'Bubbles Popped',
-      value: isNumberSearch ? String(numberSearch?.digitsFound ?? data.correct) : String(data.stimuliCount),
-      color: '#C084FC',
-    },
-    { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
-    { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
-  ];
+  const metrics: { label: string; value: string; color: string }[] = isRotatory
+    ? [
+        { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
+        { label: 'Median response', value: `${Math.round(rotatory!.medianReactionSec * 1000)}ms`, color: '#FBBF24' },
+        { label: 'Valid trials', value: String(rotatory?.validTrials ?? data.stimuliCount), color: '#C084FC' },
+        { label: 'Clean taps', value: `${Math.round((rotatory?.cleanTapRate ?? 0) * 100)}%`, color: '#22D3EE' },
+      ]
+    : [
+        { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
+        { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
+        {
+          label: 'Avg Reaction',
+          value: `${Math.round(data.avgReactionSec * 1000)}ms`,
+          color: '#FBBF24',
+        },
+        {
+          label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : data.gameName?.includes('Familiar Faces') ? 'Photos' : 'Bubbles Popped',
+          value: isNumberSearch ? String(numberSearch?.digitsFound ?? data.correct) : String(data.stimuliCount),
+          color: '#C084FC',
+        },
+        { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
+        { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
+      ];
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -118,7 +126,7 @@ export function GameResultsModal({
               position: 'absolute',
               top: insets.top + s(12),
               right: s(16),
-              zIndex: 20,
+              zIndex: 60,
               backgroundColor: 'rgba(5,150,105,0.92)',
               paddingHorizontal: s(14),
               paddingVertical: s(8),
@@ -137,6 +145,7 @@ export function GameResultsModal({
             borderColor: 'rgba(16,185,129,0.3)',
             padding: s(20),
             maxHeight: '92%',
+            zIndex: 1,
           }}
         >
           <Pressable onPress={() => void exportCsv()} style={{ position: 'absolute', top: s(16), right: s(16), zIndex: 10, padding: s(6) }}>
@@ -170,99 +179,65 @@ export function GameResultsModal({
                 }}
               >
                 <Text style={{ color: '#38BDF8', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
-                  VISUAL FIELD
+                  ROTATORY WHEEL VISUAL SEARCH PERFORMANCE
                 </Text>
                 <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>
-                  Search time and clean-tap rate by where the target appeared — not which letter it was.
+                  Performance can be affected by movement, attention, device, and target crowding.
                 </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>
-                    Left {rotatory.leftFieldAccuracy}% · {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms
+                <Text style={{ color: '#FCD34D', fontSize: fs(22), fontWeight: '900' }}>
+                  {Math.round(rotatory.medianReactionSec * 1000)}ms
+                </Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>
+                  Median correct-target response · IQR {Math.round((rotatory.iqrReactionSec ?? 0) * 1000)}ms
+                </Text>
+                <Text style={{ color: '#6EE7B7', fontSize: fs(13), fontWeight: '700' }}>
+                  Clean taps {Math.round((rotatory.cleanTapRate ?? 0) * 100)}%
+                </Text>
+                <Text style={{ color: '#FDA4AF', fontSize: fs(13), fontWeight: '700' }}>
+                  Wrong bubble {Math.round((rotatory.discriminationErrorRate ?? 0) * 100)}% · empty-wheel miss{' '}
+                  {Math.round((rotatory.motorMissRate ?? 0) * 100)}%
+                </Text>
+                {rotatory.lateralityEligible ? (
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>
+                    Onset left n={rotatory.leftOnsetN} {Math.round(rotatory.leftFieldMedianRtSec * 1000)}ms · right n=
+                    {rotatory.rightOnsetN} {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms
                   </Text>
-                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700' }}>
-                    Right {rotatory.rightFieldAccuracy}% · {Math.round(rotatory.rightFieldMedianRtSec * 1000)}ms
+                ) : (
+                  <Text style={{ color: '#6B7280', fontSize: fs(11) }}>
+                    Left/right onset hidden ({rotatory.lateralitySuppressedReason?.replace(/_/g, ' ') || 'insufficient trials'}).
                   </Text>
-                </View>
-                <View style={{ flexDirection: 'row', gap: s(6) }}>
-                  <View
-                    style={{
-                      flex: 1,
-                      height: s(8),
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(255,255,255,0.1)',
-                      overflow: 'hidden',
-                      alignItems: 'flex-end',
-                    }}
-                  >
-                    <View
-                      style={{
-                        height: '100%',
-                        width: `${rotatory.leftFieldAccuracy}%`,
-                        backgroundColor: '#38BDF8',
-                        borderRadius: 999,
-                      }}
-                    />
-                  </View>
-                  <View
-                    style={{
-                      flex: 1,
-                      height: s(8),
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(255,255,255,0.1)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <View
-                      style={{
-                        height: '100%',
-                        width: `${rotatory.rightFieldAccuracy}%`,
-                        backgroundColor: '#34D399',
-                        borderRadius: 999,
-                      }}
-                    />
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: s(8) }}>
-                  {[
-                    { label: 'Upper', value: `${Math.round(rotatory.upperFieldMedianRtSec * 1000)}ms`, color: '#7DD3FC' },
-                    { label: 'Lower', value: `${Math.round(rotatory.lowerFieldMedianRtSec * 1000)}ms`, color: '#6EE7B7' },
-                  ].map((item) => (
-                    <View
-                      key={item.label}
-                      style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', borderRadius: s(12), padding: s(8), alignItems: 'center' }}
-                    >
-                      <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
-                      <Text style={{ color: item.color, fontSize: fs(16), fontWeight: '900' }}>{item.value}</Text>
-                    </View>
-                  ))}
-                </View>
-                {rotatory.mode !== 'colors' ? (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
-                    {[
-                      { label: 'Simple strokes', value: rotatory.simpleStrokeMedianRtSec },
-                      { label: 'Closed forms', value: rotatory.closedRoundMedianRtSec },
-                      { label: 'Open forms', value: rotatory.openRoundMedianRtSec },
-                      { label: 'Dense forms', value: rotatory.denseStrokeMedianRtSec },
-                    ].map((item) => (
-                      <View
-                        key={item.label}
-                        style={{
-                          width: '47%',
-                          flexGrow: 1,
-                          backgroundColor: 'rgba(15,23,42,0.6)',
-                          borderRadius: s(12),
-                          padding: s(8),
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '700' }}>{item.label.toUpperCase()}</Text>
-                        <Text style={{ color: '#FCD34D', fontSize: fs(15), fontWeight: '900' }}>
-                          {item.value > 0 ? `${Math.round(item.value * 1000)}ms` : '—'}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
+                )}
+                <Text style={{ color: '#7DD3FC', fontSize: fs(10), fontWeight: '800' }}>CLINICIAN DETAILS</Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(11) }}>
+                  Valid {rotatory.validTrials ?? rotatory.trialsCompleted}/{rotatory.trialsConfigured} · excluded{' '}
+                  {rotatory.excludedTrials ?? 0} · warm-up {rotatory.warmupTrials ?? 0} · crossings{' '}
+                  {Math.round((rotatory.fieldCrossingRate ?? 0) * 100)}% · {rotatory.deviceTier} · {rotatory.bubbleCount}{' '}
+                  bubbles · {rotatory.cueMode} · hand {rotatory.handUsed}
+                </Text>
+                {rotatory.qualityFlags ? (
+                  <Text style={{ color: '#FCD34D', fontSize: fs(10) }}>Flags: {rotatory.qualityFlags.replace(/\|/g, ' · ')}</Text>
                 ) : null}
+                {rotatory.mode !== 'colors' && rotatory.formClasses
+                  ? (
+                      [
+                        ['simple_stroke', 'Simple'],
+                        ['closed_round', 'Closed'],
+                        ['open_round', 'Open'],
+                        ['dense_stroke', 'Dense'],
+                      ] as const
+                    ).map(([id, label]) => {
+                      const row = rotatory.formClasses[id];
+                      return (
+                        <Text key={id} style={{ color: '#D1D5DB', fontSize: fs(11) }}>
+                          {label}: {row?.sufficient ? `${Math.round(row.medianRtSec * 1000)}ms` : 'insufficient trials'} (n=
+                          {row?.n ?? 0})
+                        </Text>
+                      );
+                    })
+                  : null}
+                <Text style={{ color: '#6B7280', fontSize: fs(10) }}>
+                  Not an acuity, saccade, neglect, or alphabet score. Do not compare devices without device-specific norms.
+                </Text>
               </View>
             ) : null}
 

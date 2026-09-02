@@ -1,14 +1,8 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { resolvePursuitPattern } from '@candela/shared/rn';
-import { LookPursuitGame } from '../../src/games/LookPursuitGame';
+import { useRouter } from 'expo-router';
+import { GazeHoldGame } from '../../src/games/GazeHoldGame';
 
 export default function ComputerVisionPlayScreen() {
   const router = useRouter();
-  const { pattern } = useLocalSearchParams<{ pattern?: string }>();
-  return (
-    <LookPursuitGame
-      movementPattern={resolvePursuitPattern(pattern)}
-      onExit={() => router.replace('/dashboard?module=computer_vision')}
-    />
-  );
+  const onExit = () => router.replace('/dashboard?module=computer_vision');
+  return <GazeHoldGame onExit={onExit} />;
 }

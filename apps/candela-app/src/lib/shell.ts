@@ -24,7 +24,7 @@ export const MODULE_CARDS: ModuleCard[] = [
   {
     uiId: 'wheel',
     title: 'Rotatory Module',
-    body: 'Dynamic wheel tracking & visual pursuit exercises',
+    body: 'Moving visual search and tap on a spinning wheel',
     badge: 'For Tabs',
     accent: '#1D4ED8',
     bar: '#3B82F6',
@@ -111,8 +111,8 @@ export const MODULE_CARDS: ModuleCard[] = [
   },
   {
     uiId: 'computer_vision',
-    title: 'Look Pursuit',
-    body: 'Look at the bright target among dim decoys — same Pursuit, look to pop',
+    title: 'Gaze Hold',
+    body: 'Look at the still bubble and hold your gaze to pop it',
     badge: 'For All Devices',
     accent: '#0E7490',
     bar: '#22D3EE',

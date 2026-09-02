@@ -1,6 +1,51 @@
 export const LOOK_DWELL_MS = 260;
 export const LOOK_DWELL_MISS_GRACE_MS = 140;
 export const LOOK_HIT_PADDING_PX = 96;
+export const LOOK_STATIONARY_BUBBLE_PX = 220;
+export const LOOK_STATIONARY_COLOR = '#94A3B8';
+export const LOOK_STATIONARY_DWELL_MS = 300;
+export const LOOK_STATIONARY_HIT_PADDING_PX = 16;
+/** Keep last look this long after a blink / landmark drop before calling the face lost. */
+export const LOOK_FACE_HOLD_MS = 280;
+
+export const LOOK_GAZE_HOLD_GLYPH_COUNT = 10;
+export const LOOK_GAZE_HOLD_DWELL_PRESETS = [200, 300, 400, 500] as const;
+export const LOOK_GAZE_HOLD_SIZE_PRESETS = [180, 220, 260] as const;
+export const LOOK_GAZE_HOLD_COUNT_PRESETS = [5, 10, 15] as const;
+export const LOOK_GAZE_HOLD_COLOR_OPTIONS = [
+  { id: 'slate', hex: '#94A3B8', label: 'Slate' },
+  { id: 'silver', hex: '#CBD5E1', label: 'Silver' },
+  { id: 'stone', hex: '#A8A29E', label: 'Stone' },
+  { id: 'mist', hex: '#E7E5E4', label: 'Mist' },
+  { id: 'pewter', hex: '#64748B', label: 'Pewter' },
+] as const;
+
+function nearestNumberPreset(presets: readonly number[], n: number): number {
+  return presets.reduce((best, preset) => (Math.abs(preset - n) < Math.abs(best - n) ? preset : best), presets[0]);
+}
+
+export function clampGazeHoldDwellMs(n: number): number {
+  return nearestNumberPreset(LOOK_GAZE_HOLD_DWELL_PRESETS, Number.isFinite(n) ? n : LOOK_STATIONARY_DWELL_MS);
+}
+
+export function clampGazeHoldGlyphSize(n: number): number {
+  return nearestNumberPreset(LOOK_GAZE_HOLD_SIZE_PRESETS, Number.isFinite(n) ? n : LOOK_STATIONARY_BUBBLE_PX);
+}
+
+export function clampGazeHoldGlyphCount(n: number): number {
+  return nearestNumberPreset(LOOK_GAZE_HOLD_COUNT_PRESETS, Number.isFinite(n) ? n : LOOK_GAZE_HOLD_GLYPH_COUNT);
+}
+
+export function resolveGazeHoldGlyphColor(hex: string | undefined): string {
+  const needle = (hex ?? '').toLowerCase();
+  const found = LOOK_GAZE_HOLD_COLOR_OPTIONS.find((option) => option.hex.toLowerCase() === needle);
+  return found?.hex ?? LOOK_STATIONARY_COLOR;
+}
+
+export function gazeHoldColorLabel(hex: string | undefined): string {
+  const resolved = resolveGazeHoldGlyphColor(hex);
+  return LOOK_GAZE_HOLD_COLOR_OPTIONS.find((option) => option.hex === resolved)?.label ?? 'Slate';
+}
 export const LOOK_YAW_RANGE_RAD = Math.PI / 5;
 export const LOOK_PITCH_RANGE_RAD = Math.PI / 7;
 export const LOOK_CAMERA_GAIN = 2.4;
@@ -13,15 +58,15 @@ export const LOOK_BLEND_WEIGHT = 0.36;
 
 export function lookNormFromWebEyePog(pogX: number, pogY: number): LookPoint {
   return {
-    x: clamp01(0.5 - pogX),
-    y: clamp01(0.5 - pogY),
+    x: clamp01(0.5 + pogX),
+    y: clamp01(0.5 + pogY),
   };
 }
 
 export function lookScreenToWebEyePog(screenX: number, screenY: number): LookPoint {
   return {
-    x: 0.5 - screenX,
-    y: 0.5 - screenY,
+    x: screenX - 0.5,
+    y: screenY - 0.5,
   };
 }
 
@@ -64,6 +109,11 @@ export function lookNormFromHeadPose(yawRad: number, pitchRad: number): LookPoin
     x: clamp01(0.5 - yawRad / LOOK_YAW_RANGE_RAD),
     y: clamp01(0.5 + pitchRad / LOOK_PITCH_RANGE_RAD),
   };
+}
+
+/** ML Kit Face.yawAngle / pitchAngle are degrees. Facing the camera is ~0, ~0 → screen center. */
+export function lookNormFromMlKitEulerDeg(yawDeg: number, pitchDeg: number): LookPoint {
+  return lookNormFromHeadPose((yawDeg * Math.PI) / 180, (pitchDeg * Math.PI) / 180);
 }
 
 export function lookNormFromCameraPoint(rawX: number, rawY: number): LookPoint {
@@ -260,8 +310,9 @@ export function lookHitsBubble(
   bubbleX: number,
   bubbleY: number,
   bubbleSizePx: number,
+  hitPaddingPx: number = LOOK_HIT_PADDING_PX,
 ): boolean {
-  const r = bubbleSizePx / 2 + LOOK_HIT_PADDING_PX;
+  const r = bubbleSizePx / 2 + hitPaddingPx;
   const dx = lookX - bubbleX;
   const dy = lookY - bubbleY;
   return dx * dx + dy * dy <= r * r;
@@ -273,12 +324,13 @@ export function resolveLookOverId(
   target: { x: number; y: number },
   decoys: Array<{ x: number; y: number }>,
   bubbleSizePx: number,
+  hitPaddingPx: number = LOOK_HIT_PADDING_PX,
 ): string | null {
-  if (lookHitsBubble(lookX, lookY, target.x, target.y, bubbleSizePx)) {
+  if (lookHitsBubble(lookX, lookY, target.x, target.y, bubbleSizePx, hitPaddingPx)) {
     return 'target';
   }
   for (let i = 0; i < decoys.length; i += 1) {
-    if (lookHitsBubble(lookX, lookY, decoys[i].x, decoys[i].y, bubbleSizePx)) {
+    if (lookHitsBubble(lookX, lookY, decoys[i].x, decoys[i].y, bubbleSizePx, hitPaddingPx)) {
       return `decoy-${i}`;
     }
   }
