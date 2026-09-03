@@ -14,7 +14,7 @@ jobs:
   build-mobile-apk:
     name: Build Mobile APK (EAS)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       EXPO_TOKEN_CANDELA: ${{ secrets.EXPO_TOKEN }}
       EXPO_TOKEN_BACKUP1: ${{ secrets.EXPO_TOKEN_BACKUP1 }}
@@ -72,7 +72,7 @@ jobs:
           .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" "$MSG"
 
       - name: Slack — mobile APK build failed
-        if: failure()
+        if: failure() || cancelled()
         run: |
           chmod +x .github/scripts/slack-notify.sh
           .github/scripts/slack-notify.sh "$SLACK_WEBHOOK_URL_MOBILE" \

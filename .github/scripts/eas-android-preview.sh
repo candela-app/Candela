@@ -53,7 +53,7 @@ try_account() {
 
   : >"$JSON_OUT"
   : >"$LOG"
-  eas build --platform android --profile preview --non-interactive --wait --clear-cache --json >"$JSON_OUT" 2>"$LOG"
+  eas build --platform android --profile preview --non-interactive --wait --json >"$JSON_OUT" 2>"$LOG"
   local code=$?
   if [ -s "$LOG" ]; then
     cat "$LOG" >&2
