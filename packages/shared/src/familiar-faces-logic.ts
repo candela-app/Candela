@@ -2,6 +2,7 @@
  * Familiar Faces — name, find, and hold a known person from uploaded photos.
  */
 
+import { sessionAccuracy } from './session-metrics';
 import type { FamiliarFacesLevelId } from './types';
 
 export const FAMILIAR_FACES_RELATION_PRESETS = [
@@ -91,9 +92,7 @@ export function uniqueRelationLabels(photos: Pick<FamiliarFacePhoto, 'relationLa
 }
 
 export function familiarFacesAccuracy(correct: number, wrong: number): number {
-  const total = correct + wrong;
-  if (total <= 0) return 0;
-  return Math.round((correct / total) * 1000) / 10;
+  return sessionAccuracy(correct, wrong);
 }
 
 export function shuffleCopy<T>(items: readonly T[]): T[] {

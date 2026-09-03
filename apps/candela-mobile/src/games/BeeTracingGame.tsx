@@ -17,10 +17,10 @@ import {
   resolveBeePathType,
   resolveOrientation,
   DEFAULT_BEE_TARGET_DOT_COLOR,
-  reactionStatsFromMs,
   type GeneratedPath,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared/rn';
 import { BeeResultsModal } from '../components/BeeResultsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -516,7 +516,7 @@ export function BeeTracingGame({
   const sessionData = (): BeeSessionResultData => {
     const avgAcc = roundResults.length
       ? Math.round(roundResults.reduce((a, r) => a + r.accuracyPercent, 0) / roundResults.length)
-      : 100;
+      : 0;
     const totalDuration = roundResults.reduce((a, r) => a + r.completionTimeSec, 0);
     const totalDeviations = roundResults.reduce((a, r) => a + r.deviationCount, 0);
     const totalRecovery = roundResults.reduce((a, r) => a + r.avgRecoveryTimeSec, 0);
@@ -533,13 +533,14 @@ export function BeeTracingGame({
       durationSec: totalDuration,
       clicksTotal: userTracePoints.length,
       correct: roundResults.length,
-      wrong: totalDeviations,
-      accuracy: avgAcc,
-      avgReactionSec: reactionStatsFromMs(
-        roundResults
+      ...buildSessionMetrics({
+        correct: roundResults.length,
+        misses: totalDeviations,
+        reactionMs: roundResults
           .map((r) => r.reactionTimeMs)
           .filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms)),
-      ).avgSec,
+        accuracyPercent: avgAcc,
+      }),
       pathType: String(settings.pathType),
       tracingMode: settings.tracingMode,
       colorTheme: settings.colorTheme,

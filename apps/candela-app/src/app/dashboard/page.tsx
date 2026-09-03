@@ -16,7 +16,6 @@ import { DirectionSenseGame } from '@/components/directionSenseModule/DirectionS
 import { GazeHoldGame } from '@/components/lookPursuitModule/GazeHoldGame';
 import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFacesGame';
 import {
-  EyeIcon,
   AnalyticsIcon,
 } from '@/components/icons/VectorIcons';
 import {
@@ -48,6 +47,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
+import { SessionAnalyticsPanel } from '@/components/shared/SessionAnalyticsPanel';
 import { MODULE_CARDS } from '@/lib/shell';
 
 const VARIANT_TILE =
@@ -714,29 +714,16 @@ function MainContent() {
               <AnalyticsIcon className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Session Analytics</h2>
+              <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">
+                {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
+              </h2>
               <p className="text-[13px] text-shell-muted font-medium">
                 Review past session performance across all therapy modules
               </p>
             </div>
           </div>
 
-          <div className="w-full flex-1 flex flex-col items-center justify-center text-center py-16">
-            <div className="w-[88px] h-[88px] rounded-3xl bg-[#EFF6FF] text-blue-400 flex items-center justify-center mb-4">
-              <AnalyticsIcon className="w-12 h-12" />
-            </div>
-            <h3 className="text-lg font-bold text-shell-ink mb-2">No Session Data Yet</h3>
-            <p className="text-shell-muted text-[13px] max-w-md leading-relaxed mb-5">
-              Complete therapy sessions to see your performance analytics here.
-            </p>
-            <button
-              onClick={handleBackToModules}
-              className="px-5 py-3 bg-shell-blue hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all active:scale-95 flex items-center gap-2"
-            >
-              <EyeIcon className="w-[18px] h-[18px]" />
-              <span>Start a Therapy Session</span>
-            </button>
-          </div>
+          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" />
         </main>
       )}
 

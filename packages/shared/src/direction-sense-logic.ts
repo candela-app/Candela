@@ -3,6 +3,8 @@
  * Arrow is always one quarter-turn, clockwise or anticlockwise (clinical setting).
  */
 
+import { sessionAccuracy } from './session-metrics';
+
 export const DEFAULT_DIRECTION_SENSE_BG = '#0B0F14';
 export const DEFAULT_DIRECTION_SENSE_SHAPE_COLOR = '#F5F7FA';
 export const DEFAULT_DIRECTION_SENSE_ARROW_COLOR = '#FFFFFF';
@@ -311,8 +313,7 @@ export function buildDirectionSenseTrial(args: {
 }
 
 export function directionSenseAccuracy(correct: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.round((correct / total) * 1000) / 10;
+  return sessionAccuracy(correct, Math.max(0, total - correct));
 }
 
 export function directionSenseDeviceDefaults(): {

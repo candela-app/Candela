@@ -2,7 +2,8 @@
 
 import React, { useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { BeeSessionResultData, RoundResultData, exportSessionCSV } from '@candela/shared';
+import { BeeSessionResultData, exportSessionCSV, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
+import { useSavedSessionNumber } from '@/lib/use-saved-session-number';
 
 interface BeeResultsModalProps {
   isOpen: boolean;
@@ -21,10 +22,14 @@ export const BeeResultsModal: React.FC<BeeResultsModalProps> = ({
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const [activeRoundTab, setActiveRoundTab] = useState<number>(0);
+  const [resultsTab, setResultsTab] = useState<'summary' | 'advanced'>('summary');
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
 
   if (!isOpen) return null;
 
   const currentRound = data.roundResults[activeRoundTab] || data.roundResults[0];
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
 
   const handleExportCSV = () => {
     exportSessionCSV(data);
@@ -138,7 +143,11 @@ export const BeeResultsModal: React.FC<BeeResultsModalProps> = ({
             Great Pursuit Tracking!
           </h2>
           <p className="text-xs text-gray-400 mt-1">
-            Patient: <span className="text-white font-semibold">{data.patientName || 'Demo Patient'}</span> • Mode:{' '}
+            Patient: <span className="text-white font-semibold">{data.patientName || 'Demo Patient'}</span>
+            {' · '}
+            Session #: {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+            {' · '}
+            Mode:{' '}
             <span className="text-amber-300 capitalize">{data.tracingMode}</span>
           </p>
 
@@ -155,6 +164,69 @@ export const BeeResultsModal: React.FC<BeeResultsModalProps> = ({
           </div>
         </div>
 
+        <div
+          data-exclude-from-download="true"
+          className="flex bg-white/5 p-1 rounded-xl mb-5 border border-white/10"
+        >
+          <button
+            type="button"
+            onClick={() => setResultsTab('summary')}
+            className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
+              resultsTab === 'summary'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Summary
+          </button>
+          <button
+            type="button"
+            onClick={() => setResultsTab('advanced')}
+            className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
+              resultsTab === 'advanced'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Advanced
+          </button>
+        </div>
+
+        {resultsTab === 'summary' && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+              {parentCells.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center"
+                >
+                  <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-400 block mb-1">
+                    {item.label}
+                  </span>
+                  <span className="text-2xl font-black" style={{ color: item.color }}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
+              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-[11px] font-bold text-rose-300">
+                Wrong taps {errors.wrongTaps}
+              </span>
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-bold text-amber-300">
+                Misses {errors.misses}
+              </span>
+              {errors.timeouts > 0 && (
+                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-bold text-sky-300">
+                  Timeouts {errors.timeouts}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {resultsTab === 'advanced' && (
+          <>
         {/* Set Round Selector Tabs */}
         {data.roundResults.length > 0 && (
           <div data-exclude-from-download="true" className="mb-4">
@@ -281,6 +353,8 @@ export const BeeResultsModal: React.FC<BeeResultsModalProps> = ({
             <span className="text-xl font-black text-blue-400">{data.roundsCompleted}</span>
           </div>
         </div>
+          </>
+        )}
 
         {/* Modal Actions */}
         <div data-exclude-from-download="true" className="flex flex-col sm:flex-row gap-3">

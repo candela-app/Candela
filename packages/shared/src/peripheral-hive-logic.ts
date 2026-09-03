@@ -1,5 +1,6 @@
 import { DeviceTier } from './types';
 import { getDeviceTier, getContrastColor } from './game-logic';
+import { sessionAccuracy } from './session-metrics';
 
 /** Field hemisphere for Peripheral View (dashboard levels). */
 export type PeripheralField = 'left' | 'right' | 'both';
@@ -168,8 +169,7 @@ export function peripheralLetterColor(options: {
 }
 
 export function peripheralSessionAccuracy(correct: number, wrong: number): number {
-  const attempts = correct + wrong;
-  return attempts > 0 ? Math.round((correct / attempts) * 100) : 100;
+  return sessionAccuracy(correct, wrong);
 }
 
 export function peripheralMedianReactionMs(reactions: number[]): number {

@@ -18,11 +18,11 @@ import {
   DEFAULT_BEE_TARGET_DOT_COLOR,
   beeHeadingDeg,
   lerpHeadingDeg,
-  reactionStatsFromMs,
   useHowToPlayGate,
   usePauseShiftedClock,
   clinicalColorSessionFields,
   getContrastAdjustedColor,
+  buildSessionMetrics,
   isDarkClinicalBg,
 } from '@candela/shared';
 import {
@@ -443,7 +443,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
   // Compute aggregated session results for set modal
   const getSessionResultData = (): BeeSessionResultData => {
     const totalAcc = roundResults.reduce((a, r) => a + r.accuracyPercent, 0);
-    const avgAcc = roundResults.length > 0 ? Math.round(totalAcc / roundResults.length) : 100;
+    const avgAcc = roundResults.length > 0 ? Math.round(totalAcc / roundResults.length) : 0;
 
     const totalDuration = roundResults.reduce((a, r) => a + r.completionTimeSec, 0);
     const totalDeviations = roundResults.reduce((a, r) => a + r.deviationCount, 0);
@@ -475,13 +475,14 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       durationSec: totalDuration,
       clicksTotal: userTracePoints.length,
       correct: roundResults.length,
-      wrong: totalDeviations,
-      accuracy: avgAcc,
-      avgReactionSec: reactionStatsFromMs(
-        roundResults
+      ...buildSessionMetrics({
+        correct: roundResults.length,
+        misses: totalDeviations,
+        reactionMs: roundResults
           .map((r) => r.reactionTimeMs)
           .filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms)),
-      ).avgSec,
+        accuracyPercent: avgAcc,
+      }),
       pathType: settings.pathType,
       tracingMode: settings.tracingMode,
       colorTheme: settings.colorTheme,

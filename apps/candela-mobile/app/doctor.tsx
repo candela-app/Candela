@@ -6,11 +6,12 @@ import { AnalyticsIcon, CheckIcon, ChevronUpIcon, SearchIcon, XIcon } from '../s
 import { AppHeader } from '../src/components/AppHeader';
 import { AppToastHost, pushAppToast, type AppToastItem } from '../src/components/AppToast';
 import { ScreenLoader } from '../src/components/ScreenLoader';
+import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
 } from '../src/components/FloatingLabelInput';
-import { ApiError, api } from '../src/lib/api';
+import { ApiError, api, listPatientGameSessions, type StoredGameSessionRecord } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -75,50 +76,6 @@ function SummaryCard({
   );
 }
 
-function EmptyChartCard({
-  title,
-  hint,
-  fs,
-  s,
-}: {
-  title: string;
-  hint: string;
-  fs: (n: number) => number;
-  s: (n: number) => number;
-}) {
-  return (
-    <View
-      style={{
-        backgroundColor: colors.white,
-        borderRadius: s(16),
-        padding: s(16),
-        borderWidth: 1,
-        borderColor: colors.border,
-        marginBottom: s(12),
-      }}
-    >
-      <Text style={{ fontSize: fs(14), fontWeight: '700', color: colors.text }}>{title}</Text>
-      <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>{hint}</Text>
-      <View
-        style={{
-          marginTop: s(16),
-          height: s(160),
-          borderRadius: s(12),
-          backgroundColor: '#F9FAFB',
-          borderWidth: 1,
-          borderStyle: 'dashed',
-          borderColor: colors.border,
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-        }}
-      >
-        <Text style={{ fontSize: fs(12), fontWeight: '600', color: '#9CA3AF' }}>No sessions yet</Text>
-      </View>
-    </View>
-  );
-}
-
 export default function DoctorScreen() {
   const router = useRouter();
   const { session, loading } = useAuth();
@@ -140,6 +97,7 @@ export default function DoctorScreen() {
   const [phoneTab, setPhoneTab] = useState<'create' | 'patients'>('patients');
   const [searchOpen, setSearchOpen] = useState(false);
   const [toasts, setToasts] = useState<AppToastItem[]>([]);
+  const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
   const inFlightRef = useRef(new Set<string>());
 
   const filteredPatients = useMemo(() => {
@@ -161,6 +119,35 @@ export default function DoctorScreen() {
     setOpenFamilyId(null);
     setShowAnalytics(false);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSessions([]);
+      return;
+    }
+    let cancelled = false;
+    setSessions([]);
+    listPatientGameSessions(selectedId)
+      .then((rows) => {
+        if (!cancelled) setSessions(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setSessions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  const lastPlayed = sessions.length
+    ? new Date(
+        [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[sessions.length - 1].recordedAt,
+      ).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+  const avgAccuracy =
+    sessions.length === 0
+      ? null
+      : Math.round((sessions.reduce((sum, row) => sum + row.accuracy, 0) / sessions.length) * 10) / 10;
 
   const load = useCallback(async () => {
     try {
@@ -361,24 +348,12 @@ export default function DoctorScreen() {
               <AnalyticsIcon size={s(22)} color={colors.blue} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fs(20), fontWeight: '800' }}>Session Analytics</Text>
               <Text style={{ fontSize: fs(13), color: colors.muted }}>
                 Performance for {selected.name} across therapy modules
               </Text>
             </View>
           </View>
-          <EmptyChartCard
-            title="Accuracy over time"
-            hint="Session accuracy will plot here after play is saved"
-            fs={fs}
-            s={s}
-          />
-          <EmptyChartCard
-            title="Sessions by family"
-            hint="Counts per family will appear here after play is saved"
-            fs={fs}
-            s={s}
-          />
+          <SessionAnalyticsPanel patientId={selected.id} patientName={selected.name} />
         </ScrollView>
         <AppToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))} />
       </View>
@@ -676,8 +651,8 @@ export default function DoctorScreen() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(16) }}>
                   <SummaryCard
                     label="Sessions"
-                    value="0"
-                    hint="No sessions yet"
+                    value={String(sessions.length)}
+                    hint={sessions.length ? 'Finished games saved' : 'No sessions yet'}
                     labelColor="#2563EB"
                     isTablet={isTablet}
                     fs={fs}
@@ -685,8 +660,8 @@ export default function DoctorScreen() {
                   />
                   <SummaryCard
                     label="Last played"
-                    value="—"
-                    hint="Not stored yet"
+                    value={lastPlayed}
+                    hint={sessions.length ? 'Most recent saved session' : 'Not stored yet'}
                     labelColor="#D97706"
                     isTablet={isTablet}
                     fs={fs}
@@ -694,8 +669,8 @@ export default function DoctorScreen() {
                   />
                   <SummaryCard
                     label="Accuracy"
-                    value="—"
-                    hint="Not stored yet"
+                    value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
+                    hint={avgAccuracy != null ? 'Mean of saved sessions' : 'Not stored yet'}
                     labelColor="#059669"
                     isTablet={isTablet}
                     fs={fs}

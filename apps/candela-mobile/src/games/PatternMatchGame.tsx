@@ -14,18 +14,17 @@ import {
   buildPatternMatchField,
   generatePatternMatchTarget,
   getDeviceTier,
-  patternMatchAccuracy,
   patternMatchDeviceDefaults,
   patternMatchFlashLabel,
   patternMatchHardnessLabel,
   patternMatchStimulusFromLevelId,
-  reactionStatsFromMs,
   type PatternMatchCell,
   type PatternMatchHardness,
   type PatternMatchSessionResultData,
   type PatternMatchStimulusMode,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -149,7 +148,6 @@ export function PatternMatchGame({
       if (endedBy === 'timeout') {
         stats.roundsCompleted = Math.max(stats.roundsCompleted, currentRoundRef.current);
       }
-      const reaction = reactionStatsFromMs(stats.reactions);
       const elapsed =
         startTimeRef.current != null
           ? Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -166,10 +164,12 @@ export function PatternMatchGame({
         durationSec: elapsed,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: patternMatchAccuracy(stats.correct, stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          timeouts: endedBy === 'timeout' ? Math.max(0, stats.matchesConfigured - stats.correct) : 0,
+          reactionMs: stats.reactions,
+        }),
         targetCode: stats.targetCode,
         codeLength,
         matchesConfigured: stats.matchesConfigured,

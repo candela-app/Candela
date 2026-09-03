@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Polyline } from 'react-native-svg';
-import type { BeeSessionResultData } from '@candela/shared/rn';
+import { parentSummaryCells, sessionErrorCounts, type BeeSessionResultData } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
+import { useSavedSessionNumber } from '../lib/use-saved-session-number';
 
 export function BeeResultsModal({
   isOpen,
@@ -21,6 +22,8 @@ export function BeeResultsModal({
   const { fs, s } = useLayout();
   const [toast, setToast] = useState<string | null>(null);
   const [activeRoundTab, setActiveRoundTab] = useState(0);
+  const [resultsTab, setResultsTab] = useState<'summary' | 'advanced'>('summary');
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
   const currentRound = data.roundResults[activeRoundTab] || data.roundResults[0];
 
   const viewBox = useMemo(() => {
@@ -41,13 +44,13 @@ export function BeeResultsModal({
     setTimeout(() => setToast(null), 2500);
   };
 
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
   const metrics = [
-    { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
-    { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
     { label: 'Off-Path Deviations', value: String(data.deviationCount ?? 0), color: '#FB7185' },
     { label: 'Avg Recovery', value: `${data.avgRecoveryTimeSec ?? 0}s`, color: '#22D3EE' },
-    { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
-    { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
+    { label: 'Tolerance Band', value: `${data.toleranceBandPx}px`, color: '#C084FC' },
+    { label: 'Rounds Completed', value: String(data.roundsCompleted), color: '#60A5FA' },
   ];
 
   return (
@@ -95,8 +98,91 @@ export function BeeResultsModal({
               {data.gameName} • Patient:{' '}
               <Text style={{ color: '#34D399', fontWeight: '700' }}>{data.patientName || 'Demo Patient'}</Text>
             </Text>
-            <Text style={{ color: '#9CA3AF', fontSize: fs(11), textAlign: 'center', marginTop: s(4) }}>Date: {data.date}</Text>
+            <Text style={{ color: '#9CA3AF', fontSize: fs(11), textAlign: 'center', marginTop: s(4) }}>
+              Session #: {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+              {'  ·  '}
+              Date: {data.date}
+            </Text>
 
+            <View
+              style={{
+                flexDirection: 'row',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                borderRadius: s(12),
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.1)',
+                padding: s(4),
+                marginTop: s(16),
+              }}
+            >
+              {(
+                [
+                  { id: 'summary' as const, label: 'Summary' },
+                  { id: 'advanced' as const, label: 'Advanced' },
+                ]
+              ).map((tab) => (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => setResultsTab(tab.id)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: s(10),
+                    borderRadius: s(10),
+                    backgroundColor: resultsTab === tab.id ? '#F59E0B' : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: resultsTab === tab.id ? '#0F172A' : '#9CA3AF',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {resultsTab === 'summary' ? (
+              <>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginTop: s(14) }}>
+                  {parentCells.map((item) => (
+                    <View
+                      key={item.label}
+                      style={{
+                        width: '47%',
+                        flexGrow: 1,
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderRadius: s(16),
+                        padding: s(12),
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.6 }}>{item.label.toUpperCase()}</Text>
+                      <Text style={{ color: item.color, fontSize: fs(20), fontWeight: '900', marginTop: s(4) }}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: s(8), marginTop: s(12) }}>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,113,133,0.3)', backgroundColor: 'rgba(244,63,94,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FDA4AF', fontSize: fs(11), fontWeight: '800' }}>Wrong taps {errors.wrongTaps}</Text>
+                  </View>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)', backgroundColor: 'rgba(245,158,11,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FCD34D', fontSize: fs(11), fontWeight: '800' }}>Misses {errors.misses}</Text>
+                  </View>
+                  {errors.timeouts > 0 ? (
+                    <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', backgroundColor: 'rgba(14,165,233,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                      <Text style={{ color: '#7DD3FC', fontSize: fs(11), fontWeight: '800' }}>Timeouts {errors.timeouts}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : (
+              <>
             {currentRound ? (
               <View
                 style={{
@@ -236,6 +322,8 @@ export function BeeResultsModal({
                 </View>
               ))}
             </View>
+              </>
+            )}
 
             <View style={{ gap: s(8), marginTop: s(16) }}>
               <Pressable

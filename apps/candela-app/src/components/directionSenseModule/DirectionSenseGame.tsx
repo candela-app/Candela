@@ -21,7 +21,6 @@ import {
   clampDirectionSenseTimeLimitSec,
   clampDirectionSenseTrials,
   clampDirectionSenseTurnDirection,
-  directionSenseAccuracy,
   directionSenseCurvedArrowPath,
   directionSenseArrowTransform,
   directionSenseDeltaDeg,
@@ -44,7 +43,6 @@ import {
   takeDirectionSenseMoveCue,
   clinicalColorSessionFields,
   getContrastAdjustedColor,
-  reactionStatsFromMs,
   requestFullScreenSafe,
   getDeviceTier,
   type DirectionSenseOption,
@@ -55,6 +53,7 @@ import {
   type DirectionSenseTurnDirection,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
@@ -226,7 +225,6 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
       completedTrials: number;
     }) => {
       const duration = stats.startedAt ? Math.max(1, Math.round((Date.now() - stats.startedAt) / 1000)) : durationSec;
-      const reaction = reactionStatsFromMs(stats.reactions);
       const data: DirectionSenseSessionResultData = {
         patientName,
         sessionId: Date.now(),
@@ -238,10 +236,11 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
         durationSec: duration,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: directionSenseAccuracy(stats.correct, stats.correct + stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          reactionMs: stats.reactions,
+        }),
         trialsConfigured,
         trialsCompleted: stats.completedTrials,
         choiceCount,

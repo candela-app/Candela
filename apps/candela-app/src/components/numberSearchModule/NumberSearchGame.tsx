@@ -13,7 +13,6 @@ import {
   DEFAULT_NUMBER_SEARCH_FIELD_COUNT,
   NUMBER_SEARCH_DIGIT_SIZE_SCALE,
   getDeviceTier,
-  numberSearchAccuracy,
   numberSearchDeviceDefaults,
   numberSearchFieldCountLabel,
   numberSearchLayoutLabel,
@@ -24,13 +23,14 @@ import {
   playSuccessSoundAndHaptic,
   playWhooshSoundAndHaptic,
   playWrongSoundAndHaptic,
-  reactionStatsFromMs,
   requestFullScreenSafe,
   type NumberSearchGlyph,
   type NumberSearchLayoutMode,
   type NumberSearchSessionResultData,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
+  captureReactionMs,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
@@ -100,6 +100,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     clicks: 0,
     correct: 0,
     wrong: 0,
+    misses: 0,
     reactions: [] as number[],
     digitsConfigured: 0,
   });
@@ -109,6 +110,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
     setStartTime((prev) => (prev == null ? prev : prev + delta));
     if (startTimeRef.current != null) startTimeRef.current += delta;
+    setTargetShownAt((prev) => (prev == null ? prev : prev + delta));
   }, startTime);
   const settingsRef = useRef({
     patientName,
@@ -179,7 +181,6 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       const cfg = settingsRef.current;
       const digitsFound = stats.correct;
       const digitsRemaining = Math.max(0, stats.digitsConfigured - digitsFound);
-      const reaction = reactionStatsFromMs(stats.reactions);
       const elapsed =
         startTimeRef.current != null
           ? Math.max(1, Math.floor((performance.now() - startTimeRef.current) / 1000))
@@ -200,10 +201,13 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         durationSec: elapsed,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: numberSearchAccuracy(stats.correct, stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          misses: stats.misses,
+          timeouts: endedBy === 'timeout' ? digitsRemaining : 0,
+          reactionMs: stats.reactions,
+        }),
         targetDigitsConfigured: stats.digitsConfigured,
         digitsFound,
         digitsRemaining,
@@ -318,6 +322,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         clicks: 0,
         correct: 0,
         wrong: 0,
+        misses: 0,
         reactions: [],
         digitsConfigured: digitTotal,
       };
@@ -357,9 +362,11 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       if (glyph.isDigit) {
         playWhooshSoundAndHaptic();
         if (targetShownAt != null) {
-          const rt = Math.max(0, Math.round(now - targetShownAt));
-          statsRef.current.reactions.push(rt);
-          setReactionTimes([...statsRef.current.reactions]);
+          const rt = captureReactionMs(now, targetShownAt);
+          if (rt != null) {
+            statsRef.current.reactions.push(rt);
+            setReactionTimes([...statsRef.current.reactions]);
+          }
         }
         setTargetShownAt(now);
 
@@ -405,6 +412,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   const handleBackgroundClick = useCallback(() => {
     if (!gameStarted || isResultsOpen) return;
     playMissPressSoundAndHaptic();
+    statsRef.current.misses += 1;
   }, [gameStarted, isResultsOpen]);
 
   const avgReactionMs =

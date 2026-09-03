@@ -10,7 +10,6 @@ import {
   THERAPY_COLOR_ITEMS,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   isStimuliColorMixed,
-  reactionStatsFromMs,
   resolveStimuliBubbleColor,
   resolveBubblePaint,
   resolveBubbleAppearance,
@@ -18,6 +17,7 @@ import {
   bubbleAppearanceLabel,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -291,14 +291,15 @@ export function MobileTargetGame({
         setIsPlaying(false);
         const totalCorrect = updatedMetrics.length;
         const totalWrong = updatedMetrics.reduce((acc, m) => acc + m.wrongClicksCount, 0);
-        const { avgSec: avgReaction } = reactionStatsFromMs(
-          updatedMetrics.map((m) => m.reactionTimeMs),
-        );
-        const accuracy = Math.round((totalCorrect / Math.max(1, totalCorrect + totalWrong)) * 100);
+        const metrics = buildSessionMetrics({
+          correct: totalCorrect,
+          wrongTaps: totalWrong,
+          reactionMs: updatedMetrics.map((m) => m.reactionTimeMs),
+        });
         setSessionResult({
           patientName: settings.patientName,
           sessionId: Date.now(),
-          date: new Date().toLocaleDateString(),
+          date: new Date().toISOString(),
           gameName: gameTitle,
           stimuliCount: settings.totalSets * 2,
           letterSize: settings.letterSize || 32,
@@ -306,16 +307,14 @@ export function MobileTargetGame({
           durationSec: Math.round(updatedMetrics.reduce((acc, m) => acc + m.reactionTimeMs, 0) / 1000),
           clicksTotal: totalCorrect + totalWrong,
           correct: totalCorrect,
-          wrong: totalWrong,
-          accuracy,
-          avgReactionSec: avgReaction,
+          ...metrics,
           gameMode: settings.gameMode,
           speedPxPerSec: settings.speedPxPerSec,
           setDurationSec: 0,
           totalSets: settings.totalSets,
           timeoutCount: 0,
           setMetrics: updatedMetrics,
-          starRating: accuracy >= 90 ? 5 : accuracy >= 75 ? 4 : accuracy >= 60 ? 3 : 2,
+          starRating: metrics.accuracy >= 90 ? 5 : metrics.accuracy >= 75 ? 4 : metrics.accuracy >= 60 ? 3 : 2,
         });
         setShowResults(true);
       } else {

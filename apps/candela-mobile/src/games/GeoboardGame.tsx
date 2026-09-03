@@ -26,7 +26,7 @@ import {
   type GeoboardProtocol,
   type GeoboardSessionResultData,
   type GeoboardTrialMetric,
-  reactionStatsFromMs,
+  buildSessionMetrics,
   useHowToPlayGate,
   usePauseShiftedClock,
 } from '@candela/shared/rn';
@@ -508,7 +508,7 @@ export function GeoboardGame({
         dotTapSequence: tapSequenceRef.current,
         correct: outcome.correct,
         errorType: outcome.errorType,
-        reactionTimeMs: now - trialStartRef.current,
+        reactionTimeMs: Math.round(now - trialStartRef.current),
         firstDotLatencyMs: firstDotAtRef.current !== null ? firstDotAtRef.current - trialStartRef.current : 0,
         corrections: correctionsRef.current,
         segmentsDrawn: drawn.length,
@@ -526,8 +526,17 @@ export function GeoboardGame({
       const durationSec = Math.round((performance.now() - sessionStartRef.current) / 1000);
       const attempted = finalTrials.length;
       const correctCount = finalTrials.filter((t) => t.correct).length;
-      const wrongCount = attempted - correctCount;
-      const accuracy = attempted > 0 ? Math.round((correctCount / attempted) * 100) : 0;
+      const wrongDot = finalTrials.filter((t) => t.errorType === 'wrong-dot').length;
+      const wrongShape = finalTrials.filter((t) => t.errorType === 'wrong-shape').length;
+      const incomplete = finalTrials.filter((t) => t.errorType === 'incomplete' && !t.timedOut).length;
+      const timedOut = finalTrials.filter((t) => t.timedOut).length;
+      const metrics = buildSessionMetrics({
+        correct: correctCount,
+        wrongTaps: wrongDot + wrongShape,
+        misses: incomplete,
+        timeouts: timedOut,
+        reactionMs: finalTrials.filter((t) => t.correct).map((t) => t.reactionTimeMs),
+      });
       const avg = (pick: (t: GeoboardTrialMetric) => number) =>
         attempted > 0 ? finalTrials.reduce((acc, t) => acc + pick(t), 0) / attempted : 0;
       const halfTotals = finalTrials.reduce(
@@ -550,9 +559,7 @@ export function GeoboardGame({
         durationSec,
         clicksTotal: finalTrials.reduce((acc, t) => acc + t.dotTapSequence.length, 0),
         correct: correctCount,
-        wrong: wrongCount,
-        accuracy,
-        avgReactionSec: reactionStatsFromMs(finalTrials.map((t) => t.reactionTimeMs)).avgSec,
+        ...metrics,
         stimulusType: board.stimulusType,
         boardId,
         boardName: board.name,
@@ -576,7 +583,7 @@ export function GeoboardGame({
         },
         penColor: protocol.penColor,
         penColorName: getPenColorName(protocol.penColor),
-        starRating: getGeoboardStarRating(accuracy),
+        starRating: getGeoboardStarRating(metrics.accuracy),
         status,
       };
       // TODO: persist once DB is configured

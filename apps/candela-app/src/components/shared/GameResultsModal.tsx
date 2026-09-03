@@ -3,8 +3,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult, formatReactionMsFromSec, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
+import { useSavedSessionNumber } from '@/lib/use-saved-session-number';
 import { ResultsConfetti } from './ResultsConfetti';
 
 interface GameResultsModalProps {
@@ -25,6 +26,8 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const [activeRoundTab, setActiveRoundTab] = useState<number>(0);
   const [portalReady, setPortalReady] = useState(false);
+  const [resultsTab, setResultsTab] = useState<'summary' | 'advanced'>('summary');
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
 
   useEffect(() => {
     setPortalReady(true);
@@ -32,6 +35,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    setResultsTab('summary');
     const stop = startResultsCelebrationAudio(data.patientName, {
       playClap: playApplauseClip,
       stopClap: stopApplauseClip,
@@ -53,6 +57,8 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
   const currentRound =
     beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
 
   const handleExportCSV = () => {
     exportSessionCSV(data);
@@ -216,6 +222,11 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             </span>
           </p>
           <div className="text-xs text-gray-400 mt-1.5 font-medium tracking-wide">
+            Session #:{' '}
+            <span className="text-gray-300">
+              {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+            </span>
+            {' · '}
             Date: <span className="text-gray-300">{formattedDate}</span>
           </div>
           <ClinicalLookBadge
@@ -225,6 +236,36 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           />
         </div>
 
+        <div
+          data-exclude-from-download="true"
+          className="flex bg-white/5 p-1 rounded-xl mb-5 border border-white/10 relative z-10"
+        >
+          <button
+            type="button"
+            onClick={() => setResultsTab('summary')}
+            className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
+              resultsTab === 'summary'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Summary
+          </button>
+          <button
+            type="button"
+            onClick={() => setResultsTab('advanced')}
+            className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
+              resultsTab === 'advanced'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Advanced
+          </button>
+        </div>
+
+        {resultsTab === 'advanced' && (
+          <>
         {/* VISUAL TRACED PATH OVERLAY (FOR BEE TRACING) */}
         {isBeeTracing && currentRound && (
           <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-3 mb-5 relative overflow-hidden flex flex-col items-center z-10">
@@ -564,103 +605,96 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             )}
           </div>
         )}
+          </>
+        )}
 
-        {/* Clinical Results Grid */}
+        {resultsTab === 'summary' && (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 relative z-10">
+              {parentCells.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center"
+                >
+                  <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                    {item.label}
+                  </span>
+                  <span className="text-2xl font-black" style={{ color: item.color }}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 mb-6 relative z-10">
+              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-[11px] font-bold text-rose-300">
+                Wrong taps {errors.wrongTaps}
+              </span>
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-bold text-amber-300">
+                Misses {errors.misses}
+              </span>
+              {errors.timeouts > 0 && (
+                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-bold text-sky-300">
+                  Timeouts {errors.timeouts}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {resultsTab === 'advanced' && (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 relative z-10">
-          {/* Time Taken */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Duration
-            </span>
-            <span className="text-2xl font-black text-emerald-400">
-              {data.durationSec}s
-            </span>
-          </div>
-
-          {/* Accuracy */}
-          {!isRotatory && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              Accuracy
-            </span>
-            <span className="text-2xl font-black text-blue-400">
-              {data.accuracy}%
-            </span>
-          </div>
-          )}
-
-          {/* Deviations / Tracking Error / Avg Reaction Time */}
-          {isBeeTracing ? (
+          {typeof data.medianReactionSec === 'number' && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Off-Path Deviations
+                Median Reaction
               </span>
-              <span className="text-2xl font-black text-rose-400">
-                {beeData.deviationCount ?? 0}
-              </span>
-            </div>
-          ) : isPursuit ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Tracking Error
-              </span>
-              <span className="text-2xl font-black text-rose-400">
-                {beeData.avgTrackingErrorPx ?? 0}px
-              </span>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-              {isRotatory ? 'Median response' : 'Avg Reaction'}
-            </span>
-            <span className="text-2xl font-black text-amber-400">
-              {Math.round((isRotatory ? rotatory!.medianReactionSec : data.avgReactionSec) * 1000)}ms
-            </span>
-            </div>
-          )}
-
-          {/* Recovery Time / Pursuit Speed / Stimuli Count */}
-          {isBeeTracing ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Avg Recovery
-              </span>
-              <span className="text-2xl font-black text-cyan-400">
-                {beeData.avgRecoveryTimeSec ?? 0}s
-              </span>
-            </div>
-          ) : isPursuit ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Pursuit Speed
-              </span>
-              <span className="text-2xl font-black text-cyan-400">
-                {beeData.speedPxPerSec ?? 180} px/s
-              </span>
-            </div>
-          ) : isRotatory ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                Valid trials
-              </span>
-              <span className="text-2xl font-black text-purple-400">
-                {rotatory?.validTrials ?? data.stimuliCount}
-              </span>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                {isGeoboard ? 'Patterns Drawn' : 'Bubbles Popped'}
-              </span>
-              <span className="text-2xl font-black text-purple-400">
-                {data.stimuliCount}
+              <span className="text-2xl font-black text-amber-400">
+                {formatReactionMsFromSec(data.medianReactionSec)}
               </span>
             </div>
           )}
-
-          {isGeoboard ? (
+          {isBeeTracing && (
             <>
-              {/* Time before the first connection — a proxy for spatial planning */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Off-Path Deviations
+                </span>
+                <span className="text-2xl font-black text-rose-400">
+                  {beeData.deviationCount ?? 0}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Avg Recovery
+                </span>
+                <span className="text-2xl font-black text-cyan-400">
+                  {beeData.avgRecoveryTimeSec ?? 0}s
+                </span>
+              </div>
+            </>
+          )}
+          {isPursuit && (
+            <>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Tracking Error
+                </span>
+                <span className="text-2xl font-black text-rose-400">
+                  {beeData.avgTrackingErrorPx ?? 0}px
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Pursuit Speed
+                </span>
+                <span className="text-2xl font-black text-cyan-400">
+                  {beeData.speedPxPerSec ?? 180} px/s
+                </span>
+              </div>
+            </>
+          )}
+          {isGeoboard && (
+            <>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
                 <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
                   Planning Time
@@ -669,7 +703,6 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                   {beeData.avgFirstDotLatencySec}s
                 </span>
               </div>
-
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
                 <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
                   Corrections
@@ -679,26 +712,35 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                 </span>
               </div>
             </>
-          ) : isRotatory ? null : (
-            <>
-              {/* Visual Focus Score */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                  Visual Focus Score
-                </span>
-                <span className="text-2xl font-black text-cyan-400">96 / 100</span>
-              </div>
-
-              {/* Processing Speed Tier */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
-                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
-                  Processing Speed
-                </span>
-                <span className="text-2xl font-black text-green-400">Optimal</span>
-              </div>
-            </>
+          )}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+              Wrong-tap rate
+            </span>
+            <span className="text-2xl font-black text-rose-400">
+              {data.wrongTapRate ?? 0}%
+            </span>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+            <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+              Miss rate
+            </span>
+            <span className="text-2xl font-black text-amber-400">
+              {data.missRate ?? 0}%
+            </span>
+          </div>
+          {(data.timeouts ?? 0) > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                Timeout rate
+              </span>
+              <span className="text-2xl font-black text-sky-400">
+                {data.timeoutRate ?? 0}%
+              </span>
+            </div>
           )}
         </div>
+        )}
 
         {/* Action Buttons */}
         <div
