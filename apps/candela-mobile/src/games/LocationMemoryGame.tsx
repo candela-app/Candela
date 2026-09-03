@@ -14,7 +14,6 @@ import {
   buildLocationMemoryPairsBoard,
   buildLocationMemoryRecallQueue,
   getDeviceTier,
-  locationMemoryAccuracy,
   locationMemoryActiveCellsFromLevelId,
   locationMemoryDeviceDefaults,
   locationMemoryExploreLabel,
@@ -22,11 +21,11 @@ import {
   locationMemoryModeFromLevelId,
   locationMemoryPairCount,
   locationMemoryRecallLabel,
-  reactionStatsFromMs,
   type LocationMemoryCell,
   type LocationMemorySessionResultData,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -182,7 +181,6 @@ export function LocationMemoryGame({
       if (endedBy === 'timeout') {
         stats.roundsCompleted = Math.max(stats.roundsCompleted, currentRoundRef.current - 1);
       }
-      const reaction = reactionStatsFromMs(stats.reactions);
       const elapsed =
         startTimeRef.current != null
           ? Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -205,10 +203,11 @@ export function LocationMemoryGame({
         durationSec: elapsed,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: locationMemoryAccuracy(stats.correct, stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          reactionMs: stats.reactions,
+        }),
         activeCellsConfigured: isPairs ? cells.length : activeCells,
         targetsConfigured: stats.targetsConfigured,
         targetsFound: stats.correct,
@@ -357,7 +356,7 @@ export function LocationMemoryGame({
     statsRef.current.clicks += 1;
     if (cell.value === currentTarget) {
       hapticCorrect();
-      if (targetShownAt != null) statsRef.current.reactions.push(Math.max(0, now - targetShownAt));
+      if (targetShownAt != null) statsRef.current.reactions.push(Math.max(0, Math.round(now - targetShownAt)));
       statsRef.current.correct += 1;
       setCorrectCount(statsRef.current.correct);
       setMatchedIds((prev) => new Set(prev).add(cell.id));
@@ -415,7 +414,7 @@ export function LocationMemoryGame({
       }
 
       hapticCorrect();
-      if (targetShownAt != null) statsRef.current.reactions.push(Math.max(0, now - targetShownAt));
+      if (targetShownAt != null) statsRef.current.reactions.push(Math.max(0, Math.round(now - targetShownAt)));
       statsRef.current.correct += 1;
       setCorrectCount(statsRef.current.correct);
       const nextMatched = new Set(matchedIds);

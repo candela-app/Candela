@@ -3,6 +3,8 @@
  * Explore a grid (one cell open at a time), then recall where each number lived.
  */
 
+import { sessionAccuracy } from './session-metrics';
+
 export const DEFAULT_LOCATION_MEMORY_BG = '#0B0F14';
 export const DEFAULT_LOCATION_MEMORY_CHAR_COLOR = '#F5F7FA';
 
@@ -287,9 +289,7 @@ export function locationMemoryPairCount(cells: LocationMemoryCell[]): number {
 }
 
 export function locationMemoryAccuracy(correct: number, wrong: number): number {
-  const total = correct + wrong;
-  if (total <= 0) return 100;
-  return Math.round((correct / total) * 1000) / 10;
+  return sessionAccuracy(correct, wrong);
 }
 
 export function locationMemoryDeviceDefaults(): {

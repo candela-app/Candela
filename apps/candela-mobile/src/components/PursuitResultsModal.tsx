@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { PursuitSessionResultData } from '@candela/shared/rn';
+import { parentSummaryCells, sessionErrorCounts, type PursuitSessionResultData } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
+import { useSavedSessionNumber } from '../lib/use-saved-session-number';
 
 export function PursuitResultsModal({
   isOpen,
@@ -18,8 +19,9 @@ export function PursuitResultsModal({
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
-  const [viewTab, setViewTab] = useState<'child' | 'doctor'>('child');
+  const [viewTab, setViewTab] = useState<'summary' | 'advanced'>('summary');
   const [toast, setToast] = useState<string | null>(null);
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
 
   const formattedDate =
     data.date ||
@@ -28,10 +30,6 @@ export function PursuitResultsModal({
       month: 'short',
       year: 'numeric',
     });
-
-  const starCount = Math.max(1, Math.min(5, data.starRating || Math.ceil((data.accuracy / 100) * 5)));
-  const starsFilled = '★'.repeat(starCount);
-  const starsEmpty = '☆'.repeat(5 - starCount);
 
   const exportCsv = async () => {
     try {
@@ -42,6 +40,9 @@ export function PursuitResultsModal({
     }
     setTimeout(() => setToast(null), 2500);
   };
+
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -90,6 +91,8 @@ export function PursuitResultsModal({
             <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(4) }}>
               Patient: <Text style={{ color: '#fff', fontWeight: '700' }}>{data.patientName || 'Demo Patient'}</Text>
               {'  ·  '}
+              Session #: {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+              {'  ·  '}
               {formattedDate}
             </Text>
 
@@ -107,8 +110,8 @@ export function PursuitResultsModal({
             >
               {(
                 [
-                  { id: 'child' as const, label: 'Child Summary' },
-                  { id: 'doctor' as const, label: 'Clinical Dashboard' },
+                  { id: 'summary' as const, label: 'Summary' },
+                  { id: 'advanced' as const, label: 'Advanced' },
                 ]
               ).map((tab) => (
                 <Pressable
@@ -135,66 +138,44 @@ export function PursuitResultsModal({
               ))}
             </View>
 
-            {viewTab === 'child' ? (
-              <View style={{ alignItems: 'center', gap: s(14), paddingVertical: s(8) }}>
-                <Text style={{ color: '#22D3EE', fontSize: fs(22), fontWeight: '900', textAlign: 'center' }}>
-                  Fantastic Tracking!
-                </Text>
-                <Text style={{ color: '#D1D5DB', fontSize: fs(13), textAlign: 'center' }}>
-                  You visually pursued moving targets with great accuracy.
-                </Text>
-                <View style={{ flexDirection: 'row', gap: s(10), width: '100%' }}>
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: '#121522',
-                      borderWidth: 1,
-                      borderColor: 'rgba(6,182,212,0.3)',
-                      borderRadius: s(16),
-                      padding: s(16),
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', letterSpacing: 0.6 }}>
-                      TRACKING ACCURACY
-                    </Text>
-                    <Text style={{ color: '#22D3EE', fontSize: fs(32), fontWeight: '900', marginTop: s(4) }}>
-                      {data.accuracy}%
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: '#121522',
-                      borderWidth: 1,
-                      borderColor: 'rgba(245,158,11,0.3)',
-                      borderRadius: s(16),
-                      padding: s(16),
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', letterSpacing: 0.6 }}>
-                      STAR RATING
-                    </Text>
-                    <Text style={{ color: '#FBBF24', fontSize: fs(22), fontWeight: '900', marginTop: s(8) }}>
-                      {starsFilled}
-                      <Text style={{ color: 'rgba(255,255,255,0.2)' }}>{starsEmpty}</Text>
-                    </Text>
-                  </View>
+            {viewTab === 'summary' ? (
+              <View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                  {parentCells.map((item) => (
+                    <View
+                      key={item.label}
+                      style={{
+                        width: '48%',
+                        flexGrow: 1,
+                        backgroundColor: '#121522',
+                        borderWidth: 1,
+                        borderColor: '#1F2937',
+                        borderRadius: s(12),
+                        padding: s(12),
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', letterSpacing: 0.5 }}>
+                        {item.label.toUpperCase()}
+                      </Text>
+                      <Text style={{ color: item.color, fontSize: fs(18), fontWeight: '900', marginTop: s(4) }}>
+                        {item.value}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-                <View
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'rgba(8,47,73,0.35)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(6,182,212,0.2)',
-                    borderRadius: s(12),
-                    padding: s(12),
-                  }}
-                >
-                  <Text style={{ color: '#67E8F9', fontSize: fs(12), textAlign: 'center', fontWeight: '600' }}>
-                    Keep up the continuous tracking practice to strengthen visual pursuit endurance.
-                  </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: s(8) }}>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,113,133,0.3)', backgroundColor: 'rgba(244,63,94,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FDA4AF', fontSize: fs(11), fontWeight: '800' }}>Wrong taps {errors.wrongTaps}</Text>
+                  </View>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)', backgroundColor: 'rgba(245,158,11,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FCD34D', fontSize: fs(11), fontWeight: '800' }}>Misses {errors.misses}</Text>
+                  </View>
+                  {errors.timeouts > 0 ? (
+                    <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', backgroundColor: 'rgba(14,165,233,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                      <Text style={{ color: '#7DD3FC', fontSize: fs(11), fontWeight: '800' }}>Timeouts {errors.timeouts}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ) : (

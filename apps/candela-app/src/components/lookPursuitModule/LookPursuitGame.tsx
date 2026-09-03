@@ -17,10 +17,10 @@ import {
   ClinicalSettingsModal,
   resolveLookPursuitPattern,
   pursuitPatternName,
-  reactionStatsFromMs,
   advanceLookDwell,
   createLookDwellState,
   resolveLookOverId,
+  buildSessionMetrics,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { useFaceLook } from '@/lib/use-face-look';
@@ -140,8 +140,14 @@ const LookPursuitMovingGame: React.FC<{
   const completeSession = useCallback(() => {
     const allTrials = trialMetricsRef.current;
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
-    const accuracy = Math.round((correctCount / Math.max(1, allTrials.length)) * 100);
-    const { avgSec: avgReactionSec } = reactionStatsFromMs(allTrials.map((t) => t.reactionTimeMs));
+    const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
+    const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const metrics = buildSessionMetrics({
+      correct: correctCount,
+      wrongTaps,
+      timeouts,
+      reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
+    });
     const avgTrackingErrorPx =
       allTrials.length > 0
         ? Math.round(allTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / allTrials.length)
@@ -177,7 +183,7 @@ const LookPursuitMovingGame: React.FC<{
     setSessionResults({
       patientName: settings.patientName,
       sessionId: Date.now(),
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      date: new Date().toISOString(),
       gameName: `Look Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
       stimuliCount: allTrials.length,
       letterSize: 1.5,
@@ -185,16 +191,14 @@ const LookPursuitMovingGame: React.FC<{
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
       clicksTotal: allTrials.length,
       correct: correctCount,
-      wrong: allTrials.length - correctCount,
-      accuracy,
-      avgReactionSec,
+      ...metrics,
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
       avgTrackingErrorPx,
       anticipationVsLagScore,
       blockMetrics,
-      starRating: Math.max(1, Math.min(5, Math.ceil((accuracy / 100) * 5))),
+      starRating: Math.max(1, Math.min(5, Math.ceil((metrics.accuracy / 100) * 5))),
     });
     setIsResultsOpen(true);
   }, [settings]);

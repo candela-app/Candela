@@ -9,7 +9,6 @@ import {
   DEFAULT_STIMULI_BUBBLE_COLOR,
   playSuccessTone,
   playErrorTone,
-  reactionStatsFromMs,
   isStimuliColorMixed,
   resolveStimuliBubbleColor,
   resolveBubblePaint,
@@ -20,6 +19,7 @@ import {
   getContrastAdjustedColor,
   isDarkClinicalBg,
   CLINICAL_INK,
+  buildSessionMetrics,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { MobileTargetSettingsModal, getContrastTextColor } from './MobileTargetSettingsModal';
@@ -407,21 +407,22 @@ export function MobileTargetGame({
         setIsPlaying(false);
         const totalCorrect = updatedMetrics.length;
         const totalWrong = updatedMetrics.reduce((acc, m) => acc + m.wrongClicksCount, 0);
-        const { avgSec: avgReaction } = reactionStatsFromMs(
-          updatedMetrics.map((m) => m.reactionTimeMs),
-        );
-        const accuracy = Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100);
+        const metrics = buildSessionMetrics({
+          correct: totalCorrect,
+          wrongTaps: totalWrong,
+          reactionMs: updatedMetrics.map((m) => m.reactionTimeMs),
+        });
 
         let rating = 3;
-        if (accuracy >= 90) rating = 5;
-        else if (accuracy >= 75) rating = 4;
-        else if (accuracy >= 60) rating = 3;
+        if (metrics.accuracy >= 90) rating = 5;
+        else if (metrics.accuracy >= 75) rating = 4;
+        else if (metrics.accuracy >= 60) rating = 3;
         else rating = 2;
 
         const sessionSummary: MobileTargetSessionResultData = {
           patientName: settings.patientName,
           sessionId: Date.now(),
-          date: new Date().toLocaleDateString(),
+          date: new Date().toISOString(),
           gameName: gameTitle,
           stimuliCount: settings.totalSets * 2,
           letterSize: settings.letterSize || 32,
@@ -429,9 +430,7 @@ export function MobileTargetGame({
           durationSec: Math.round(updatedMetrics.reduce((acc, m) => acc + m.reactionTimeMs, 0) / 1000),
           clicksTotal: totalCorrect + totalWrong,
           correct: totalCorrect,
-          wrong: totalWrong,
-          accuracy,
-          avgReactionSec: avgReaction,
+          ...metrics,
           gameMode: settings.gameMode,
           speedPxPerSec: settings.speedPxPerSec,
           setDurationSec: 0,

@@ -1,4 +1,5 @@
 import { NUMBERS } from './constants';
+import { sessionAccuracy } from './session-metrics';
 import type { DeviceTier } from './types';
 
 /** Engine background — high contrast dark default for figure–ground search. */
@@ -384,9 +385,7 @@ export function packNumberSearchField(options: {
 }
 
 export function numberSearchAccuracy(correct: number, wrong: number): number {
-  const total = correct + wrong;
-  if (total <= 0) return 0;
-  return Math.round((correct / total) * 1000) / 10;
+  return sessionAccuracy(correct, wrong);
 }
 
 /** Suggested defaults by device (glyph size 2.2, 5 digits to find). */

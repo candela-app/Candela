@@ -20,7 +20,6 @@ import {
   clampDirectionSenseTimeLimitSec,
   clampDirectionSenseTrials,
   clampDirectionSenseTurnDirection,
-  directionSenseAccuracy,
   directionSenseArrowTransform,
   directionSenseCurvedArrowPath,
   directionSenseDeltaDeg,
@@ -33,7 +32,6 @@ import {
   getDeviceTier,
   isDirectionSenseUpright,
   pointerAngleDeg,
-  reactionStatsFromMs,
   DIRECTION_SENSE_TRAIL_HOLD_MS,
   directionSenseTrailArrowPoints,
   directionSenseRotateGlyphSize,
@@ -50,6 +48,7 @@ import {
   type DirectionSenseTurnDirection,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared/rn';
 import { ClickToStartOverlay } from '../components/ClickToStartOverlay';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -238,7 +237,6 @@ export function DirectionSenseGame({
       const duration = stats.startedAt
         ? Math.max(1, Math.round((Date.now() - stats.startedAt) / 1000))
         : durationSec;
-      const reaction = reactionStatsFromMs(stats.reactions);
       const data: DirectionSenseSessionResultData = {
         patientName,
         sessionId: Date.now(),
@@ -250,10 +248,11 @@ export function DirectionSenseGame({
         durationSec: duration,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: directionSenseAccuracy(stats.correct, stats.correct + stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          reactionMs: stats.reactions,
+        }),
         trialsConfigured,
         trialsCompleted: stats.completedTrials,
         choiceCount,

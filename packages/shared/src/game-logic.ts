@@ -321,16 +321,19 @@ export function reactionStatsFromMs(reactionMs: number[]): {
   medianSec: number;
   count: number;
 } {
-  if (reactionMs.length === 0) return { avgSec: 0, medianSec: 0, count: 0 };
-  const avgMs = reactionMs.reduce((a, b) => a + b, 0) / reactionMs.length;
-  const sorted = [...reactionMs].sort((a, b) => a - b);
+  const samples = reactionMs
+    .filter((ms) => Number.isFinite(ms) && ms >= 0)
+    .map((ms) => Math.round(ms));
+  if (samples.length === 0) return { avgSec: 0, medianSec: 0, count: 0 };
+  const avgMs = samples.reduce((a, b) => a + b, 0) / samples.length;
+  const sorted = [...samples].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const medianMs =
     sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   return {
     avgSec: parseFloat((avgMs / 1000).toFixed(3)),
     medianSec: parseFloat((medianMs / 1000).toFixed(3)),
-    count: reactionMs.length,
+    count: samples.length,
   };
 }
 
@@ -342,9 +345,9 @@ function csvCell(value: unknown): string {
 
 /** Session summary on row 1; trial rows appended when `trials` is an object array. */
 export function sessionResultToCsv(data: SessionResultData): string {
-  const summaryEntries = Object.entries(data)
-    .filter(([, value]) => value == null || typeof value !== 'object')
-    .map(([key, value]) => (key === 'wrong' ? (['misses', value] as const) : ([key, value] as const)));
+  const summaryEntries = Object.entries(data).filter(
+    ([, value]) => value == null || typeof value !== 'object',
+  );
   const lines = [
     summaryEntries.map(([key]) => key).join(','),
     summaryEntries.map(([, value]) => csvCell(value)).join(','),

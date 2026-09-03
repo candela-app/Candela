@@ -16,7 +16,8 @@ import {
   sortingNumberSequence,
   sortingBatchPlan,
   clampSortingNumberRange,
-  reactionStatsFromMs,
+  buildSessionMetrics,
+  captureReactionMs,
   resolveStimuliBubbleColor,
   resolveBubblePaint,
   stimuliColorLabel,
@@ -175,7 +176,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
     if (clickedBubble.symbol === targetSymbol) {
       void hapticCorrect();
       const shownAt = targetShownAtRef.current;
-      const reactionMs = shownAt != null ? performance.now() - shownAt : null;
+      const reactionMs = captureReactionMs(performance.now(), shownAt);
       if (reactionMs != null) {
         reactionTimesRef.current = [...reactionTimesRef.current, reactionMs];
         setReactionTimes(reactionTimesRef.current);
@@ -198,21 +199,24 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
             setTimeout(() => spawnBatch(nextBatch, allItems), 300);
           } else if (nextIndex >= allItems.length) {
             const totalDuration = startTime ? (performance.now() - startTime) / 1000 : 0;
-            const { avgSec } = reactionStatsFromMs(reactionTimesRef.current);
+            const finishedCorrect = correctCount + 1;
+            const metrics = buildSessionMetrics({
+              correct: finishedCorrect,
+              wrongTaps: wrongCount,
+              reactionMs: reactionTimesRef.current,
+            });
             setResultsData({
               patientName,
               sessionId: Math.floor(1000 + Math.random() * 9000),
-              date: new Date().toLocaleDateString('en-GB'),
+              date: new Date().toISOString(),
               gameName: `Sorting Module (${variant})`,
               stimuliCount: allItems.length,
               letterSize,
               speed: '1x',
               durationSec: Math.round(totalDuration),
               clicksTotal: clicks + 1,
-              correct: correctCount + 1,
-              wrong: wrongCount,
-              accuracy: Math.round(((correctCount + 1) / (clicks + 1)) * 100),
-              avgReactionSec: avgSec,
+              correct: finishedCorrect,
+              ...metrics,
             });
             setIsResultsOpen(true);
             setTimeout(() => setGameStarted(false), 500);

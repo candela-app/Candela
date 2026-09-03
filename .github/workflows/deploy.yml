@@ -58,6 +58,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test shared metrics
+        run: npm run test --workspace=@candela/shared
+
       - name: Build shared
         run: npm run build --workspace=@candela/shared
 

@@ -213,3 +213,64 @@ export function updateFamiliarFaceLabel(id: string, relationLabel: string) {
 export function deleteFamiliarFace(id: string) {
   return api<{ ok?: boolean }>(`/api/familiar-faces/${id}`, { method: 'DELETE' });
 }
+
+export type StoredGameSessionRecord = {
+  id: string;
+  sessionNumber: number;
+  gameId: string;
+  levelId: string | null;
+  deviceTier: string | null;
+  recordedAt: string;
+  durationSec: number;
+  correct: number;
+  wrongTaps: number;
+  misses: number;
+  timeouts: number;
+  accuracy: number;
+  avgReactionSec: number;
+  medianReactionSec: number;
+  efficiencyIndex: number;
+  reactionMs: number[];
+  stimuliCount: number;
+  gameName: string;
+  bgColor?: string | null;
+  stimulusColor?: string | null;
+  contrastPercent?: number | null;
+  metricsVersion: number;
+};
+
+export type GameSessionListQuery = {
+  gameId?: string;
+  levelId?: string;
+  deviceTier?: string;
+  from?: string;
+  to?: string;
+};
+
+function sessionQuery(params: GameSessionListQuery): string {
+  const q = new URLSearchParams();
+  if (params.gameId) q.set('gameId', params.gameId);
+  if (params.levelId) q.set('levelId', params.levelId);
+  if (params.deviceTier) q.set('deviceTier', params.deviceTier);
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+export function persistGameSession(body: unknown) {
+  return api<StoredGameSessionRecord>('/api/game-sessions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function listMyGameSessions(params: GameSessionListQuery = {}) {
+  return api<StoredGameSessionRecord[]>(`/api/game-sessions${sessionQuery(params)}`);
+}
+
+export function listPatientGameSessions(patientId: string, params: GameSessionListQuery = {}) {
+  return api<StoredGameSessionRecord[]>(
+    `/api/doctors/me/patients/${patientId}/game-sessions${sessionQuery(params)}`,
+  );
+}

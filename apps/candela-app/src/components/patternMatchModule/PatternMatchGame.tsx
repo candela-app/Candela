@@ -18,7 +18,6 @@ import {
   buildPatternMatchField,
   generatePatternMatchTarget,
   getDeviceTier,
-  patternMatchAccuracy,
   patternMatchDeviceDefaults,
   patternMatchFlashLabel,
   patternMatchHardnessLabel,
@@ -27,7 +26,6 @@ import {
   playSuccessSoundAndHaptic,
   playWhooshSoundAndHaptic,
   playWrongSoundAndHaptic,
-  reactionStatsFromMs,
   requestFullScreenSafe,
   type PatternMatchCell,
   type PatternMatchHardness,
@@ -35,6 +33,7 @@ import {
   type PatternMatchStimulusMode,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
@@ -129,6 +128,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
     setStartTime((prev) => (prev == null ? prev : prev + delta));
     if (startTimeRef.current != null) startTimeRef.current += delta;
+    setTargetShownAt((prev) => (prev == null ? prev : prev + delta));
   }, startTime);
   const settingsRef = useRef({
     patientName,
@@ -203,7 +203,6 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
       }
       const matchesFound = stats.correct;
       const matchesRemaining = Math.max(0, stats.matchesConfigured - matchesFound);
-      const reaction = reactionStatsFromMs(stats.reactions);
       const elapsed =
         startTimeRef.current != null
           ? Math.max(1, Math.floor((performance.now() - startTimeRef.current) / 1000))
@@ -224,10 +223,12 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         durationSec: elapsed,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: patternMatchAccuracy(stats.correct, stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          timeouts: endedBy === 'timeout' ? matchesRemaining : 0,
+          reactionMs: stats.reactions,
+        }),
         targetCode: stats.targetCode,
         codeLength: cfg.codeLength,
         matchesConfigured: stats.matchesConfigured,

@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, listPatientGameSessions, type StoredGameSessionRecord } from '@/lib/api';
 import {
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
@@ -83,6 +83,7 @@ function DoctorPatientProfile() {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   const [error, setError] = useState('');
   const [dataLoading, setDataLoading] = useState(true);
+  const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
 
   const isAnalytics = searchParams.get('view') === 'analytics';
 
@@ -92,6 +93,11 @@ function DoctorPatientProfile() {
     }
     const next = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}`);
     setPatient(next);
+    try {
+      setSessions(await listPatientGameSessions(patientId));
+    } catch {
+      setSessions([]);
+    }
   }, [patientId]);
 
   useEffect(() => {
@@ -111,6 +117,18 @@ function DoctorPatientProfile() {
       .finally(() => setDataLoading(false));
   }, [loading, session, router, load]);
 
+  const lastPlayed = sessions.length
+    ? new Date(
+        [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[sessions.length - 1].recordedAt,
+      ).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+      })
+    : '—';
+  const avgAccuracy =
+    sessions.length === 0
+      ? null
+      : Math.round((sessions.reduce((sum, row) => sum + row.accuracy, 0) / sessions.length) * 10) / 10;
   const prescribedCount = patient?.prescribedModuleIds.length ?? 0;
 
   const assignedLevelCount = useMemo(() => {
@@ -249,13 +267,28 @@ function DoctorPatientProfile() {
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
 
             {isAnalytics ? (
-              <DoctorPatientAnalytics patientName={patient.name} />
+              <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
             ) : (
               <>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <SummaryCard label="Sessions" value="0" hint="No sessions yet" labelColor="#2563EB" />
-                  <SummaryCard label="Last played" value="—" hint="Not stored yet" labelColor="#D97706" />
-                  <SummaryCard label="Accuracy" value="—" hint="Not stored yet" labelColor="#059669" />
+                  <SummaryCard
+                    label="Sessions"
+                    value={String(sessions.length)}
+                    hint={sessions.length ? 'Finished games saved' : 'No sessions yet'}
+                    labelColor="#2563EB"
+                  />
+                  <SummaryCard
+                    label="Last played"
+                    value={lastPlayed}
+                    hint={sessions.length ? 'Most recent saved session' : 'Not stored yet'}
+                    labelColor="#D97706"
+                  />
+                  <SummaryCard
+                    label="Accuracy"
+                    value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
+                    hint={avgAccuracy != null ? 'Mean of saved sessions' : 'Not stored yet'}
+                    labelColor="#059669"
+                  />
                   <SummaryCard
                     label="Prescribed"
                     value={String(prescribedCount)}
