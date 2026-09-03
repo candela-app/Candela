@@ -22,12 +22,11 @@ import {
   peripheralHexRenderRadius,
   peripheralLetterColor,
   peripheralLetterFontPx,
-  peripheralSessionAccuracy,
   clampPeripheralLetterSize,
   clampPeripheralTargetTimeoutSec,
   resolvePeripheralField,
   spawnBatch,
-  reactionStatsFromMs,
+  buildSessionMetrics,
   type HexCell,
   type PeripheralBubbleType,
   type PeripheralField,
@@ -325,11 +324,13 @@ export function PeripheralViewGame({
     stopSpeaking();
     const { correct, wrong, reactions, trials, stimuliPresented } = statsRef.current;
     const totalDuration = startTime ? (performance.now() - startTime) / 1000 : 0;
-    const { avgSec: avgReact, medianSec: medianReact } = reactionStatsFromMs(reactions);
+    const wrongTaps = trials.filter((t) => t.outcome === 'wrong').length;
+    const misses = trials.filter((t) => t.outcome === 'miss').length;
+    const timeouts = trials.filter((t) => t.outcome === 'timeout').length;
     const data: PeripheralSessionResultData = {
       patientName,
       sessionId: Math.floor(1000 + Math.random() * 9000),
-      date: new Date().toLocaleDateString('en-GB'),
+      date: new Date().toISOString(),
       gameName: `Peripheral View (${peripheralFieldLabel(field)})`,
       stimuliCount: stimuliPresented,
       letterSize,
@@ -337,10 +338,13 @@ export function PeripheralViewGame({
       durationSec: Math.round(totalDuration),
       clicksTotal: correct + wrong,
       correct,
-      wrong,
-      accuracy: peripheralSessionAccuracy(correct, wrong),
-      avgReactionSec: avgReact,
-      medianReactionSec: medianReact,
+      ...buildSessionMetrics({
+        correct,
+        wrongTaps: wrongTaps || wrong,
+        misses,
+        timeouts,
+        reactionMs: reactions,
+      }),
       peripheralField: field,
       batchesConfigured: batchesPerSession,
       stimuliPerBatchConfigured: stimuliCount,

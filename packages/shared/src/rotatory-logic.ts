@@ -13,6 +13,7 @@ import {
   getMinDistancePercent,
   resolveStimuliBubbleColor,
 } from './game-logic';
+import { buildSessionMetrics, sessionAccuracy } from './session-metrics';
 
 /**
  * Unique A–Z (or a–z) once per session.
@@ -1083,7 +1084,7 @@ function fieldSlice(
   if (subset.length === 0) return { accuracy: 0, medianRtSec: 0, n: 0 };
   const clean = subset.filter((t) => t.wrongTaps === 0 && t.aimTaps === 0).length;
   return {
-    accuracy: Math.round((clean / subset.length) * 100),
+    accuracy: sessionAccuracy(clean, subset.length - clean),
     medianRtSec: parseFloat((medianMs(subset.filter((t) => t.validForRt).map((t) => t.reactionMs)) / 1000).toFixed(3)),
     n: subset.length,
   };
@@ -1125,7 +1126,23 @@ export function isRotatorySessionResult(
 
 export interface RotatorySummaryExtras extends Omit<
   SessionResultData,
-  'stimuliCount' | 'correct' | 'accuracy' | 'avgReactionSec' | 'clicksTotal' | 'wrong'
+  | 'stimuliCount'
+  | 'correct'
+  | 'accuracy'
+  | 'avgReactionSec'
+  | 'medianReactionSec'
+  | 'efficiencyIndex'
+  | 'clicksTotal'
+  | 'wrong'
+  | 'wrongTaps'
+  | 'misses'
+  | 'timeouts'
+  | 'wrongTapRate'
+  | 'missRate'
+  | 'timeoutRate'
+  | 'recordedAt'
+  | 'clientEventId'
+  | 'reactionMs'
 > {
   clicksTotal: number;
   wrong: number;
@@ -1143,9 +1160,18 @@ export function summarizeRotatorySession(
   const excluded = scored.filter((t) => !t.validForRt);
   const reactionMs = valid.map((t) => t.reactionMs);
   const cleanRt = valid.filter((t) => t.wrongTaps === 0 && t.aimTaps === 0).map((t) => t.reactionMs);
-  const avgMs = reactionMs.length ? reactionMs.reduce((a, b) => a + b, 0) / reactionMs.length : 0;
-  const avgSec = parseFloat((avgMs / 1000).toFixed(3));
-  const medianSec = parseFloat((medianMs(reactionMs) / 1000).toFixed(3));
+  const cleanTrials = valid.filter((t) => t.wrongTaps === 0 && t.aimTaps === 0).length;
+  const discTrials = valid.filter((t) => t.wrongTaps > 0).length;
+  const missOnlyTrials = valid.filter((t) => t.aimTaps > 0 && t.wrongTaps === 0).length;
+  const metrics = buildSessionMetrics({
+    correct: cleanTrials,
+    wrongTaps: discTrials,
+    misses: missOnlyTrials,
+    timeouts: 0,
+    reactionMs,
+  });
+  const avgSec = metrics.avgReactionSec;
+  const medianSec = metrics.medianReactionSec;
   const iqrSec = parseFloat((iqrMs(reactionMs) / 1000).toFixed(3));
   const leftTrials = valid.filter((t) => t.onsetHemifield === 'left');
   const rightTrials = valid.filter((t) => t.onsetHemifield === 'right');
@@ -1208,11 +1234,11 @@ export function summarizeRotatorySession(
 
   return {
     ...extras,
+    ...metrics,
     stimuliCount: valid.length,
     clicksTotal: extras.clicksTotal,
-    correct: valid.length,
-    wrong: extras.wrong,
-    accuracy: Math.round(cleanTapRate * 100),
+    correct: cleanTrials,
+    accuracy: metrics.accuracy,
     avgReactionSec: avgSec,
     mode: state.mode,
     alphabetVariant: state.mode === 'alphabets' ? state.variant : undefined,

@@ -2,7 +2,8 @@
 
 import React, { useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { PursuitSessionResultData, exportSessionCSV, ClinicalLookBadge } from '@candela/shared';
+import { PursuitSessionResultData, exportSessionCSV, ClinicalLookBadge, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
+import { useSavedSessionNumber } from '@/lib/use-saved-session-number';
 
 interface PursuitResultsModalProps {
   isOpen: boolean;
@@ -18,9 +19,10 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
   data,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [viewTab, setViewTab] = useState<'child' | 'doctor'>('child');
+  const [viewTab, setViewTab] = useState<'summary' | 'advanced'>('summary');
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
 
   if (!isOpen) return null;
 
@@ -95,8 +97,8 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
       year: 'numeric',
     });
 
-  const starCount = Math.max(1, Math.min(5, data.starRating || Math.ceil((data.accuracy / 100) * 5)));
-  const starsString = '★'.repeat(starCount) + '☆'.repeat(5 - starCount);
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 transition-all animate-fade-in overflow-y-auto">
@@ -118,7 +120,11 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
               Session Completed
             </h2>
             <p className="text-xs text-gray-400 mt-1">
-              Patient: <strong className="text-white">{data.patientName || 'Demo Patient'}</strong> • {formattedDate}
+              Patient: <strong className="text-white">{data.patientName || 'Demo Patient'}</strong>
+              {' · '}
+              Session #: {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+              {' · '}
+              {formattedDate}
             </p>
           </div>
 
@@ -133,29 +139,28 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
           </button>
         </div>
 
-        {/* View Selector Tabs (Child vs Doctor) */}
         <div data-exclude-from-download="true" className="flex bg-[#12141F] p-1 rounded-xl mb-6 border border-gray-800">
           <button
             type="button"
-            onClick={() => setViewTab('child')}
+            onClick={() => setViewTab('summary')}
             className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
-              viewTab === 'child'
+              viewTab === 'summary'
                 ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            🌟 Child Summary Card
+            Summary
           </button>
           <button
             type="button"
-            onClick={() => setViewTab('doctor')}
+            onClick={() => setViewTab('advanced')}
             className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all ${
-              viewTab === 'doctor'
+              viewTab === 'advanced'
                 ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            🩺 Doctor / Clinical Dashboard
+            Advanced
           </button>
         </div>
 
@@ -166,48 +171,40 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
           </div>
         )}
 
-        {/* CHILD-FACING VIEW: 2 Headline Numbers & Friendly Celebratory Tone */}
-        {viewTab === 'child' && (
-          <div className="flex flex-col items-center text-center py-4 gap-6 animate-fade-in">
-            <div className="text-6xl animate-bounce">🎯</div>
-            <div>
-              <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-                Fantastic Tracking!
-              </h3>
-              <p className="text-sm text-gray-300 mt-1">
-                You visually pursued moving targets with great accuracy!
-              </p>
+        {viewTab === 'summary' && (
+          <div className="flex flex-col animate-fade-in">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4">
+              {parentCells.map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-[#121522] border border-gray-800 p-4 rounded-2xl flex flex-col items-center text-center"
+                >
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    {item.label}
+                  </span>
+                  <span className="text-2xl font-black" style={{ color: item.color }}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
             </div>
-
-            {/* 2 Headline Numbers Max */}
-            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-              <div className="bg-[#121522] border border-cyan-500/30 p-5 rounded-2xl flex flex-col items-center">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                  Tracking Accuracy
+            <div className="flex flex-wrap justify-center gap-2 mb-2">
+              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-[11px] font-bold text-rose-300">
+                Wrong taps {errors.wrongTaps}
+              </span>
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-bold text-amber-300">
+                Misses {errors.misses}
+              </span>
+              {errors.timeouts > 0 && (
+                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-bold text-sky-300">
+                  Timeouts {errors.timeouts}
                 </span>
-                <span className="text-4xl font-black text-cyan-400">
-                  {data.accuracy}%
-                </span>
-              </div>
-
-              <div className="bg-[#121522] border border-amber-500/30 p-5 rounded-2xl flex flex-col items-center">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                  Star Rating
-                </span>
-                <span className="text-3xl font-black text-amber-400">
-                  {starsString}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-cyan-950/30 border border-cyan-500/20 p-4 rounded-xl text-xs text-cyan-300 font-medium">
-              Keep up the continuous tracking practice to strengthen visual pursuit endurance!
+              )}
             </div>
           </div>
         )}
 
-        {/* DOCTOR / PARENT DASHBOARD VIEW: Detailed Metrics & Block Trends */}
-        {viewTab === 'doctor' && (
+        {viewTab === 'advanced' && (
           <div className="flex flex-col gap-6 animate-fade-in">
             <ClinicalLookBadge
               bgColor={data.bgColor}

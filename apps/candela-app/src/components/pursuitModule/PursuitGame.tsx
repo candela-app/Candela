@@ -17,7 +17,7 @@ import {
   ClinicalSettingsModal,
   resolvePursuitPattern,
   pursuitPatternName,
-  reactionStatsFromMs,
+  buildSessionMetrics,
   useHowToPlayGate,
   usePauseShiftedClock,
   clinicalColorSessionFields,
@@ -278,7 +278,9 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
 
     const now = performance.now();
-    const reactionTimeMs = trialStartTime ? Math.max(100, now - trialStartTime) : settings.trialTimeoutSec * 1000;
+    const reactionTimeMs = trialStartTime
+      ? Math.max(100, Math.round(now - trialStartTime))
+      : settings.trialTimeoutSec * 1000;
 
     const trackingErrorPx =
       outcome === 'timeout'
@@ -321,9 +323,14 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   const completeSession = () => {
     const allTrials = trialMetricsRef.current;
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
-    const accuracy = Math.round((correctCount / Math.max(1, allTrials.length)) * 100);
-
-    const { avgSec: avgReactionSec } = reactionStatsFromMs(allTrials.map((t) => t.reactionTimeMs));
+    const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
+    const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const metrics = buildSessionMetrics({
+      correct: correctCount,
+      wrongTaps,
+      timeouts,
+      reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
+    });
 
     const avgTrackingErrorPx =
       allTrials.length > 0
@@ -366,12 +373,12 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       };
     });
 
-    const starRating = Math.max(1, Math.min(5, Math.ceil((accuracy / 100) * 5)));
+    const starRating = Math.max(1, Math.min(5, Math.ceil((metrics.accuracy / 100) * 5)));
 
     const resultData: PursuitSessionResultData = {
       patientName: settings.patientName,
       sessionId: Date.now(),
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      date: new Date().toISOString(),
       gameName: `Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
       stimuliCount: allTrials.length,
       letterSize: 1.5,
@@ -379,9 +386,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
       clicksTotal: allTrials.length,
       correct: correctCount,
-      wrong: allTrials.length - correctCount,
-      accuracy,
-      avgReactionSec,
+      ...metrics,
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,

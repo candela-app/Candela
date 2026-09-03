@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { DocIdModule } from './docid/docid.module';
 import { FamiliarFacesModule } from './familiar-faces/familiar-faces.module';
+import { GameSessionsModule } from './game-sessions/game-sessions.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BACKEND_ENV_PATH, loadBackendEnv } from './common/load-env';
@@ -32,6 +33,7 @@ loadBackendEnv();
     AuthModule,
     DocIdModule,
     FamiliarFacesModule,
+    GameSessionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

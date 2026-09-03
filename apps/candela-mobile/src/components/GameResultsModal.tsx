@@ -7,13 +7,17 @@ import {
   type GeoboardSessionResultData,
   type NumberSearchSessionResultData,
   type SessionResultData,
+  formatReactionMsFromSec,
   isRotatorySessionResult,
+  parentSummaryCells,
+  sessionErrorCounts,
 } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
 import { useLayout } from '../lib/layout';
 import { playClapBed, playPartyBlast, preloadClapBed, stopClapBed } from '../lib/sfx';
 import { speakClapFor, stopSpeaking } from '../lib/speech';
 import { ResultsConfetti } from './ResultsConfetti';
+import { useSavedSessionNumber } from '../lib/use-saved-session-number';
 
 export function GameResultsModal({
   isOpen,
@@ -29,6 +33,12 @@ export function GameResultsModal({
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
   const [toast, setToast] = useState<string | null>(null);
+  const [resultsTab, setResultsTab] = useState<'summary' | 'advanced'>('summary');
+  const { sessionNumber, status: sessionSaveStatus } = useSavedSessionNumber(isOpen, data);
+
+  useEffect(() => {
+    if (isOpen) setResultsTab('summary');
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -83,30 +93,8 @@ export function GameResultsModal({
   const numberSearch = isNumberSearch ? (data as NumberSearchSessionResultData) : null;
   const isRotatory = isRotatorySessionResult(data);
   const rotatory = isRotatory ? data : null;
-
-  const metrics: { label: string; value: string; color: string }[] = isRotatory
-    ? [
-        { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
-        { label: 'Median response', value: `${Math.round(rotatory!.medianReactionSec * 1000)}ms`, color: '#FBBF24' },
-        { label: 'Valid trials', value: String(rotatory?.validTrials ?? data.stimuliCount), color: '#C084FC' },
-        { label: 'Clean taps', value: `${Math.round((rotatory?.cleanTapRate ?? 0) * 100)}%`, color: '#22D3EE' },
-      ]
-    : [
-        { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
-        { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
-        {
-          label: 'Avg Reaction',
-          value: `${Math.round(data.avgReactionSec * 1000)}ms`,
-          color: '#FBBF24',
-        },
-        {
-          label: isGeoboard ? 'Patterns Drawn' : isNumberSearch ? 'Digits Found' : data.gameName?.includes('Familiar Faces') ? 'Photos' : 'Bubbles Popped',
-          value: isNumberSearch ? String(numberSearch?.digitsFound ?? data.correct) : String(data.stimuliCount),
-          color: '#C084FC',
-        },
-        { label: 'Visual Focus Score', value: '96 / 100', color: '#22D3EE' },
-        { label: 'Processing Speed', value: 'Optimal', color: '#4ADE80' },
-      ];
+  const parentCells = parentSummaryCells(data);
+  const errors = sessionErrorCounts(data);
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -162,10 +150,55 @@ export function GameResultsModal({
                 <Text style={{ color: '#34D399', fontWeight: '700' }}>{data.patientName || 'Demo Patient'}</Text>
               </Text>
               <Text style={{ color: '#9CA3AF', fontSize: fs(12), marginTop: s(4) }}>
+                Session #: {sessionNumber != null ? sessionNumber : sessionSaveStatus === 'saving' ? 'saving…' : '—'}
+                {'  ·  '}
                 Date: <Text style={{ color: '#D1D5DB' }}>{formattedDate}</Text>
               </Text>
             </View>
 
+            <View
+              style={{
+                flexDirection: 'row',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                borderRadius: s(12),
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.1)',
+                padding: s(4),
+                marginBottom: s(16),
+              }}
+            >
+              {(
+                [
+                  { id: 'summary' as const, label: 'Summary' },
+                  { id: 'advanced' as const, label: 'Advanced' },
+                ]
+              ).map((tab) => (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => setResultsTab(tab.id)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: s(10),
+                    borderRadius: s(10),
+                    backgroundColor: resultsTab === tab.id ? '#10B981' : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: resultsTab === tab.id ? '#0F172A' : '#9CA3AF',
+                      fontSize: fs(12),
+                      fontWeight: '800',
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {resultsTab === 'advanced' ? (
+              <>
             {rotatory ? (
               <View
                 style={{
@@ -334,11 +367,71 @@ export function GameResultsModal({
                 </View>
               </View>
             ) : null}
+              </>
+            ) : null}
 
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(10), marginBottom: s(18) }}>
-              {metrics.map((item) => (
+            {resultsTab === 'summary' ? (
+              <>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(10), marginBottom: s(12) }}>
+                  {parentCells.map((item) => (
+                    <View
+                      key={item.label}
+                      style={{
+                        width: '48%',
+                        flexGrow: 1,
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderRadius: s(16),
+                        padding: s(14),
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                        {item.label.toUpperCase()}
+                      </Text>
+                      <Text style={{ color: item.color, fontSize: fs(22), fontWeight: '900' }}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: s(8), marginBottom: s(18) }}>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,113,133,0.3)', backgroundColor: 'rgba(244,63,94,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FDA4AF', fontSize: fs(11), fontWeight: '800' }}>Wrong taps {errors.wrongTaps}</Text>
+                  </View>
+                  <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)', backgroundColor: 'rgba(245,158,11,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                    <Text style={{ color: '#FCD34D', fontSize: fs(11), fontWeight: '800' }}>Misses {errors.misses}</Text>
+                  </View>
+                  {errors.timeouts > 0 ? (
+                    <View style={{ borderRadius: 99, borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', backgroundColor: 'rgba(14,165,233,0.12)', paddingHorizontal: s(12), paddingVertical: s(6) }}>
+                      <Text style={{ color: '#7DD3FC', fontSize: fs(11), fontWeight: '800' }}>Timeouts {errors.timeouts}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(10), marginBottom: s(18) }}>
+                {typeof data.medianReactionSec === 'number' ? (
+                  <View
+                    style={{
+                      width: '48%',
+                      flexGrow: 1,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                      borderRadius: s(16),
+                      padding: s(14),
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                      MEDIAN REACTION
+                    </Text>
+                    <Text style={{ color: '#FBBF24', fontSize: fs(22), fontWeight: '900' }}>
+                      {formatReactionMsFromSec(data.medianReactionSec)}
+                    </Text>
+                  </View>
+                ) : null}
                 <View
-                  key={item.label}
                   style={{
                     width: '48%',
                     flexGrow: 1,
@@ -351,12 +444,48 @@ export function GameResultsModal({
                   }}
                 >
                   <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
-                    {item.label.toUpperCase()}
+                    WRONG-TAP RATE
                   </Text>
-                  <Text style={{ color: item.color, fontSize: fs(22), fontWeight: '900' }}>{item.value}</Text>
+                  <Text style={{ color: '#FB7185', fontSize: fs(22), fontWeight: '900' }}>{data.wrongTapRate ?? 0}%</Text>
                 </View>
-              ))}
-            </View>
+                <View
+                  style={{
+                    width: '48%',
+                    flexGrow: 1,
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: s(16),
+                    padding: s(14),
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                    MISS RATE
+                  </Text>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(22), fontWeight: '900' }}>{data.missRate ?? 0}%</Text>
+                </View>
+                {(data.timeouts ?? 0) > 0 ? (
+                  <View
+                    style={{
+                      width: '48%',
+                      flexGrow: 1,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                      borderRadius: s(16),
+                      padding: s(14),
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                      TIMEOUT RATE
+                    </Text>
+                    <Text style={{ color: '#38BDF8', fontSize: fs(22), fontWeight: '900' }}>{data.timeoutRate ?? 0}%</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
 
             <Pressable
               onPress={onReplay}

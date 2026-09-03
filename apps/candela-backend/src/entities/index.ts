@@ -6,3 +6,4 @@ export { RefreshToken } from './refresh-token.entity';
 export { DocIdRequest } from './docid-request.entity';
 export { DocIdHistory } from './docid-history.entity';
 export { FamiliarFace } from './familiar-face.entity';
+export { GameSession } from './game-session.entity';

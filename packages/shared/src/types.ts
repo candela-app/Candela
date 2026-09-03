@@ -49,9 +49,28 @@ export interface SessionResultData {
   durationSec: number;
   clicksTotal: number;
   correct: number;
+  /** Total errors (wrongTaps + misses + timeouts). Prefer the split fields for plots. */
   wrong: number;
   accuracy: number;
   avgReactionSec: number;
+  medianReactionSec: number;
+  /** Accuracy (%) / mean RT (seconds). Higher is better. */
+  efficiencyIndex: number;
+  /** Tapped a stimulus that was not the target. */
+  wrongTaps: number;
+  /** Tapped empty space, wheel, or background. */
+  misses: number;
+  /** Target expired with no valid hit. */
+  timeouts: number;
+  wrongTapRate: number;
+  missRate: number;
+  timeoutRate: number;
+  /** ISO-8601 session end time for date-range filters. */
+  recordedAt: string;
+  /** Idempotency key so retries do not insert a second row. */
+  clientEventId?: string;
+  /** Integer-ms reaction samples (correct hits) for later recomputes. */
+  reactionMs?: number[];
   bgColor?: string;
   stimulusColor?: string;
   contrastPercent?: number;

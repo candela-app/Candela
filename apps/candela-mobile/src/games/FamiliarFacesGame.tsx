@@ -7,14 +7,14 @@ import {
   buildFamiliarFacesQueue,
   buildFamiliarFacesTrial,
   clampFamiliarFacesFlashMs,
-  familiarFacesAccuracy,
   familiarFacesChoiceIsCorrect,
   familiarFacesFlashLabel,
   familiarFacesLevelLabel,
   getDeviceTier,
-  reactionStatsFromMs,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
+  captureReactionMs,
   type FamiliarFacePhoto,
   type FamiliarFacesLevelId,
   type FamiliarFacesSessionResultData,
@@ -121,7 +121,6 @@ export function FamiliarFacesGame({
     stopSpeaking();
     const end = Date.now();
     const start = startTimeRef.current ?? end;
-    const reaction = reactionStatsFromMs(reactionMsRef.current);
     const correct = correctRef.current;
     const wrong = wrongRef.current;
     const data: FamiliarFacesSessionResultData = {
@@ -135,16 +134,17 @@ export function FamiliarFacesGame({
       durationSec: Math.max(1, Math.round((end - start) / 1000)),
       clicksTotal: correct + wrong,
       correct,
-      wrong,
-      accuracy: familiarFacesAccuracy(correct, wrong),
-      avgReactionSec: reaction.avgSec,
+      ...buildSessionMetrics({
+        correct,
+        wrongTaps: wrong,
+        reactionMs: reactionMsRef.current,
+      }),
       levelId: resolvedLevel,
       flashMs,
       photosConfigured: photos.length,
       trialsCompleted: correct + wrong,
       endedBy: 'cleared',
       deviceTier,
-      medianReactionSec: reaction.medianSec,
     };
     setResultsData(data);
     setIsResultsOpen(true);
@@ -218,7 +218,10 @@ export function FamiliarFacesGame({
     lockRef.current = true;
     setLocked(true);
     const shownAt = shownAtRef.current;
-    if (shownAt != null) reactionMsRef.current.push(performance.now() - shownAt);
+    if (shownAt != null) {
+      const rt = captureReactionMs(performance.now(), shownAt);
+      if (rt != null) reactionMsRef.current.push(rt);
+    }
     const ok = familiarFacesChoiceIsCorrect(resolvedLevel, trial, choiceId, queue);
     setFeedbackId(choiceId);
     setFeedbackKind(ok ? 'correct' : 'wrong');

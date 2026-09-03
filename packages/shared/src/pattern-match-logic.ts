@@ -1,4 +1,5 @@
 import { ALPHABETS, NUMBERS } from './constants';
+import { sessionAccuracy } from './session-metrics';
 
 /**
  * Hold the Code — visual memory + code discrimination.
@@ -394,9 +395,7 @@ export function buildPatternMatchField(options: {
 }
 
 export function patternMatchAccuracy(correct: number, wrong: number): number {
-  const total = correct + wrong;
-  if (total <= 0) return 100;
-  return Math.round((correct / total) * 1000) / 10;
+  return sessionAccuracy(correct, wrong);
 }
 
 export function patternMatchDeviceDefaults(): {

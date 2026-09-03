@@ -18,7 +18,6 @@ import {
   buildLocationMemoryPairsBoard,
   buildLocationMemoryRecallQueue,
   getDeviceTier,
-  locationMemoryAccuracy,
   locationMemoryActiveCellsFromLevelId,
   locationMemoryDeviceDefaults,
   locationMemoryExploreLabel,
@@ -28,12 +27,12 @@ import {
   locationMemoryRecallLabel,
   playOpenTapSoundAndHaptic,
   playWhooshSoundAndHaptic,
-  reactionStatsFromMs,
   requestFullScreenSafe,
   type LocationMemoryCell,
   type LocationMemorySessionResultData,
   useHowToPlayGate,
   usePauseShiftedClock,
+  buildSessionMetrics,
 } from '@candela/shared';
 import { useAuth } from '@/lib/auth-context';
 import { GameMenuDrawer } from '../shared/GameMenuDrawer';
@@ -175,7 +174,6 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       if (endedBy === 'timeout') {
         stats.roundsCompleted = Math.max(stats.roundsCompleted, currentRoundRef.current - 1);
       }
-      const reaction = reactionStatsFromMs(stats.reactions);
       const elapsed =
         startTimeRef.current != null
           ? Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -198,10 +196,11 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         durationSec: elapsed,
         clicksTotal: stats.clicks,
         correct: stats.correct,
-        wrong: stats.wrong,
-        accuracy: locationMemoryAccuracy(stats.correct, stats.wrong),
-        avgReactionSec: reaction.avgSec,
-        medianReactionSec: reaction.medianSec,
+        ...buildSessionMetrics({
+          correct: stats.correct,
+          wrongTaps: stats.wrong,
+          reactionMs: stats.reactions,
+        }),
         activeCellsConfigured: isPairs ? cells.length : activeCells,
         targetsConfigured: stats.targetsConfigured,
         targetsFound: stats.correct,
@@ -370,7 +369,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
       if (cell.value === currentTarget) {
         playWhooshSoundAndHaptic();
         if (targetShownAt != null) {
-          const rt = Math.max(0, now - targetShownAt);
+          const rt = Math.max(0, Math.round(now - targetShownAt));
           statsRef.current.reactions.push(rt);
           setReactionTimes((prev) => [...prev, rt]);
         }
@@ -447,7 +446,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
 
         playWhooshSoundAndHaptic();
         if (targetShownAt != null) {
-          const rt = Math.max(0, now - targetShownAt);
+          const rt = Math.max(0, Math.round(now - targetShownAt));
           statsRef.current.reactions.push(rt);
           setReactionTimes((prev) => [...prev, rt]);
         }

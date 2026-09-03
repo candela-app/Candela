@@ -17,6 +17,7 @@ import {
 } from '@candela/shared/rn';
 import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
@@ -208,26 +209,32 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
-        <ScrollView contentContainerStyle={{ padding: pad, alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), alignSelf: 'flex-start', marginBottom: s(24) }}>
+        <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginBottom: s(16) }}>
             <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
               <AnalyticsIcon size={s(22)} color={colors.blue} />
             </View>
-            <View>
-              <Text style={{ fontSize: fs(22), fontWeight: '800' }}>Session Analytics</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fs(22), fontWeight: '800' }}>
+                {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
+              </Text>
               <Text style={{ fontSize: fs(13), color: colors.muted }}>Review past session performance across all therapy modules</Text>
             </View>
           </View>
-          <View style={{ width: s(88), height: s(88), borderRadius: s(24), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: s(16) }}>
-            <AnalyticsIcon size={s(48)} color="#60A5FA" />
-          </View>
-          <Text style={{ fontSize: fs(18), fontWeight: '700', marginBottom: s(8) }}>No Session Data Yet</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, textAlign: 'center', marginBottom: s(20) }}>
-            Complete therapy sessions to see your performance analytics here.
-          </Text>
+          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} />
           <Pressable
             onPress={() => router.replace('/dashboard')}
-            style={{ backgroundColor: colors.blue, borderRadius: s(12), paddingHorizontal: s(20), paddingVertical: s(12), flexDirection: 'row', alignItems: 'center', gap: s(8) }}
+            style={{
+              marginTop: s(16),
+              alignSelf: 'flex-start',
+              backgroundColor: colors.blue,
+              borderRadius: s(12),
+              paddingHorizontal: s(20),
+              paddingVertical: s(12),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: s(8),
+            }}
           >
             <EyeIcon size={s(18)} color="#fff" />
             <Text style={{ color: colors.white, fontWeight: '700' }}>Start a Therapy Session</Text>
