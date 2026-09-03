@@ -12,6 +12,8 @@ const ABIS_GROOVY = ABIS.map((abi) => `"${abi}"`).join(', ');
  * (EAS_BUILD_UNKNOWN_GRADLE_ERROR in the Run gradlew phase).
  * gradle.properties alone is not enough — Vision Camera's CMake still
  * builds every ABI unless ndk.abiFilters is set on the module.
+ * Keep eas.json preview gradleCommand / ORG_GRADLE_PROJECT_reactNativeArchitectures
+ * on this same ABI list. Arm64-only flags conflict with ndk.abiFilters and fail Gradle.
  */
 function setReactNativeArchitectures(config) {
   return withGradleProperties(config, (config) => {
