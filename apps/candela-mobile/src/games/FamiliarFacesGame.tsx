@@ -277,6 +277,7 @@ export function FamiliarFacesGame({
 
       {!showHowToPlay && !isSettingsOpen && !gameStarted && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="familiar_faces"
           title={levelTitle}
           hint={ready ? levelHint : `Add at least ${FAMILIAR_FACES_MIN_PHOTOS} photos in settings to play.`}
           onStart={ready ? beginSession : () => setIsSettingsOpen(true)}

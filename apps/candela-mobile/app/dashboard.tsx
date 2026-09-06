@@ -209,16 +209,21 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
-        <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginBottom: s(16) }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0, paddingBottom: s(24) }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: s(10), marginBottom: s(16) }}>
             <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
               <AnalyticsIcon size={s(22)} color={colors.blue} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fs(22), fontWeight: '800' }}>
+              <Text style={{ fontSize: fs(20), fontWeight: '800' }}>
                 {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
               </Text>
-              <Text style={{ fontSize: fs(13), color: colors.muted }}>Review past session performance across all therapy modules</Text>
+              <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(2) }}>Review past session performance across all therapy modules</Text>
             </View>
           </View>
           <SessionAnalyticsPanel patientName={session?.user.name || 'you'} />
@@ -254,7 +259,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -272,7 +282,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -291,7 +306,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -307,7 +327,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bee Path Tracing</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a path type to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -323,7 +348,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pursuit Module</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a movement pattern to begin</Text>
           {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -339,7 +369,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
           {levels.length === 0 ? noLevelsCard('No boards assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
@@ -355,7 +390,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Peripheral View</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Select a visual field · designed for landscape
@@ -373,7 +413,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Crowded Search</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Find digits hidden among mixed letters
@@ -391,7 +436,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Hold a code — tap every exact match
@@ -409,7 +459,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Gaze Hold</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Look at the still bubble and hold your gaze to pop it
@@ -427,7 +482,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Familiar Faces</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Add family photos, then name, find, or hold a face
@@ -445,7 +505,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Direction Sense</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Face & Flip: pick the 90° turn. Straighten: spin the letter to match.
@@ -463,7 +528,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToFamily} />
-        <ScrollView contentContainerStyle={{ padding: pad }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Location Memory</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
             Explore the grid, then recall each number
@@ -545,7 +615,12 @@ export default function DashboardScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={backToModules} />
-        <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+        <ScrollView
+          bounces={false}
+          overScrollMode="never"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+        >
           <Text style={{ fontSize: fs(22), fontWeight: '800' }}>{selectedFamily.title}</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
             {selectedFamily.body}
@@ -572,7 +647,12 @@ export default function DashboardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <AppHeader />
-      <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+      <ScrollView
+        bounces={false}
+        overScrollMode="never"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: pad, flexGrow: 0 }}
+      >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s(16) }}>
           <View style={{ flex: 1, paddingRight: s(8) }}>
             <Text style={{ fontSize: fs(22), fontWeight: '800' }}>Vision Therapy</Text>

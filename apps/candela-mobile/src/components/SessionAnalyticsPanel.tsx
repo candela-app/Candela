@@ -165,23 +165,40 @@ function LineChart({
           {yAxis}
         </SvgText>
         <Polyline points={poly} fill="none" stroke={stroke} strokeWidth={2.5} strokeDasharray={sample ? '6 4' : undefined} />
-        {points.map((p, i) => (
+        {points.map((p, i) => {
+          const value = yValueForDaily(p, metric, agg);
+          const px = x(i);
+          const py = y(value);
+          const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
+          const labelBelow = py < pad.t + 14;
+          return (
           <G key={p.date}>
             <Circle
-              cx={x(i)}
-              cy={y(yValueForDaily(p, metric, agg))}
+              cx={px}
+              cy={py}
               r={selected === i ? 7 : 5}
               fill={stroke}
             />
+            <SvgText
+              x={px}
+              y={labelBelow ? py + 16 : py - 10}
+              textAnchor="middle"
+              fontSize={10}
+              fontWeight="700"
+              fill={stroke}
+            >
+              {label}
+            </SvgText>
             <Circle
-              cx={x(i)}
-              cy={y(yValueForDaily(p, metric, agg))}
+              cx={px}
+              cy={py}
               r={18}
               fill="transparent"
               onPress={() => setSelected((cur) => (cur === i ? null : i))}
             />
           </G>
-        ))}
+          );
+        })}
         {points.map((p, i) => (
           <SvgText key={`${p.date}-x`} x={x(i)} y={height - 22} textAnchor="middle" fontSize={10} fill="#6B7280">
             {formatDay(p.date)}
@@ -582,7 +599,7 @@ export function SessionAnalyticsPanel({
   patientId?: string;
   patientName: string;
 }) {
-  const { fs, s, width, pad } = useLayout();
+  const { fs, s, width, pad, isTablet } = useLayout();
   const chartWidth = Math.max(280, width - pad * 2 - s(32));
   const [gameId, setGameId] = useState('');
   const [from, setFrom] = useState('');
@@ -689,7 +706,7 @@ export function SessionAnalyticsPanel({
             ...ALL_MODULE_IDS.map((id) => ({ value: id, label: GAME_CATALOG[id].name })),
           ]}
         />
-        <View style={{ flexDirection: 'row', gap: s(12) }}>
+        <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
           <DateField
             label="From"
             value={from}

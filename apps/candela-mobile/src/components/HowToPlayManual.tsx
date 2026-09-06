@@ -291,10 +291,11 @@ export function HowToPlayManual({
         bottom: 0,
         left: 0,
         zIndex: 120,
-        backgroundColor: 'rgba(6,7,13,0.98)',
+        backgroundColor: '#06070D',
         paddingTop: insets.top + s(8),
         paddingBottom: insets.bottom + s(16),
         paddingHorizontal: s(20),
+        flexDirection: 'column',
       }}
     >
       {isReview ? (
@@ -320,9 +321,11 @@ export function HowToPlayManual({
       ) : null}
 
       <ScrollView
+        style={{ flex: 1 }}
+        bounces={false}
+        overScrollMode="never"
         contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'center',
+          flexGrow: 0,
           paddingTop: s(48),
           paddingBottom: s(12),
           maxWidth: isTablet ? 520 : 480,
@@ -380,6 +383,7 @@ export function HowToPlayManual({
             maxWidth: isTablet ? 520 : 480,
             width: '100%',
             alignSelf: 'center',
+            flexShrink: 0,
           }}
         >
           <Text style={{ color: '#052e1c', fontWeight: '900', fontSize: fs(17) }}>Continue to settings</Text>

@@ -431,6 +431,7 @@ export function MobileTargetGame({
           clicksTotal: totalCorrect + totalWrong,
           correct: totalCorrect,
           ...metrics,
+          endedBy: 'cleared',
           gameMode: settings.gameMode,
           speedPxPerSec: settings.speedPxPerSec,
           setDurationSec: 0,
@@ -881,6 +882,7 @@ export function MobileTargetGame({
       {/* Click to Start overlay */}
       {showClickToStart && !showHowToPlay && !showSettings && !showResults && (
         <ClickToStartOverlay
+          accentModuleId="mobile_target"
           title={gameTitle}
           onStart={handleStartGameFromOverlay}
           onOpenSettings={() => setShowSettings(true)}

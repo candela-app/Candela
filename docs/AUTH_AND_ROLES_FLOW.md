@@ -24,9 +24,9 @@ graph TD
 | Role | Landing Route | Permitted Views | Actions & Capabilities |
 |---|---|---|---|
 | **Visitor / Unauthenticated** | `/` (Homepage) | `/`, `/login`, `/signup` | Explore therapy tool descriptions, register, or sign in |
-| **Patient (Self-Signup)** | `/dashboard` | `/`, `/dashboard` | Play all available games in the therapy catalog |
-| **Patient (Doctor-Managed)**| `/dashboard` | `/`, `/dashboard` | Play only doctor-prescribed modules and assigned level playlists |
-| **Doctor** | `/doctor` | `/`, `/doctor` | Onboard patients under DocID, real-time search patients, prescribe modules & levels |
+| **Patient (Self-Signup)** | `/dashboard` | `/`, `/dashboard` | Play all catalog modules; finished plays save to analytics |
+| **Patient (Doctor-Managed)**| `/dashboard` | `/`, `/dashboard` | Play prescribed modules; finished plays save to analytics |
+| **Doctor** | `/doctor` | `/`, `/doctor` | Onboard patients, prescribe modules, view that patient’s session charts |
 | **Admin** | `/admin` | `/`, `/admin` | Create doctors, edit doctor credentials, delete test doctors, inspect all platform patients |
 
 ---
@@ -98,3 +98,5 @@ Every doctor account is assigned a unique **DocID** (referral code) automaticall
 - **Purpose**: Unique clinic/doctor tracking identifier linking patients to their supervising physician.
 
 Patients can later **attach** or **change** that DocID. Admin can **transfer**. Confirmation is by SMTP email. Full flow: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
+
+Finished therapy plays (not login sessions) are documented in [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

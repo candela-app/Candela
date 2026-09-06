@@ -2,7 +2,8 @@ import React, { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   SPEED_PRESETS,
-  BUBBLE_SIZE_PRESETS,
+  bubbleSizePresetsForTier,
+  clampBubbleSizeForTier,
   BEE_TARGET_DOT_COLORS,
   DEFAULT_BEE_TARGET_DOT_COLOR,
   DEFAULT_SORTING_NUMBER_FROM,
@@ -137,7 +138,7 @@ import {
   directionSenseTurnDirectionLabel,
   type DirectionSenseTurnDirection,
 } from './direction-sense-logic';
-import { pursuitPatternName } from './game-registry';
+import { moduleCta, pursuitPatternName } from './game-registry';
 import {
   LOOK_STATIONARY_BUBBLE_PX,
   LOOK_STATIONARY_COLOR,
@@ -156,6 +157,7 @@ import {
   BubbleAppearance,
   DEFAULT_BUBBLE_APPEARANCE,
   DeviceOrientation,
+  TherapyModuleId,
   GeoboardBoardId,
   GeoboardMatrixTier,
   GeoboardTransform,
@@ -307,6 +309,8 @@ export interface ClinicalSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (settings: AppliedClinicalSettings) => void;
+  /** Apply button uses this module's dashboard bar color. */
+  accentModuleId?: TherapyModuleId;
   patientName: string;
   letterSize: number;
   bubbleSize: number;
@@ -414,7 +418,7 @@ export interface ClinicalSettingsModalProps {
   showBubbleAppearancePicker?: boolean;
   bubbleAppearance?: BubbleAppearance;
   /**
-   * When true, Save & Apply first shows an in-modal confirm that applying
+   * When true, Apply first shows an in-modal confirm that applying
    * will end the current round and start fresh. Continue calls onApply.
    */
   sessionLocked?: boolean;
@@ -429,6 +433,7 @@ export function ClinicalSettingsModal({
   isOpen,
   onClose,
   onApply,
+  accentModuleId = 'rotatory',
   patientName,
   letterSize,
   bubbleSize,
@@ -522,6 +527,7 @@ export function ClinicalSettingsModal({
   bubbleAppearance = DEFAULT_BUBBLE_APPEARANCE,
   sessionLocked = false,
 }: ClinicalSettingsModalProps) {
+  const cta = moduleCta(accentModuleId);
   const [tempPatientName, setTempPatientName] = useState<string>(patientName);
   const [tempLetterSize, setTempLetterSize] = useState<number>(letterSize);
   const [tempBubbleSize, setTempBubbleSize] = useState<number>(bubbleSize);
@@ -646,7 +652,11 @@ export function ClinicalSettingsModal({
             ? clampNumberSearchLetterSize(letterSize)
             : letterSize,
       );
-      setTempBubbleSize(showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize);
+      setTempBubbleSize(
+        showGazeHoldControls
+          ? clampGazeHoldGlyphSize(bubbleSize)
+          : clampBubbleSizeForTier(bubbleSize, deviceTier),
+      );
       setTempSpeed(speed);
       setTempWheelColor(wheelColor);
       setTempTracingMode(tracingMode);
@@ -834,7 +844,9 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(tempLetterSize)
               : tempLetterSize,
-      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(tempBubbleSize) : tempBubbleSize,
+      bubbleSize: showGazeHoldControls
+        ? clampGazeHoldGlyphSize(tempBubbleSize)
+        : clampBubbleSizeForTier(tempBubbleSize, deviceTier),
       speed: tempSpeed,
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
@@ -957,7 +969,9 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(letterSize)
             : letterSize,
-      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize,
+      bubbleSize: showGazeHoldControls
+        ? clampGazeHoldGlyphSize(bubbleSize)
+        : clampBubbleSizeForTier(bubbleSize, deviceTier),
       speed,
       wheelColor,
       tracingMode,
@@ -1100,6 +1114,7 @@ export function ClinicalSettingsModal({
   );
 
   return createPortal(
+    <>
     <div
       className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto touch-pan-y custom-scrollbar animate-fade-in"
       style={{ backgroundColor: '#06070D' }}
@@ -3286,8 +3301,8 @@ export function ClinicalSettingsModal({
                   </span>
                   <span className="font-black text-cyan-300 font-mono text-lg">{tempBubbleSize}px</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {BUBBLE_SIZE_PRESETS.map((size) => (
+                <div className={`grid gap-2 ${bubbleSizePresetsForTier(deviceTier).length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+                  {bubbleSizePresetsForTier(deviceTier).map((size) => (
                     <button
                       key={size}
                       type="button"
@@ -3302,7 +3317,11 @@ export function ClinicalSettingsModal({
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500">Tablets default to 100px. Phones keep the smaller size.</p>
+                <p className="text-[11px] text-slate-500">
+                  {deviceTier === 'mobile'
+                    ? 'Phone sizes: 60, 80, 100px (100 is the maximum).'
+                    : 'Phones max at 100px. Tablets can use 120px.'}
+                </p>
               </div>
               ) : null}
 
@@ -3454,7 +3473,7 @@ export function ClinicalSettingsModal({
         )}
 
         {/* MODAL FOOTER ACTIONS WITH PREMIUM STYLING */}
-        <div className="flex justify-end items-center gap-4 border-t border-gray-800 pt-5 mt-2">
+        <div className="flex justify-between items-center gap-4 border-t border-gray-800 pt-5 shrink-0">
           <button
             className="px-7 py-3 rounded-xl bg-gray-800/90 hover:bg-gray-700 text-gray-300 hover:text-white font-semibold transition-all border border-gray-700 text-sm cursor-pointer shadow-md active:scale-95"
             onClick={onClose}
@@ -3462,53 +3481,53 @@ export function ClinicalSettingsModal({
             Cancel
           </button>
           <button
-            className="px-9 py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center gap-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-blue-600/30"
+            className="px-9 py-3 rounded-xl font-bold text-sm shadow-lg transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center gap-2.5"
+            style={{ backgroundColor: cta.bar, color: cta.ink }}
             onClick={handleApply}
           >
-            <span>Save & Apply Settings</span>
-            <span className="text-base">✓</span>
+            Apply
           </button>
         </div>
       </div>
-
-      {confirmApplyOpen ? (
+    </div>
+    {confirmApplyOpen ? (
+      <div
+        className="fixed inset-0 z-[1100] flex items-center justify-center p-4"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div
-          className="absolute inset-0 z-[20] flex items-center justify-center p-4 rounded-2xl"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+          className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
+          style={{ backgroundColor: '#1A1A1A' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
-            style={{ backgroundColor: '#1A1A1A' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
-            <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-              Applying settings will end the current game and start a new one. Progress in this round will be lost.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmApplyOpen(false)}
-                className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmApplyOpen(false);
-                  commitApply();
-                }}
-                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
-              >
-                Continue
-              </button>
-            </div>
+          <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
+          <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+            Applying settings will end the current game and start a new one. Progress in this round will be lost.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmApplyOpen(false)}
+              className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmApplyOpen(false);
+                commitApply();
+              }}
+              className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
+            >
+              Continue
+            </button>
           </div>
         </div>
-      ) : null}
-    </div>,
+      </div>
+    ) : null}
+    </>,
     document.body,
   );
 }

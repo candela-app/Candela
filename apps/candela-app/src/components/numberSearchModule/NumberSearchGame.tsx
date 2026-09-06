@@ -89,6 +89,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
   const [clicks, setClicks] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
@@ -333,6 +334,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
       setClicks(0);
       setCorrectCount(0);
       setWrongCount(0);
+      setMissCount(0);
       setReactionTimes([]);
       setDurationSec(0);
       setIsResultsOpen(false);
@@ -413,6 +415,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
     if (!gameStarted || isResultsOpen) return;
     playMissPressSoundAndHaptic();
     statsRef.current.misses += 1;
+    setMissCount(statsRef.current.misses);
   }, [gameStarted, isResultsOpen]);
 
   const avgReactionMs =
@@ -426,8 +429,9 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="number_search"
           title="Crowded Search"
-          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are misses."
+          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps, empty space is a miss."
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExit={onExit}
@@ -473,7 +477,8 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
           <div className={styles.hudLeft}>
             <p className={styles.hudSub}>
               {remainingDigits} digit{remainingDigits === 1 ? '' : 's'} left · {correctCount} found
-              {wrongCount > 0 ? ` · ${wrongCount} misses` : ''}
+              {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+              {missCount > 0 ? ` · ${missCount} miss${missCount === 1 ? '' : 'es'}` : ''}
             </p>
           </div>
           <div className={styles.hudRight}>
@@ -553,6 +558,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="number_search"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {
@@ -579,7 +585,7 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
         contrastSensitivity={contrastSensitivity}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
-          <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
+          <div className="grid grid-cols-4 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>
               <div className="text-xs text-gray-400">Reaction</div>
               <div className="font-bold text-white text-base">{avgReactionMs}ms</div>
@@ -589,8 +595,12 @@ export function NumberSearchGame({ onExit }: NumberSearchGameProps) {
               <div className="font-bold text-white text-base">{durationSec}s</div>
             </div>
             <div>
-              <div className="text-xs text-gray-400">Clicks</div>
-              <div className="font-bold text-white text-base">{clicks}</div>
+              <div className="text-xs text-gray-400">Wrong</div>
+              <div className="font-bold text-white text-base">{wrongCount}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400">Misses</div>
+              <div className="font-bold text-white text-base">{missCount}</div>
             </div>
           </div>
         }

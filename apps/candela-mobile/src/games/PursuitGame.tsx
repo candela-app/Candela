@@ -15,6 +15,7 @@ import {
   useHowToPlayGate,
   usePauseShiftedClock,
   buildSessionMetrics,
+  MODULE_CTA,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -131,6 +132,7 @@ export function PursuitGame({
       clicksTotal: allTrials.length,
       correct: correctCount,
       ...metrics,
+      endedBy: 'cleared',
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
@@ -301,7 +303,7 @@ export function PursuitGame({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(6,7,13,0.96)',
+            backgroundColor: '#06070D',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 40,
@@ -310,9 +312,9 @@ export function PursuitGame({
         >
           <Pressable
             onPress={() => setGameStarted(true)}
-            style={{ backgroundColor: '#34D399', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999 }}
+            style={{ backgroundColor: MODULE_CTA.pursuit.bar, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999 }}
           >
-            <Text style={{ color: '#022c22', fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
+            <Text style={{ color: MODULE_CTA.pursuit.ink, fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
           </Pressable>
           <Pressable onPress={() => setIsSettingsOpen(true)}>
             <Text style={{ color: '#CBD5E1', fontWeight: '700' }}>Edit Clinical Settings</Text>
@@ -342,6 +344,7 @@ export function PursuitGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="pursuit"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         showPursuitControls

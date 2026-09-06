@@ -1,5 +1,7 @@
 # Candela Platform Architecture
 
+Docs index: [README.md](./README.md). Session scoring and analytics: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
+
 ## 1. System Overview
 
 **Candela** is a precision visual and cognitive therapy platform delivering interactive vision exercises across Web, Mobile (Expo / React Native), and future TV platforms, powered by a unified NestJS backend.
@@ -55,12 +57,14 @@ Candela/
 │       ├── src/catalog.ts   ← Therapy modules metadata & definitions
 │       ├── src/levels.ts    ← Game level playlists & presets
 │       ├── src/auth-types.ts← Shared TypeScript models & summaries
+│       ├── src/session-metrics.ts ← Accuracy, error rates, Efficiency
+│       ├── src/game-session.ts    ← Persist gate, daily pooling, payloads
 │       └── assets/          ← Logos, sprites, and audio
 │
 └── docs/                    ← System documentation and operational guides
 ```
 
-DocID attach/change/transfer and SMTP: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
+Index: [README.md](./README.md). DocID attach/change/transfer and SMTP: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md). Session scoring, persistence, and charts: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
 
 ---
 
@@ -78,7 +82,8 @@ DocID attach/change/transfer and SMTP: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 
 ## 4. Key Design Principles
 
-1. **Shared Single Source of Truth**: All game catalogs, module IDs, level playlists, types, and brand assets reside in `packages/shared` to eliminate code duplication across platforms.
+1. **Shared Single Source of Truth**: All game catalogs, module IDs, level playlists, types, scoring, and brand assets reside in `packages/shared` to eliminate code duplication across platforms.
 2. **First-Party Cookie & Bearer Dual Auth**: The backend simultaneously supports secure `httpOnly` cookies for Web (with cross-domain support) and `Bearer` tokens for Mobile/TV native clients.
 3. **Graceful Cascading & Role Isolation**: Strictly isolated endpoints for `@Roles('admin')`, `@Roles('doctor')`, and `@Roles('patient')` with protective cascading database rules.
 4. **Clinical Agility**: Doctors can dynamically adjust module prescriptions and granular level playlists for each patient without touching source code or database records.
+5. **Finished plays only**: Unfinished / quit sessions never enter `game_sessions` or analytics. Wrong taps, misses, and timeouts stay separate so accuracy and Efficiency stay honest. Details: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

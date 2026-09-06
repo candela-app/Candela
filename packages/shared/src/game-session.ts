@@ -1,7 +1,7 @@
 import { reactionStatsFromMs } from './game-logic';
 import { GAME_CATALOG, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
-import type { DeviceTier, SessionResultData, TherapyModuleId } from './types';
+import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
 
 export const GAME_SESSION_METRICS_VERSION = 1;
 
@@ -121,10 +121,19 @@ export function utcDateKey(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Finished protocols only. Quits / abandoned plays must not enter analytics. */
+export function sessionResultShouldPersist(data: SessionResultData): boolean {
+  if (data.abandoned) return false;
+  if (data.endedBy === 'abandoned') return false;
+  if (data.endedBy != null && !PERSISTABLE_SESSION_ENDED_BY.has(data.endedBy)) return false;
+  return true;
+}
+
 export function payloadFromSessionResult(
   data: SessionResultData,
   extra?: { gameId?: TherapyModuleId; levelId?: string | null; deviceTier?: string | null },
 ): CreateGameSessionPayload | null {
+  if (!sessionResultShouldPersist(data)) return null;
   const gameId = extra?.gameId || inferTherapyModuleId(data.gameName);
   if (!gameId || !isTherapyModuleId(gameId)) return null;
   const clientEventId = data.clientEventId || `${data.recordedAt || data.date}-${data.durationSec}-${data.correct}`;

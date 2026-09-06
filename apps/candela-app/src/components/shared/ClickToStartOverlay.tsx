@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { moduleCta, type TherapyModuleId } from '@candela/shared';
 import { SlidersIcon, XIcon } from '../icons/VectorIcons';
 
 export interface ClickToStartOverlayProps {
@@ -10,6 +11,8 @@ export interface ClickToStartOverlayProps {
   onOpenSettings?: () => void;
   onExit?: () => void;
   startLabel?: string;
+  /** Start button uses this module's dashboard bar color. */
+  accentModuleId?: TherapyModuleId;
   /** Replace the default start button (e.g. Peripheral triangle). */
   children?: React.ReactNode;
 }
@@ -25,10 +28,15 @@ export function ClickToStartOverlay({
   onOpenSettings,
   onExit,
   startLabel = 'Click to Start',
+  accentModuleId,
   children,
 }: ClickToStartOverlayProps) {
+  const cta = moduleCta(accentModuleId ?? 'mobile_target');
   return (
-    <div className="fixed inset-0 z-50 bg-[#06070D]/98 flex flex-col justify-center items-center gap-4 p-6 text-center select-none">
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-center items-center gap-4 p-6 text-center select-none"
+      style={{ backgroundColor: '#06070D' }}
+    >
       {onExit ? (
         <button
           type="button"
@@ -62,7 +70,8 @@ export function ClickToStartOverlay({
         <button
           type="button"
           onClick={onStart}
-          className="px-8 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-xl cursor-pointer active:scale-95"
+          className="px-8 py-4 rounded-full font-black text-xl cursor-pointer active:scale-95"
+          style={{ backgroundColor: cta.bar, color: cta.ink }}
           title="Click to Start Therapy Session"
         >
           {startLabel}

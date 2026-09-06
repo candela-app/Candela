@@ -16,29 +16,24 @@ type Piece = {
   kind: 'rect' | 'strip' | 'circle';
 };
 
-function spawn(width: number, height: number): Piece[] {
+function spawn(width: number): Piece[] {
   const pieces: Piece[] = [];
   const colors = CELEBRATION_CONFETTI_COLORS;
   const kinds: Piece['kind'][] = ['rect', 'strip', 'circle'];
-  const make = (side: 'left' | 'right') => {
-    for (let i = 0; i < 70; i += 1) {
-      const fromLeft = side === 'left';
-      pieces.push({
-        x: fromLeft ? -8 : width + 8,
-        y: height * (0.18 + Math.random() * 0.52),
-        vx: (fromLeft ? 1 : -1) * (7.5 + Math.random() * 11),
-        vy: -10 - Math.random() * 8,
-        rot: Math.random() * Math.PI * 2,
-        vr: (Math.random() - 0.5) * 0.28,
-        w: 6 + Math.random() * 8,
-        h: 8 + Math.random() * 14,
-        color: colors[Math.floor(Math.random() * colors.length)]!,
-        kind: kinds[Math.floor(Math.random() * kinds.length)]!,
-      });
-    }
-  };
-  make('left');
-  make('right');
+  for (let i = 0; i < 140; i += 1) {
+    pieces.push({
+      x: Math.random() * width,
+      y: -24 - Math.random() * 90,
+      vx: (Math.random() - 0.5) * 7,
+      vy: 2 + Math.random() * 6,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.28,
+      w: 6 + Math.random() * 8,
+      h: 8 + Math.random() * 14,
+      color: colors[Math.floor(Math.random() * colors.length)]!,
+      kind: kinds[Math.floor(Math.random() * kinds.length)]!,
+    });
+  }
   return pieces;
 }
 
@@ -58,7 +53,7 @@ export function ResultsConfetti() {
     resize();
     window.addEventListener('resize', resize);
 
-    const pieces = spawn(canvas.width, canvas.height);
+    const pieces = spawn(canvas.width);
     const gravity = 0.22;
     const drag = 0.992;
     let frame = 0;
@@ -105,7 +100,7 @@ export function ResultsConfetti() {
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="pointer-events-none absolute inset-0 z-0 block h-full w-full"
+      className="pointer-events-none absolute inset-0 z-20 block h-full w-full"
     />
   );
 }

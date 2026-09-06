@@ -21,6 +21,7 @@ import {
   useHowToPlayGate,
   usePauseShiftedClock,
   buildSessionMetrics,
+  MODULE_CTA,
 } from '@candela/shared/rn';
 import { BeeResultsModal } from '../components/BeeResultsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -549,6 +550,7 @@ export function BeeTracingGame({
       avgRecoveryTimeSec: roundResults.length ? Math.round((totalRecovery / roundResults.length) * 10) / 10 : 0,
       roundsCompleted: roundResults.length,
       roundResults,
+      endedBy: 'cleared',
       horizontalAccuracyPercent:
         horizontalRounds.length > 0
           ? Math.round(horizontalRounds.reduce((a, r) => a + r.accuracyPercent, 0) / horizontalRounds.length)
@@ -684,7 +686,7 @@ export function BeeTracingGame({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(6,7,13,0.96)',
+            backgroundColor: '#06070D',
             alignItems: 'center',
             justifyContent: 'center',
             gap: s(12),
@@ -693,9 +695,9 @@ export function BeeTracingGame({
         >
           <Pressable
             onPress={() => setGameStarted(true)}
-            style={{ backgroundColor: '#34D399', paddingHorizontal: s(28), paddingVertical: s(14), borderRadius: 999 }}
+            style={{ backgroundColor: MODULE_CTA.bee_tracing.bar, paddingHorizontal: s(28), paddingVertical: s(14), borderRadius: 999 }}
           >
-            <Text style={{ color: '#022c22', fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
+            <Text style={{ color: MODULE_CTA.bee_tracing.ink, fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
           </Pressable>
           <Pressable onPress={() => setIsSettingsOpen(true)}>
             <Text style={{ color: '#CBD5E1', fontWeight: '700' }}>Edit Clinical Settings</Text>

@@ -18,6 +18,7 @@ import {
   useHowToPlayGate,
   usePauseShiftedClock,
   buildSessionMetrics,
+  MODULE_CTA,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -308,6 +309,7 @@ export function MobileTargetGame({
           clicksTotal: totalCorrect + totalWrong,
           correct: totalCorrect,
           ...metrics,
+          endedBy: 'cleared',
           gameMode: settings.gameMode,
           speedPxPerSec: settings.speedPxPerSec,
           setDurationSec: 0,
@@ -408,7 +410,7 @@ export function MobileTargetGame({
   return (
     <View style={{ flex: 1, backgroundColor: '#05070F' }}>
       {showClickToStart && !showHowToPlay && !showSettings && !showResults ? (
-        <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: 'rgba(6,7,13,0.98)' }}>
+        <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: '#06070D' }}>
           <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '900', marginBottom: s(16), textAlign: 'center' }}>{gameTitle}</Text>
           <Pressable
             onPress={() => {
@@ -417,9 +419,9 @@ export function MobileTargetGame({
               setIsPaused(false);
               announceChaseTarget(settings.gameMode, targetItem.value, targetItem.name);
             }}
-            style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}
+            style={{ backgroundColor: MODULE_CTA.mobile_target.bar, borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}
           >
-            <Text style={{ fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
+            <Text style={{ fontWeight: '900', fontSize: fs(20), color: MODULE_CTA.mobile_target.ink }}>Click to Start</Text>
           </Pressable>
         </View>
       ) : null}
@@ -738,6 +740,7 @@ export function MobileTargetGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="mobile_target"
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         patientName={settings.patientName}

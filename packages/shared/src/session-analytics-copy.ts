@@ -69,7 +69,7 @@ export const ANALYTICS_GRAPH_GUIDES: AnalyticsGraphGuide[] = [
   },
   {
     id: 'efficiency',
-    title: 'Efficiency (IP)',
+    title: 'Efficiency (Index of Performance)',
     meaning:
       'Accuracy (%) ÷ mean reaction time (seconds). Higher means both faster and more accurate. Use this when Accuracy and RT move in opposite directions.',
     trends: [
@@ -88,7 +88,7 @@ export const ANALYTICS_GRAPH_GUIDES: AnalyticsGraphGuide[] = [
     meaning: 'Share of attempts that hit the wrong target. Lower is better.',
     trends: [
       { pattern: 'Wrong taps ↓, RT stable, accuracy ↑', reading: 'Better discrimination' },
-      { pattern: 'Wrong taps ↓ but RT ↑ a lot', reading: 'More careful, not necessarily more skilled (efficiency catches this)' },
+      { pattern: 'Wrong taps ↓ but RT ↑ a lot', reading: 'More careful, not necessarily more skilled (Efficiency catches this)' },
       { pattern: 'Accuracy ↑ but wrong + miss flat', reading: 'Check if they just did fewer trials' },
     ],
   },

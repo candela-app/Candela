@@ -2,7 +2,7 @@ import { ColorItem, DeviceTier } from './types';
 
 export const BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
   mobile: 4,
-  tablet: 4,
+  tablet: 6,
   tv: 5,
 };
 
@@ -53,16 +53,30 @@ export const DEFAULT_SORTING_NUMBER_TO = 20;
 export const MAX_SORTING_NUMBER_COUNT = 20;
 
 export const SORTING_BATCH_SIZE: Record<DeviceTier, number> = {
-  mobile: 2,
-  tablet: 3,
+  mobile: 4,
+  tablet: 4,
   tv: 5,
 };
 
-/** Phone bubble diameter (rotatory). Tablet / TV / desktop uses TABLET_BUBBLE_SIZE_PX. */
-export const PHONE_BUBBLE_SIZE_PX = 120;
-export const TABLET_BUBBLE_SIZE_PX = 140;
-export const PHONE_SORTING_BUBBLE_SIZE_PX = 128;
-export const BUBBLE_SIZE_PRESETS = [100, 120, 140, 180, 220];
+/** Phone / tablet / TV rotatory bubble diameter defaults. */
+export const PHONE_BUBBLE_SIZE_PX = 80;
+export const TABLET_BUBBLE_SIZE_PX = 100;
+export const PHONE_SORTING_BUBBLE_SIZE_PX = 90;
+export const BUBBLE_SIZE_PRESETS = [60, 80, 100, 120];
+export const MOBILE_BUBBLE_SIZE_MAX_PX = 100;
+
+export function bubbleSizePresetsForTier(tier: DeviceTier): number[] {
+  return BUBBLE_SIZE_PRESETS.filter((p) => (tier === 'mobile' ? p <= MOBILE_BUBBLE_SIZE_MAX_PX : true));
+}
+
+export function clampBubbleSizeForTier(px: number, tier: DeviceTier): number {
+  const steps = bubbleSizePresetsForTier(tier);
+  const min = steps[0] ?? 60;
+  const max = steps[steps.length - 1] ?? MOBILE_BUBBLE_SIZE_MAX_PX;
+  const value = Number.isFinite(px) ? Math.round(px) : min;
+  const clamped = Math.min(max, Math.max(min, value));
+  return steps.reduce((best, p) => (Math.abs(p - clamped) < Math.abs(best - clamped) ? p : best), min);
+}
 
 /** Preset wheel backgrounds for rotatory / sorting clinical settings. */
 export const WHEEL_COLOR_PRESETS: ColorItem[] = [

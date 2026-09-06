@@ -166,11 +166,10 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
     });
 
   return createPortal(
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 transition-all animate-fade-in">
-      <ResultsConfetti />
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 transition-all animate-fade-in overscroll-none">
       <div
         ref={cardRef}
-        className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"
+        className="relative z-10 w-full max-w-lg max-h-[90dvh] overflow-hidden flex flex-col rounded-3xl border border-emerald-500/30 bg-[#121212] p-5 sm:p-7 text-white shadow-2xl shadow-emerald-900/20 animate-scale-up"
       >
         {/* Glow Background Accents */}
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
@@ -210,6 +209,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         )}
 
+        <div className="overflow-y-auto overscroll-contain min-h-0 flex-1 custom-scrollbar">
         {/* Title & Patient Header with Date */}
         <div className="text-center mb-6 relative z-10">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
@@ -768,7 +768,9 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             Exit to Menu
           </button>
         </div>
+        </div>
       </div>
+      <ResultsConfetti />
     </div>,
     document.body,
   );

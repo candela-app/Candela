@@ -4,4 +4,6 @@ Mono repo for Candela applications:
 - `apps/candela-backend` — shared backend (website, mobile, TV). Roles, auth, and APIs: [`apps/candela-backend/WALKTHROUGH.md`](apps/candela-backend/WALKTHROUGH.md). DocID linking: [`docs/DOCID_AND_MAIL.md`](docs/DOCID_AND_MAIL.md)
 - `apps/candela-mobile` — Expo / React Native app (same product as the website). Run: [`apps/candela-mobile/README.md`](apps/candela-mobile/README.md)
 - `apps/candela-tv` — TV frontend
-- `packages/shared` — shared code across apps
+- `packages/shared` — shared code across apps (catalog, scoring, session metrics)
+
+Docs index: [`docs/README.md`](docs/README.md). Session scoring, persist rules, and analytics: [`docs/SESSION_METRICS_AND_ANALYTICS.md`](docs/SESSION_METRICS_AND_ANALYTICS.md).

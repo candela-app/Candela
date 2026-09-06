@@ -38,6 +38,15 @@ export interface ClinicalStats {
   targetShownAt: number | null;
 }
 
+/** Protocol end reasons. Abandoned / quit plays must not be persisted. */
+export type SessionEndedBy = 'cleared' | 'timeout' | 'completed' | 'abandoned';
+
+export const PERSISTABLE_SESSION_ENDED_BY: ReadonlySet<SessionEndedBy> = new Set([
+  'cleared',
+  'timeout',
+  'completed',
+]);
+
 export interface SessionResultData {
   patientName: string;
   sessionId: number;
@@ -74,6 +83,13 @@ export interface SessionResultData {
   bgColor?: string;
   stimulusColor?: string;
   contrastPercent?: number;
+  /**
+   * How the protocol ended. Abandoned / quit plays must not be persisted.
+   * Cleared, timeout, and completed (including a session time cap) are stored.
+   */
+  endedBy?: SessionEndedBy;
+  /** Rotatory (and similar) quit flag; never persist when true. */
+  abandoned?: boolean;
 }
 
 /** Single target attempt — used for analytics / AI pipelines. */

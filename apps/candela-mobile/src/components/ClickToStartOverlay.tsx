@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { moduleCta, type TherapyModuleId } from '@candela/shared/rn';
 import { useLayout } from '../lib/layout';
 import { SlidersIcon } from './icons';
 
@@ -10,6 +11,7 @@ export function ClickToStartOverlay({
   onOpenSettings,
   onExit,
   startLabel = 'Click to Start',
+  accentModuleId,
 }: {
   title: string;
   hint?: string;
@@ -17,16 +19,18 @@ export function ClickToStartOverlay({
   onOpenSettings?: () => void;
   onExit?: () => void;
   startLabel?: string;
+  accentModuleId?: TherapyModuleId;
 }) {
   const insets = useSafeAreaInsets();
   const { fs, s } = useLayout();
+  const cta = moduleCta(accentModuleId ?? 'mobile_target');
 
   return (
     <View
       style={{
         ...absoluteFill,
         zIndex: 30,
-        backgroundColor: 'rgba(6,7,13,0.98)',
+        backgroundColor: '#06070D',
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: s(24),
@@ -97,13 +101,13 @@ export function ClickToStartOverlay({
       <Pressable
         onPress={onStart}
         style={{
-          backgroundColor: '#34D399',
+          backgroundColor: cta.bar,
           borderRadius: 999,
           paddingHorizontal: s(28),
           paddingVertical: s(16),
         }}
       >
-        <Text style={{ fontWeight: '900', fontSize: fs(20), color: '#052e1c' }}>{startLabel}</Text>
+        <Text style={{ fontWeight: '900', fontSize: fs(20), color: cta.ink }}>{startLabel}</Text>
       </Pressable>
     </View>
   );

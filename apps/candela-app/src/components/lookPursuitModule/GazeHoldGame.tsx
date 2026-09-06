@@ -192,6 +192,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       <video id="look-pursuit-cam" ref={look.videoRef} className={styles.preview} muted playsInline />
       {!started && !isSettingsOpen && !isMenuOpen ? (
         <ClickToStartOverlay
+          accentModuleId="computer_vision"
           title="Gaze Hold"
           hint="Look at the still bubble. Hold your gaze to pop it."
           onStart={beginPlay}
@@ -243,6 +244,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       />
 
       <ClinicalSettingsModal
+        accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={handleApplyClinicalSettings}
