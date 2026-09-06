@@ -484,6 +484,7 @@ export function LocationMemoryGame({
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="location_memory"
           title={`Location Memory — ${levelTitle}`}
           hint={levelHint}
           onStart={startGame}
@@ -710,7 +711,7 @@ export function LocationMemoryGame({
         >
           <Text style={{ color: 'rgba(226,232,240,0.85)', fontWeight: '600', fontSize: fs(12) }}>
             {phase === 'match'
-              ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} misses`
+              ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} wrong`
               : phase === 'recall'
                 ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}`
                 : `Explored ${exploredCount}/${activeCells}`}
@@ -761,6 +762,7 @@ export function LocationMemoryGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="location_memory"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(settings) => {

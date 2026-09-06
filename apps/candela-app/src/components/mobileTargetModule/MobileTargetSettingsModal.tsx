@@ -191,6 +191,7 @@ export function MobileTargetSettingsModal({
   });
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[999] flex justify-center items-start sm:items-center p-4 sm:p-6 md:p-8 overflow-y-auto backdrop-blur-md touch-pan-y custom-scrollbar"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
@@ -679,7 +680,7 @@ export function MobileTargetSettingsModal({
         ) : null}
 
         {/* MODAL FOOTER ACTIONS */}
-        <div className="flex justify-end items-center gap-4 border-t border-gray-800 pt-4 mt-1">
+        <div className="flex justify-between items-center gap-4 border-t border-gray-800 pt-4 mt-1">
           <button
             className="px-7 py-3 rounded-xl bg-gray-800/90 hover:bg-gray-700 text-gray-300 hover:text-white font-semibold transition-all border border-gray-700 text-sm cursor-pointer shadow-md active:scale-95"
             onClick={onClose}
@@ -690,48 +691,47 @@ export function MobileTargetSettingsModal({
             className="px-9 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center gap-2.5"
             onClick={handleApply}
           >
-            <span>{isInitialLaunch ? 'Start Session' : 'Save & Apply Settings'}</span>
-            <span className="text-base">✓</span>
+            {isInitialLaunch ? 'Start Session' : 'Apply'}
           </button>
         </div>
-
-        {confirmApplyOpen ? (
-          <div
-            className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-2xl sm:rounded-3xl"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
-              style={{ backgroundColor: '#1A1A1A' }}
-            >
-              <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
-              <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-                Applying settings will end the current game and start a new one. Progress in this round will be lost.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setConfirmApplyOpen(false)}
-                  className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmApplyOpen(false);
-                    commitApply();
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
+    {confirmApplyOpen ? (
+      <div
+        className="fixed inset-0 z-[1100] flex items-center justify-center p-4"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="text-white rounded-2xl border border-gray-700 max-w-md w-full p-6 shadow-2xl"
+          style={{ backgroundColor: '#1A1A1A' }}
+        >
+          <h3 className="text-xl font-extrabold mb-2">Start a fresh game?</h3>
+          <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+            Applying settings will end the current game and start a new one. Progress in this round will be lost.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmApplyOpen(false)}
+              className="flex-1 py-3 rounded-xl bg-[#222] border border-gray-700 text-gray-200 font-semibold hover:bg-gray-800 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmApplyOpen(false);
+                commitApply();
+              }}
+              className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-extrabold cursor-pointer"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

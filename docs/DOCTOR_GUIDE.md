@@ -4,6 +4,8 @@
 
 The **Doctor Portal** (`/doctor`) gives ophthalmologists, optometrists, and vision therapists a dedicated workspace to onboard patients, customize therapy prescriptions, and track assignments.
 
+Docs index: [README.md](./README.md). How to read session charts: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
+
 ---
 
 ## 1. Clinician Workflow
@@ -60,3 +62,16 @@ See [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
 - Expand any prescribed module to view its individual difficulty tiers (e.g. Level 1 Easy, Level 2 Medium, Level 3 Complex, Speed/Contrast variations).
 - Check or uncheck specific levels to assign tailored playlists matching the patient's visual motor recovery stage.
 - Changes save instantly to the backend with confirmation toast notifications.
+
+---
+
+## 5. Patient analytics
+
+On a patient’s page, charts share the same model as the patient dashboard.
+
+- **Wrong taps** = hit the wrong stimulus. **Misses** = empty space / wheel. **Timeouts** = target expired. Accuracy uses all three in the denominator.
+- Only **finished** plays appear (cleared, timeout, or completed). A quit does not pollute the line.
+- X-axis is **Date**. Same-day plays are pooled into one dot; hover/tap to see each Session #.
+- Pick **one module**. Efficiency (Index of Performance) is the speed–accuracy line when Accuracy and RT disagree.
+
+Full formulas, per-game mapping, and planned daily visit IDs: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

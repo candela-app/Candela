@@ -192,6 +192,7 @@ const LookPursuitMovingGame: React.FC<{
       clicksTotal: allTrials.length,
       correct: correctCount,
       ...metrics,
+      endedBy: 'cleared',
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
@@ -424,6 +425,7 @@ const LookPursuitMovingGame: React.FC<{
       <video id="look-pursuit-cam" ref={look.videoRef} className={styles.preview} muted playsInline />
       {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="computer_vision"
           title="Look Pursuit"
           hint="Track the bright bubble with your eyes. Hold your look to pop it."
           onStart={() => setGameStarted(true)}
@@ -507,6 +509,7 @@ const LookPursuitMovingGame: React.FC<{
       />
 
       <ClinicalSettingsModal
+        accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={handleApplyClinicalSettings}

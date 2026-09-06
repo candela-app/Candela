@@ -387,6 +387,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       clicksTotal: allTrials.length,
       correct: correctCount,
       ...metrics,
+      endedBy: 'cleared',
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
@@ -461,6 +462,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     <div ref={containerRef} className={styles.gameContainer} style={{ backgroundColor: fieldColor }}>
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="pursuit"
           title="Pursuit"
           onStart={() => setGameStarted(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -596,6 +598,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="pursuit"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={handleApplyClinicalSettings}

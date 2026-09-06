@@ -511,6 +511,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="location_memory"
           title={`Location Memory — ${levelTitle}`}
           hint={levelHint}
           onStart={startGame}
@@ -635,9 +636,9 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         <div className={styles.hud}>
           <span className={styles.hudText}>
             {phase === 'match'
-              ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} misses`
+              ? `${pairsFound}/${pairsTotal} pairs · ${wrongCount} wrong`
               : phase === 'recall'
-                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} misses` : ''}`
+                ? `${targetsRemaining} left · ${correctCount} found${wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}`
                 : `Explored ${exploredCount}/${activeCells}`}
           </span>
           <span className={styles.hudAccent}>{durationSec}s</span>
@@ -691,6 +692,7 @@ export function LocationMemoryGame({ onExit, levelId = 'standard' }: LocationMem
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="location_memory"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {

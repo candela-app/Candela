@@ -29,6 +29,7 @@ import {
   buildSessionMetrics,
   useHowToPlayGate,
   usePauseShiftedClock,
+  MODULE_CTA,
 } from '@candela/shared/rn';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -585,6 +586,7 @@ export function GeoboardGame({
         penColorName: getPenColorName(protocol.penColor),
         starRating: getGeoboardStarRating(metrics.accuracy),
         status,
+        endedBy: 'completed',
       };
       // TODO: persist once DB is configured
       void hapticCorrect();
@@ -1120,9 +1122,9 @@ export function GeoboardGame({
           <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '800' }}>{board.shortLabel}</Text>
           <Pressable
             onPress={() => startSession(protocol)}
-            style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(14), marginTop: s(16) }}
+            style={{ backgroundColor: MODULE_CTA.geoboard.bar, borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(14), marginTop: s(16) }}
           >
-            <Text style={{ color: '#022c22', fontWeight: '900' }}>Click to Start</Text>
+            <Text style={{ color: MODULE_CTA.geoboard.ink, fontWeight: '900' }}>Click to Start</Text>
           </Pressable>
           <Pressable onPress={() => setIsSettingsOpen(true)} style={{ marginTop: s(12) }}>
             <Text style={{ color: '#94A3B8', fontWeight: '700' }}>Edit Clinical Settings</Text>

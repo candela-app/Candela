@@ -1,11 +1,16 @@
+import { useFonts } from '@expo-google-fonts/poppins';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/lib/auth-context';
+import { enablePoppinsText, POPPINS_FONTS } from '../src/lib/typography';
 
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 WebBrowser.maybeCompleteAuthSession();
 
 export const unstable_settings = {
@@ -13,6 +18,17 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(POPPINS_FONTS);
+
+  useEffect(() => {
+    if (fontsLoaded) enablePoppinsText();
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [fontsLoaded, fontError]);
+
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

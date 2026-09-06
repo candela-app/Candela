@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ALL_MODULE_IDS,
   ANALYTICS_DOTS_GUIDE,
@@ -38,6 +39,21 @@ function formatDay(isoDate: string): string {
   });
 }
 
+const TIP_WIDTH = 220;
+
+function viewBoxToScreen(svg: SVGSVGElement, vx: number, vy: number): { x: number; y: number } {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) {
+    const r = svg.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  const pt = svg.createSVGPoint();
+  pt.x = vx;
+  pt.y = vy;
+  const mapped = pt.matrixTransform(ctm);
+  return { x: mapped.x, y: mapped.y };
+}
+
 function LineChart({
   points,
   metric,
@@ -65,6 +81,12 @@ function LineChart({
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(yValueForDaily(p, metric, agg)).toFixed(1)}`)
     .join(' ');
   const [hover, setHover] = useState<number | null>(null);
+  const [tipBox, setTipBox] = useState<{ left: number; top: number; placeBelow: boolean } | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const touchOpenRef = useRef(false);
   const tip = hover != null ? points[hover] : null;
   const metricMeta = ANALYTICS_METRICS.find((m) => m.id === metric);
   const unit = metricMeta?.unit ?? '';
@@ -74,6 +96,51 @@ function LineChart({
       ? `${yValueForDaily(tip, metric, agg).toFixed(metric === 'reaction' ? 2 : 1)}${unit}`
       : '';
 
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (hover == null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (chartRef.current?.contains(target) || tipRef.current?.contains(target)) return;
+      setHover(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [hover]);
+
+  useLayoutEffect(() => {
+    if (hover == null || !svgRef.current) {
+      setTipBox(null);
+      return;
+    }
+    const place = (tipH: number) => {
+      const origin = viewBoxToScreen(
+        svgRef.current!,
+        x(hover),
+        y(yValueForDaily(points[hover], metric, agg)),
+      );
+      const margin = 8;
+      const gap = 12;
+      let left = origin.x - TIP_WIDTH / 2;
+      left = Math.min(window.innerWidth - TIP_WIDTH - margin, Math.max(margin, left));
+      const placeBelow = origin.y - margin < tipH + gap;
+      let top = placeBelow ? origin.y + gap : origin.y - tipH - gap;
+      top = Math.min(window.innerHeight - tipH - margin, Math.max(margin, top));
+      return { left, top, placeBelow };
+    };
+    setTipBox(place(tipRef.current?.offsetHeight || 80));
+    const onMove = () => setTipBox(place(tipRef.current?.offsetHeight || 80));
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [hover, points, metric, agg]);
+
   if (points.length === 0) {
     return (
       <div className="h-40 rounded-xl bg-gray-50 border border-dashed border-gray-200 flex items-center justify-center">
@@ -82,13 +149,27 @@ function LineChart({
     );
   }
 
-  const cx = hover != null ? x(hover) : 0;
-  const cy = hover != null ? y(yValueForDaily(points[hover], metric, agg)) : 0;
   const yMid = pad.t + innerH / 2;
 
+  const openDot = (i: number, event: { stopPropagation: () => void; pointerType?: string }) => {
+    event.stopPropagation();
+    touchOpenRef.current = event.pointerType === 'touch';
+    setHover(i);
+  };
+
   return (
-    <div className="relative" onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-52">
+    <div
+      ref={chartRef}
+      className="relative w-full min-w-0 overflow-visible"
+      onMouseLeave={() => {
+        if (!touchOpenRef.current) setHover(null);
+      }}
+    >
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full max-w-full h-44 sm:h-52 overflow-visible"
+      >
         {[0, 0.5, 1].map((t) => {
           const v = min + (max - min) * (1 - t);
           const yy = pad.t + innerH * t;
@@ -117,23 +198,44 @@ function LineChart({
           strokeWidth="2.5"
           strokeDasharray={sample ? '6 4' : undefined}
         />
-        {points.map((p, i) => (
+        {points.map((p, i) => {
+          const value = yValueForDaily(p, metric, agg);
+          const px = x(i);
+          const py = y(value);
+          const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
+          const labelBelow = py < pad.t + 14;
+          return (
           <g key={p.date}>
             <circle
-              cx={x(i)}
-              cy={y(yValueForDaily(p, metric, agg))}
+              cx={px}
+              cy={py}
               r={hover === i ? 6 : 4}
               fill={color}
             />
+            <text
+              x={px}
+              y={labelBelow ? py + 16 : py - 10}
+              textAnchor="middle"
+              fontSize="10"
+              fontWeight="700"
+              fill={color}
+            >
+              {label}
+            </text>
             <circle
-              cx={x(i)}
-              cy={y(yValueForDaily(p, metric, agg))}
-              r={14}
+              cx={px}
+              cy={py}
+              r={22}
               fill="transparent"
-              onMouseEnter={() => setHover(i)}
+              className="cursor-pointer"
+              onMouseEnter={() => {
+                if (!touchOpenRef.current) setHover(i);
+              }}
+              onPointerDown={(event) => openDot(i, event)}
             />
           </g>
-        ))}
+          );
+        })}
         {points.map((p, i) => (
           <text key={`${p.date}-x`} x={x(i)} y={height - 22} textAnchor="middle" fontSize="10" fill="#6B7280">
             {formatDay(p.date)}
@@ -143,35 +245,45 @@ function LineChart({
           {ANALYTICS_X_AXIS}
         </text>
       </svg>
-      {tip ? (
-        <div
-          className="pointer-events-none absolute z-10 w-max max-w-[220px] -translate-x-1/2 -translate-y-[calc(100%+10px)]"
-          style={{ left: `${(cx / width) * 100}%`, top: `${(cy / height) * 100}%` }}
-        >
-          <div className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] text-white shadow-lg">
-            <p className="font-bold">
-              {formatDay(tip.date)} · {valueLabel}
-            </p>
-            <p className="text-slate-300 mt-0.5">
-              {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
-              {sample ? ' · sample' : ''}
-            </p>
-            {tip.sessions.map((s) => (
-              <p key={s.sessionNumber} className="text-slate-300 mt-0.5">
-                #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s
+      {portalReady && tip
+        ? createPortal(
+            <div
+              ref={tipRef}
+              className="pointer-events-none fixed z-[80] w-[220px] rounded-lg bg-slate-900 px-3 py-2 text-[11px] text-white shadow-lg"
+              style={{
+                left: tipBox?.left ?? 0,
+                top: tipBox?.top ?? 0,
+                visibility: tipBox ? 'visible' : 'hidden',
+              }}
+            >
+              {tipBox?.placeBelow ? (
+                <div className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-slate-900" />
+              ) : (
+                <div className="absolute left-1/2 bottom-0 h-2 w-2 -translate-x-1/2 translate-y-1 rotate-45 bg-slate-900" />
+              )}
+              <p className="font-bold">
+                {formatDay(tip.date)} · {valueLabel}
               </p>
-            ))}
-          </div>
-          <div className="mx-auto h-2 w-2 -mt-1 rotate-45 bg-slate-900" />
-        </div>
-      ) : null}
+              <p className="text-slate-300 mt-0.5">
+                {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
+                {sample ? ' · sample' : ''}
+              </p>
+              {tip.sessions.map((s) => (
+                <p key={s.sessionNumber} className="text-slate-300 mt-0.5">
+                  #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s
+                </p>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
 
 function HowToReadCard({ card, gameId }: { card: string; gameId: string }) {
   return (
-    <div className={`rounded-2xl border ${card} p-4 text-sm text-gray-600 space-y-5`}>
+    <div className={`rounded-2xl border ${card} p-4 text-sm text-gray-600 space-y-5 min-w-0 overflow-hidden`}>
       <p className="font-bold text-gray-900 text-base">How to read this</p>
       <section className="space-y-1">
         <p className="font-bold text-gray-900">{ANALYTICS_DOTS_GUIDE.title}</p>
@@ -288,35 +400,35 @@ export function SessionAnalyticsPanel({
   const card = variant === 'shell' ? 'bg-white border-shell-border' : 'bg-white border-gray-100';
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 w-full min-w-0">
       <div className={`rounded-2xl border ${card} p-4 grid grid-cols-2 lg:grid-cols-4 gap-3`}>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Sessions</p>
-          <p className="text-2xl font-extrabold text-gray-900">{analytics.totals.sessionCount}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">{analytics.totals.sessionCount}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Last played</p>
-          <p className="text-2xl font-extrabold text-gray-900">{lastPlayed}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-gray-900 break-words">{lastPlayed}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Accuracy</p>
-          <p className="text-2xl font-extrabold text-gray-900">
+          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">
             {analytics.totals.avgAccuracy != null ? `${analytics.totals.avgAccuracy}%` : '—'}
           </p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Dates plotted</p>
-          <p className="text-2xl font-extrabold text-gray-900">{analytics.daily.length}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">{analytics.daily.length}</p>
         </div>
       </div>
 
-      <div className={`rounded-2xl border ${card} p-4 flex flex-wrap gap-3 items-end`}>
-        <label className="text-xs font-semibold text-gray-600">
+      <div className={`rounded-2xl border ${card} p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3`}>
+        <label className="text-xs font-semibold text-gray-600 min-w-0">
           Module
           <select
             value={gameId}
             onChange={(e) => setGameId(e.target.value)}
-            className="mt-1 block rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white"
+            className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white"
           >
             <option value="">All modules</option>
             {ALL_MODULE_IDS.map((id) => (
@@ -326,30 +438,30 @@ export function SessionAnalyticsPanel({
             ))}
           </select>
         </label>
-        <label className="text-xs font-semibold text-gray-600">
+        <label className="text-xs font-semibold text-gray-600 min-w-0">
           From
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="mt-1 block rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
           />
         </label>
-        <label className="text-xs font-semibold text-gray-600">
+        <label className="text-xs font-semibold text-gray-600 min-w-0">
           To
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="mt-1 block rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
           />
         </label>
-        <label className="text-xs font-semibold text-gray-600">
+        <label className="text-xs font-semibold text-gray-600 min-w-0">
           Daily dot
           <select
             value={agg}
             onChange={(e) => setAgg(e.target.value as DailyAggMode)}
-            className="mt-1 block rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white"
+            className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white"
           >
             <option value="pooled">Pooled average (default)</option>
             <option value="best">Best of day</option>
@@ -362,10 +474,10 @@ export function SessionAnalyticsPanel({
 
       <div className="space-y-4">
         {ANALYTICS_METRICS.map((item) => (
-          <div key={item.id} className={`rounded-2xl border ${card} p-4`}>
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold" style={{ color: item.color }}>
+          <div key={item.id} className={`rounded-2xl border ${card} p-4 min-w-0 overflow-visible`}>
+            <div className="mb-3 flex items-start justify-between gap-3 min-w-0">
+              <div className="min-w-0">
+                <p className="text-sm font-bold break-words" style={{ color: item.color }}>
                   {item.label}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">{item.direction}</p>

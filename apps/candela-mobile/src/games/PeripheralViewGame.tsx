@@ -340,7 +340,7 @@ export function PeripheralViewGame({
       correct,
       ...buildSessionMetrics({
         correct,
-        wrongTaps: wrongTaps || wrong,
+        wrongTaps,
         misses,
         timeouts,
         reactionMs: reactions,
@@ -353,6 +353,7 @@ export function PeripheralViewGame({
       bubbleType,
       deviceTier,
       trials,
+      endedBy: 'cleared',
     };
     // TODO: persist once DB is configured
     setResultsData(data);
@@ -541,7 +542,7 @@ export function PeripheralViewGame({
           style={{
             ...StyleSheetAbsolute,
             zIndex: 50,
-            backgroundColor: 'rgba(6,7,13,0.98)',
+            backgroundColor: '#06070D',
             alignItems: 'center',
             justifyContent: 'center',
             padding: s(24),
@@ -944,6 +945,7 @@ export function PeripheralViewGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="peripheral_view"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {

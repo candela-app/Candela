@@ -3,8 +3,10 @@ import { getContrastAdjustedColor } from './clinical-color';
 import {
   buildGameSessionAnalytics,
   inferTherapyModuleId,
+  payloadFromSessionResult,
   poolSessionsByDate,
   sampleDailyPlotPoints,
+  sessionResultShouldPersist,
   type StoredGameSession,
 } from './game-session';
 import { reactionStatsFromMs } from './game-logic';
@@ -72,6 +74,20 @@ describe('session metrics', () => {
   it('uses even-length median of two middle samples', () => {
     expect(reactionStatsFromMs([100, 200, 300, 400]).medianSec).toBe(0.25);
     expect(reactionStatsFromMs([100, 200, 300]).medianSec).toBe(0.2);
+  });
+
+  it('includes misses in accuracy, miss rate, and efficiency', () => {
+    const metrics = buildSessionMetrics({
+      correct: 8,
+      wrongTaps: 1,
+      misses: 1,
+      reactionMs: [400, 400, 400, 400, 400, 400, 400, 400],
+    });
+    expect(metrics.accuracy).toBe(80);
+    expect(metrics.wrongTapRate).toBe(10);
+    expect(metrics.missRate).toBe(10);
+    expect(metrics.wrong).toBe(2);
+    expect(metrics.efficiencyIndex).toBe(200);
   });
 
   it('round1 keeps tenth-point gains', () => {
@@ -145,5 +161,46 @@ describe('module inference and contrast', () => {
     expect(getContrastAdjustedColor('#FFFFFF', '#000000', 1)).toBe('#ffffff');
     expect(getContrastAdjustedColor('#FFFFFF', '#000000', 0)).toBe('#000000');
     expect(getContrastAdjustedColor('#FFFFFF', '#000000', 0.5)).toBe('#808080');
+  });
+});
+
+describe('persist gate', () => {
+  const finished = {
+    patientName: 'T',
+    sessionId: 1,
+    date: '2026-09-06',
+    gameName: 'Rotatory Wheel',
+    stimuliCount: 10,
+    letterSize: 1,
+    speed: '1x',
+    durationSec: 30,
+    clicksTotal: 10,
+    correct: 8,
+    wrong: 2,
+    accuracy: 80,
+    avgReactionSec: 0.5,
+    medianReactionSec: 0.5,
+    efficiencyIndex: 160,
+    wrongTaps: 1,
+    misses: 1,
+    timeouts: 0,
+    wrongTapRate: 10,
+    missRate: 10,
+    timeoutRate: 0,
+    recordedAt: '2026-09-06T12:00:00.000Z',
+    endedBy: 'cleared' as const,
+  };
+
+  it('saves cleared and timeout plays', () => {
+    expect(sessionResultShouldPersist(finished)).toBe(true);
+    expect(payloadFromSessionResult(finished)?.gameId).toBe('rotatory');
+    expect(payloadFromSessionResult({ ...finished, endedBy: 'timeout' })).not.toBeNull();
+    expect(payloadFromSessionResult({ ...finished, endedBy: 'completed' })).not.toBeNull();
+  });
+
+  it('does not save abandoned or quit plays', () => {
+    expect(sessionResultShouldPersist({ ...finished, endedBy: 'abandoned' })).toBe(false);
+    expect(payloadFromSessionResult({ ...finished, endedBy: 'abandoned' })).toBeNull();
+    expect(payloadFromSessionResult({ ...finished, abandoned: true })).toBeNull();
   });
 });

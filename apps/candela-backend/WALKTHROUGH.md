@@ -2,7 +2,7 @@
 
 ## 1. Executive Overview
 
-`candela-backend` is the shared NestJS API for website, mobile, and TV. This pass adds **accounts, sessions, and module prescriptions**. Game session metrics are **not** stored yet.
+`candela-backend` is the shared NestJS API for website, mobile, and TV. It serves **accounts, prescriptions, and finished game-session metrics**. Scoring rules and the persist gate live in `@candela/shared`; see [docs/SESSION_METRICS_AND_ANALYTICS.md](../../docs/SESSION_METRICS_AND_ANALYTICS.md).
 
 Three roles share one `users` table (`role` column). Extra rows exist only where the role needs them:
 
@@ -63,9 +63,9 @@ Credentials come from environment variables (`ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD
 
 ### Explicit non-goals (this pass)
 
-- No game session / metrics tables
 - No password-reset email
 - No doctor self-registration
+- No daily **visit** grouping yet (`sessionNumber` is still per finished play, not per calendar day)
 
 ---
 
@@ -139,6 +139,18 @@ Creating a doctor generates `referral_code` and a `doctors` row.
 
 Cross-doctor access returns 404/403. Unknown `moduleId` returns 404.
 
+### Game sessions (`src/game-sessions`)
+
+Finished plays only. The client persist gate (`sessionResultShouldPersist`) must pass before POST. Scoring: [docs/SESSION_METRICS_AND_ANALYTICS.md](../../docs/SESSION_METRICS_AND_ANALYTICS.md).
+
+| Method | Path | Who |
+|--------|------|-----|
+| POST | `/api/game-sessions` | Patient |
+| GET | `/api/game-sessions` | Patient (own history) |
+| GET | `/api/doctors/me/patients/:patientId/game-sessions` | Doctor |
+
+Unique `(patientId, sessionNumber)` and `(patientId, clientEventId)`. `sessionNumber` is sequential per finished play, not per calendar day.
+
 ### DocID (`src/docid`)
 
 | Method | Path | Who |
@@ -166,8 +178,10 @@ Cross-doctor access returns 404/403. Unknown `moduleId` returns 404.
 - **Guards**: `apps/candela-backend/src/common/jwt-auth.guard.ts`, `roles.guard.ts`
 - **Referral codes**: `apps/candela-backend/src/common/referral-code.ts`
 - **Module catalog**: `apps/candela-backend/src/common/catalog.ts`
+- **Game sessions**: `apps/candela-backend/src/game-sessions/`, entity `src/entities/game-session.entity.ts`
 - **Entities**: `apps/candela-backend/src/entities/`
 - **Migration**: `apps/candela-backend/src/migrations/`
+- **Shared scoring / persist gate**: `packages/shared/src/session-metrics.ts`, `packages/shared/src/game-session.ts`
 - **Admin seed**: `apps/candela-backend/src/common/admin-seed.ts`, `src/seed-admins.ts`
 - **Website types**: `packages/shared/src/auth-types.ts`
 - **Website UI**: `/login`, `/signup`, `/admin`, `/doctor`, `/dashboard`, `/docid/confirm`, `/docid/reject` in `apps/candela-app`

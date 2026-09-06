@@ -219,7 +219,10 @@ export function HowToPlayManual({
   const isReview = mode === 'review';
 
   return (
-    <div className="fixed inset-0 z-[120] bg-[#06070D]/98 flex flex-col px-5 py-4 sm:px-8 text-left select-none">
+    <div
+      className="fixed inset-0 z-[120] flex flex-col px-5 py-4 sm:px-8 text-left select-none overflow-hidden overscroll-none"
+      style={{ backgroundColor: '#06070D' }}
+    >
       {isReview ? (
         <button
           type="button"
@@ -231,7 +234,7 @@ export function HowToPlayManual({
         </button>
       ) : null}
 
-      <div className={`flex-1 overflow-y-auto flex flex-col justify-center max-w-lg w-full mx-auto pb-4 ${isReview ? 'pt-14' : 'pt-6'}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-none max-w-lg w-full mx-auto pb-4 ${isReview ? 'pt-14' : 'pt-6'}`}>
         <p className="text-slate-400 font-extrabold text-xs tracking-[0.16em] mb-1.5">HOW TO PLAY</p>
         <h2 className="text-white text-2xl sm:text-3xl font-black mb-1.5">{guide.title}</h2>
         <p className="text-gray-400 font-semibold text-sm leading-relaxed mb-4">{guide.subtitle}</p>
@@ -262,7 +265,7 @@ export function HowToPlayManual({
         <button
           type="button"
           onClick={onContinue}
-          className="w-full max-w-lg mx-auto mb-2 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-lg active:scale-[0.98]"
+          className="w-full max-w-lg mx-auto mb-2 py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-lg active:scale-[0.98] shrink-0"
         >
           Continue to settings
         </button>

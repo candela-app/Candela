@@ -491,6 +491,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       avgRecoveryTimeSec: avgRecovery,
       roundsCompleted: roundResults.length,
       roundResults,
+      endedBy: 'cleared',
       horizontalAccuracyPercent,
       verticalAccuracyPercent,
       ...clinicalColorSessionFields(
@@ -558,6 +559,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="bee_tracing"
           title="Bee Path Tracing"
           onStart={() => setGameStarted(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -739,6 +741,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="bee_tracing"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(applied) => {

@@ -39,7 +39,7 @@ export function useSavedSessionNumber(isOpen: boolean, data: SessionResultData |
     return () => {
       cancelled = true;
     };
-  }, [isOpen, data?.clientEventId, data?.recordedAt, data?.gameName, data?.durationSec, data?.correct]);
+  }, [isOpen, data?.clientEventId, data?.recordedAt, data?.gameName, data?.durationSec, data?.correct, data?.endedBy, data?.abandoned]);
 
   return { sessionNumber, status };
 }

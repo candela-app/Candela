@@ -49,6 +49,8 @@ import {
   DEFAULT_PERIPHERAL_FIXATION_COLOR,
   DEFAULT_PERIPHERAL_STIMULUS_COLOR,
   DEFAULT_STIMULI_BUBBLE_COLOR,
+  bubbleSizePresetsForTier,
+  clampBubbleSizeForTier,
   getDeviceTier,
   hexVertices,
   NUMBER_SEARCH_BG_COLORS,
@@ -151,8 +153,9 @@ import {
   clampGazeHoldGlyphSize,
   resolveGazeHoldGlyphColor,
   pursuitPatternName,
+  moduleCta,
 } from '@candela/shared/rn';
-import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor } from '@candela/shared/rn';
+import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor, TherapyModuleId } from '@candela/shared/rn';
 import Svg, { Circle, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { useLayout } from '../lib/layout';
 
@@ -221,7 +224,6 @@ export interface AppliedClinicalSettings {
 }
 
 const LETTER_SIZES = [1, 1.5, 2, 2.5, 3];
-const BUBBLE_SIZES = [60, 80, 100, 120];
 const WHEEL_COLORS = WHEEL_COLOR_PRESETS;
 const PATH_TYPES = ['auto', 'straight', 'curve', 'zigzag', 'wave', 'spiral', 'branching', 'dotted', 'random'];
 const PURSUIT_PATTERN_OPTIONS: { val: PursuitMovementPattern; label: string }[] = [
@@ -340,6 +342,7 @@ export function ClinicalSettingsModal({
   isOpen,
   onClose,
   onApply,
+  accentModuleId = 'rotatory',
   patientName,
   letterSize,
   bubbleSize,
@@ -420,6 +423,7 @@ export function ClinicalSettingsModal({
   isOpen: boolean;
   onClose: () => void;
   onApply: (settings: AppliedClinicalSettings) => void;
+  accentModuleId?: TherapyModuleId;
   patientName: string;
   letterSize: number;
   bubbleSize: number;
@@ -501,6 +505,7 @@ export function ClinicalSettingsModal({
   const insets = useSafeAreaInsets();
   const { fs, s, width, height } = useLayout();
   const deviceTier = getDeviceTier(width, height);
+  const rotatoryBubbleSizes = bubbleSizePresetsForTier(deviceTier);
   const stimuliSteps = useMemo(() => [...peripheralStimuliPresets(deviceTier)], [deviceTier]);
   const stimuliMax = peripheralMaxStimuliCount(deviceTier);
   const [tempPatientName, setTempPatientName] = useState(patientName);
@@ -586,6 +591,7 @@ export function ClinicalSettingsModal({
     clampDirectionSenseTurnDirection(directionSenseTurnDirection),
   );
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
+  const cta = moduleCta(accentModuleId);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -597,7 +603,7 @@ export function ClinicalSettingsModal({
           ? [...LOOK_GAZE_HOLD_SIZE_PRESETS]
           : showPursuitControls
             ? PURSUIT_BUBBLE_SIZES
-            : BUBBLE_SIZES,
+            : rotatoryBubbleSizes,
         bubbleSize,
       ),
     );
@@ -709,7 +715,9 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(tempLetterSize)
             : tempLetterSize,
-      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(tempBubbleSize) : tempBubbleSize,
+      bubbleSize: showGazeHoldControls
+        ? clampGazeHoldGlyphSize(tempBubbleSize)
+        : clampBubbleSizeForTier(tempBubbleSize, deviceTier),
       speed: tempSpeed,
       wheelColor: tempWheelColor,
       tracingMode: tempTracingMode,
@@ -813,7 +821,9 @@ export function ClinicalSettingsModal({
             : showLocationMemoryControls
               ? clampLocationMemoryLetterSize(letterSize)
             : letterSize,
-      bubbleSize: showGazeHoldControls ? clampGazeHoldGlyphSize(bubbleSize) : bubbleSize,
+      bubbleSize: showGazeHoldControls
+        ? clampGazeHoldGlyphSize(bubbleSize)
+        : clampBubbleSizeForTier(bubbleSize, deviceTier),
       speed,
       wheelColor,
       tracingMode,
@@ -954,6 +964,7 @@ export function ClinicalSettingsModal({
   });
 
   return (
+    <>
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
       <View
         style={{
@@ -1120,7 +1131,7 @@ export function ClinicalSettingsModal({
                     </Text>
                     <Text style={{ color: '#60A5FA', fontSize: fs(16), fontWeight: '900' }}>{tempBubbleSize}</Text>
                   </View>
-                  <StepSlider values={BUBBLE_SIZES} value={tempBubbleSize} onChange={setTempBubbleSize} />
+                  <StepSlider values={rotatoryBubbleSizes} value={tempBubbleSize} onChange={setTempBubbleSize} />
                 </Card>
                 ) : null}
 
@@ -2984,12 +2995,14 @@ export function ClinicalSettingsModal({
             <View
               style={{
                 flexDirection: 'row',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 gap: s(10),
                 borderTopWidth: 1,
                 borderTopColor: '#1F2937',
                 paddingTop: s(14),
                 marginTop: s(8),
+                flexShrink: 0,
               }}
             >
               <Pressable
@@ -3011,81 +3024,79 @@ export function ClinicalSettingsModal({
                   paddingHorizontal: s(20),
                   paddingVertical: s(12),
                   borderRadius: s(12),
-                  backgroundColor: '#2563EB',
+                  backgroundColor: cta.bar,
                 }}
               >
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>
-                  Save & Apply Settings  ✓
-                </Text>
+                <Text style={{ color: cta.ink, fontWeight: '800', fontSize: fs(13) }}>Apply</Text>
               </Pressable>
             </View>
           </View>
         </ScrollView>
-
-        {confirmApplyOpen ? (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.72)',
-              justifyContent: 'center',
-              paddingHorizontal: s(24),
-              zIndex: 50,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: '#1A1A1A',
-                borderRadius: s(20),
-                borderWidth: 1,
-                borderColor: '#374151',
-                padding: s(20),
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
-                Start a fresh game?
-              </Text>
-              <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
-                Applying settings will end the current game and start a new one. Progress in this round will be lost.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: s(10) }}>
-                <Pressable
-                  onPress={() => setConfirmApplyOpen(false)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#222',
-                    borderWidth: 1,
-                    borderColor: '#374151',
-                    borderRadius: s(12),
-                    paddingVertical: s(12),
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setConfirmApplyOpen(false);
-                    commitApply();
-                  }}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#B91C1C',
-                    borderRadius: s(12),
-                    paddingVertical: s(12),
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        ) : null}
       </View>
     </Modal>
+      <Modal
+        visible={isOpen && confirmApplyOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmApplyOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.72)',
+            justifyContent: 'center',
+            paddingHorizontal: s(24),
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#1A1A1A',
+              borderRadius: s(20),
+              borderWidth: 1,
+              borderColor: '#374151',
+              padding: s(20),
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
+              Start a fresh game?
+            </Text>
+            <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
+              Applying settings will end the current game and start a new one. Progress in this round will be lost.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: s(10) }}>
+              <Pressable
+                onPress={() => setConfirmApplyOpen(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#222',
+                  borderWidth: 1,
+                  borderColor: '#374151',
+                  borderRadius: s(12),
+                  paddingVertical: s(12),
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setConfirmApplyOpen(false);
+                  commitApply();
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#B91C1C',
+                  borderRadius: s(12),
+                  paddingVertical: s(12),
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }

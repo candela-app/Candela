@@ -136,6 +136,7 @@ export function BeeSettingsModal({
   };
 
   return (
+    <>
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
       <View
         style={{
@@ -370,7 +371,7 @@ export function BeeSettingsModal({
               </View>
             </Card>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: s(10), paddingTop: s(8) }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: s(10), paddingTop: s(8) }}>
               <Pressable
                 onPress={onClose}
                 style={{
@@ -390,78 +391,79 @@ export function BeeSettingsModal({
                   paddingHorizontal: s(18),
                   paddingVertical: s(12),
                   borderRadius: s(12),
-                  backgroundColor: '#2563EB',
+                  backgroundColor: '#F59E0B',
                 }}
               >
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(13) }}>Save & Apply Settings  ✓</Text>
+                <Text style={{ color: '#0F172A', fontWeight: '800', fontSize: fs(13) }}>Apply</Text>
               </Pressable>
             </View>
           </View>
         </ScrollView>
-        {confirmApplyOpen ? (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.72)',
-              justifyContent: 'center',
-              paddingHorizontal: s(24),
-              zIndex: 50,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: '#1A1A1A',
-                borderRadius: s(20),
-                borderWidth: 1,
-                borderColor: '#374151',
-                padding: s(20),
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
-                Start a fresh game?
-              </Text>
-              <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
-                Applying settings will end the current game and start a new one. Progress in this round will be lost.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: s(10) }}>
-                <Pressable
-                  onPress={() => setConfirmApplyOpen(false)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#222',
-                    borderWidth: 1,
-                    borderColor: '#374151',
-                    borderRadius: s(12),
-                    paddingVertical: s(12),
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setConfirmApplyOpen(false);
-                    commitApply();
-                  }}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#B91C1C',
-                    borderRadius: s(12),
-                    paddingVertical: s(12),
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        ) : null}
       </View>
     </Modal>
+    <Modal
+      visible={isOpen && confirmApplyOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setConfirmApplyOpen(false)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.72)',
+          justifyContent: 'center',
+          paddingHorizontal: s(24),
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: '#1A1A1A',
+            borderRadius: s(20),
+            borderWidth: 1,
+            borderColor: '#374151',
+            padding: s(20),
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: fs(18), fontWeight: '800', marginBottom: s(8) }}>
+            Start a fresh game?
+          </Text>
+          <Text style={{ color: '#9CA3AF', fontSize: fs(14), lineHeight: fs(20), marginBottom: s(18) }}>
+            Applying settings will end the current game and start a new one. Progress in this round will be lost.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: s(10) }}>
+            <Pressable
+              onPress={() => setConfirmApplyOpen(false)}
+              style={{
+                flex: 1,
+                backgroundColor: '#222',
+                borderWidth: 1,
+                borderColor: '#374151',
+                borderRadius: s(12),
+                paddingVertical: s(12),
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setConfirmApplyOpen(false);
+                commitApply();
+              }}
+              style={{
+                flex: 1,
+                backgroundColor: '#B91C1C',
+                borderRadius: s(12),
+                paddingVertical: s(12),
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Continue</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
