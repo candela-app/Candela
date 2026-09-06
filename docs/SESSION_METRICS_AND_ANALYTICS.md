@@ -151,11 +151,13 @@ Patient dashboard and doctor patient analytics share `SessionAnalyticsPanel`.
 
 | Behaviour | Detail |
 |---|---|
-| One **date** per dot | Filter one **module** for a clean line. “All modules” is noisy. |
+| One **date** per dot | Filter one **module** (and optionally one **level**) for a clean line. “All modules” is noisy. |
+| **Week / month / year** | **−** zooms out (week → month → year). **+** zooms in. Year uses one pooled dot per month. Axis title is the latest month (`Sep-09` / `September-09`) or year (`2026`). Ticks are day numbers (week), sparse days 1 / 8 / 15 / 22 (month), or month names (year). Hover still shows the full date. |
+| **Level filter** | Pick a module first. **All levels** = whole-module plot. A chosen level = that playlist only. |
 | Same-day pooling | Default: attempt-weighted **pooled average**. Optional **best of day**. |
 | Tooltip | Date, value, each play’s session #, accuracy, RT. Web tooltip is portaled to `document.body` (`position: fixed`) so overflow panes (chooser, overflow-hidden) do not clip it into a thin bar. |
 | Preliminary | Fewer than 5 dates with data. |
-| Empty state | Interactive **sample** series, labelled Sample — not real patients. |
+| Empty state | **No graphs yet** — no sample / fake series. |
 | Unfinished plays | Never in the series (section 4). |
 
 Plotted metrics: Accuracy, Avg reaction time, Efficiency, Wrong-tap rate, Miss rate.

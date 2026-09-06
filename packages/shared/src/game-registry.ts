@@ -133,6 +133,11 @@ export function isTherapyModuleId(id: string): id is TherapyModuleId {
   return id in GAME_CATALOG;
 }
 
+export function levelsForTherapyModule(id: string): GameLevelDef[] {
+  if (!isTherapyModuleId(id)) return [];
+  return MODULE_LEVELS[id] ?? [];
+}
+
 export interface GameLevelDef {
   id: string;
   name: string;

@@ -74,6 +74,8 @@ export interface SessionResultData {
   wrongTapRate: number;
   missRate: number;
   timeoutRate: number;
+  /** Catalog level id (e.g. uppercase, figure_eight). Used for analytics filters. */
+  levelId?: string;
   /** ISO-8601 session end time for date-range filters. */
   recordedAt: string;
   /** Idempotency key so retries do not insert a second row. */

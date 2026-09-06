@@ -3,10 +3,19 @@ import { getContrastAdjustedColor } from './clinical-color';
 import {
   buildGameSessionAnalytics,
   inferTherapyModuleId,
+  padDailyCalendar,
+  emptyDailyPlotPoint,
+  formatPlotAxisName,
+  formatPlotTick,
+  formatPlotTooltip,
+  plotPointsForScale,
   payloadFromSessionResult,
   poolSessionsByDate,
-  sampleDailyPlotPoints,
+  poolSessionsByMonth,
   sessionResultShouldPersist,
+  shouldDrawPlotTick,
+  zoomInScale,
+  zoomOutScale,
   type StoredGameSession,
 } from './game-session';
 import { reactionStatsFromMs } from './game-logic';
@@ -136,16 +145,65 @@ describe('daily pooling', () => {
     expect(analytics.totals.sessionCount).toBe(2);
   });
 
-  it('builds an interactive sample series when there is no saved play', () => {
-    const points = sampleDailyPlotPoints(8);
-    expect(points).toHaveLength(8);
-    const accuracy = points.map((p) => p.pooledAccuracy);
-    const reaction = points.map((p) => p.pooledAvgReactionSec);
-    expect(accuracy.some((v, i) => i > 0 && v < accuracy[i - 1])).toBe(true);
-    expect(accuracy.some((v, i) => i > 0 && v > accuracy[i - 1])).toBe(true);
-    expect(reaction.some((v, i) => i > 0 && v > reaction[i - 1])).toBe(true);
-    expect(reaction.some((v, i) => i > 0 && v < reaction[i - 1])).toBe(true);
-    expect(points[0].sessions.length).toBeGreaterThan(0);
+  it('pads a 7-day calendar so empty weeks still have ticks', () => {
+    const points = padDailyCalendar([], { nowIso: '2026-09-06T12:00:00.000Z' });
+    expect(points).toHaveLength(7);
+    expect(points[0].date).toBe('2026-08-31');
+    expect(points[6].date).toBe('2026-09-06');
+    expect(points.every((p) => p.sessionCount === 0)).toBe(true);
+  });
+
+  it('keeps earlier played days so the week viewport can scroll', () => {
+    const played = { ...emptyDailyPlotPoint('2026-08-20'), sessionCount: 1, pooledAccuracy: 80 };
+    const points = padDailyCalendar([played], { nowIso: '2026-09-06T12:00:00.000Z' });
+    expect(points[0].date).toBe('2026-08-20');
+    expect(points[points.length - 1].date).toBe('2026-09-06');
+    expect(points.find((p) => p.date === '2026-08-20')?.sessionCount).toBe(1);
+  });
+
+  it('zooms week to month to year and back', () => {
+    expect(zoomOutScale('week')).toBe('month');
+    expect(zoomOutScale('month')).toBe('year');
+    expect(zoomOutScale('year')).toBe('year');
+    expect(zoomInScale('year')).toBe('month');
+    expect(zoomInScale('month')).toBe('week');
+    expect(zoomInScale('week')).toBe('week');
+  });
+
+  it('pools a year-scale dot by month', () => {
+    const monthly = poolSessionsByMonth([
+      session({ sessionNumber: 1, recordedAt: '2026-08-02T10:00:00.000Z', correct: 9, wrongTaps: 1, misses: 0, timeouts: 0, accuracy: 90 }),
+      session({ sessionNumber: 2, recordedAt: '2026-08-20T10:00:00.000Z', correct: 1, wrongTaps: 9, misses: 0, timeouts: 0, accuracy: 10 }),
+    ]);
+    expect(monthly).toHaveLength(1);
+    expect(monthly[0].date).toBe('2026-08');
+    expect(monthly[0].sessionCount).toBe(2);
+    expect(monthly[0].pooledAccuracy).toBe(50);
+  });
+
+  it('year scale pads 12 months', () => {
+    const points = plotPointsForScale([], [], 'year', { nowIso: '2026-09-06T12:00:00.000Z' });
+    expect(points).toHaveLength(12);
+    expect(points[0].date).toBe('2025-10');
+    expect(points[11].date).toBe('2026-09');
+  });
+
+  it('names the axis after the latest month and thins month ticks', () => {
+    const week = plotPointsForScale([], [], 'week', { nowIso: '2026-09-06T12:00:00.000Z' });
+    const month = plotPointsForScale([], [], 'month', { nowIso: '2026-09-06T12:00:00.000Z' });
+    const year = plotPointsForScale([], [], 'year', { nowIso: '2026-09-06T12:00:00.000Z' });
+    expect(formatPlotAxisName(week, 'week')).toBe('Sep-09');
+    expect(formatPlotAxisName(month, 'month')).toBe('September-09');
+    expect(formatPlotAxisName(year, 'year')).toBe('2025–2026');
+    expect(formatPlotTick('2026-09-06', 'week')).toBe('6');
+    expect(formatPlotTick('2026-09-01', 'month')).toBe('1');
+    expect(formatPlotTick('2026-08', 'year')).toBe('Aug');
+    expect(shouldDrawPlotTick('2026-09-01', 'month', 0, 30)).toBe(true);
+    expect(shouldDrawPlotTick('2026-09-02', 'month', 1, 30)).toBe(false);
+    expect(shouldDrawPlotTick('2026-09-08', 'month', 7, 30)).toBe(true);
+    expect(shouldDrawPlotTick('2026-09-06', 'week', 5, 7)).toBe(true);
+    expect(formatPlotTooltip('2026-09-06', 'month')).toBe('6 Sep 2026');
+    expect(formatPlotTooltip('2026-08', 'year')).toBe('Aug 2026');
   });
 });
 
@@ -202,5 +260,29 @@ describe('persist gate', () => {
     expect(sessionResultShouldPersist({ ...finished, endedBy: 'abandoned' })).toBe(false);
     expect(payloadFromSessionResult({ ...finished, endedBy: 'abandoned' })).toBeNull();
     expect(payloadFromSessionResult({ ...finished, abandoned: true })).toBeNull();
+  });
+
+  it('infers catalog level ids so analytics can filter by level', () => {
+    expect(
+      payloadFromSessionResult({
+        ...finished,
+        gameName: 'Rotatory Wheel (alphabets - uppercase)',
+        alphabetVariant: 'uppercase',
+        mode: 'alphabets',
+      } as typeof finished & { mode: string; alphabetVariant: string })?.levelId,
+    ).toBe('uppercase');
+    expect(payloadFromSessionResult({ ...finished, gameName: 'Sorting Module (numbers)' })?.levelId).toBe(
+      'numbers',
+    );
+    expect(
+      payloadFromSessionResult({
+        ...finished,
+        gameName: 'Hold the Code',
+        stimulusMode: 'compound',
+      } as typeof finished & { stimulusMode: string })?.levelId,
+    ).toBe('compound');
+    expect(payloadFromSessionResult({ ...finished, gameName: 'Color Discriminant Bubble Chase' })?.levelId).toBe(
+      'colors',
+    );
   });
 });
