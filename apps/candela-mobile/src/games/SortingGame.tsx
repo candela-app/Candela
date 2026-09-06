@@ -29,10 +29,11 @@ import {
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
+import { ClickToStartOverlay } from '../components/ClickToStartOverlay';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon } from '../components/icons';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { useLayout } from '../lib/layout';
@@ -40,7 +41,7 @@ import { speak } from '../lib/speech';
 
 export function SortingGame({ variant = 'uppercase', onExit }: { variant?: SortingVariant; onExit?: () => void }) {
   const { session } = useAuth();
-  const { width, height, s, fs, isTablet } = useLayout();
+  const { width, height, s, isTablet } = useLayout();
   const [gameStarted, setGameStarted] = useState(false);
   const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
   const [isResultsOpen, setIsResultsOpen] = useState(false);
@@ -69,6 +70,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
   const [playArea, setPlayArea] = useState({ w: width, h: height });
   const reactionTimesRef = useRef<number[]>([]);
   const targetShownAtRef = useRef<number | null>(null);
+  const wrongCountRef = useRef(0);
+  const missCountRef = useRef(0);
 
   const sessionFrozen = playBlocked || isResultsOpen;
   usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
@@ -159,6 +162,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
     setClicks(0);
     setCorrectCount(0);
     setWrongCount(0);
+    wrongCountRef.current = 0;
+    missCountRef.current = 0;
     const now = performance.now();
     setStartTime(now);
     setTargetShownAt(now);
@@ -202,7 +207,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
             const finishedCorrect = correctCount + 1;
             const metrics = buildSessionMetrics({
               correct: finishedCorrect,
-              wrongTaps: wrongCount,
+              wrongTaps: wrongCountRef.current,
+              misses: missCountRef.current,
               reactionMs: reactionTimesRef.current,
             });
             setResultsData({
@@ -217,6 +223,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
               clicksTotal: clicks + 1,
               correct: finishedCorrect,
               ...metrics,
+              endedBy: 'cleared',
             });
             setIsResultsOpen(true);
             setTimeout(() => setGameStarted(false), 500);
@@ -225,7 +232,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
       }, 250);
     } else {
       void hapticWrong();
-      setWrongCount((prev) => prev + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
         setWrongIds((prev) => {
@@ -249,19 +257,20 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         </View>
       ) : null}
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
-        <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: 'rgba(6,7,13,0.98)' }}>
-          <Text style={{ color: '#fff', fontSize: fs(26), fontWeight: '900', marginBottom: s(12) }}>Sorting Module</Text>
-          <Pressable onPress={startGame} style={{ backgroundColor: '#34D399', borderRadius: 999, paddingHorizontal: s(28), paddingVertical: s(16) }}>
-            <Text style={{ fontWeight: '900', fontSize: fs(20) }}>Click to Start</Text>
-          </Pressable>
-        </View>
+        <ClickToStartOverlay
+          accentModuleId="sorting"
+          title="Sorting Module"
+          onStart={startGame}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onExit={requestExit}
+        />
       ) : null}
       <Pressable
         onPress={() => {
           if (gameStarted) {
             setClicks((prev) => prev + 1);
-            setWrongCount((prev) => prev + 1);
-            void hapticWrong();
+            missCountRef.current += 1;
+            void hapticMiss();
           }
         }}
         onLayout={(e) => setPlayArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
@@ -329,6 +338,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="sorting"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(next) => {
@@ -347,7 +357,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           setNotification('Settings Applied Successfully!');
           setTimeout(() => setNotification(null), 2500);
           setIsSettingsOpen(false);
-          if (wasPlaying) startGame();
+          if (wasPlaying) {
+            setGameStarted(false);
+            setBubbles([]);
+            setPoppingIds(new Set());
+            setWrongIds(new Set());
+          }
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -375,7 +390,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
           }}
           onReplay={() => {
             setIsResultsOpen(false);
-            startGame();
+            setGameStarted(false);
+            setBubbles([]);
+            setPoppingIds(new Set());
+            setWrongIds(new Set());
           }}
         />
       ) : null}
@@ -416,5 +434,3 @@ export function SortingGame({ variant = 'uppercase', onExit }: { variant?: Sorti
     </View>
   );
 }
-
-const absoluteFill = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };

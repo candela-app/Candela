@@ -1,91 +1,116 @@
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
-import Svg, { Circle, G, Rect } from 'react-native-svg';
+import { Animated, Easing, InteractionManager, View } from 'react-native';
 import { CELEBRATION_CONFETTI_COLORS } from '@candela/shared/rn';
 
-type Fetti = {
-  x: number;
-  y: number;
-  velocity: number;
-  angle2D: number;
-  tiltAngle: number;
-  wobble: number;
-  wobbleSpeed: number;
-  gravity: number;
-  decay: number;
-  tick: number;
-  totalTicks: number;
+const PIECE_COUNT = 48;
+const BURST_MS = 1800;
+
+type PieceDef = {
   color: string;
-  kind: 'rect' | 'circle';
-  scalar: number;
-  alive: boolean;
+  round: boolean;
+  size: number;
+  startXFrac: number;
+  drift: number;
+  duration: number;
+  delay: number;
+  spin: number;
 };
 
-function fireCannon(originX: number, originY: number, angle: number, width: number, height: number): Fetti {
-  const radAngle = (angle * Math.PI) / 180;
-  const radSpread = (55 * Math.PI) / 180;
-  return {
-    x: originX * width,
-    y: originY * height,
-    velocity: 60 * 0.5 + Math.random() * 60,
-    angle2D: -radAngle + (0.5 * radSpread - Math.random() * radSpread),
-    tiltAngle: Math.random() * Math.PI,
-    wobble: Math.random() * 10,
-    wobbleSpeed: Math.min(0.11, Math.random() * 0.1 + 0.05),
-    gravity: 3,
-    decay: 0.9,
-    tick: 0,
-    totalTicks: 200,
-    color: CELEBRATION_CONFETTI_COLORS[Math.floor(Math.random() * CELEBRATION_CONFETTI_COLORS.length)]!,
-    kind: Math.random() > 0.5 ? 'circle' : 'rect',
-    scalar: 0.85 + Math.random() * 0.4,
-    alive: true,
-  };
+function makeDefs(): PieceDef[] {
+  return Array.from({ length: PIECE_COUNT }, (_, i) => ({
+    color: CELEBRATION_CONFETTI_COLORS[i % CELEBRATION_CONFETTI_COLORS.length]!,
+    round: i % 2 === 0,
+    size: 6 + (i % 5),
+    startXFrac: i % 2 === 0 ? 0.18 + Math.random() * 0.18 : 0.62 + Math.random() * 0.18,
+    drift: (Math.random() - 0.5) * 160,
+    duration: 1400 + Math.random() * 800,
+    delay: Math.random() * BURST_MS,
+    spin: (Math.random() > 0.5 ? 1 : -1) * (200 + Math.random() * 260),
+  }));
 }
 
-function step(p: Fetti) {
-  p.x += Math.cos(p.angle2D) * p.velocity;
-  p.y += Math.sin(p.angle2D) * p.velocity + p.gravity;
-  p.velocity *= p.decay;
-  p.wobble += p.wobbleSpeed;
-  p.tiltAngle += 0.1;
-  p.tick += 1;
-  if (p.tick >= p.totalTicks) p.alive = false;
-}
+type PieceAnim = {
+  def: PieceDef;
+  ty: Animated.Value;
+  tx: Animated.Value;
+  rot: Animated.Value;
+  op: Animated.Value;
+};
 
 export function ResultsConfetti() {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [, setTick] = useState(0);
-  const piecesRef = useRef<Fetti[]>([]);
+  const piecesRef = useRef<PieceAnim[] | null>(null);
+  if (!piecesRef.current) {
+    piecesRef.current = makeDefs().map((def) => ({
+      def,
+      ty: new Animated.Value(-24),
+      tx: new Animated.Value(0),
+      rot: new Animated.Value(0),
+      op: new Animated.Value(0),
+    }));
+  }
+  const pieces = piecesRef.current;
 
   useEffect(() => {
     if (size.width < 2 || size.height < 2) return;
-    piecesRef.current = [];
-    const end = Date.now() + 3 * 1000;
-    let raf = 0;
-    const maxLive = 160;
+    const { height } = size;
+    const runners: Animated.CompositeAnimation[] = [];
 
-    const frame = () => {
-      const now = Date.now();
-      const live = piecesRef.current.filter((p) => p.alive);
-      if (now <= end) {
-        const room = Math.max(0, maxLive - live.length);
-        const n = Math.min(2, Math.floor(room / 2));
-        for (let i = 0; i < n; i += 1) {
-          live.push(fireCannon(0, 0.5, 60, size.width, size.height));
-          live.push(fireCannon(1, 0.5, 120, size.width, size.height));
-        }
+    const task = InteractionManager.runAfterInteractions(() => {
+      for (const piece of pieces) {
+        piece.ty.setValue(-24);
+        piece.tx.setValue(0);
+        piece.rot.setValue(0);
+        piece.op.setValue(0);
+        const run = Animated.parallel([
+          Animated.sequence([
+            Animated.delay(piece.def.delay),
+            Animated.timing(piece.op, { toValue: 1, duration: 60, useNativeDriver: true }),
+            Animated.delay(piece.def.duration * 0.5),
+            Animated.timing(piece.op, {
+              toValue: 0,
+              duration: piece.def.duration * 0.4,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.delay(piece.def.delay),
+            Animated.timing(piece.ty, {
+              toValue: height + 36,
+              duration: piece.def.duration,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.delay(piece.def.delay),
+            Animated.timing(piece.tx, {
+              toValue: piece.def.drift,
+              duration: piece.def.duration,
+              easing: Easing.out(Easing.sin),
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.delay(piece.def.delay),
+            Animated.timing(piece.rot, {
+              toValue: 1,
+              duration: piece.def.duration,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]);
+        runners.push(run);
+        run.start();
       }
-      for (const p of live) step(p);
-      piecesRef.current = live.filter((p) => p.alive);
-      setTick((n) => n + 1);
-      if (now <= end || piecesRef.current.length > 0) {
-        raf = requestAnimationFrame(frame);
-      }
+    });
+
+    return () => {
+      task.cancel();
+      for (const run of runners) run.stop();
     };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [size.width, size.height]);
+  }, [pieces, size]);
 
   return (
     <View
@@ -105,30 +130,33 @@ export function ResultsConfetti() {
         zIndex: 40,
       }}
     >
-      {size.width > 0 ? (
-        <Svg width={size.width} height={size.height}>
-          {piecesRef.current.map((p, i) => {
-            const progress = p.tick / p.totalTicks;
-            const wobbleX = 8 * p.scalar * Math.cos(p.wobble);
-            const wobbleY = 8 * p.scalar * Math.sin(p.wobble);
-            const w = Math.max(4, Math.abs(wobbleX));
-            const h = Math.max(4, Math.abs(wobbleY));
-            return (
-              <G
-                key={i}
-                opacity={Math.max(0, 1 - progress)}
-                transform={`translate(${p.x}, ${p.y}) rotate(${(p.tiltAngle * 180) / Math.PI})`}
-              >
-                {p.kind === 'circle' ? (
-                  <Circle r={4.5 * p.scalar} fill={p.color} />
-                ) : (
-                  <Rect x={-w / 2} y={-h / 2} width={w} height={h} fill={p.color} />
-                )}
-              </G>
-            );
-          })}
-        </Svg>
-      ) : null}
+      {size.width > 0
+        ? pieces.map((piece, i) => (
+            <Animated.View
+              key={i}
+              style={{
+                position: 'absolute',
+                left: piece.def.startXFrac * size.width,
+                top: 0,
+                width: piece.def.size,
+                height: piece.def.round ? piece.def.size : piece.def.size * 1.35,
+                borderRadius: piece.def.round ? piece.def.size / 2 : 2,
+                backgroundColor: piece.def.color,
+                opacity: piece.op,
+                transform: [
+                  { translateX: piece.tx },
+                  { translateY: piece.ty },
+                  {
+                    rotate: piece.rot.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', `${piece.def.spin}deg`],
+                    }),
+                  },
+                ],
+              }}
+            />
+          ))
+        : null}
     </View>
   );
 }

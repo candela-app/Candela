@@ -10,9 +10,11 @@ import type {
 import {
   checkOverlap,
   findNonOverlappingBubblePosition,
+  getDeviceTier,
   getMinDistancePercent,
   resolveStimuliBubbleColor,
 } from './game-logic';
+import { handheldGapPercent, handheldMarkSizeForContainer } from './handheld-field';
 import { buildSessionMetrics, sessionAccuracy } from './session-metrics';
 
 /**
@@ -32,7 +34,7 @@ export const ROTATORY_MIN_VALID_SESSION_N = 8;
 /** Assessment set size is locked per device. Therapy may vary; assessment must not. */
 export const ROTATORY_BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
   mobile: 4,
-  tablet: 5,
+  tablet: 6,
   tv: 5,
 };
 
@@ -282,6 +284,21 @@ export function rotatoryBubblesPerRound(tier: DeviceTier, mode: GameMode): numbe
   const cap =
     mode === 'colors' ? BRIGHT_COLORS.length : mode === 'numbers' ? NUMBERS.length : ALPHABETS.length;
   return Math.min(ROTATORY_BUBBLES_PER_ROUND[tier] ?? 3, cap);
+}
+
+/** Bubble diameter for this wheel: screen-scaled, then capped so the round's marks still fit. */
+export function rotatoryFieldBubbleSizePx(options: {
+  containerPx: number;
+  tier: DeviceTier;
+  mode: GameMode;
+  requestedPx?: number;
+}): number {
+  return handheldMarkSizeForContainer({
+    containerPx: options.containerPx,
+    count: rotatoryBubblesPerRound(options.tier, options.mode),
+    tier: options.tier,
+    requestedPx: options.requestedPx,
+  });
 }
 
 export function rotatoryBatchPlan(total: number, perRound: number): number[] {
@@ -660,8 +677,9 @@ function countMeridianCrossings(onsetAngleDeg: number, driftDeg: number): number
 
 export function placeInitialRotatoryPositions(
   count: number,
-  options: { containerSize: number; bubbleSize: number },
+  options: { containerSize: number; bubbleSize: number; gapPercent?: number },
 ): BubblePosition[] {
+  const gapPercent = options.gapPercent ?? handheldGapPercent(getDeviceTier());
   const positions: BubblePosition[] = [];
   for (let i = 0; i < count; i += 1) {
     positions.push(
@@ -670,7 +688,7 @@ export function placeInitialRotatoryPositions(
         bubbleSize: options.bubbleSize,
         slotIndex: i,
         totalSlots: count,
-        gapPercent: 4,
+        gapPercent,
         randomAttempts: 160,
       }),
     );
@@ -682,13 +700,14 @@ function scatterRotatoryPosition(
   occupied: BubblePosition[],
   containerSize: number,
   bubbleSize: number,
+  gapPercent: number,
 ): BubblePosition {
   return findNonOverlappingBubblePosition(occupied, {
     containerSize,
     bubbleSize,
     slotIndex: occupied.length,
     totalSlots: occupied.length + 1,
-    gapPercent: 4,
+    gapPercent,
     randomAttempts: 160,
   });
 }
@@ -697,14 +716,15 @@ function scatterRotatoryPosition(
 export function nextRotatoryRefillPosition(
   popped: BubblePosition,
   occupied: BubblePosition[],
-  options: { containerSize: number; bubbleSize: number },
+  options: { containerSize: number; bubbleSize: number; gapPercent?: number },
 ): BubblePosition {
   const { containerSize, bubbleSize } = options;
+  const gapPercent = options.gapPercent ?? handheldGapPercent(getDeviceTier());
   const roll = Math.random();
-  const minDistance = getMinDistancePercent(bubbleSize, containerSize, 4);
+  const minDistance = getMinDistancePercent(bubbleSize, containerSize, gapPercent);
 
   if (roll < 0.55) {
-    return scatterRotatoryPosition(occupied, containerSize, bubbleSize);
+    return scatterRotatoryPosition(occupied, containerSize, bubbleSize, gapPercent);
   }
 
   if (roll < 0.85) {
@@ -712,13 +732,13 @@ export function nextRotatoryRefillPosition(
     if (!checkOverlap(far, occupied, minDistance)) {
       return far;
     }
-    return scatterRotatoryPosition(occupied, containerSize, bubbleSize);
+    return scatterRotatoryPosition(occupied, containerSize, bubbleSize, gapPercent);
   }
 
   if (!checkOverlap(popped, occupied, minDistance)) {
     return { x: popped.x, y: popped.y };
   }
-  return scatterRotatoryPosition(occupied, containerSize, bubbleSize);
+  return scatterRotatoryPosition(occupied, containerSize, bubbleSize, gapPercent);
 }
 
 function scoredOnsetTrials(state: RotatorySessionState): RotatoryTrialRecord[] {
@@ -1143,6 +1163,8 @@ export interface RotatorySummaryExtras extends Omit<
   | 'recordedAt'
   | 'clientEventId'
   | 'reactionMs'
+  | 'endedBy'
+  | 'abandoned'
 > {
   clicksTotal: number;
   wrong: number;
@@ -1160,13 +1182,12 @@ export function summarizeRotatorySession(
   const excluded = scored.filter((t) => !t.validForRt);
   const reactionMs = valid.map((t) => t.reactionMs);
   const cleanRt = valid.filter((t) => t.wrongTaps === 0 && t.aimTaps === 0).map((t) => t.reactionMs);
-  const cleanTrials = valid.filter((t) => t.wrongTaps === 0 && t.aimTaps === 0).length;
-  const discTrials = valid.filter((t) => t.wrongTaps > 0).length;
-  const missOnlyTrials = valid.filter((t) => t.aimTaps > 0 && t.wrongTaps === 0).length;
+  const wrongTapCount = valid.reduce((n, t) => n + t.wrongTaps, 0);
+  const missCount = valid.reduce((n, t) => n + t.aimTaps, 0);
   const metrics = buildSessionMetrics({
-    correct: cleanTrials,
-    wrongTaps: discTrials,
-    misses: missOnlyTrials,
+    correct: valid.length,
+    wrongTaps: wrongTapCount,
+    misses: missCount,
     timeouts: 0,
     reactionMs,
   });
@@ -1237,7 +1258,7 @@ export function summarizeRotatorySession(
     ...metrics,
     stimuliCount: valid.length,
     clicksTotal: extras.clicksTotal,
-    correct: cleanTrials,
+    correct: valid.length,
     accuracy: metrics.accuracy,
     avgReactionSec: avgSec,
     mode: state.mode,
@@ -1285,6 +1306,7 @@ export function summarizeRotatorySession(
     pausedDuringSession: state.pausedDuringSession,
     settingsChanged: state.settingsChanged,
     abandoned: state.abandoned,
+    endedBy: state.abandoned ? 'abandoned' : 'cleared',
     tooFewTrials,
     qualityFlags: flags.join('|'),
     trials: state.trials,

@@ -329,7 +329,7 @@ export function FamiliarFacesSetupModal({
         style={{
           paddingVertical: s(14),
           borderRadius: 999,
-          backgroundColor: '#34D399',
+          backgroundColor: '#FB7185',
           alignItems: 'center',
         }}
       >

@@ -478,6 +478,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         penColorName: getPenColorName(protocol.penColor),
         starRating: getGeoboardStarRating(metrics.accuracy),
         status,
+        endedBy: 'completed',
         ...clinicalColorSessionFields(protocol.bgColor, protocol.shapeColor, protocol.contrastSensitivity),
       };
 
@@ -886,6 +887,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
 
       {gameState === 'settings' && !showHowToPlay && !isSettingsOpen && (
         <ClickToStartOverlay
+          accentModuleId="geoboard"
           title={board.shortLabel}
           onStart={() => startSession(protocol)}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -1123,6 +1125,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="geoboard"
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
         onApply={handleApplySettings}

@@ -430,7 +430,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
       correct,
       ...buildSessionMetrics({
         correct,
-        wrongTaps: wrongTaps || wrong,
+        wrongTaps,
         misses,
         timeouts,
         reactionMs: reactions,
@@ -443,6 +443,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
       bubbleType,
       deviceTier,
       trials,
+      endedBy: 'cleared',
       ...clinicalColorSessionFields(engineBgColor, stimulusColor, contrastSensitivity),
     };
     // TODO: persist once DB is configured
@@ -858,6 +859,7 @@ export function PeripheralViewGame({ field: fieldProp = 'both', onExit }: Periph
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="peripheral_view"
         isOpen={isSettingsOpen && (!sizeReady || isLandscape)}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings: AppliedClinicalSettings) => {

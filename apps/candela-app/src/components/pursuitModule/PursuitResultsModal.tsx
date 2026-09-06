@@ -101,15 +101,16 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
   const errors = sessionErrorCounts(data);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 transition-all animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 transition-all animate-fade-in overscroll-none">
       <div
         ref={cardRef}
-        className="relative w-full max-w-xl max-h-[90vh] overflow-x-hidden overflow-y-auto custom-scrollbar touch-pan-y rounded-3xl border border-cyan-500/30 bg-[#090A0F] p-6 sm:p-8 text-white shadow-2xl shadow-cyan-950/40 mb-6 pb-6"
+        className="relative w-full max-w-xl max-h-[90dvh] overflow-hidden flex flex-col rounded-3xl border border-cyan-500/30 bg-[#090A0F] p-6 sm:p-8 text-white shadow-2xl shadow-cyan-950/40"
       >
         {/* Glow Accents */}
         <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
         <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
+        <div className="overflow-y-auto overscroll-contain min-h-0 flex-1 custom-scrollbar">
         {/* Header Bar with View Switcher */}
         <div className="flex justify-between items-center mb-6 relative z-10">
           <div>
@@ -308,6 +309,7 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
           >
             Exit Menu
           </button>
+        </div>
         </div>
       </div>
     </div>

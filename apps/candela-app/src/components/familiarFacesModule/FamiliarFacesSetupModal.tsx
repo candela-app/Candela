@@ -258,7 +258,7 @@ export function FamiliarFacesSetupModal({
       <button
         type="button"
         onClick={onClose}
-        className="w-full max-w-lg mx-auto py-4 rounded-full bg-[#34D399] text-slate-950 font-black text-lg"
+        className="w-full max-w-lg mx-auto py-4 rounded-full bg-[#FB7185] text-slate-950 font-black text-lg"
       >
         {ready ? 'Done' : `Add ${FAMILIAR_FACES_MIN_PHOTOS - photos.length} more to play`}
       </button>

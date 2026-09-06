@@ -134,13 +134,14 @@ export function GameResultsModal({
             padding: s(20),
             maxHeight: '92%',
             zIndex: 1,
+            overflow: 'hidden',
           }}
         >
           <Pressable onPress={() => void exportCsv()} style={{ position: 'absolute', top: s(16), right: s(16), zIndex: 10, padding: s(6) }}>
             <Text style={{ color: '#9CA3AF', fontSize: fs(18) }}>⇩</Text>
           </Pressable>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
             <View style={{ alignItems: 'center', marginBottom: s(18), paddingHorizontal: s(12) }}>
               <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '800', textAlign: 'center' }}>
                 Session Completed

@@ -29,12 +29,14 @@ export function getDeviceTier(width?: number, height?: number): DeviceTier {
   return 'tv';
 }
 
-/** Rotatory/sorting bubble default: scales with short side so marks stay large and apart. */
+/** Rotatory/sorting bubble default: scales with the play field; fit wins over a fixed px floor. */
 export function defaultBubbleSizePx(
   tier: DeviceTier = getDeviceTier(),
   _game: 'rotatory' | 'sorting' = 'rotatory',
+  width?: number,
+  height?: number,
 ): number {
-  return handheldMarkSizePx(tier);
+  return handheldMarkSizePx(tier, width, height);
 }
 
 export function clampSortingNumberRange(from: number, to: number): { from: number; to: number } {

@@ -17,6 +17,7 @@ import {
   resolveLookPursuitPattern,
   type LookSample,
   buildSessionMetrics,
+  MODULE_CTA,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
@@ -152,6 +153,7 @@ function LookPursuitMovingGame({
       clicksTotal: allTrials.length,
       correct: correctCount,
       ...metrics,
+      endedBy: 'cleared',
       movementPattern: settings.movementPattern,
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
@@ -386,7 +388,7 @@ function LookPursuitMovingGame({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(6,7,13,0.96)',
+            backgroundColor: '#06070D',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 40,
@@ -395,9 +397,9 @@ function LookPursuitMovingGame({
         >
           <Pressable
             onPress={() => setGameStarted(true)}
-            style={{ backgroundColor: '#34D399', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999 }}
+            style={{ backgroundColor: MODULE_CTA.computer_vision.bar, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999 }}
           >
-            <Text style={{ color: '#022c22', fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
+            <Text style={{ color: MODULE_CTA.computer_vision.ink, fontWeight: '900', fontSize: 20 }}>Click to Start</Text>
           </Pressable>
           <Text style={{ color: '#94A3B8', fontWeight: '600', textAlign: 'center', paddingHorizontal: 24 }}>
             Track the bright bubble with your eyes. Hold your look to pop it.
@@ -426,6 +428,7 @@ function LookPursuitMovingGame({
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
       <ClinicalSettingsModal
+        accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         showPursuitControls

@@ -14,7 +14,7 @@ The website still uses httpOnly cookies. Native apps cannot. Login/signup/refres
 | `/login`, `/signup` | Email/password | Public |
 | `/admin` | Create doctors, list doctors/patients | Admin |
 | `/doctor` | Create patients, prescribe modules | Doctor |
-| `/dashboard` | Module picker, variants, analytics placeholder | Patient |
+| `/dashboard` | Module picker, variants, session analytics | Patient |
 | `/play/rotatory` | Rotatory Wheel | Patient |
 | `/play/sorting` | Sorting | Patient |
 | `/play/bee` | Bee Path Tracing | Patient |
@@ -44,5 +44,6 @@ Import **`@candela/shared/rn`**, not the main `@candela/shared` entry. The web e
 ## Out of scope (this pass)
 
 - Apple Developer / TestFlight / EAS production builds
-- Session metrics persistence (same as website)
 - Native fullscreen APIs (no browser fullscreen on RN)
+
+Finished plays persist the same way as the website (shared persist gate). Scoring, IDs, and charts: [docs/SESSION_METRICS_AND_ANALYTICS.md](../../docs/SESSION_METRICS_AND_ANALYTICS.md).

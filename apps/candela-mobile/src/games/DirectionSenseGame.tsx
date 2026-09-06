@@ -593,6 +593,7 @@ export function DirectionSenseGame({
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="direction_sense"
           title={levelTitle}
           onStart={() => startGame()}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -854,6 +855,7 @@ export function DirectionSenseGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="direction_sense"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(settings) => {

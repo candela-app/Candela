@@ -56,6 +56,9 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
 
+const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none';
+const CHOOSER_SCROLL = 'max-h-full overflow-y-auto overscroll-none';
+
 type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
 function MainContent() {
@@ -579,6 +582,29 @@ function MainContent() {
   };
 
   const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision' || view === 'play_familiar_faces';
+  const isChooserView = view === 'module' || view === 'family' || view === 'game';
+  const isAnalyticsView = view === 'analytics';
+  const lockToViewport = isChooserView || isAnalyticsView;
+
+  useEffect(() => {
+    if (!lockToViewport && !isPlayingGame) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlHeight = html.style.height;
+    const prevBodyHeight = body.style.height;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.height = '100%';
+    body.style.height = '100%';
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      html.style.height = prevHtmlHeight;
+      body.style.height = prevBodyHeight;
+    };
+  }, [lockToViewport, isPlayingGame]);
 
   const visibleFamilies = GAME_FAMILIES.filter((family) =>
     family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
@@ -590,7 +616,7 @@ function MainContent() {
 
   if (authLoading || !session || session.user.role !== 'patient') {
     return (
-      <div className="min-h-screen bg-page flex flex-col">
+      <div className="min-h-dvh bg-page flex flex-col">
         <AppHeader />
         <PatientDashboardSkeleton />
       </div>
@@ -598,8 +624,15 @@ function MainContent() {
   }
 
   return (
-    <div className={`w-screen ${isPlayingGame ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto flex flex-col'} bg-page relative select-none touch-manipulation`}>
+    <div className={`${
+      isPlayingGame
+        ? 'h-dvh overflow-hidden'
+        : lockToViewport
+          ? 'h-dvh overflow-hidden overscroll-none flex flex-col'
+          : 'min-h-dvh overflow-x-hidden flex flex-col'
+    } w-full bg-page relative select-none touch-manipulation`}>
       {!isPlayingGame && (
+        <div className="shrink-0">
         <AppHeader
           onBack={
             view === 'game'
@@ -609,11 +642,13 @@ function MainContent() {
                 : undefined
           }
         />
+        </div>
       )}
 
       {/* FAMILY SELECTION VIEW */}
       {view === 'module' && (
-        <>
+        <div className={CHOOSER_PANE}>
+        <div className={CHOOSER_SCROLL}>
         <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
@@ -663,12 +698,14 @@ function MainContent() {
             );
           })}
         </main>
-        </>
+        </div>
+        </div>
       )}
 
       {/* FAMILY ACTIVITIES VIEW */}
       {view === 'family' && activeFamily && (
-        <>
+        <div className={CHOOSER_PANE}>
+        <div className={CHOOSER_SCROLL}>
         <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
           <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
           <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
@@ -703,21 +740,24 @@ function MainContent() {
             </button>
           ))}
         </main>
-        </>
+        </div>
+        </div>
       )}
 
       {/* ANALYTICS PLACEHOLDER VIEW */}
       {view === 'analytics' && (
-        <main className="flex-1 flex flex-col items-center px-4 sm:px-6 py-8 max-w-6xl mx-auto w-full">
-          <div className="w-full flex items-center gap-3 mb-8 self-start">
-            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center">
+        <div className={CHOOSER_PANE}>
+        <div className={CHOOSER_SCROLL}>
+        <main className="flex flex-col items-stretch px-4 sm:px-6 py-5 sm:py-8 max-w-6xl mx-auto w-full min-w-0 pb-8">
+          <div className="w-full flex items-start gap-3 mb-6 sm:mb-8">
+            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center shrink-0">
               <AnalyticsIcon className="w-6 h-6" />
             </div>
-            <div>
-              <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-[22px] font-extrabold text-shell-text tracking-tight break-words">
                 {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
               </h2>
-              <p className="text-[13px] text-shell-muted font-medium">
+              <p className="text-[13px] text-shell-muted font-medium mt-0.5">
                 Review past session performance across all therapy modules
               </p>
             </div>
@@ -725,11 +765,14 @@ function MainContent() {
 
           <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" />
         </main>
+        </div>
+        </div>
       )}
 
       {/* GAME VARIANTS VIEW */}
       {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
-        <>
+        <div className={CHOOSER_PANE}>
+        <div className={CHOOSER_SCROLL}>
           <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
             {activeFamily && (
               <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: activeFamily.accent }}>
@@ -1098,7 +1141,8 @@ function MainContent() {
               )}
             </main>
           )}
-        </>
+        </div>
+        </div>
       )}
 
       {/* GAME LAUNCHERS */}

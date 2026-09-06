@@ -73,9 +73,10 @@
 ============================ */
 .rotatingWheel {
   background-color: var(--wheel, #000000);
-  height: 95vh;
-  width: 95vh;
-  max-width: 90vw;
+  height: 100vmin;
+  width: 100vmin;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -231,17 +232,17 @@
 /* Responsive queries */
 @media (max-width: 1024px) {
   .rotatingWheel {
-    height: 85vh;
-    width: 85vh;
+    height: 100vmin;
+    width: 100vmin;
   }
 }
 
 @media (max-width: 600px) {
   .mainLayout {
-    padding: 0 1rem;
+    padding: 0;
   }
   .rotatingWheel {
-    height: 75vh;
-    width: 75vh;
+    height: 100vmin;
+    width: 100vmin;
   }
 }

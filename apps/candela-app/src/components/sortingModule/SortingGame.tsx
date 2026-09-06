@@ -102,6 +102,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const [clicks, setClicks] = useState<number>(0);
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [wrongCount, setWrongCount] = useState<number>(0);
+  const [missCount, setMissCount] = useState<number>(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
@@ -111,6 +112,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const indianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const reactionTimesRef = useRef<number[]>([]);
   const targetShownAtRef = useRef<number | null>(null);
+  const wrongCountRef = useRef(0);
+  const missCountRef = useRef(0);
 
   const sessionFrozen = playBlocked || isResultsOpen;
   usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && startTime != null), (delta) => {
@@ -321,6 +324,9 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
     setClicks(0);
     setCorrectCount(0);
     setWrongCount(0);
+    setMissCount(0);
+    wrongCountRef.current = 0;
+    missCountRef.current = 0;
     const now = performance.now();
     setStartTime(now);
     setTargetShownAt(now);
@@ -380,7 +386,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
             const finishedCorrect = correctCount + 1;
             const metrics = buildSessionMetrics({
               correct: finishedCorrect,
-              wrongTaps: wrongCount,
+              wrongTaps: wrongCountRef.current,
+              misses: missCountRef.current,
               reactionMs: reactionTimesRef.current,
             });
 
@@ -396,6 +403,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               clicksTotal: clicks + 1,
               correct: finishedCorrect,
               ...metrics,
+              endedBy: 'cleared',
               ...clinicalColorSessionFields(wheelColor, stimuliColor, contrastSensitivity),
             };
 
@@ -410,7 +418,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
       }, 250);
     } else {
       playWrongBubbleSoundAndHaptic();
-      setWrongCount((prev) => prev + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       setWrongIds((prev) => new Set(prev).add(clickedBubble.id));
       setTimeout(() => {
         setWrongIds((prev) => {
@@ -425,7 +434,8 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
   const handleBackgroundClick = () => {
     if (gameStarted) {
       setClicks((prev) => prev + 1);
-      setWrongCount((prev) => prev + 1);
+      missCountRef.current += 1;
+      setMissCount(missCountRef.current);
       playMissPressSoundAndHaptic();
     }
   };
@@ -464,6 +474,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="sorting"
           title="Sorting Module"
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -580,6 +591,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="sorting"
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
         onApply={(newSettings) => {
@@ -602,7 +614,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
 
           setIsSettingsOpen(false);
           requestFullScreenSafe();
-          if (wasPlaying) startGame();
+          if (wasPlaying) {
+            setGameStarted(false);
+            setBubbles([]);
+            setPoppingIds(new Set());
+            setWrongIds(new Set());
+          }
         }}
         patientName={patientName}
         letterSize={letterSize}
@@ -622,7 +639,7 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
         numberRangeTo={numberRangeTo}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
-          <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
+          <div className="grid grid-cols-4 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>
               <div className="text-xs text-gray-400">Reaction</div>
               <div className="font-bold text-white text-base">{avgReactionMs}ms</div>
@@ -632,8 +649,12 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
               <div className="font-bold text-white text-base">{durationSec}s</div>
             </div>
             <div>
-              <div className="text-xs text-gray-400">Clicks</div>
-              <div className="font-bold text-white text-base">{clicks}</div>
+              <div className="text-xs text-gray-400">Wrong</div>
+              <div className="font-bold text-white text-base">{wrongCount}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400">Misses</div>
+              <div className="font-bold text-white text-base">{missCount}</div>
             </div>
           </div>
         }
@@ -649,7 +670,10 @@ export function SortingGame({ variant = 'uppercase', onExit }: SortingGameProps)
           }}
           onReplay={() => {
             setIsResultsOpen(false);
-            startGame();
+            setGameStarted(false);
+            setBubbles([]);
+            setPoppingIds(new Set());
+            setWrongIds(new Set());
           }}
           data={resultsData}
         />

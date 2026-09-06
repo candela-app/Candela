@@ -71,6 +71,7 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
 
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
@@ -289,6 +290,7 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
       setWrongIds(new Set());
       setCorrectCount(0);
       setWrongCount(0);
+      setMissCount(0);
       setReactionTimes([]);
       setDurationSec(0);
       setIsResultsOpen(false);
@@ -364,6 +366,7 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
     if (!gameStarted || isResultsOpen) return;
     void hapticMiss();
     statsRef.current.misses += 1;
+    setMissCount(statsRef.current.misses);
   }, [gameStarted, isResultsOpen]);
 
   return (
@@ -386,8 +389,9 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="number_search"
           title="Crowded Search"
-          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps."
+          hint="Find and tap every digit hidden among mixed letters. Correct digits whoosh away — letters are wrong taps, empty space is a miss."
           onStart={startGame}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExit={() => requestExit()}
@@ -463,6 +467,7 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
           <Text style={{ color: '#94A3B8', fontSize: fs(12), fontWeight: '600', flex: 1, paddingRight: s(12) }}>
             {remainingDigits} digit{remainingDigits === 1 ? '' : 's'} left · {correctCount} found
             {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+            {missCount > 0 ? ` · ${missCount} miss${missCount === 1 ? '' : 'es'}` : ''}
           </Text>
           <View
             style={{
@@ -536,6 +541,7 @@ export function NumberSearchGame({ onExit }: { onExit?: () => void }) {
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="number_search"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {

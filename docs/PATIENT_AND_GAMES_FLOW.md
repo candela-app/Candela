@@ -1,5 +1,7 @@
 # Patient Experience & Vision Therapy Modules
 
+Docs index: [README.md](./README.md). Scoring, persist rules, and charts: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
+
 ## 1. Patient Journey
 
 ```mermaid
@@ -41,4 +43,8 @@ Every game module provides a standardized **Clinical Settings Modal** allowing c
 - **Stimulus Speed**: Slow, Normal, Fast, Progressive Acceleration.
 - **Target Size & Contrast**: High contrast, Low contrast, Dynamic chromatic scales.
 - **Audio & Haptic Feedback**: Positive reinforcement chime, error cue, vibration triggers.
-- **Session Results Modal**: Immediate post-session metrics summarizing hits, misses, latency, and visual field accuracy.
+- **Session Results Modal**: Immediate post-session metrics (accuracy, wrong taps, misses, timeouts, reaction time, Efficiency) after a **finished** play. Quit / Leave does not save.
+
+Dashboard and doctor charts plot **date** (same-day plays pooled). Filter one module. Hover/tap a dot for that day’s session numbers.
+
+Full taxonomy, formulas, persist rules, and intended visit IDs: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

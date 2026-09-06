@@ -214,6 +214,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       ) : null}
       {!started && !isSettingsOpen && !isMenuOpen ? (
         <ClickToStartOverlay
+          accentModuleId="computer_vision"
           title="Gaze Hold"
           hint={
             !lookReady && !lookError
@@ -241,6 +242,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
       <ClinicalSettingsModal
+        accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         showLetterSizeControl={false}

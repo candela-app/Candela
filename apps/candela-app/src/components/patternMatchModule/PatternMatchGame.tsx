@@ -105,6 +105,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   const [clicks, setClicks] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
@@ -117,6 +118,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
     clicks: 0,
     correct: 0,
     wrong: 0,
+    misses: 0,
     reactions: [] as number[],
     matchesConfigured: 0,
     targetCode: '',
@@ -226,6 +228,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         ...buildSessionMetrics({
           correct: stats.correct,
           wrongTaps: stats.wrong,
+          misses: stats.misses,
           timeouts: endedBy === 'timeout' ? matchesRemaining : 0,
           reactionMs: stats.reactions,
         }),
@@ -328,6 +331,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
           clicks: 0,
           correct: 0,
           wrong: 0,
+          misses: 0,
           reactions: [],
           matchesConfigured: matchTotal,
           targetCode: code,
@@ -336,6 +340,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         setClicks(0);
         setCorrectCount(0);
         setWrongCount(0);
+        setMissCount(0);
         setReactionTimes([]);
         setDurationSec(0);
         const now = performance.now();
@@ -505,6 +510,10 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
   const handleBackgroundClick = useCallback(() => {
     if (!gameStarted || phase !== 'search' || isResultsOpen) return;
     playMissPressSoundAndHaptic();
+    statsRef.current.clicks += 1;
+    statsRef.current.misses += 1;
+    setClicks(statsRef.current.clicks);
+    setMissCount(statsRef.current.misses);
   }, [gameStarted, phase, isResultsOpen]);
 
   const avgReactionMs =
@@ -520,6 +529,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="pattern_match"
           title={levelTitle}
           hint={levelHint}
           onStart={startGame}
@@ -577,7 +587,8 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
             <p className={styles.hudSub}>
               Round {currentRound}/{roundsPerSession} · {remainingMatches} match
               {remainingMatches === 1 ? '' : 'es'} left · {correctCount} found
-              {wrongCount > 0 ? ` · ${wrongCount} misses` : ''}
+              {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+              {missCount > 0 ? ` · ${missCount} miss${missCount === 1 ? '' : 'es'}` : ''}
             </p>
           </div>
           <div className={styles.hudRight}>
@@ -655,6 +666,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="pattern_match"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(newSettings) => {
@@ -684,7 +696,7 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
         sampleSymbol={stimulusMode === 'compound' ? 'A3B' : '331'}
         sessionLocked={gameStarted && !isResultsOpen}
         extraStats={
-          <div className="grid grid-cols-3 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
+          <div className="grid grid-cols-4 text-center bg-[#282828] p-3 rounded-xl gap-2 border border-gray-800">
             <div>
               <div className="text-xs text-gray-400">Reaction</div>
               <div className="font-bold text-white text-base">{avgReactionMs}ms</div>
@@ -694,8 +706,12 @@ export function PatternMatchGame({ onExit, levelId = 'standard' }: PatternMatchG
               <div className="font-bold text-white text-base">{durationSec}s</div>
             </div>
             <div>
-              <div className="text-xs text-gray-400">Clicks</div>
-              <div className="font-bold text-white text-base">{clicks}</div>
+              <div className="text-xs text-gray-400">Wrong</div>
+              <div className="font-bold text-white text-base">{wrongCount}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400">Misses</div>
+              <div className="font-bold text-white text-base">{missCount}</div>
             </div>
           </div>
         }

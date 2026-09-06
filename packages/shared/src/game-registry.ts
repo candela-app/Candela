@@ -102,6 +102,27 @@ export const GAME_CATALOG: Record<TherapyModuleId, GameRegistryEntry> = {
   },
 };
 
+/** Primary CTA fill (`bar`) and label ink — matches dashboard module chips. */
+export const MODULE_CTA: Record<TherapyModuleId, { bar: string; ink: string }> = {
+  rotatory: { bar: '#3B82F6', ink: '#FFFFFF' },
+  sorting: { bar: '#8B5CF6', ink: '#FFFFFF' },
+  bee_tracing: { bar: '#F59E0B', ink: '#0F172A' },
+  pursuit: { bar: '#22D3EE', ink: '#0F172A' },
+  mobile_target: { bar: '#34D399', ink: '#052e1c' },
+  geoboard: { bar: '#14B8A6', ink: '#0F172A' },
+  peripheral_view: { bar: '#818CF8', ink: '#0F172A' },
+  number_search: { bar: '#F59E0B', ink: '#0F172A' },
+  pattern_match: { bar: '#FB7185', ink: '#0F172A' },
+  location_memory: { bar: '#FBBF24', ink: '#0F172A' },
+  direction_sense: { bar: '#38BDF8', ink: '#0F172A' },
+  computer_vision: { bar: '#22D3EE', ink: '#0F172A' },
+  familiar_faces: { bar: '#FB7185', ink: '#0F172A' },
+};
+
+export function moduleCta(id?: TherapyModuleId | null): { bar: string; ink: string } {
+  return (id && MODULE_CTA[id]) || MODULE_CTA.rotatory;
+}
+
 export const ALL_MODULE_IDS: TherapyModuleId[] = Object.keys(GAME_CATALOG) as TherapyModuleId[];
 
 export function getGameCatalogEntry(id: string): GameRegistryEntry | undefined {

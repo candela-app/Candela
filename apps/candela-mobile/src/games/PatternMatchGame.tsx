@@ -33,7 +33,7 @@ import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon } from '../components/icons';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { useLayout } from '../lib/layout';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 
@@ -90,6 +90,7 @@ export function PatternMatchGame({
   const [timeLeft, setTimeLeft] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [targetShownAt, setTargetShownAt] = useState<number | null>(null);
   const [durationSec, setDurationSec] = useState(0);
@@ -101,6 +102,7 @@ export function PatternMatchGame({
     clicks: 0,
     correct: 0,
     wrong: 0,
+    misses: 0,
     reactions: [] as number[],
     matchesConfigured: 0,
     targetCode: '',
@@ -167,6 +169,7 @@ export function PatternMatchGame({
         ...buildSessionMetrics({
           correct: stats.correct,
           wrongTaps: stats.wrong,
+          misses: stats.misses,
           timeouts: endedBy === 'timeout' ? Math.max(0, stats.matchesConfigured - stats.correct) : 0,
           reactionMs: stats.reactions,
         }),
@@ -211,6 +214,7 @@ export function PatternMatchGame({
           clicks: 0,
           correct: 0,
           wrong: 0,
+          misses: 0,
           reactions: [],
           matchesConfigured: matchTotal,
           targetCode: code,
@@ -218,6 +222,7 @@ export function PatternMatchGame({
         };
         setCorrectCount(0);
         setWrongCount(0);
+        setMissCount(0);
         setDurationSec(0);
         const now = Date.now();
         setStartTime(now);
@@ -357,6 +362,14 @@ export function PatternMatchGame({
     [gameStarted, phase, isResultsOpen, poppingIds, targetShownAt, onBoardCleared],
   );
 
+  const handleBackgroundPress = useCallback(() => {
+    if (!gameStarted || phase !== 'search' || isResultsOpen) return;
+    void hapticMiss();
+    statsRef.current.clicks += 1;
+    statsRef.current.misses += 1;
+    setMissCount(statsRef.current.misses);
+  }, [gameStarted, phase, isResultsOpen]);
+
   const commitSettings = (settings: AppliedClinicalSettings) => {
     const nextLength = settings.patternMatchCodeLength ?? codeLength;
     const nextFlash = settings.patternMatchFlashMs ?? flashMs;
@@ -414,6 +427,7 @@ export function PatternMatchGame({
 
       {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
+          accentModuleId="pattern_match"
           title={levelTitle}
           hint={levelHint}
           onStart={startGame}
@@ -443,7 +457,7 @@ export function PatternMatchGame({
         ) : null}
 
         {phase === 'search' ? (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
+          <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={handleBackgroundPress}>
             {showHoldCode ? (
               <Text
                 style={{
@@ -465,7 +479,10 @@ export function PatternMatchGame({
                 return (
                   <Pressable
                     key={cell.id}
-                    onPress={() => onCellPress(cell)}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      onCellPress(cell);
+                    }}
                     style={{
                       width: `${100 / 3 - 2}%` as unknown as number,
                       minWidth: (width - s(48)) / 3 - 8,
@@ -493,7 +510,7 @@ export function PatternMatchGame({
                 );
               })}
             </View>
-          </View>
+          </Pressable>
         ) : null}
       </View>
 
@@ -513,6 +530,7 @@ export function PatternMatchGame({
           <Text style={{ color: 'rgba(226,232,240,0.8)', fontWeight: '600', fontSize: fs(12) }}>
             Round {currentRound}/{roundsPerSession} · {remainingMatches} left · {correctCount} found
             {wrongCount > 0 ? ` · ${wrongCount} wrong` : ''}
+            {missCount > 0 ? ` · ${missCount} miss${missCount === 1 ? '' : 'es'}` : ''}
           </Text>
           <Text style={{ color: '#fb7185', fontWeight: '800', fontSize: fs(12) }}>
             {timeLimitSec > 0 ? `${timeLeft}s` : `${durationSec}s`}
@@ -562,6 +580,7 @@ export function PatternMatchGame({
         onClose={closeHowToPlay}
       />
       <ClinicalSettingsModal
+        accentModuleId="pattern_match"
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onApply={(settings) => {
