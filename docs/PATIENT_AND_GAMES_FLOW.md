@@ -45,6 +45,6 @@ Every game module provides a standardized **Clinical Settings Modal** allowing c
 - **Audio & Haptic Feedback**: Positive reinforcement chime, error cue, vibration triggers.
 - **Session Results Modal**: Immediate post-session metrics (accuracy, wrong taps, misses, timeouts, reaction time, Efficiency) after a **finished** play. Quit / Leave does not save.
 
-Dashboard and doctor charts plot **date** (same-day plays pooled). Filter one module. Hover/tap a dot for that day’s session numbers.
+Dashboard and doctor charts plot **date** (same-day plays pooled). Filter one module, then optionally one **level** (or All levels for the whole module). Hover/tap a dot for that day’s session numbers.
 
 Full taxonomy, formulas, persist rules, and intended visit IDs: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

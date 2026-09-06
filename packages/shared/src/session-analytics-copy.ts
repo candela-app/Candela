@@ -28,12 +28,12 @@ export type AnalyticsGraphGuide = {
 
 export const ANALYTICS_DOTS_GUIDE = {
   title: 'The dots',
-  body: 'One date per dot. Same-day games stay as separate rows in the database; the plot averages them (or uses the best session if you pick Best of day). Hover or tap a dot to see every Session # that day. Do not treat two dots as a confident “getting better” line.',
+  body: 'The chart opens on the last 7 calendar days. Use − to zoom out to a month, then a year (one dot per month). Use + to zoom back in. Scroll sideways for older periods. Days or months with no play have no dot.',
 };
 
 export const ANALYTICS_SESSION_GUIDE = {
   title: 'Session #',
-  body: 'Sequential for this patient and does not reset if they change doctor. Pick one module so the line compares like with like. Mixing games or devices on one line is noisy.',
+  body: 'Sequential for this patient and does not reset if they change doctor. Pick one module so the line compares like with like. Optionally pick a level; leave Level on All levels for the whole module. Mixing games or devices on one line is noisy.',
 };
 
 export const ANALYTICS_RATES_NOTE =

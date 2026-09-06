@@ -72,6 +72,6 @@ On a patient’s page, charts share the same model as the patient dashboard.
 - **Wrong taps** = hit the wrong stimulus. **Misses** = empty space / wheel. **Timeouts** = target expired. Accuracy uses all three in the denominator.
 - Only **finished** plays appear (cleared, timeout, or completed). A quit does not pollute the line.
 - X-axis is **Date**. Same-day plays are pooled into one dot; hover/tap to see each Session #.
-- Pick **one module**. Efficiency (Index of Performance) is the speed–accuracy line when Accuracy and RT disagree.
+- Pick **one module**. Optionally pick a **level**; leave Level on All levels for the whole module. Efficiency (Index of Performance) is the speed–accuracy line when Accuracy and RT disagree.
 
 Full formulas, per-game mapping, and planned daily visit IDs: [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).

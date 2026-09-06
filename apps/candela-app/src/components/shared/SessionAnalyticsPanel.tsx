@@ -9,12 +9,24 @@ import {
   ANALYTICS_METRICS,
   ANALYTICS_RATES_NOTE,
   ANALYTICS_SESSION_GUIDE,
-  ANALYTICS_X_AXIS,
+  ANALYTICS_SCALE_LABEL,
   GAME_CATALOG,
+  MODULE_LEVELS,
+  analyticsVisibleSlots,
   buildGameSessionAnalytics,
-  sampleDailyPlotPoints,
+  dailyHasPlay,
+  dailyLinePath,
+  formatPlotAxisName,
+  formatPlotTick,
+  formatPlotTooltip,
+  levelsForTherapyModule,
+  shouldDrawPlotTick,
+  plotPointsForScale,
+  zoomInScale,
+  zoomOutScale,
   yValueForDaily,
   type AnalyticsMetricId,
+  type AnalyticsTimeScale,
   type DailyAggMode,
   type DailyPlotPoint,
   type StoredGameSession,
@@ -29,14 +41,6 @@ function toStored(row: StoredGameSessionRecord): StoredGameSession {
     levelId: row.levelId ?? null,
     deviceTier: row.deviceTier ?? null,
   };
-}
-
-function formatDay(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  return new Date(Date.UTC(y, (m || 1) - 1, d || 1)).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-  });
 }
 
 const TIP_WIDTH = 220;
@@ -59,35 +63,39 @@ function LineChart({
   metric,
   agg,
   color,
-  sample,
+  scale,
 }: {
   points: DailyPlotPoint[];
   metric: AnalyticsMetricId;
   agg: DailyAggMode;
   color: string;
-  sample?: boolean;
+  scale: AnalyticsTimeScale;
 }) {
-  const width = 640;
   const height = 236;
-  const pad = { l: 58, r: 16, t: 16, b: 48 };
-  const values = points.map((p) => yValueForDaily(p, metric, agg));
+  const pad = { l: 58, r: 16, t: 16, b: 28 };
+  const plotPadL = 10;
+  const viewportInner = 640 - pad.l - pad.r;
+  const visibleSlots = Math.max(2, analyticsVisibleSlots(scale));
+  const slot = viewportInner / (visibleSlots - 1);
+  const innerW = slot * Math.max(visibleSlots - 1, Math.max(1, points.length - 1));
+  const plotW = plotPadL + innerW + pad.r;
+  const played = points.filter(dailyHasPlay);
+  const values = played.map((p) => yValueForDaily(p, metric, agg));
   const max = Math.max(...values, metric === 'accuracy' || metric.includes('Rate') ? 100 : 0.01);
   const min = 0;
-  const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
-  const x = (i: number) => pad.l + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const x = (i: number) => plotPadL + (points.length <= 1 ? innerW / 2 : i * slot);
   const y = (v: number) => pad.t + innerH - ((v - min) / (max - min || 1)) * innerH;
-  const path = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(yValueForDaily(p, metric, agg)).toFixed(1)}`)
-    .join(' ');
+  const path = dailyLinePath(points, x, y, metric, agg);
   const [hover, setHover] = useState<number | null>(null);
   const [tipBox, setTipBox] = useState<{ left: number; top: number; placeBelow: boolean } | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const touchOpenRef = useRef(false);
-  const tip = hover != null ? points[hover] : null;
+  const tip = hover != null && dailyHasPlay(points[hover]) ? points[hover] : null;
   const metricMeta = ANALYTICS_METRICS.find((m) => m.id === metric);
   const unit = metricMeta?.unit ?? '';
   const yAxis = metricMeta?.yAxis ?? metricMeta?.label ?? '';
@@ -101,6 +109,11 @@ function LineChart({
   }, []);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [points.length, plotW]);
+
+  useEffect(() => {
     if (hover == null) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
@@ -112,7 +125,7 @@ function LineChart({
   }, [hover]);
 
   useLayoutEffect(() => {
-    if (hover == null || !svgRef.current) {
+    if (hover == null || !svgRef.current || !dailyHasPlay(points[hover])) {
       setTipBox(null);
       return;
     }
@@ -139,12 +152,12 @@ function LineChart({
       window.removeEventListener('scroll', onMove, true);
       window.removeEventListener('resize', onMove);
     };
-  }, [hover, points, metric, agg]);
+  }, [hover, points, metric, agg, scale]);
 
   if (points.length === 0) {
     return (
       <div className="h-40 rounded-xl bg-gray-50 border border-dashed border-gray-200 flex items-center justify-center">
-        <p className="text-xs font-semibold text-gray-400">No sessions in this range</p>
+        <p className="text-xs font-semibold text-gray-400">No graphs yet</p>
       </div>
     );
   }
@@ -152,34 +165,29 @@ function LineChart({
   const yMid = pad.t + innerH / 2;
 
   const openDot = (i: number, event: { stopPropagation: () => void; pointerType?: string }) => {
+    if (!dailyHasPlay(points[i])) return;
     event.stopPropagation();
     touchOpenRef.current = event.pointerType === 'touch';
     setHover(i);
   };
 
   return (
-    <div
-      ref={chartRef}
-      className="relative w-full min-w-0 overflow-visible"
-      onMouseLeave={() => {
-        if (!touchOpenRef.current) setHover(null);
-      }}
-    >
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full max-w-full h-44 sm:h-52 overflow-visible"
+    <div className="relative w-full min-w-0">
+      <div
+        ref={chartRef}
+        className="relative w-full min-w-0 flex"
+        onMouseLeave={() => {
+          if (!touchOpenRef.current) setHover(null);
+        }}
       >
+      <svg width={pad.l} height={height} className="shrink-0 h-44 sm:h-52" viewBox={`0 0 ${pad.l} ${height}`}>
         {[0, 0.5, 1].map((t) => {
           const v = min + (max - min) * (1 - t);
           const yy = pad.t + innerH * t;
           return (
-            <g key={t}>
-              <line x1={pad.l} x2={width - pad.r} y1={yy} y2={yy} stroke="#E5E7EB" strokeDasharray="4 4" />
-              <text x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize="10" fill="#9CA3AF">
-                {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
-              </text>
-            </g>
+            <text key={t} x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize="10" fill="#9CA3AF">
+              {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
+            </text>
           );
         })}
         <text
@@ -191,60 +199,76 @@ function LineChart({
         >
           {yAxis}
         </text>
-        <path
-          d={path}
-          fill="none"
-          stroke={color}
-          strokeWidth="2.5"
-          strokeDasharray={sample ? '6 4' : undefined}
-        />
-        {points.map((p, i) => {
-          const value = yValueForDaily(p, metric, agg);
-          const px = x(i);
-          const py = y(value);
-          const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
-          const labelBelow = py < pad.t + 14;
-          return (
-          <g key={p.date}>
-            <circle
-              cx={px}
-              cy={py}
-              r={hover === i ? 6 : 4}
-              fill={color}
-            />
-            <text
-              x={px}
-              y={labelBelow ? py + 16 : py - 10}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight="700"
-              fill={color}
-            >
-              {label}
-            </text>
-            <circle
-              cx={px}
-              cy={py}
-              r={22}
-              fill="transparent"
-              className="cursor-pointer"
-              onMouseEnter={() => {
-                if (!touchOpenRef.current) setHover(i);
-              }}
-              onPointerDown={(event) => openDot(i, event)}
-            />
-          </g>
-          );
-        })}
-        {points.map((p, i) => (
-          <text key={`${p.date}-x`} x={x(i)} y={height - 22} textAnchor="middle" fontSize="10" fill="#6B7280">
-            {formatDay(p.date)}
-          </text>
-        ))}
-        <text x={pad.l + innerW / 2} y={height - 6} textAnchor="middle" fontSize="11" fill="#6B7280" fontWeight="600">
-          {ANALYTICS_X_AXIS}
-        </text>
       </svg>
+      <div ref={scrollRef} className="min-w-0 flex-1 overflow-x-auto">
+        <svg
+          ref={svgRef}
+          width={plotW}
+          height={height}
+          viewBox={`0 0 ${plotW} ${height}`}
+          className="h-44 sm:h-52 overflow-visible"
+          style={{ minWidth: '100%' }}
+        >
+          {[0, 0.5, 1].map((t) => {
+            const yy = pad.t + innerH * t;
+            return (
+              <line
+                key={t}
+                x1={0}
+                x2={plotW}
+                y1={yy}
+                y2={yy}
+                stroke="#E5E7EB"
+                strokeDasharray="4 4"
+              />
+            );
+          })}
+          {path ? (
+            <path d={path} fill="none" stroke={color} strokeWidth="2.5" />
+          ) : null}
+          {points.map((p, i) => {
+            if (!dailyHasPlay(p)) return null;
+            const value = yValueForDaily(p, metric, agg);
+            const px = x(i);
+            const py = y(value);
+            const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
+            const labelBelow = py < pad.t + 14;
+            return (
+              <g key={p.date}>
+                <circle cx={px} cy={py} r={hover === i ? 6 : 4} fill={color} />
+                <text
+                  x={px}
+                  y={labelBelow ? py + 16 : py - 10}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill={color}
+                >
+                  {label}
+                </text>
+                <circle
+                  cx={px}
+                  cy={py}
+                  r={22}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={() => {
+                    if (!touchOpenRef.current) setHover(i);
+                  }}
+                  onPointerDown={(event) => openDot(i, event)}
+                />
+              </g>
+            );
+          })}
+          {points.map((p, i) =>
+            shouldDrawPlotTick(p.date, scale, i, points.length) ? (
+              <text key={`${p.date}-x`} x={x(i)} y={height - 14} textAnchor="middle" fontSize="10" fill="#6B7280">
+                {formatPlotTick(p.date, scale)}
+              </text>
+            ) : null,
+          )}
+        </svg>
+      </div>
       {portalReady && tip
         ? createPortal(
             <div
@@ -262,11 +286,10 @@ function LineChart({
                 <div className="absolute left-1/2 bottom-0 h-2 w-2 -translate-x-1/2 translate-y-1 rotate-45 bg-slate-900" />
               )}
               <p className="font-bold">
-                {formatDay(tip.date)} · {valueLabel}
+                {formatPlotTooltip(tip.date, scale)} · {valueLabel}
               </p>
               <p className="text-slate-300 mt-0.5">
                 {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
-                {sample ? ' · sample' : ''}
               </p>
               {tip.sessions.map((s) => (
                 <p key={s.sessionNumber} className="text-slate-300 mt-0.5">
@@ -277,11 +300,18 @@ function LineChart({
             document.body,
           )
         : null}
+      </div>
+      <p
+        className="w-full text-center text-[11px] font-semibold text-gray-500"
+        style={{ paddingLeft: pad.l }}
+      >
+        {formatPlotAxisName(points, scale)}
+      </p>
     </div>
   );
 }
 
-function HowToReadCard({ card, gameId }: { card: string; gameId: string }) {
+function HowToReadCard({ card, gameId, levelId }: { card: string; gameId: string; levelId: string }) {
   return (
     <div className={`rounded-2xl border ${card} p-4 text-sm text-gray-600 space-y-5 min-w-0 overflow-hidden`}>
       <p className="font-bold text-gray-900 text-base">How to read this</p>
@@ -322,8 +352,9 @@ function HowToReadCard({ card, gameId }: { card: string; gameId: string }) {
       <p className="text-xs text-gray-500">{ANALYTICS_RATES_NOTE}</p>
       {gameId ? (
         <p className="text-xs text-gray-500">
-          Filter: {GAME_CATALOG[gameId as TherapyModuleId]?.name}. Compare the same module; do not mix devices without
-          noting device tier.
+          Filter: {GAME_CATALOG[gameId as TherapyModuleId]?.name}
+          {levelId ? ` · ${MODULE_LEVELS[gameId as TherapyModuleId]?.find((l) => l.id === levelId)?.name ?? levelId}` : ' · all levels'}.
+          Compare the same module; do not mix devices without noting device tier.
         </p>
       ) : (
         <p className="text-xs text-gray-500">Pick a module to compare like-with-like. Mixing games on one line is noisy.</p>
@@ -341,9 +372,11 @@ export function SessionAnalyticsPanel({
   variant?: 'light' | 'shell';
 }) {
   const [gameId, setGameId] = useState<string>('');
+  const [levelId, setLevelId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [agg, setAgg] = useState<DailyAggMode>('pooled');
+  const [scale, setScale] = useState<AnalyticsTimeScale>('week');
   const [rows, setRows] = useState<StoredGameSessionRecord[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -353,6 +386,7 @@ export function SessionAnalyticsPanel({
     setLoading(true);
     const params = {
       gameId: gameId || undefined,
+      levelId: gameId && levelId ? levelId : undefined,
       from: from || undefined,
       to: to || undefined,
     };
@@ -378,12 +412,9 @@ export function SessionAnalyticsPanel({
     return () => {
       cancelled = true;
     };
-  }, [patientId, gameId, from, to]);
+  }, [patientId, gameId, levelId, from, to]);
 
-  const analytics = useMemo(
-    () => buildGameSessionAnalytics(rows.map(toStored), { maxDates: 10 }),
-    [rows],
-  );
+  const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
   const lastPlayed = analytics.totals.lastPlayedAt
     ? new Date(analytics.totals.lastPlayedAt).toLocaleDateString('en-GB', {
         day: '2-digit',
@@ -391,10 +422,14 @@ export function SessionAnalyticsPanel({
         year: 'numeric',
       })
     : '—';
-  const isSample = !loading && analytics.daily.length === 0;
+  const hasPlays = analytics.totals.sessionCount > 0;
   const plotPoints = useMemo(
-    () => (isSample ? sampleDailyPlotPoints() : analytics.daily),
-    [isSample, analytics.daily],
+    () =>
+      plotPointsForScale(rows.map(toStored), analytics.daily, scale, {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    [rows, analytics.daily, scale, from, to],
   );
 
   const card = variant === 'shell' ? 'bg-white border-shell-border' : 'bg-white border-gray-100';
@@ -422,18 +457,37 @@ export function SessionAnalyticsPanel({
         </div>
       </div>
 
-      <div className={`rounded-2xl border ${card} p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3`}>
+      <div className={`rounded-2xl border ${card} p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3`}>
         <label className="text-xs font-semibold text-gray-600 min-w-0">
           Module
           <select
             value={gameId}
-            onChange={(e) => setGameId(e.target.value)}
+            onChange={(e) => {
+              setGameId(e.target.value);
+              setLevelId('');
+            }}
             className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white"
           >
             <option value="">All modules</option>
             {ALL_MODULE_IDS.map((id) => (
               <option key={id} value={id}>
                 {GAME_CATALOG[id].name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-gray-600 min-w-0">
+          Level
+          <select
+            value={levelId}
+            onChange={(e) => setLevelId(e.target.value)}
+            disabled={!gameId}
+            className="mt-1 block w-full min-w-0 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <option value="">{gameId ? 'All levels' : 'Pick a module first'}</option>
+            {levelsForTherapyModule(gameId).map((level) => (
+              <option key={level.id} value={level.id}>
+                {level.name}
               </option>
             ))}
           </select>
@@ -472,30 +526,59 @@ export function SessionAnalyticsPanel({
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {loading ? <p className="text-sm text-gray-500">Loading sessions…</p> : null}
 
-      <div className="space-y-4">
-        {ANALYTICS_METRICS.map((item) => (
-          <div key={item.id} className={`rounded-2xl border ${card} p-4 min-w-0 overflow-visible`}>
-            <div className="mb-3 flex items-start justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <p className="text-sm font-bold break-words" style={{ color: item.color }}>
-                  {item.label}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">{item.direction}</p>
-              </div>
-              {isSample ? (
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 shrink-0">
-                  Sample
-                </p>
-              ) : analytics.preliminary ? (
-                <p className="text-[10px] text-gray-400 shrink-0">Preliminary</p>
-              ) : null}
+      {!loading && !hasPlays ? (
+        <div className={`rounded-2xl border border-dashed ${card} p-10 text-center`}>
+          <p className="text-sm font-bold text-gray-700">No graphs yet</p>
+          <p className="text-xs text-gray-500 mt-1">Finish a play to see a weekly plot. Use − / + to zoom to month or year.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className={`rounded-2xl border ${card} p-3 flex items-center justify-between gap-3`}>
+            <p className="text-xs font-semibold text-gray-600">Time scale</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Zoom out"
+                disabled={scale === 'year'}
+                onClick={() => setScale((prev) => zoomOutScale(prev))}
+                className="h-8 w-8 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                −
+              </button>
+              <span className="min-w-[4.5rem] text-center text-sm font-bold text-gray-900">
+                {ANALYTICS_SCALE_LABEL[scale]}
+              </span>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                disabled={scale === 'week'}
+                onClick={() => setScale((prev) => zoomInScale(prev))}
+                className="h-8 w-8 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                +
+              </button>
             </div>
-            <LineChart points={plotPoints} metric={item.id} agg={agg} color={item.color} sample={isSample} />
           </div>
-        ))}
-      </div>
+          {ANALYTICS_METRICS.map((item) => (
+            <div key={item.id} className={`rounded-2xl border ${card} p-4 min-w-0 overflow-visible`}>
+              <div className="mb-3 flex items-start justify-between gap-3 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold break-words" style={{ color: item.color }}>
+                    {item.label}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{item.direction}</p>
+                </div>
+                {analytics.preliminary ? (
+                  <p className="text-[10px] text-gray-400 shrink-0">Preliminary</p>
+                ) : null}
+              </div>
+              <LineChart points={plotPoints} metric={item.id} agg={agg} color={item.color} scale={scale} />
+            </div>
+          ))}
+        </div>
+      )}
 
-      <HowToReadCard card={card} gameId={gameId} />
+      <HowToReadCard card={card} gameId={gameId} levelId={levelId} />
     </div>
   );
 }

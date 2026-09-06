@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-svg';
@@ -9,12 +9,24 @@ import {
   ANALYTICS_METRICS,
   ANALYTICS_RATES_NOTE,
   ANALYTICS_SESSION_GUIDE,
-  ANALYTICS_X_AXIS,
+  ANALYTICS_SCALE_LABEL,
   GAME_CATALOG,
+  MODULE_LEVELS,
+  analyticsVisibleSlots,
   buildGameSessionAnalytics,
-  sampleDailyPlotPoints,
+  dailyHasPlay,
+  dailyPolylineSegments,
+  formatPlotAxisName,
+  formatPlotTick,
+  formatPlotTooltip,
+  levelsForTherapyModule,
+  shouldDrawPlotTick,
+  plotPointsForScale,
+  zoomInScale,
+  zoomOutScale,
   yValueForDaily,
   type AnalyticsMetricId,
+  type AnalyticsTimeScale,
   type DailyAggMode,
   type DailyPlotPoint,
   type StoredGameSession,
@@ -54,14 +66,6 @@ function toStored(row: StoredGameSessionRecord): StoredGameSession {
   };
 }
 
-function formatDay(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  return new Date(Date.UTC(y, (m || 1) - 1, d || 1)).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-  });
-}
-
 function LineChart({
   points,
   metric,
@@ -70,7 +74,7 @@ function LineChart({
   height,
   fs,
   color,
-  sample,
+  scale,
 }: {
   points: DailyPlotPoint[];
   metric: AnalyticsMetricId;
@@ -79,19 +83,26 @@ function LineChart({
   height: number;
   fs: (n: number) => number;
   color: string;
-  sample?: boolean;
+  scale: AnalyticsTimeScale;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
   const [selected, setSelected] = useState<number | null>(null);
-  const pad = { l: 52, r: 12, t: 16, b: 44 };
-  const values = points.map((p) => yValueForDaily(p, metric, agg));
+  const pad = { l: 52, r: 12, t: 16, b: 28 };
+  const plotPadL = 10;
+  const viewportInner = Math.max(1, width - pad.l - pad.r);
+  const visibleSlots = Math.max(2, analyticsVisibleSlots(scale));
+  const slot = viewportInner / (visibleSlots - 1);
+  const innerW = slot * Math.max(visibleSlots - 1, Math.max(1, points.length - 1));
+  const plotW = plotPadL + innerW + pad.r;
+  const played = points.filter(dailyHasPlay);
+  const values = played.map((p) => yValueForDaily(p, metric, agg));
   const max = Math.max(...values, metric === 'accuracy' || metric.includes('Rate') ? 100 : 0.01);
   const min = 0;
-  const innerW = Math.max(1, width - pad.l - pad.r);
   const innerH = Math.max(1, height - pad.t - pad.b);
-  const x = (i: number) => pad.l + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const x = (i: number) => plotPadL + (points.length <= 1 ? innerW / 2 : i * slot);
   const y = (v: number) => pad.t + innerH - ((v - min) / (max - min || 1)) * innerH;
-  const poly = points.map((p, i) => `${x(i)},${y(yValueForDaily(p, metric, agg))}`).join(' ');
-  const tip = selected != null ? points[selected] : null;
+  const segments = dailyPolylineSegments(points, x, y, metric, agg);
+  const tip = selected != null && dailyHasPlay(points[selected]) ? points[selected] : null;
   const metricMeta = ANALYTICS_METRICS.find((m) => m.id === metric);
   const unit = metricMeta?.unit ?? '';
   const yAxis = metricMeta?.yAxis ?? metricMeta?.label ?? '';
@@ -99,7 +110,8 @@ function LineChart({
   const seriesKey = points.map((p) => p.date).join('|');
   useEffect(() => {
     setSelected(null);
-  }, [metric, agg, seriesKey]);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: false }));
+  }, [metric, agg, seriesKey, plotW]);
 
   if (points.length === 0) {
     return (
@@ -115,14 +127,12 @@ function LineChart({
           justifyContent: 'center',
         }}
       >
-        <Text style={{ fontSize: fs(12), fontWeight: '600', color: '#9CA3AF' }}>No sessions in this range</Text>
+        <Text style={{ fontSize: fs(12), fontWeight: '600', color: '#9CA3AF' }}>No graphs yet</Text>
       </View>
     );
   }
 
   const stroke = color;
-  const cx = selected != null ? x(selected) : 0;
-  const cy = selected != null ? y(yValueForDaily(points[selected], metric, agg)) : 0;
   const valueLabel =
     tip != null
       ? `${yValueForDaily(tip, metric, agg).toFixed(metric === 'reaction' ? 2 : 1)}${unit}`
@@ -132,24 +142,15 @@ function LineChart({
 
   return (
     <View style={{ position: 'relative' }}>
-      <Svg width={width} height={height}>
+      <View style={{ flexDirection: 'row' }}>
+      <Svg width={pad.l} height={height}>
         {[0, 0.5, 1].map((t) => {
           const v = min + (max - min) * (1 - t);
           const yy = pad.t + innerH * t;
           return (
-            <G key={t}>
-              <Line
-                x1={pad.l}
-                x2={width - pad.r}
-                y1={yy}
-                y2={yy}
-                stroke="#E5E7EB"
-                strokeDasharray="4 4"
-              />
-              <SvgText x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize={10} fill="#9CA3AF">
-                {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
-              </SvgText>
-            </G>
+            <SvgText key={t} x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize={10} fill="#9CA3AF">
+              {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
+            </SvgText>
           );
         })}
         <SvgText
@@ -164,57 +165,83 @@ function LineChart({
         >
           {yAxis}
         </SvgText>
-        <Polyline points={poly} fill="none" stroke={stroke} strokeWidth={2.5} strokeDasharray={sample ? '6 4' : undefined} />
-        {points.map((p, i) => {
-          const value = yValueForDaily(p, metric, agg);
-          const px = x(i);
-          const py = y(value);
-          const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
-          const labelBelow = py < pad.t + 14;
-          return (
-          <G key={p.date}>
-            <Circle
-              cx={px}
-              cy={py}
-              r={selected === i ? 7 : 5}
-              fill={stroke}
-            />
-            <SvgText
-              x={px}
-              y={labelBelow ? py + 16 : py - 10}
-              textAnchor="middle"
-              fontSize={10}
-              fontWeight="700"
-              fill={stroke}
-            >
-              {label}
-            </SvgText>
-            <Circle
-              cx={px}
-              cy={py}
-              r={18}
-              fill="transparent"
-              onPress={() => setSelected((cur) => (cur === i ? null : i))}
-            />
-          </G>
-          );
-        })}
-        {points.map((p, i) => (
-          <SvgText key={`${p.date}-x`} x={x(i)} y={height - 22} textAnchor="middle" fontSize={10} fill="#6B7280">
-            {formatDay(p.date)}
-          </SvgText>
-        ))}
-        <SvgText
-          x={pad.l + innerW / 2}
-          y={height - 6}
-          textAnchor="middle"
-          fontSize={10}
-          fill="#6B7280"
-          fontWeight="600"
-        >
-          {ANALYTICS_X_AXIS}
-        </SvgText>
       </Svg>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator
+        style={{ flex: 1 }}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
+        <Svg width={Math.max(plotW, viewportInner)} height={height}>
+          {[0, 0.5, 1].map((t) => {
+            const yy = pad.t + innerH * t;
+            return (
+              <Line
+                key={t}
+                x1={0}
+                x2={plotW}
+                y1={yy}
+                y2={yy}
+                stroke="#E5E7EB"
+                strokeDasharray="4 4"
+              />
+            );
+          })}
+          {segments.map((poly, i) => (
+            <Polyline key={i} points={poly} fill="none" stroke={stroke} strokeWidth={2.5} />
+          ))}
+          {points.map((p, i) => {
+            if (!dailyHasPlay(p)) return null;
+            const value = yValueForDaily(p, metric, agg);
+            const px = x(i);
+            const py = y(value);
+            const label = `${value.toFixed(metric === 'reaction' ? 2 : 1)}${unit}`;
+            const labelBelow = py < pad.t + 14;
+            return (
+              <G key={p.date}>
+                <Circle cx={px} cy={py} r={selected === i ? 7 : 5} fill={stroke} />
+                <SvgText
+                  x={px}
+                  y={labelBelow ? py + 16 : py - 10}
+                  textAnchor="middle"
+                  fontSize={10}
+                  fontWeight="700"
+                  fill={stroke}
+                >
+                  {label}
+                </SvgText>
+                <Circle
+                  cx={px}
+                  cy={py}
+                  r={18}
+                  fill="transparent"
+                  onPress={() => setSelected((cur) => (cur === i ? null : i))}
+                />
+              </G>
+            );
+          })}
+          {points.map((p, i) =>
+            shouldDrawPlotTick(p.date, scale, i, points.length) ? (
+              <SvgText key={`${p.date}-x`} x={x(i)} y={height - 14} textAnchor="middle" fontSize={10} fill="#6B7280">
+                {formatPlotTick(p.date, scale)}
+              </SvgText>
+            ) : null,
+          )}
+        </Svg>
+      </ScrollView>
+      </View>
+      <Text
+        style={{
+          textAlign: 'center',
+          paddingLeft: pad.l,
+          fontSize: fs(11),
+          fontWeight: '600',
+          color: '#6B7280',
+        }}
+      >
+        {formatPlotAxisName(points, scale)}
+      </Text>
       {tip ? (
         <Modal visible transparent animationType="none" onRequestClose={() => setSelected(null)}>
           <Pressable
@@ -233,8 +260,8 @@ function LineChart({
           style={{
             position: 'absolute',
             zIndex: 2,
-            left: Math.min(Math.max(cx - 90, 4), Math.max(4, width - 184)),
-            top: Math.max(cy - 88, 4),
+            left: pad.l,
+            top: 4,
             width: 180,
             backgroundColor: '#0F172A',
             borderRadius: 10,
@@ -244,13 +271,12 @@ function LineChart({
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(11), flex: 1, marginRight: 8 }}>
-              {formatDay(tip.date)} · {valueLabel}
+              {formatPlotTooltip(tip.date, scale)} · {valueLabel}
             </Text>
             <Text style={{ color: '#94A3B8', fontWeight: '800', fontSize: fs(14), lineHeight: fs(16) }}>×</Text>
           </View>
           <Text style={{ color: '#CBD5E1', fontSize: fs(10), marginTop: 2 }}>
             {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
-            {sample ? ' · sample' : ''}
           </Text>
           {tip.sessions.map((s) => (
             <Text key={s.sessionNumber} style={{ color: '#CBD5E1', fontSize: fs(10), marginTop: 2 }}>
@@ -270,6 +296,7 @@ function DropdownField({
   onChange,
   fs,
   s,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -277,6 +304,7 @@ function DropdownField({
   onChange: (next: string) => void;
   fs: (n: number) => number;
   s: (n: number) => number;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((item) => item.value === value)?.label ?? options[0]?.label ?? '';
@@ -284,7 +312,10 @@ function DropdownField({
     <View>
       <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, marginBottom: s(6) }}>{label}</Text>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          if (!disabled) setOpen(true);
+        }}
+        disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel={label}
         style={{
@@ -293,10 +324,11 @@ function DropdownField({
           borderRadius: s(12),
           paddingHorizontal: s(12),
           paddingVertical: s(10),
-          backgroundColor: colors.white,
+          backgroundColor: disabled ? '#F9FAFB' : colors.white,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          opacity: disabled ? 0.7 : 1,
         }}
       >
         <Text style={{ fontSize: fs(14), fontWeight: '600', color: colors.text, flex: 1, marginRight: s(8) }}>
@@ -526,10 +558,12 @@ function DateField({
 
 function HowToReadGuide({
   gameId,
+  levelId,
   fs,
   s,
 }: {
   gameId: string;
+  levelId: string;
   fs: (n: number) => number;
   s: (n: number) => number;
 }) {
@@ -586,7 +620,11 @@ function HowToReadGuide({
       <Text style={{ fontSize: fs(11), color: '#9CA3AF', lineHeight: fs(16) }}>{ANALYTICS_RATES_NOTE}</Text>
       <Text style={{ fontSize: fs(11), color: '#9CA3AF' }}>
         {gameId
-          ? `Filter: ${GAME_CATALOG[gameId as TherapyModuleId]?.name}. Compare the same module.`
+          ? `Filter: ${GAME_CATALOG[gameId as TherapyModuleId]?.name}${
+              levelId
+                ? ` · ${MODULE_LEVELS[gameId as TherapyModuleId]?.find((l) => l.id === levelId)?.name ?? levelId}`
+                : ' · all levels'
+            }. Compare the same module.`
           : 'Pick a module to compare like-with-like. Mixing games on one line is noisy.'}
       </Text>
     </View>
@@ -602,9 +640,11 @@ export function SessionAnalyticsPanel({
   const { fs, s, width, pad, isTablet } = useLayout();
   const chartWidth = Math.max(280, width - pad * 2 - s(32));
   const [gameId, setGameId] = useState('');
+  const [levelId, setLevelId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [agg, setAgg] = useState<DailyAggMode>('pooled');
+  const [scale, setScale] = useState<AnalyticsTimeScale>('week');
   const [rows, setRows] = useState<StoredGameSessionRecord[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -612,7 +652,12 @@ export function SessionAnalyticsPanel({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const params = { gameId: gameId || undefined, from: from || undefined, to: to || undefined };
+    const params = {
+      gameId: gameId || undefined,
+      levelId: gameId && levelId ? levelId : undefined,
+      from: from || undefined,
+      to: to || undefined,
+    };
     const req = patientId ? listPatientGameSessions(patientId, params) : listMyGameSessions(params);
     req
       .then((list) => {
@@ -633,12 +678,9 @@ export function SessionAnalyticsPanel({
     return () => {
       cancelled = true;
     };
-  }, [patientId, gameId, from, to]);
+  }, [patientId, gameId, levelId, from, to]);
 
-  const analytics = useMemo(
-    () => buildGameSessionAnalytics(rows.map(toStored), { maxDates: 10 }),
-    [rows],
-  );
+  const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
   const lastPlayed = analytics.totals.lastPlayedAt
     ? new Date(analytics.totals.lastPlayedAt).toLocaleDateString('en-GB', {
         day: '2-digit',
@@ -646,10 +688,14 @@ export function SessionAnalyticsPanel({
         year: 'numeric',
       })
     : '—';
-  const isSample = !loading && analytics.daily.length === 0;
+  const hasPlays = analytics.totals.sessionCount > 0;
   const plotPoints = useMemo(
-    () => (isSample ? sampleDailyPlotPoints() : analytics.daily),
-    [isSample, analytics.daily],
+    () =>
+      plotPointsForScale(rows.map(toStored), analytics.daily, scale, {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    [rows, analytics.daily, scale, from, to],
   );
 
   return (
@@ -698,12 +744,27 @@ export function SessionAnalyticsPanel({
         <DropdownField
           label="Module"
           value={gameId}
-          onChange={setGameId}
+          onChange={(next) => {
+            setGameId(next);
+            setLevelId('');
+          }}
           fs={fs}
           s={s}
           options={[
             { value: '', label: 'All modules' },
             ...ALL_MODULE_IDS.map((id) => ({ value: id, label: GAME_CATALOG[id].name })),
+          ]}
+        />
+        <DropdownField
+          label="Level"
+          value={levelId}
+          onChange={setLevelId}
+          disabled={!gameId}
+          fs={fs}
+          s={s}
+          options={[
+            { value: '', label: gameId ? 'All levels' : 'Pick a module first' },
+            ...levelsForTherapyModule(gameId).map((level) => ({ value: level.id, label: level.name })),
           ]}
         />
         <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
@@ -740,6 +801,80 @@ export function SessionAnalyticsPanel({
       {error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null}
       {loading ? <Text style={{ color: colors.muted, fontSize: fs(13) }}>Loading sessions…</Text> : null}
 
+      {!loading && !hasPlays ? (
+        <View
+          style={{
+            backgroundColor: colors.white,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: colors.border,
+            borderRadius: s(16),
+            padding: s(28),
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ fontSize: fs(14), fontWeight: '800', color: colors.text }}>No graphs yet</Text>
+          <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(6), textAlign: 'center' }}>
+            Finish a play to see a weekly plot. Use − / + to zoom to month or year.
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View
+            style={{
+              backgroundColor: colors.white,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: s(16),
+              padding: s(12),
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.muted }}>Time scale</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+              <Pressable
+                onPress={() => setScale((prev) => zoomOutScale(prev))}
+                disabled={scale === 'year'}
+                accessibilityRole="button"
+                accessibilityLabel="Zoom out"
+                style={{
+                  width: s(32),
+                  height: s(32),
+                  borderRadius: s(8),
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: scale === 'year' ? 0.4 : 1,
+                }}
+              >
+                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>−</Text>
+              </Pressable>
+              <Text style={{ minWidth: s(64), textAlign: 'center', fontSize: fs(14), fontWeight: '800', color: colors.text }}>
+                {ANALYTICS_SCALE_LABEL[scale]}
+              </Text>
+              <Pressable
+                onPress={() => setScale((prev) => zoomInScale(prev))}
+                disabled={scale === 'week'}
+                accessibilityRole="button"
+                accessibilityLabel="Zoom in"
+                style={{
+                  width: s(32),
+                  height: s(32),
+                  borderRadius: s(8),
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: scale === 'week' ? 0.4 : 1,
+                }}
+              >
+                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>+</Text>
+              </Pressable>
+            </View>
+          </View>
         {ANALYTICS_METRICS.map((item) => (
           <View
             key={item.id}
@@ -756,9 +891,7 @@ export function SessionAnalyticsPanel({
                 <Text style={{ fontSize: fs(14), fontWeight: '800', color: item.color }}>{item.label}</Text>
                 <Text style={{ fontSize: fs(11), color: colors.muted, marginTop: s(2) }}>{item.direction}</Text>
               </View>
-              {isSample ? (
-                <Text style={{ fontSize: fs(10), fontWeight: '800', color: '#B45309', letterSpacing: 0.6 }}>SAMPLE</Text>
-              ) : analytics.preliminary ? (
+              {analytics.preliminary ? (
                 <Text style={{ fontSize: fs(10), color: colors.muted }}>Preliminary</Text>
               ) : null}
             </View>
@@ -770,12 +903,14 @@ export function SessionAnalyticsPanel({
               height={s(220)}
               fs={fs}
               color={item.color}
-              sample={isSample}
+              scale={scale}
             />
           </View>
         ))}
+        </>
+      )}
 
-      <HowToReadGuide gameId={gameId} fs={fs} s={s} />
+      <HowToReadGuide gameId={gameId} levelId={levelId} fs={fs} s={s} />
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { reactionStatsFromMs } from './game-logic';
-import { GAME_CATALOG, isTherapyModuleId } from './game-registry';
+import { GAME_CATALOG, MODULE_LEVELS, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
 import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
 
@@ -115,6 +115,84 @@ export function inferTherapyModuleId(gameName: string): TherapyModuleId | null {
   return byCatalog ? byCatalog.id : null;
 }
 
+function knownLevelId(gameId: TherapyModuleId, candidate: string | null | undefined): string | null {
+  if (!candidate) return null;
+  const levels = MODULE_LEVELS[gameId] ?? [];
+  if (levels.some((level) => level.id === candidate)) return candidate;
+  const lower = candidate.toLowerCase();
+  return levels.find((level) => level.name.toLowerCase() === lower)?.id ?? null;
+}
+
+function matchLevelFromGameName(gameId: TherapyModuleId, gameName: string): string | null {
+  const n = (gameName || '').toLowerCase();
+  const levels = [...(MODULE_LEVELS[gameId] ?? [])].sort((a, b) => b.id.length - a.id.length);
+  for (const level of levels) {
+    if (n.includes(`(${level.id})`) || n.includes(` ${level.id}`) || n.includes(`-${level.id}`)) {
+      return level.id;
+    }
+    if (n.includes(level.name.toLowerCase())) return level.id;
+  }
+  return null;
+}
+
+/** Map a finished play onto a catalog level id, or null when unknown. */
+export function inferTherapyLevelId(gameId: TherapyModuleId, data: SessionResultData): string | null {
+  const extra = data as SessionResultData & Record<string, unknown>;
+  const fromField = knownLevelId(gameId, typeof extra.levelId === 'string' ? extra.levelId : null);
+  if (fromField) return fromField;
+
+  switch (gameId) {
+    case 'rotatory': {
+      const mode = extra.mode;
+      const variant = extra.alphabetVariant;
+      if (mode === 'colors') return 'colors';
+      if (mode === 'numbers') return 'numbers';
+      if (mode === 'alphabets' && (variant === 'uppercase' || variant === 'lowercase')) return variant;
+      break;
+    }
+    case 'sorting':
+      break;
+    case 'bee_tracing':
+      return knownLevelId(gameId, typeof extra.pathType === 'string' ? extra.pathType : null);
+    case 'pursuit':
+    case 'computer_vision':
+      return knownLevelId(gameId, typeof extra.movementPattern === 'string' ? extra.movementPattern : null);
+    case 'mobile_target': {
+      const mode = extra.gameMode;
+      const variant = extra.alphabetVariant;
+      if (mode === 'colors') return 'colors';
+      if (mode === 'numbers') return 'numbers';
+      if (mode === 'alphabets' && (variant === 'uppercase' || variant === 'lowercase')) return variant;
+      break;
+    }
+    case 'geoboard':
+      if (extra.boardId != null) return knownLevelId(gameId, String(extra.boardId));
+      break;
+    case 'peripheral_view':
+      return knownLevelId(gameId, typeof extra.peripheralField === 'string' ? extra.peripheralField : null);
+    case 'number_search':
+      return 'standard';
+    case 'pattern_match':
+      return extra.stimulusMode === 'compound' ? 'compound' : extra.stimulusMode === 'digits' ? 'standard' : null;
+    case 'location_memory':
+      if (extra.playMode === 'pairs') return 'match';
+      if (typeof extra.activeCellsConfigured === 'number' && extra.activeCellsConfigured <= 5) return 'practice';
+      if (extra.playMode === 'recall') return 'standard';
+      break;
+    case 'direction_sense': {
+      const transform = extra.transformMode;
+      if (transform === 'flip') return 'flip';
+      if (transform === 'straighten' || transform === 'mixed') return 'straighten';
+      if (transform === 'face') return 'face';
+      break;
+    }
+    default:
+      break;
+  }
+
+  return matchLevelFromGameName(gameId, data.gameName);
+}
+
 export function utcDateKey(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
@@ -137,10 +215,11 @@ export function payloadFromSessionResult(
   const gameId = extra?.gameId || inferTherapyModuleId(data.gameName);
   if (!gameId || !isTherapyModuleId(gameId)) return null;
   const clientEventId = data.clientEventId || `${data.recordedAt || data.date}-${data.durationSec}-${data.correct}`;
+  const levelId = extra?.levelId || inferTherapyLevelId(gameId, data);
   return {
     clientEventId,
     gameId,
-    levelId: extra?.levelId || undefined,
+    levelId: levelId || undefined,
     deviceTier: extra?.deviceTier || undefined,
     recordedAt: data.recordedAt || new Date().toISOString(),
     durationSec: Math.max(0, Math.round(Number(data.durationSec) || 0)),
@@ -167,16 +246,31 @@ function attemptsOf(row: StoredGameSession): number {
 }
 
 export function poolSessionsByDate(sessions: StoredGameSession[]): DailyPlotPoint[] {
-  const byDate = new Map<string, StoredGameSession[]>();
+  return poolSessionsByKey(sessions, (row) => utcDateKey(row.recordedAt));
+}
+
+export function utcMonthKey(iso: string): string {
+  return utcDateKey(iso).slice(0, 7);
+}
+
+export function poolSessionsByMonth(sessions: StoredGameSession[]): DailyPlotPoint[] {
+  return poolSessionsByKey(sessions, (row) => utcMonthKey(row.recordedAt));
+}
+
+function poolSessionsByKey(
+  sessions: StoredGameSession[],
+  keyOf: (row: StoredGameSession) => string,
+): DailyPlotPoint[] {
+  const byKey = new Map<string, StoredGameSession[]>();
   for (const row of sessions) {
-    const key = utcDateKey(row.recordedAt);
-    const list = byDate.get(key) || [];
+    const key = keyOf(row);
+    const list = byKey.get(key) || [];
     list.push(row);
-    byDate.set(key, list);
+    byKey.set(key, list);
   }
-  const dates = Array.from(byDate.keys()).sort();
-  return dates.map((date) => {
-    const rows = byDate.get(date) || [];
+  const keys = Array.from(byKey.keys()).sort();
+  return keys.map((date) => {
+    const rows = byKey.get(date) || [];
     const allRt: number[] = [];
     let correct = 0;
     let wrongTaps = 0;
@@ -228,9 +322,264 @@ export function poolSessionsByDate(sessions: StoredGameSession[]): DailyPlotPoin
   });
 }
 
-export function selectDailyWindow(daily: DailyPlotPoint[], maxDates = 10): DailyPlotPoint[] {
-  if (daily.length <= maxDates) return daily;
+export function selectDailyWindow(daily: DailyPlotPoint[], maxDates?: number): DailyPlotPoint[] {
+  if (!maxDates || daily.length <= maxDates) return daily;
   return daily.slice(daily.length - maxDates);
+}
+
+export const ANALYTICS_VISIBLE_DAYS = 7;
+export const ANALYTICS_VISIBLE_MONTH_DAYS = 30;
+export const ANALYTICS_VISIBLE_MONTHS = 12;
+
+export type AnalyticsTimeScale = 'week' | 'month' | 'year';
+
+export const ANALYTICS_SCALE_LABEL: Record<AnalyticsTimeScale, string> = {
+  week: 'Week',
+  month: 'Month',
+  year: 'Year',
+};
+
+export function zoomOutScale(scale: AnalyticsTimeScale): AnalyticsTimeScale {
+  if (scale === 'week') return 'month';
+  return 'year';
+}
+
+export function zoomInScale(scale: AnalyticsTimeScale): AnalyticsTimeScale {
+  if (scale === 'year') return 'month';
+  return 'week';
+}
+
+export function analyticsVisibleSlots(scale: AnalyticsTimeScale): number {
+  if (scale === 'year') return ANALYTICS_VISIBLE_MONTHS;
+  if (scale === 'month') return ANALYTICS_VISIBLE_MONTH_DAYS;
+  return ANALYTICS_VISIBLE_DAYS;
+}
+
+export function shiftUtcDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+export function emptyDailyPlotPoint(date: string): DailyPlotPoint {
+  return {
+    date,
+    pooledAccuracy: 0,
+    pooledAvgReactionSec: 0,
+    pooledMedianReactionSec: 0,
+    pooledEfficiency: 0,
+    wrongTapRate: 0,
+    missRate: 0,
+    timeoutRate: 0,
+    sessionCount: 0,
+    bestAccuracy: 0,
+    bestAvgReactionSec: 0,
+    bestEfficiency: 0,
+    sessions: [],
+  };
+}
+
+/** Fill calendar days so a week viewport can scroll across history. Days with no play stay empty. */
+export function padDailyCalendar(
+  daily: DailyPlotPoint[],
+  options?: { from?: string; to?: string; visibleDays?: number; nowIso?: string },
+): DailyPlotPoint[] {
+  const visible = Math.max(2, options?.visibleDays ?? ANALYTICS_VISIBLE_DAYS);
+  const today = utcDateKey(options?.nowIso ?? new Date().toISOString());
+  const played = daily.map((p) => p.date).filter(Boolean).sort();
+  const defaultStart = shiftUtcDateKey(today, -(visible - 1));
+  let start = options?.from || (played[0] && played[0] < defaultStart ? played[0] : defaultStart);
+  let end = options?.to || today;
+  if (end < start) {
+    const swap = start;
+    start = end;
+    end = swap;
+  }
+  let span = 1;
+  for (let key = start; key < end; key = shiftUtcDateKey(key, 1)) span += 1;
+  if (span < visible) start = shiftUtcDateKey(end, -(visible - 1));
+
+  const byDate = new Map(daily.map((p) => [p.date, p]));
+  const out: DailyPlotPoint[] = [];
+  for (let key = start; key <= end && out.length < 400; key = shiftUtcDateKey(key, 1)) {
+    out.push(byDate.get(key) ?? emptyDailyPlotPoint(key));
+  }
+  return out;
+}
+
+export function shiftUtcMonthKey(monthKey: string, months: number): string {
+  const [y, m] = monthKey.split('-').map(Number);
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1 + months, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+export function padMonthlyCalendar(
+  monthly: DailyPlotPoint[],
+  options?: { from?: string; to?: string; visibleMonths?: number; nowIso?: string },
+): DailyPlotPoint[] {
+  const visible = Math.max(2, options?.visibleMonths ?? ANALYTICS_VISIBLE_MONTHS);
+  const todayMonth = utcMonthKey(options?.nowIso ?? new Date().toISOString());
+  const played = monthly.map((p) => p.date.slice(0, 7)).filter(Boolean).sort();
+  const defaultStart = shiftUtcMonthKey(todayMonth, -(visible - 1));
+  const fromMonth = options?.from ? utcMonthKey(options.from) : '';
+  const toMonth = options?.to ? utcMonthKey(options.to) : '';
+  let start = fromMonth || (played[0] && played[0] < defaultStart ? played[0] : defaultStart);
+  let end = toMonth || todayMonth;
+  if (end < start) {
+    const swap = start;
+    start = end;
+    end = swap;
+  }
+  let span = 1;
+  for (let key = start; key < end; key = shiftUtcMonthKey(key, 1)) span += 1;
+  if (span < visible) start = shiftUtcMonthKey(end, -(visible - 1));
+
+  const byMonth = new Map(monthly.map((p) => [p.date.slice(0, 7), { ...p, date: p.date.slice(0, 7) }]));
+  const out: DailyPlotPoint[] = [];
+  for (let key = start; key <= end && out.length < 240; key = shiftUtcMonthKey(key, 1)) {
+    out.push(byMonth.get(key) ?? emptyDailyPlotPoint(key));
+  }
+  return out;
+}
+
+export function plotPointsForScale(
+  sessions: StoredGameSession[],
+  daily: DailyPlotPoint[],
+  scale: AnalyticsTimeScale,
+  options?: { from?: string; to?: string; nowIso?: string },
+): DailyPlotPoint[] {
+  if (scale === 'year') {
+    return padMonthlyCalendar(poolSessionsByMonth(sessions), {
+      from: options?.from,
+      to: options?.to,
+      nowIso: options?.nowIso,
+    });
+  }
+  return padDailyCalendar(daily, {
+    from: options?.from,
+    to: options?.to,
+    nowIso: options?.nowIso,
+    visibleDays: analyticsVisibleSlots(scale),
+  });
+}
+
+function plotDateParts(date: string): { y: number; m: number; d: number } {
+  const bits = date.split('-').map(Number);
+  return { y: bits[0] || 2026, m: bits[1] || 1, d: bits[2] || 1 };
+}
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const LONG_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+function utcMonthName(m: number, style: 'long' | 'short'): string {
+  const i = Math.min(11, Math.max(0, m - 1));
+  return style === 'long' ? LONG_MONTHS[i] : SHORT_MONTHS[i];
+}
+
+const MONTH_TICK_DAYS = new Set([1, 8, 15, 22]);
+
+/** Bottom axis title: week/month = `Sep-09` / `September-09`; year = `2026`. */
+export function formatPlotAxisName(
+  points: Array<Pick<DailyPlotPoint, 'date'>>,
+  scale: AnalyticsTimeScale,
+): string {
+  if (!points.length) return scale === 'year' ? 'Year' : 'Date';
+  const last = plotDateParts(points[points.length - 1].date);
+  if (scale === 'year') {
+    const first = plotDateParts(points[0].date);
+    return first.y === last.y ? String(last.y) : `${first.y}–${last.y}`;
+  }
+  const name = utcMonthName(last.m, scale === 'month' ? 'long' : 'short');
+  return `${name}-${String(last.m).padStart(2, '0')}`;
+}
+
+/** Short tick: day number on week/month, month name on year. */
+export function formatPlotTick(date: string, scale: AnalyticsTimeScale): string {
+  const p = plotDateParts(date);
+  if (scale === 'year') return utcMonthName(p.m, 'short');
+  return String(p.d);
+}
+
+export function shouldDrawPlotTick(
+  date: string,
+  scale: AnalyticsTimeScale,
+  index: number,
+  total: number,
+): boolean {
+  if (scale !== 'month') return true;
+  const { d } = plotDateParts(date);
+  if (MONTH_TICK_DAYS.has(d)) return true;
+  return index === 0 || index === total - 1;
+}
+
+export function formatPlotTooltip(date: string, scale: AnalyticsTimeScale): string {
+  const p = plotDateParts(date);
+  if (scale === 'year') return `${utcMonthName(p.m, 'short')} ${p.y}`;
+  return `${p.d} ${utcMonthName(p.m, 'short')} ${p.y}`;
+}
+
+export function dailyHasPlay(point: DailyPlotPoint): boolean {
+  return point.sessionCount > 0;
+}
+
+export function dailyLinePath(
+  points: DailyPlotPoint[],
+  x: (index: number) => number,
+  y: (value: number) => number,
+  metric: 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate',
+  agg: DailyAggMode,
+): string {
+  const parts: string[] = [];
+  let drawing = false;
+  points.forEach((point, index) => {
+    if (!dailyHasPlay(point)) {
+      drawing = false;
+      return;
+    }
+    const px = x(index).toFixed(1);
+    const py = y(yValueForDaily(point, metric, agg)).toFixed(1);
+    parts.push(`${drawing ? 'L' : 'M'} ${px} ${py}`);
+    drawing = true;
+  });
+  return parts.join(' ');
+}
+
+export function dailyPolylineSegments(
+  points: DailyPlotPoint[],
+  x: (index: number) => number,
+  y: (value: number) => number,
+  metric: 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate',
+  agg: DailyAggMode,
+): string[] {
+  const segments: string[] = [];
+  let current: string[] = [];
+  const flush = () => {
+    if (current.length >= 2) segments.push(current.join(' '));
+    current = [];
+  };
+  points.forEach((point, index) => {
+    if (!dailyHasPlay(point)) {
+      flush();
+      return;
+    }
+    current.push(`${x(index)},${y(yValueForDaily(point, metric, agg))}`);
+  });
+  flush();
+  return segments;
 }
 
 export function yValueForDaily(
@@ -245,87 +594,14 @@ export function yValueForDaily(
   return point.missRate;
 }
 
-/** Hand-shaped daily values: real sessions wobble; they do not climb in a straight line. */
-const SAMPLE_DAILY_SEED: Array<{
-  accuracy: number;
-  reaction: number;
-  wrongTapRate: number;
-  missRate: number;
-  timeoutRate: number;
-  sessionCount: 1 | 2;
-}> = [
-  { accuracy: 68.4, reaction: 1.62, wrongTapRate: 18.2, missRate: 13.6, timeoutRate: 5.1, sessionCount: 1 },
-  { accuracy: 74.1, reaction: 1.48, wrongTapRate: 14.8, missRate: 10.9, timeoutRate: 3.8, sessionCount: 2 },
-  { accuracy: 70.6, reaction: 1.55, wrongTapRate: 16.9, missRate: 12.4, timeoutRate: 4.6, sessionCount: 1 },
-  { accuracy: 79.2, reaction: 1.31, wrongTapRate: 11.4, missRate: 8.7, timeoutRate: 2.9, sessionCount: 1 },
-  { accuracy: 63.8, reaction: 1.79, wrongTapRate: 21.5, missRate: 16.2, timeoutRate: 6.4, sessionCount: 2 },
-  { accuracy: 76.0, reaction: 1.41, wrongTapRate: 13.6, missRate: 10.1, timeoutRate: 3.4, sessionCount: 1 },
-  { accuracy: 82.4, reaction: 1.26, wrongTapRate: 9.8, missRate: 7.5, timeoutRate: 2.2, sessionCount: 1 },
-  { accuracy: 77.3, reaction: 1.37, wrongTapRate: 12.7, missRate: 9.6, timeoutRate: 3.1, sessionCount: 2 },
-];
-
-/** Demo series for empty analytics so charts stay interactive before real play is saved. */
-export function sampleDailyPlotPoints(days = 8): DailyPlotPoint[] {
-  const count = Math.max(2, Math.round(days));
-  const origin = new Date();
-  origin.setUTCHours(12, 0, 0, 0);
-  const seed = SAMPLE_DAILY_SEED;
-  const points: DailyPlotPoint[] = [];
-  let sessionNumber = 1;
-  for (let i = 0; i < count; i += 1) {
-    const day = new Date(origin);
-    day.setUTCDate(day.getUTCDate() - (count - 1 - i));
-    const src = seed[Math.round((i / (count - 1)) * (seed.length - 1))];
-    const pooledAccuracy = round1(src.accuracy);
-    const pooledAvgReactionSec = round1(src.reaction);
-    const bestAccuracy = round1(Math.min(99, pooledAccuracy + 3.2));
-    const bestAvgReactionSec = round1(Math.max(0.4, pooledAvgReactionSec - 0.11));
-    const pooledEfficiency = efficiencyIndex(pooledAccuracy, pooledAvgReactionSec);
-    const bestEfficiency = efficiencyIndex(bestAccuracy, bestAvgReactionSec);
-    const recordedAt = day.toISOString();
-    const sessions = Array.from({ length: src.sessionCount }, (_, s) => {
-      const offset = s === 0 ? 0 : -2.4;
-      const accuracy = round1(Math.max(0, pooledAccuracy + offset));
-      const avgReactionSec = round1(pooledAvgReactionSec - offset * 0.02);
-      const n = sessionNumber;
-      sessionNumber += 1;
-      return {
-        sessionNumber: n,
-        recordedAt,
-        accuracy,
-        avgReactionSec,
-        efficiencyIndex: efficiencyIndex(accuracy, avgReactionSec),
-        wrongTaps: Math.max(0, Math.round(src.wrongTapRate / 5)),
-        misses: Math.max(0, Math.round(src.missRate / 5)),
-        timeouts: src.timeoutRate >= 5 && s === 0 ? 1 : 0,
-      };
-    });
-    points.push({
-      date: utcDateKey(recordedAt),
-      pooledAccuracy,
-      pooledAvgReactionSec,
-      pooledMedianReactionSec: pooledAvgReactionSec,
-      pooledEfficiency,
-      wrongTapRate: round1(src.wrongTapRate),
-      missRate: round1(src.missRate),
-      timeoutRate: round1(src.timeoutRate),
-      sessionCount: src.sessionCount,
-      bestAccuracy,
-      bestAvgReactionSec,
-      bestEfficiency,
-      sessions,
-    });
-  }
-  return points;
-}
-
 export function buildGameSessionAnalytics(
   sessions: StoredGameSession[],
   options?: { maxDates?: number },
 ): GameSessionAnalytics {
   const sorted = sessions.slice().sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
   const dailyAll = poolSessionsByDate(sorted);
-  const daily = selectDailyWindow(dailyAll, options?.maxDates ?? 10);
+  const daily = selectDailyWindow(dailyAll, options?.maxDates);
+  const playedDates = daily.filter((point) => point.sessionCount > 0).length;
   const attemptWeighted =
     sorted.length === 0
       ? null
@@ -341,6 +617,6 @@ export function buildGameSessionAnalytics(
       lastPlayedAt: sorted.length ? sorted[sorted.length - 1].recordedAt : null,
       avgAccuracy: attemptWeighted,
     },
-    preliminary: daily.length > 0 && daily.length < 5,
+    preliminary: playedDates > 0 && playedDates < 5,
   };
 }
