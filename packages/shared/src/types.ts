@@ -41,7 +41,7 @@ export interface ClinicalStats {
 /** Protocol end reasons. Abandoned / quit plays must not be persisted. */
 export type SessionEndedBy = 'cleared' | 'timeout' | 'completed' | 'abandoned';
 
-export const PERSISTABLE_SESSION_ENDED_BY: ReadonlySet<SessionEndedBy> = new Set([
+export const PERSISTABLE_SESSION_ENDED_BY: ReadonlySet<SessionEndedBy> = new Set<SessionEndedBy>([
   'cleared',
   'timeout',
   'completed',
