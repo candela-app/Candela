@@ -1,6 +1,7 @@
 import { reactionStatsFromMs } from './game-logic';
 import { GAME_CATALOG, MODULE_LEVELS, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
+import type { AnalyticsMetricId } from './session-analytics-copy';
 import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
 
 export const GAME_SESSION_METRICS_VERSION = 1;
@@ -61,6 +62,7 @@ export interface DailyPlotSessionTip {
   recordedAt: string;
   accuracy: number;
   avgReactionSec: number;
+  durationSec: number;
   efficiencyIndex: number;
   wrongTaps: number;
   misses: number;
@@ -77,10 +79,13 @@ export interface DailyPlotPoint {
   missRate: number;
   timeoutRate: number;
   sessionCount: number;
-  /** Best-of-day: highest accuracy / lowest median RT / highest efficiency. */
+  /** Mean sitting length (seconds) of finished plays in the bucket. */
+  pooledDurationSec: number;
+  /** Best-of-day: highest accuracy / lowest RT / highest efficiency / shortest sitting. */
   bestAccuracy: number;
   bestAvgReactionSec: number;
   bestEfficiency: number;
+  bestDurationSec: number;
   sessions: DailyPlotSessionTip[];
 }
 
@@ -292,6 +297,11 @@ function poolSessionsByKey(
     const rts = rows.map((r) => r.avgReactionSec).filter((v) => v > 0);
     const bestAvgReactionSec = rts.length ? Math.min(...rts) : 0;
     const bestEfficiency = rows.reduce((m, r) => Math.max(m, r.efficiencyIndex), 0);
+    const durations = rows.map((r) => r.durationSec).filter((v) => v > 0);
+    const pooledDurationSec = durations.length
+      ? round1(durations.reduce((sum, v) => sum + v, 0) / durations.length)
+      : 0;
+    const bestDurationSec = durations.length ? Math.min(...durations) : 0;
     return {
       date,
       pooledAccuracy,
@@ -302,9 +312,11 @@ function poolSessionsByKey(
       missRate: sessionErrorRate(misses, attemptTotal),
       timeoutRate: sessionErrorRate(timeouts, attemptTotal),
       sessionCount: rows.length,
+      pooledDurationSec,
       bestAccuracy,
       bestAvgReactionSec,
       bestEfficiency,
+      bestDurationSec,
       sessions: rows
         .slice()
         .sort((a, b) => a.sessionNumber - b.sessionNumber)
@@ -313,6 +325,7 @@ function poolSessionsByKey(
           recordedAt: row.recordedAt,
           accuracy: row.accuracy,
           avgReactionSec: row.avgReactionSec,
+          durationSec: row.durationSec,
           efficiencyIndex: row.efficiencyIndex,
           wrongTaps: row.wrongTaps,
           misses: row.misses,
@@ -373,9 +386,11 @@ export function emptyDailyPlotPoint(date: string): DailyPlotPoint {
     missRate: 0,
     timeoutRate: 0,
     sessionCount: 0,
+    pooledDurationSec: 0,
     bestAccuracy: 0,
     bestAvgReactionSec: 0,
     bestEfficiency: 0,
+    bestDurationSec: 0,
     sessions: [],
   };
 }
@@ -485,32 +500,34 @@ const LONG_MONTHS = [
   'December',
 ];
 
-function utcMonthName(m: number, style: 'long' | 'short'): string {
+function utcMonthName(m: number, style: 'long' | 'short' = 'short'): string {
   const i = Math.min(11, Math.max(0, m - 1));
   return style === 'long' ? LONG_MONTHS[i] : SHORT_MONTHS[i];
 }
 
 const MONTH_TICK_DAYS = new Set([1, 8, 15, 22]);
 
-/** Bottom axis title: week/month = `Sep-09` / `September-09`; year = `2026`. */
+/** Bottom axis title: week = Date, month = Month (September), year = `2026` or `2025–2026`. */
 export function formatPlotAxisName(
   points: Array<Pick<DailyPlotPoint, 'date'>>,
   scale: AnalyticsTimeScale,
 ): string {
-  if (!points.length) return scale === 'year' ? 'Year' : 'Date';
-  const last = plotDateParts(points[points.length - 1].date);
-  if (scale === 'year') {
-    const first = plotDateParts(points[0].date);
-    return first.y === last.y ? String(last.y) : `${first.y}–${last.y}`;
+  if (scale === 'week') return 'Date';
+  if (scale === 'month') {
+    if (!points.length) return 'Month';
+    const last = plotDateParts(points[points.length - 1].date);
+    return `Month (${utcMonthName(last.m, 'long')})`;
   }
-  const name = utcMonthName(last.m, scale === 'month' ? 'long' : 'short');
-  return `${name}-${String(last.m).padStart(2, '0')}`;
+  if (!points.length) return 'Year';
+  const last = plotDateParts(points[points.length - 1].date);
+  const first = plotDateParts(points[0].date);
+  return first.y === last.y ? String(last.y) : `${first.y}–${last.y}`;
 }
 
 /** Short tick: day number on week/month, month name on year. */
 export function formatPlotTick(date: string, scale: AnalyticsTimeScale): string {
   const p = plotDateParts(date);
-  if (scale === 'year') return utcMonthName(p.m, 'short');
+  if (scale === 'year') return utcMonthName(p.m);
   return String(p.d);
 }
 
@@ -528,8 +545,8 @@ export function shouldDrawPlotTick(
 
 export function formatPlotTooltip(date: string, scale: AnalyticsTimeScale): string {
   const p = plotDateParts(date);
-  if (scale === 'year') return `${utcMonthName(p.m, 'short')} ${p.y}`;
-  return `${p.d} ${utcMonthName(p.m, 'short')} ${p.y}`;
+  if (scale === 'year') return `${utcMonthName(p.m)} ${p.y}`;
+  return `${p.d} ${utcMonthName(p.m)} ${p.y}`;
 }
 
 export function dailyHasPlay(point: DailyPlotPoint): boolean {
@@ -540,7 +557,7 @@ export function dailyLinePath(
   points: DailyPlotPoint[],
   x: (index: number) => number,
   y: (value: number) => number,
-  metric: 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate',
+  metric: AnalyticsMetricId,
   agg: DailyAggMode,
 ): string {
   const parts: string[] = [];
@@ -562,7 +579,7 @@ export function dailyPolylineSegments(
   points: DailyPlotPoint[],
   x: (index: number) => number,
   y: (value: number) => number,
-  metric: 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate',
+  metric: AnalyticsMetricId,
   agg: DailyAggMode,
 ): string[] {
   const segments: string[] = [];
@@ -584,12 +601,13 @@ export function dailyPolylineSegments(
 
 export function yValueForDaily(
   point: DailyPlotPoint,
-  metric: 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate',
+  metric: AnalyticsMetricId,
   agg: DailyAggMode,
 ): number {
   if (metric === 'accuracy') return agg === 'best' ? point.bestAccuracy : point.pooledAccuracy;
   if (metric === 'reaction') return agg === 'best' ? point.bestAvgReactionSec : point.pooledAvgReactionSec;
   if (metric === 'efficiency') return agg === 'best' ? point.bestEfficiency : point.pooledEfficiency;
+  if (metric === 'duration') return agg === 'best' ? point.bestDurationSec : point.pooledDurationSec;
   if (metric === 'wrongTapRate') return point.wrongTapRate;
   return point.missRate;
 }

@@ -290,7 +290,7 @@ export function PursuitResultsModal({
                     Pursuit Speed: <Text style={{ color: '#fff', fontWeight: '800' }}>{data.speedPxPerSec} px/s</Text>
                   </Text>
                   <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
-                    Duration: <Text style={{ color: '#fff', fontWeight: '800' }}>{data.durationSec}s</Text>
+                    Time to finish: <Text style={{ color: '#fff', fontWeight: '800' }}>{data.durationSec}s</Text>
                   </Text>
                   <Text style={{ color: '#D1D5DB', fontSize: fs(12) }}>
                     Total Trials: <Text style={{ color: '#fff', fontWeight: '800' }}>{data.stimuliCount}</Text>

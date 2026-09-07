@@ -31,7 +31,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen overflow-y-auto flex flex-col bg-[#F4F7FC]">
+    <div className="min-h-dvh flex flex-col bg-[#F4F7FC]">
       <AppHeader />
       <HomePageContent onOpenDashboard={goToDashboard} onSelectFamily={selectFamily} />
     </div>

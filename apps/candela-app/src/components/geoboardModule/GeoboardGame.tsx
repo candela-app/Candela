@@ -914,9 +914,7 @@ export function GeoboardGame({ boardId = 1, onExit }: GeoboardGameProps) {
           )}
 
           <div
-            className={`${styles.gridsContainer} ${practiceOnReference ? styles.layoutCopy : ''} ${
-              !practiceOnReference && gameState === 'memorize' ? styles.layoutMemorize : ''
-            } ${!practiceOnReference && gameState === 'play' ? styles.layoutRecallPlay : ''}`}
+            className={styles.gridsContainer}
             style={{ '--peg-scale': String(protocol.pegSizeScale ?? 1) } as React.CSSProperties}
           >
             {/* MODEL GRID

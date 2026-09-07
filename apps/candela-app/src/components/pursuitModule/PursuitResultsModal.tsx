@@ -281,7 +281,7 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
             <div className="bg-[#121522] border border-gray-800 p-3.5 rounded-xl text-xs text-gray-300 grid grid-cols-2 gap-2 font-mono">
               <div>Decoy Density: <strong className="text-white">{data.decoyCount} Decoys</strong></div>
               <div>Pursuit Speed: <strong className="text-white">{data.speedPxPerSec} px/s</strong></div>
-              <div>Duration: <strong className="text-white">{data.durationSec}s</strong></div>
+              <div>Time to finish: <strong className="text-white">{data.durationSec}s</strong></div>
               <div>Total Trials: <strong className="text-white">{data.stimuliCount}</strong></div>
             </div>
           </div>

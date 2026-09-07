@@ -163,14 +163,14 @@ export function sessionErrorCounts(data: SessionResultData): {
   };
 }
 
-/** Parent-card headline metrics: Duration, Accuracy, Avg RT, count, Efficiency. */
+/** Parent-card headline metrics: Time to finish, Accuracy, Avg RT, count, Efficiency. */
 export function parentSummaryCells(data: SessionResultData): {
   label: string;
   value: string;
   color: string;
 }[] {
   return [
-    { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
+    { label: 'Time to finish', value: `${data.durationSec}s`, color: '#34D399' },
     { label: 'Accuracy', value: `${data.accuracy}%`, color: '#60A5FA' },
     {
       label: 'Avg Reaction Time',
