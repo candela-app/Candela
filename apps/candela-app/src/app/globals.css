@@ -26,15 +26,14 @@ html, body {
   height: auto;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-y: none;
   background-color: var(--bg-main);
   font-family: 'Poppins', var(--font-main), system-ui, sans-serif;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  overscroll-behavior: none;
 }
 
 *, *::before, *::after {

@@ -29,7 +29,7 @@ The Sequential Sorting Therapy Module focuses on visual search, cognitive sequen
 
 ### 📊 Results & CSV Export
 - Displays session performance via `GameResultsModal`:
-  - Total Duration, Accuracy %, Correct/Wrong count, Average Reaction Time.
+  - Time to finish, Accuracy %, Correct/Wrong count, Average Reaction Time.
   - **CSV Export**: One-click download (`exportSessionCSV`).
 
 ---

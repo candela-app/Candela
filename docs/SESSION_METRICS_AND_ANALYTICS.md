@@ -10,6 +10,7 @@ How a finished play becomes scores, a saved row, and a chart dot. Web and mobile
 4. [What is saved](#4-what-is-saved)
 5. [IDs: play vs visit vs chart](#5-ids-play-vs-visit-vs-chart)
 6. [Analytics plots](#6-analytics-plots)
+   - [What a plot dot is](#what-a-plot-dot-is)
 7. [How to read the charts](#7-how-to-read-the-charts)
 8. [APIs and storage](#8-apis-and-storage)
 9. [Code map](#9-code-map)
@@ -49,10 +50,11 @@ Let `attempts = correct + wrongTaps + misses + timeouts`.
 | **Timeout rate** | `timeouts / attempts × 100` | |
 | **Avg / median RT** | Mean / median of **correct-hit** reaction times (seconds) | Errors are not in the RT average. |
 | **Efficiency** | `accuracy (%) / avg RT (s)` | Index of Performance. Higher = faster and more accurate. |
+| **Time to finish (s)** | Mean of `durationSec` in the bucket (best = shortest sitting) | Wall-clock sitting length. Not avg RT. Same module / level / date filters as other charts. |
 
 Store **counts** and plot **rates**. Raw error counts can fall just because the play had fewer trials.
 
-Results card headline: Duration, Accuracy, Avg RT, count (Bubbles / Matches / Rounds / …), Efficiency.
+Results card headline: Time to finish, Accuracy, Avg RT, count (Bubbles / Matches / Rounds / …), Efficiency.
 
 ---
 
@@ -152,7 +154,7 @@ Patient dashboard and doctor patient analytics share `SessionAnalyticsPanel`.
 | Behaviour | Detail |
 |---|---|
 | One **date** per dot | Filter one **module** (and optionally one **level**) for a clean line. “All modules” is noisy. |
-| **Week / month / year** | **−** zooms out (week → month → year). **+** zooms in. Year uses one pooled dot per month. Axis title is the latest month (`Sep-09` / `September-09`) or year (`2026`). Ticks are day numbers (week), sparse days 1 / 8 / 15 / 22 (month), or month names (year). Hover still shows the full date. |
+| **Week / month / year** | Default is week. **+** goes week → month → year. **−** goes back. Year uses one pooled dot per month. Axis title is **Date** (week), **Month (September)** for the range end / current month, or the year range (`2026` / `2025–2026`). Ticks are day numbers (week), sparse days 1 / 8 / 15 / 22 (month), or month names (year). Hover still shows the full date. |
 | **Level filter** | Pick a module first. **All levels** = whole-module plot. A chosen level = that playlist only. |
 | Same-day pooling | Default: attempt-weighted **pooled average**. Optional **best of day**. |
 | Tooltip | Date, value, each play’s session #, accuracy, RT. Web tooltip is portaled to `document.body` (`position: fixed`) so overflow panes (chooser, overflow-hidden) do not clip it into a thin bar. |
@@ -160,9 +162,50 @@ Patient dashboard and doctor patient analytics share `SessionAnalyticsPanel`.
 | Empty state | **No graphs yet** — no sample / fake series. |
 | Unfinished plays | Never in the series (section 4). |
 
-Plotted metrics: Accuracy, Avg reaction time, Efficiency, Wrong-tap rate, Miss rate.
+Plotted metrics: Accuracy, Avg reaction time, Efficiency, Wrong-tap rate, Miss rate, Time to finish.
 
 Copy lives in `packages/shared/src/session-analytics-copy.ts`.
+
+### What a plot dot is
+
+A dot is drawn only when that bucket has at least one **finished** play (`sessionCount > 0`). Empty days and empty months stay blank — no fake sample series.
+
+| Scale | One dot means | If they played more than once in that bucket |
+|---|---|---|
+| **Week** | One **calendar day** (UTC date `YYYY-MM-DD`) | All finished plays that day are pooled into that dot |
+| **Month** | Still one **calendar day** | Same daily pooling; the viewport is ~30 days, not one number for the whole month |
+| **Year** | One **calendar month** (`YYYY-MM`) | All finished plays in that month become **one** dot (e.g. all of August) |
+
+Week and month are the same daily line at different zoom. Year is the scale that merges days into months (`poolSessionsByMonth`).
+
+**Pooled (default)** — attempt-weighted, not a simple average of session percents:
+
+Let `attempts = correct + wrongTaps + misses + timeouts` summed across every finished play in the bucket.
+
+| Metric on the dot | How it is computed |
+|---|---|
+| **Accuracy** | `correct / attempts × 100` |
+| **Avg RT** | Mean of **correct-hit** reaction times (`reactionMs`) from those plays. Errors are not in the average. |
+| **Efficiency** | `pooled accuracy (%) ÷ pooled avg RT (s)` |
+| **Wrong-tap rate** | `wrongTaps / attempts × 100` |
+| **Miss rate** | `misses / attempts × 100` |
+| **Time to finish** | Mean of sitting `durationSec` values (`> 0`) in the bucket. Not attempt-weighted. |
+
+Example: Monday 90% on 10 trials and 50% on 10 trials → pooled accuracy **70%** (20 trials), not an unweighted mean of the two session scores if trial counts differ. Monday 20 s then 40 s → pooled time to finish **30 s**.
+
+**Best of day** (dropdown; on year scale this is best of that month):
+
+| Metric | Value |
+|---|---|
+| Accuracy | **Highest** session accuracy in the bucket |
+| Avg RT | **Lowest** session average RT in the bucket |
+| Efficiency | **Highest** session efficiency in the bucket |
+| Time to finish | **Shortest** sitting `durationSec` in the bucket |
+| Wrong-tap / miss rates | Stay the **pooled** rates |
+
+Hover lists every session in the bucket (session #, accuracy, RT, sitting length). Unfinished / quit plays are never included (section 4). Filter to **one module** (and a level if needed) so the line compares like with like. Time to finish uses those same filters — not a separate date range.
+
+Code: `packages/shared/src/game-session.ts` (`poolSessionsByDate`, `poolSessionsByMonth`, `plotPointsForScale`, `yValueForDaily`).
 
 ---
 
@@ -180,8 +223,10 @@ Do not treat two dots as a confident “getting better” line. Pick **one modul
 | Wrong taps ↓, RT stable, accuracy ↑ | Better discrimination |
 | Misses ↓, wrong taps stable | Better aiming / motor control |
 | Accuracy ↑ but wrong + miss counts flat | Check if they just did fewer trials — that is why we plot **rates** |
+| Time to finish ↓, accuracy stable or ↑ | Faster sitting without giving up correctness (not the same as faster RT) |
+| Time to finish stuck at the time cap | They ran out the clock — not a fast finish |
 
-Efficiency = Index of Performance = `accuracy (%) ÷ mean RT (seconds)`.
+Efficiency = Index of Performance = `accuracy (%) ÷ mean RT (seconds)`. Time to finish is sitting length (`durationSec`), not avg RT.
 
 ---
 
@@ -193,7 +238,7 @@ Efficiency = Index of Performance = `accuracy (%) ÷ mean RT (seconds)`.
 | `GET` | `/api/game-sessions` | Patient — own history |
 | `GET` | `/api/doctors/me/patients/:patientId/game-sessions` | Doctor — that patient’s history |
 
-Table `game_sessions`: counts (`correct`, `wrong_taps`, `misses`, `timeouts`), rates (`accuracy`, `efficiency_index`, reaction stats), `session_number`, `client_event_id`, `game_id`, `recorded_at`.
+Table `game_sessions`: counts (`correct`, `wrong_taps`, `misses`, `timeouts`), rates (`accuracy`, `efficiency_index`, reaction stats), sitting length (`duration_sec`), `session_number`, `client_event_id`, `game_id`, `recorded_at`.
 
 Session numbers do **not** reset if the patient changes doctor. Rows cascade-delete with the patient profile.
 

@@ -186,7 +186,7 @@ function LineChart({
           const yy = pad.t + innerH * t;
           return (
             <text key={t} x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize="10" fill="#9CA3AF">
-              {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
+              {metric === 'reaction' ? v.toFixed(2) : metric === 'duration' ? v.toFixed(1) : v.toFixed(0)}
             </text>
           );
         })}
@@ -293,7 +293,7 @@ function LineChart({
               </p>
               {tip.sessions.map((s) => (
                 <p key={s.sessionNumber} className="text-slate-300 mt-0.5">
-                  #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s
+                  #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s · {s.durationSec}s
                 </p>
               ))}
             </div>,
@@ -538,9 +538,9 @@ export function SessionAnalyticsPanel({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="Zoom out"
-                disabled={scale === 'year'}
-                onClick={() => setScale((prev) => zoomOutScale(prev))}
+                aria-label="Previous time scale"
+                disabled={scale === 'week'}
+                onClick={() => setScale((prev) => zoomInScale(prev))}
                 className="h-8 w-8 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 −
@@ -550,9 +550,9 @@ export function SessionAnalyticsPanel({
               </span>
               <button
                 type="button"
-                aria-label="Zoom in"
-                disabled={scale === 'week'}
-                onClick={() => setScale((prev) => zoomInScale(prev))}
+                aria-label="Next time scale"
+                disabled={scale === 'year'}
+                onClick={() => setScale((prev) => zoomOutScale(prev))}
                 className="h-8 w-8 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 +

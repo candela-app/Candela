@@ -1,4 +1,4 @@
-export type AnalyticsMetricId = 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate';
+export type AnalyticsMetricId = 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate' | 'duration';
 
 export const ANALYTICS_X_AXIS = 'Date';
 
@@ -15,6 +15,7 @@ export const ANALYTICS_METRICS: {
   { id: 'efficiency', label: 'Efficiency', unit: '', direction: 'Should be higher', color: '#1E4D7B', yAxis: 'Efficiency' },
   { id: 'wrongTapRate', label: 'Wrong-tap rate', unit: '%', direction: 'Should be less', color: '#8C5A4F', yAxis: 'Wrong-tap rate (%)' },
   { id: 'missRate', label: 'Miss rate', unit: '%', direction: 'Should be less', color: '#5C5470', yAxis: 'Miss rate (%)' },
+  { id: 'duration', label: 'Time to finish', unit: 's', direction: 'Should be less', color: '#6B4C9A', yAxis: 'Time to finish (s)' },
 ];
 
 export type AnalyticsTrendRow = { pattern: string; reading: string };
@@ -28,7 +29,7 @@ export type AnalyticsGraphGuide = {
 
 export const ANALYTICS_DOTS_GUIDE = {
   title: 'The dots',
-  body: 'The chart opens on the last 7 calendar days. Use − to zoom out to a month, then a year (one dot per month). Use + to zoom back in. Scroll sideways for older periods. Days or months with no play have no dot.',
+  body: 'The chart opens on the last 7 calendar days. Use + to go week → month → year (one dot per month). Use − to go back. Scroll sideways for older periods. Days or months with no play have no dot. Module, level, and From–To filters apply to every chart, including time to finish.',
 };
 
 export const ANALYTICS_SESSION_GUIDE = {
@@ -100,6 +101,18 @@ export const ANALYTICS_GRAPH_GUIDES: AnalyticsGraphGuide[] = [
       { pattern: 'Misses ↓, wrong taps stable', reading: 'Better aiming / motor control' },
       { pattern: 'Wrong taps ↓, RT stable, accuracy ↑', reading: 'Better discrimination' },
       { pattern: 'Accuracy ↑ but wrong + miss flat', reading: 'Check if they just did fewer trials' },
+    ],
+  },
+  {
+    id: 'duration',
+    title: 'Time to finish',
+    meaning:
+      'How long the sitting lasted, in seconds (stored durationSec). Default: mean of finished plays in that day (or month on year scale). Best of day: shortest sitting. Same module, level, and From–To filters as the other charts. Not the same as avg reaction time (that is time to a correct hit). Compare like-with-like: same module and level. A session that hit a time cap looks stuck, not “fast.”',
+    trends: [
+      { pattern: 'Time to finish ↓, accuracy stable or ↑', reading: 'Faster finish without giving up correctness' },
+      { pattern: 'Time to finish ↓, accuracy ↓', reading: 'Rushing — look at wrong taps and misses' },
+      { pattern: 'Time to finish ↑, accuracy ↑', reading: 'More careful; Efficiency / RT say if skill rose' },
+      { pattern: 'Time to finish stuck at the time limit', reading: 'They are hitting the cap, not finishing faster' },
     ],
   },
 ];

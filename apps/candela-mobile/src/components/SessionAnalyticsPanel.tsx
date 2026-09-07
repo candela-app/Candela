@@ -149,7 +149,7 @@ function LineChart({
           const yy = pad.t + innerH * t;
           return (
             <SvgText key={t} x={pad.l - 6} y={yy + 4} textAnchor="end" fontSize={10} fill="#9CA3AF">
-              {metric === 'reaction' ? v.toFixed(2) : v.toFixed(0)}
+              {metric === 'reaction' ? v.toFixed(2) : metric === 'duration' ? v.toFixed(1) : v.toFixed(0)}
             </SvgText>
           );
         })}
@@ -280,7 +280,7 @@ function LineChart({
           </Text>
           {tip.sessions.map((s) => (
             <Text key={s.sessionNumber} style={{ color: '#CBD5E1', fontSize: fs(10), marginTop: 2 }}>
-              #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s
+              #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s · {s.durationSec}s
             </Text>
           ))}
         </Pressable>
@@ -835,31 +835,10 @@ export function SessionAnalyticsPanel({
             <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.muted }}>Time scale</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
               <Pressable
-                onPress={() => setScale((prev) => zoomOutScale(prev))}
-                disabled={scale === 'year'}
-                accessibilityRole="button"
-                accessibilityLabel="Zoom out"
-                style={{
-                  width: s(32),
-                  height: s(32),
-                  borderRadius: s(8),
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: scale === 'year' ? 0.4 : 1,
-                }}
-              >
-                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>−</Text>
-              </Pressable>
-              <Text style={{ minWidth: s(64), textAlign: 'center', fontSize: fs(14), fontWeight: '800', color: colors.text }}>
-                {ANALYTICS_SCALE_LABEL[scale]}
-              </Text>
-              <Pressable
                 onPress={() => setScale((prev) => zoomInScale(prev))}
                 disabled={scale === 'week'}
                 accessibilityRole="button"
-                accessibilityLabel="Zoom in"
+                accessibilityLabel="Previous time scale"
                 style={{
                   width: s(32),
                   height: s(32),
@@ -869,6 +848,27 @@ export function SessionAnalyticsPanel({
                   alignItems: 'center',
                   justifyContent: 'center',
                   opacity: scale === 'week' ? 0.4 : 1,
+                }}
+              >
+                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>−</Text>
+              </Pressable>
+              <Text style={{ minWidth: s(64), textAlign: 'center', fontSize: fs(14), fontWeight: '800', color: colors.text }}>
+                {ANALYTICS_SCALE_LABEL[scale]}
+              </Text>
+              <Pressable
+                onPress={() => setScale((prev) => zoomOutScale(prev))}
+                disabled={scale === 'year'}
+                accessibilityRole="button"
+                accessibilityLabel="Next time scale"
+                style={{
+                  width: s(32),
+                  height: s(32),
+                  borderRadius: s(8),
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: scale === 'year' ? 0.4 : 1,
                 }}
               >
                 <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>+</Text>

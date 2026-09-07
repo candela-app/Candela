@@ -9,6 +9,7 @@ import {
   formatPlotTick,
   formatPlotTooltip,
   plotPointsForScale,
+  yValueForDaily,
   payloadFromSessionResult,
   poolSessionsByDate,
   poolSessionsByMonth,
@@ -116,6 +117,7 @@ describe('daily pooling', () => {
         misses: 0,
         timeouts: 0,
         accuracy: 90,
+        durationSec: 20,
         reactionMs: [400, 400, 400, 400, 400, 400, 400, 400, 400],
       }),
       session({
@@ -126,6 +128,7 @@ describe('daily pooling', () => {
         misses: 0,
         timeouts: 0,
         accuracy: 10,
+        durationSec: 40,
         reactionMs: [200],
       }),
     ]);
@@ -133,7 +136,11 @@ describe('daily pooling', () => {
     expect(points[0].sessionCount).toBe(2);
     expect(points[0].pooledAccuracy).toBe(50);
     expect(points[0].bestAccuracy).toBe(90);
+    expect(points[0].pooledDurationSec).toBe(30);
+    expect(points[0].bestDurationSec).toBe(20);
     expect(points[0].sessions.map((s) => s.sessionNumber)).toEqual([1, 2]);
+    expect(yValueForDaily(points[0], 'duration', 'pooled')).toBe(30);
+    expect(yValueForDaily(points[0], 'duration', 'best')).toBe(20);
   });
 
   it('marks fewer than 5 dates as preliminary', () => {
@@ -192,8 +199,8 @@ describe('daily pooling', () => {
     const week = plotPointsForScale([], [], 'week', { nowIso: '2026-09-06T12:00:00.000Z' });
     const month = plotPointsForScale([], [], 'month', { nowIso: '2026-09-06T12:00:00.000Z' });
     const year = plotPointsForScale([], [], 'year', { nowIso: '2026-09-06T12:00:00.000Z' });
-    expect(formatPlotAxisName(week, 'week')).toBe('Sep-09');
-    expect(formatPlotAxisName(month, 'month')).toBe('September-09');
+    expect(formatPlotAxisName(week, 'week')).toBe('Date');
+    expect(formatPlotAxisName(month, 'month')).toBe('Month (September)');
     expect(formatPlotAxisName(year, 'year')).toBe('2025–2026');
     expect(formatPlotTick('2026-09-06', 'week')).toBe('6');
     expect(formatPlotTick('2026-09-01', 'month')).toBe('1');
