@@ -33,6 +33,7 @@ graph LR
 | `SMTP_SECURE` | No | `true` for port 465 | `false` |
 | `MAIL_FROM` | No | From header; defaults to `SMTP_USER` | same as SMTP user |
 | `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
+| `PASSWORD_RESET_TTL_HOURS` | No | Forgot-password link lifetime | `1` |
 | `GOOGLE_CLIENT_ID_WEB` | Google Sign-In | Web OAuth client ID | `….apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_ID_ANDROID` | Google Sign-In | Android OAuth client ID | `….apps.googleusercontent.com` |
 | `SUPABASE_URL` | Familiar Faces | Project URL, e.g. `https://PROJECT_REF.supabase.co` | set on Render / local `.env` |

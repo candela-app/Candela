@@ -91,6 +91,11 @@ export default function LoginPage() {
           onChange={setPassword}
           autoComplete="current-password"
         />
+        <div className="flex justify-end -mt-2 mb-4">
+          <Link href="/forgot-password" className="text-sm text-shell-blue font-semibold hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         {error && <p className="text-sm text-red-600 font-medium mb-3">{error}</p>}
         <PrimaryButton disabled={submitting || googleBusy}>{submitting ? 'Signing in…' : 'Sign in'}</PrimaryButton>
       </form>

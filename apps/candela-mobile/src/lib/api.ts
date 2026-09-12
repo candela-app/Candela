@@ -12,7 +12,14 @@ export class ApiError extends Error {
 
 const PRODUCTION_API_URL = 'https://candela-backend-gbdz.onrender.com';
 const REQUEST_TIMEOUT_MS = 10_000;
-const AUTH_ANON_PATHS = new Set(['/api/auth/login', '/api/auth/signup', '/api/auth/refresh']);
+const AUTH_ANON_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/refresh',
+  '/api/auth/google',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+]);
 
 function defaultApiUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -126,7 +133,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     credentials: 'omit',
   });
 
-  if (res.status === 401 && retry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/google') {
+  if (res.status === 401 && retry && !AUTH_ANON_PATHS.has(path)) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       return api<T>(path, init, false);

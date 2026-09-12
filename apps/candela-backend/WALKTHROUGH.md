@@ -96,7 +96,7 @@ TypeORM `synchronize` is **false**. Schema is applied by migrations (`InitAuth`,
 
 All JSON. Cookie session via `credentials: 'include'` from the website. Bearer access token is also accepted.
 
-Public (no login): `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/health`, DocID token confirm/reject.
+Public (no login): `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/health`, DocID token confirm/reject.
 
 Everyone else needs a valid access cookie/JWT. `@Roles(...)` additionally requires `admin` or `doctor`.
 
@@ -106,6 +106,8 @@ Everyone else needs a valid access cookie/JWT. `@Roles(...)` additionally requir
 |--------|------|------|--------|
 | POST | `/api/auth/signup` | name, phone, email, password | Self-signup patient + cookies + session JSON |
 | POST | `/api/auth/login` | email, password | Cookies + session JSON |
+| POST | `/api/auth/forgot-password` | email | Always `{ ok: true }`; mail only if the account has a password |
+| POST | `/api/auth/reset-password` | token, password | New bcrypt hash; refresh tokens revoked |
 | POST | `/api/auth/refresh` | (refresh cookie) | Rotated cookies + session JSON |
 | POST | `/api/auth/logout` | (refresh cookie) | Clears cookies |
 | GET | `/api/auth/me` | — | Session JSON |
@@ -113,7 +115,7 @@ Everyone else needs a valid access cookie/JWT. `@Roles(...)` additionally requir
 | GET | `/api/me/modules` | — | `{ allowedModuleIds }` |
 | GET | `/api/health` | — | `{ status, database, timestamp }` |
 
-Password min length **8**. Phone min length **6**. Email unique, stored lowercase.
+Password min length **8**. Phone min length **6**. Email unique, stored lowercase. Forgot-password tokens expire in 1 hour by default (`PASSWORD_RESET_TTL_HOURS`).
 
 Session JSON shape: `{ user, doctor, patient, allowedModuleIds }`.
 

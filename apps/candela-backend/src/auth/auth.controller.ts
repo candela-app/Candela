@@ -4,7 +4,7 @@ import { Public } from '../common/decorators';
 import { CurrentUser } from '../common/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AuthService, readRefreshCookie } from './auth.service';
-import { GoogleAuthDto, LoginDto, SignupDto, RefreshDto } from './dto';
+import { GoogleAuthDto, LoginDto, SignupDto, RefreshDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -46,6 +46,18 @@ export class AuthController {
     @Body() body: RefreshDto,
   ) {
     return this.auth.logout(body?.refreshToken || readRefreshCookie(req.cookies), res);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto);
   }
 
   @Get('me')
