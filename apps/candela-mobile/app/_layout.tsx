@@ -37,6 +37,7 @@ export default function RootLayout() {
           <Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: 'fade' }}>
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen name="login" options={{ animation: 'none' }} />
+            <Stack.Screen name="forgot-password" options={{ animation: 'none' }} />
             <Stack.Screen name="signup" options={{ animation: 'none' }} />
             <Stack.Screen name="oauth" options={{ animation: 'none' }} />
             <Stack.Screen name="dashboard" options={{ animation: 'none' }} />

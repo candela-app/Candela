@@ -22,7 +22,7 @@ Successful Change and Internal writes store the **previous** DocID on `patient_d
 
 ## Mail
 
-`candela-backend` sends mail through `MailService`. DocID logic never talks to Gmail or SendGrid directly.
+`candela-backend` sends mail through `MailService`. DocID logic never talks to Gmail or SendGrid directly. Password reset uses the same sender (`POST /api/auth/forgot-password`).
 
 | `MAIL_TRANSPORT` | Behavior |
 |---|---|

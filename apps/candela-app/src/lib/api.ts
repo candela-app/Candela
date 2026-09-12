@@ -33,6 +33,15 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+const AUTH_PUBLIC_PATHS = new Set([
+  '/api/auth/refresh',
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/google',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+]);
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -60,7 +69,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     credentials: 'include',
   });
 
-  if (res.status === 401 && retry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/google') {
+  if (res.status === 401 && retry && !AUTH_PUBLIC_PATHS.has(path)) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       return api<T>(path, init, false);
