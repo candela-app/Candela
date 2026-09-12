@@ -83,6 +83,11 @@ export default function LoginScreen() {
     <AuthShell title="Sign in">
       <Field label="Email" value={email} onChange={setEmail} keyboardType="email-address" autoComplete="email" />
       <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="password" />
+      <Text style={{ fontSize: fs(13), color: colors.blue, fontWeight: '700', textAlign: 'right', marginBottom: 12 }}>
+        <Link href="/forgot-password" style={{ color: colors.blue, fontWeight: '700' }}>
+          Forgot password?
+        </Link>
+      </Text>
       {error ? <Text style={{ color: colors.red, fontWeight: '600', marginBottom: 12 }}>{error}</Text> : null}
       <PrimaryButton disabled={finishing} onPress={() => void onSubmit()}>
         {submitting ? 'Signing in…' : 'Sign in'}

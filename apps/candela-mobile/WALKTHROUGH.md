@@ -11,7 +11,7 @@ The website still uses httpOnly cookies. Native apps cannot. Login/signup/refres
 | Route | Website | Role |
 |-------|---------|------|
 | `/` | Marketing landing | Public |
-| `/login`, `/signup` | Email/password | Public |
+| `/login`, `/signup`, `/forgot-password` | Email/password | Public |
 | `/admin` | Create doctors, list doctors/patients | Admin |
 | `/doctor` | Create patients, prescribe modules | Doctor |
 | `/dashboard` | Module picker, variants, session analytics | Patient |

@@ -63,6 +63,21 @@ export class RefreshDto {
   refreshToken?: string;
 }
 
+export class ForgotPasswordDto {
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(20)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
 export class GoogleAuthDto {
   @ValidateIf((dto: GoogleAuthDto) => !dto.accessToken)
   @IsString()

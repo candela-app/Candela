@@ -23,7 +23,7 @@ graph TD
 
 | Role | Landing Route | Permitted Views | Actions & Capabilities |
 |---|---|---|---|
-| **Visitor / Unauthenticated** | `/` (Homepage) | `/`, `/login`, `/signup` | Explore therapy tool descriptions, register, or sign in |
+| **Visitor / Unauthenticated** | `/` (Homepage) | `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password` | Explore therapy tool descriptions, register, sign in, or reset a password |
 | **Patient (Self-Signup)** | `/dashboard` | `/`, `/dashboard` | Play all catalog modules; finished plays save to analytics |
 | **Patient (Doctor-Managed)**| `/dashboard` | `/`, `/dashboard` | Play prescribed modules; finished plays save to analytics |
 | **Doctor** | `/doctor` | `/`, `/doctor` | Onboard patients, prescribe modules, view that patient’s session charts |
@@ -63,6 +63,14 @@ sequenceDiagram
     User->>Nest: POST /api/auth/logout
     Nest->>DB: Revoke refresh token
     Nest-->>User: Clear Cookies + Toast Notification
+
+    Note over User,Nest: 5. Forgot password
+    User->>Nest: POST /api/auth/forgot-password (email)
+    Nest->>DB: If the user has a password, store a SHA-256 reset token
+    Nest->>User: Same generic OK (does not reveal whether the email exists)
+    Nest-->>User: SMTP reset link to {FRONTEND_URL}/reset-password?token=…
+    User->>Nest: POST /api/auth/reset-password (token, new password)
+    Nest->>DB: bcrypt hash, consume token, revoke refresh tokens
 ```
 
 ---
@@ -88,7 +96,20 @@ For decoupled deployments (e.g. Next.js on Vercel $\leftrightarrow$ NestJS on Re
 
 ---
 
-## 4. DocID Referral Mechanics
+## 4. Forgot password
+
+Public pages: `/forgot-password` and `/reset-password?token=…` (web). Mobile can request a link; the email always opens the website.
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/forgot-password` | Public | `{ email }`. Always `{ ok: true }`. Sends mail only if that user has a password hash. |
+| POST | `/api/auth/reset-password` | Public | `{ token, password }` (min 8 chars). Consumes the token and revokes refresh tokens. |
+
+Tokens are random, stored as SHA-256, single-use, default TTL **1 hour** (`PASSWORD_RESET_TTL_HOURS`). Mail uses the same `MailService` as DocID (`MAIL_TRANSPORT=smtp` or `log`). Google-only accounts (`password_hash` null) do not get a reset mail — they keep using Google Sign-In. Do not log emails or tokens (except `MAIL_TRANSPORT=log`, which prints the reset URL for local testing).
+
+---
+
+## 5. DocID Referral Mechanics
 
 Every doctor account is assigned a unique **DocID** (referral code) automatically upon creation:
 - **Format**: Exactly **6 alphanumeric characters** (e.g. `K9X2B4`).

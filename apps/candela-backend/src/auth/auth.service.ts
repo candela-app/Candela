@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -7,25 +8,38 @@ import {
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Response } from 'express';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { seedAdminUsers } from '../common/admin-seed';
 import { ALL_MODULE_IDS } from '../common/catalog';
 import { ACCESS_MAX_AGE_SEC, clearAuthCookies, REFRESH_COOKIE, REFRESH_MAX_AGE_SEC, setAuthCookies } from '../common/cookies';
 import { generateReferralCode } from '../common/referral-code';
 import { DocIdService } from '../docid/docid.service';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
+import { PasswordResetToken } from '../entities/password-reset-token.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { MailService } from '../mail/mail.service';
 import { GoogleAuthService } from './google-auth.service';
-import { CreateAccountDto, GoogleAuthDto, LoginDto, SignupDto, UpdateDoctorDto } from './dto';
+import {
+  CreateAccountDto,
+  ForgotPasswordDto,
+  GoogleAuthDto,
+  LoginDto,
+  ResetPasswordDto,
+  SignupDto,
+  UpdateDoctorDto,
+} from './dto';
 
 const BCRYPT_ROUNDS = 10;
+const DEFAULT_RESET_TTL_HOURS = 1;
+const FORGOT_PASSWORD_OK = { ok: true as const };
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -35,9 +49,12 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
+    @InjectRepository(PasswordResetToken) private readonly passwordResets: Repository<PasswordResetToken>,
     @Inject(JwtService) private readonly jwtService: JwtService,
     @Inject(DocIdService) private readonly docid: DocIdService,
     @Inject(GoogleAuthService) private readonly googleAuth: GoogleAuthService,
+    @Inject(MailService) private readonly mail: MailService,
+    @Inject(ConfigService) private readonly config: ConfigService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -73,6 +90,73 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid email or password');
     }
     return this.issueSession(user, res);
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.users.findOne({ where: { email } });
+    if (!user?.passwordHash) {
+      return FORGOT_PASSWORD_OK;
+    }
+
+    await this.passwordResets.update({ userId: user.id, usedAt: IsNull() }, { usedAt: new Date() });
+
+    const rawToken = randomBytes(32).toString('hex');
+    const ttlHours = this.resetTtlHours();
+    await this.passwordResets.save(
+      this.passwordResets.create({
+        userId: user.id,
+        tokenHash: hashToken(rawToken),
+        expiresAt: new Date(Date.now() + ttlHours * 60 * 60 * 1000),
+        usedAt: null,
+      }),
+    );
+
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000').replace(
+      /\/$/,
+      '',
+    );
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+    const hourLabel = ttlHours === 1 ? '1 hour' : `${ttlHours} hours`;
+    let emailSent = false;
+    try {
+      emailSent = await this.mail.send({
+        to: user.email,
+        subject: 'Reset your Kandela password',
+        text: `Use this link to choose a new password (expires in ${hourLabel}):\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+        html: `<p>Use this link to choose a new password (expires in ${hourLabel}):</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+      });
+    } catch {
+      emailSent = false;
+    }
+
+    if (!emailSent && (this.config.get<string>('MAIL_TRANSPORT') || 'log').trim().toLowerCase() === 'log') {
+      console.log('[mail] Password reset link (MAIL_TRANSPORT=log)');
+      console.log(resetUrl);
+    }
+
+    return FORGOT_PASSWORD_OK;
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = hashToken(dto.token.trim());
+    const row = await this.passwordResets.findOne({ where: { tokenHash } });
+    if (!row || row.usedAt != null || row.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('This reset link is invalid or has expired');
+    }
+
+    const user = await this.users.findOne({ where: { id: row.userId } });
+    if (!user) {
+      throw new BadRequestException('This reset link is invalid or has expired');
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    await this.users.save(user);
+    row.usedAt = new Date();
+    await this.passwordResets.save(row);
+    await this.passwordResets.update({ userId: user.id, usedAt: IsNull() }, { usedAt: new Date() });
+    await this.refreshTokens.update({ userId: user.id }, { revokedAt: new Date() });
+    return { ok: true };
   }
 
   async loginWithGoogle(dto: GoogleAuthDto, res: Response) {
@@ -318,6 +402,14 @@ export class AuthService implements OnModuleInit {
         role: input.role,
       }),
     );
+  }
+
+  private resetTtlHours(): number {
+    const raw = Number(this.config.get<string>('PASSWORD_RESET_TTL_HOURS'));
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return DEFAULT_RESET_TTL_HOURS;
+    }
+    return raw;
   }
 
   private async uniqueReferralCode(): Promise<string> {
