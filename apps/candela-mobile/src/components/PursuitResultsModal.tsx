@@ -241,38 +241,6 @@ export function PursuitResultsModal({
                   </Text>
                 </View>
 
-                <View>
-                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
-                    BLOCK TREND (4 BLOCKS OF 5 TRIALS)
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: s(8) }}>
-                    {(data.blockMetrics || []).map((blk) => (
-                      <View
-                        key={blk.blockIndex}
-                        style={{
-                          flex: 1,
-                          backgroundColor: '#121522',
-                          borderWidth: 1,
-                          borderColor: '#1F2937',
-                          borderRadius: s(12),
-                          padding: s(10),
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Text style={{ color: '#9CA3AF', fontSize: fs(9), fontWeight: '800' }}>
-                          BLOCK {blk.blockIndex + 1}
-                        </Text>
-                        <Text style={{ color: '#22D3EE', fontSize: fs(16), fontWeight: '900', marginTop: s(4) }}>
-                          {blk.accuracyPercent}%
-                        </Text>
-                        <Text style={{ color: '#9CA3AF', fontSize: fs(9), marginTop: s(2) }}>
-                          Err {blk.avgTrackingErrorPx}px
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-
                 <View
                   style={{
                     backgroundColor: '#121522',

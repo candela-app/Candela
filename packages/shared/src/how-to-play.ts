@@ -52,7 +52,7 @@ export const HOW_TO_PLAY: Record<TherapyModuleId, HowToPlayGuide> = {
     steps: [
       { title: 'Watch the target', body: 'One bubble is the target. It keeps moving across the screen.' },
       { title: 'Ignore decoys', body: 'Other bubbles try to distract you. Do not tap those.' },
-      { title: 'Tap when you can', body: 'Keep tracking, then tap the target. Several short trials make one session.' },
+      { title: 'Tap when you can', body: 'Keep tracking, then tap the target. One session is 20 bubbles in a row.' },
     ],
   },
   mobile_target: {

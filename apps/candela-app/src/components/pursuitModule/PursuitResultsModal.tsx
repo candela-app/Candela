@@ -246,37 +246,6 @@ export const PursuitResultsModal: React.FC<PursuitResultsModalProps> = ({
               </p>
             </div>
 
-            {/* Block-by-Block Fatigue / Attention Trend */}
-            <div>
-              <h4 className="text-xs font-extrabold text-gray-300 uppercase tracking-wider mb-3">
-                Block Trend (4 Blocks of 5 Trials - Fatigue Analysis)
-              </h4>
-              <div className="grid grid-cols-4 gap-2">
-                {data.blockMetrics && data.blockMetrics.length > 0 ? (
-                  data.blockMetrics.map((blk, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-[#121522] border border-gray-800 p-3 rounded-xl flex flex-col items-center text-center"
-                    >
-                      <span className="text-[10px] font-extrabold text-gray-400 uppercase">
-                        Block {blk.blockIndex + 1}
-                      </span>
-                      <span className="text-lg font-black text-cyan-400 mt-1">
-                        {blk.accuracyPercent}%
-                      </span>
-                      <span className="text-[10px] text-gray-400 font-mono mt-0.5">
-                        Err: {blk.avgTrackingErrorPx}px
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="col-span-4 text-xs text-gray-400 text-center py-2">
-                    20 Trials Completed Across 4 Blocks
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Clinical Summary Parameters */}
             <div className="bg-[#121522] border border-gray-800 p-3.5 rounded-xl text-xs text-gray-300 grid grid-cols-2 gap-2 font-mono">
               <div>Decoy Density: <strong className="text-white">{data.decoyCount} Decoys</strong></div>

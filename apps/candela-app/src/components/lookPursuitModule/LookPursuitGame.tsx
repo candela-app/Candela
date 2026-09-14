@@ -30,7 +30,7 @@ import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDr
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { HowToPlayManual } from '../shared/HowToPlayManual';
-import { PursuitResultsModal } from '../pursuitModule/PursuitResultsModal';
+import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import { GazeHoldGame } from './GazeHoldGame';
 import styles from './LookPursuitGame.module.css';
@@ -553,7 +553,7 @@ const LookPursuitMovingGame: React.FC<{
       />
 
       {sessionResults && (
-        <PursuitResultsModal
+        <GameResultsModal
           isOpen={isResultsOpen}
           onClose={() => {
             setIsResultsOpen(false);
