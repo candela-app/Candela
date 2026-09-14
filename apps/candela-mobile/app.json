@@ -28,7 +28,6 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.candela.app",
-      "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",
         "android.permission.CAMERA"
