@@ -5,6 +5,7 @@ import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import { AuthShell, Field, PrimaryButton } from '@/components/auth/AuthForm';
 import { AuthDivider, GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { ScreenLoader } from '@/components/common/ScreenLoader';
 import type { SessionUser } from '@candela/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -72,11 +73,7 @@ export default function SignupPage() {
   }
 
   if (loading || session || redirecting) {
-    return (
-      <div className="min-h-screen bg-page flex items-center justify-center">
-        <p className="text-sm font-semibold text-shell-muted">Loading…</p>
-      </div>
-    );
+    return <ScreenLoader />;
   }
 
   return (

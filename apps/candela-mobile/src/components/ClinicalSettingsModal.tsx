@@ -154,8 +154,15 @@ import {
   resolveGazeHoldGlyphColor,
   pursuitPatternName,
   moduleCta,
+  CLINICAL_BG_COLORS,
+  CLINICAL_CONTRAST_PRESETS,
+  CLINICAL_INK,
+  MOBILE_TARGET_MOVEMENT_AXES,
+  MOBILE_TARGET_SPEED_PX_STEPS,
+  clampMobileTargetSpeedPx,
+  getContrastAdjustedColor,
 } from '@candela/shared/rn';
-import type { DeviceOrientation, PursuitMovementPattern, PursuitTargetColor, TherapyModuleId } from '@candela/shared/rn';
+import type { DeviceOrientation, MobileTargetMovementAxis, PursuitMovementPattern, PursuitTargetColor, TherapyModuleId } from '@candela/shared/rn';
 import Svg, { Circle, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { useLayout } from '../lib/layout';
 
@@ -179,6 +186,9 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  speedPxPerSec?: number;
+  movementAxis?: MobileTargetMovementAxis;
+  contrastSensitivity?: number;
   gazeHoldDwellMs?: number;
   gazeHoldGlyphColor?: string;
   gazeHoldGlyphCount?: number;
@@ -366,6 +376,10 @@ export function ClinicalSettingsModal({
   showPursuitControls = false,
   lookStationaryMode = false,
   showGazeHoldControls = false,
+  showMobileTargetControls = false,
+  speedPxPerSec = 70,
+  movementAxis = 'random',
+  contrastSensitivity = 1,
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 2,
@@ -447,6 +461,10 @@ export function ClinicalSettingsModal({
   showPursuitControls?: boolean;
   lookStationaryMode?: boolean;
   showGazeHoldControls?: boolean;
+  showMobileTargetControls?: boolean;
+  speedPxPerSec?: number;
+  movementAxis?: MobileTargetMovementAxis;
+  contrastSensitivity?: number;
   pursuitMovementPattern?: PursuitMovementPattern;
   pursuitTargetColor?: PursuitTargetColor;
   pursuitDecoyCount?: number;
@@ -527,6 +545,9 @@ export function ClinicalSettingsModal({
   const [tempDecoys, setTempDecoys] = useState(pursuitDecoyCount);
   const [tempPursuitSpeed, setTempPursuitSpeed] = useState(pursuitSpeedPxPerSec);
   const [tempTimeout, setTempTimeout] = useState(pursuitTrialTimeoutSec);
+  const [tempSpeedPxPerSec, setTempSpeedPxPerSec] = useState(clampMobileTargetSpeedPx(speedPxPerSec));
+  const [tempMovementAxis, setTempMovementAxis] = useState<MobileTargetMovementAxis>(movementAxis);
+  const [tempContrastSensitivity, setTempContrastSensitivity] = useState(contrastSensitivity);
   const [tempGazeHoldDwellMs, setTempGazeHoldDwellMs] = useState(clampGazeHoldDwellMs(gazeHoldDwellMs));
   const [tempGazeHoldGlyphColor, setTempGazeHoldGlyphColor] = useState(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
   const [tempGazeHoldGlyphCount, setTempGazeHoldGlyphCount] = useState(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
@@ -623,6 +644,9 @@ export function ClinicalSettingsModal({
     setTempDecoys(pursuitDecoyCount);
     setTempPursuitSpeed(pursuitSpeedPxPerSec);
     setTempTimeout(pursuitTrialTimeoutSec);
+    setTempSpeedPxPerSec(clampMobileTargetSpeedPx(speedPxPerSec));
+    setTempMovementAxis(movementAxis);
+    setTempContrastSensitivity(contrastSensitivity);
     setTempGazeHoldDwellMs(clampGazeHoldDwellMs(gazeHoldDwellMs));
     setTempGazeHoldGlyphColor(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
     setTempGazeHoldGlyphCount(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
@@ -734,6 +758,9 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount: tempDecoys,
       pursuitSpeedPxPerSec: tempPursuitSpeed,
       pursuitTrialTimeoutSec: tempTimeout,
+      speedPxPerSec: clampMobileTargetSpeedPx(tempSpeedPxPerSec),
+      movementAxis: tempMovementAxis,
+      contrastSensitivity: tempContrastSensitivity,
       gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(tempGazeHoldDwellMs) : tempGazeHoldDwellMs,
       gazeHoldGlyphColor: showGazeHoldControls
         ? resolveGazeHoldGlyphColor(tempGazeHoldGlyphColor)
@@ -840,6 +867,9 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount,
       pursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec,
+      speedPxPerSec: clampMobileTargetSpeedPx(speedPxPerSec),
+      movementAxis,
+      contrastSensitivity,
       gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(gazeHoldDwellMs) : gazeHoldDwellMs,
       gazeHoldGlyphColor: showGazeHoldControls
         ? resolveGazeHoldGlyphColor(gazeHoldGlyphColor)
@@ -943,13 +973,16 @@ export function ClinicalSettingsModal({
     !showLocationMemoryControls &&
     !showDirectionSenseControls;
   const previewSize = Math.min(tempBubbleSize, 130);
-  const previewStimuliHex = showStimuliColorPicker
-    ? resolveStimuliBubbleColor(tempStimuliColor, 0)
-    : '#2F80FF';
+  const previewField = showMobileTargetControls ? tempBgColor || CLINICAL_INK : '#0D0D0D';
+  const previewStimuliHex = getContrastAdjustedColor(
+    showStimuliColorPicker ? resolveStimuliBubbleColor(tempStimuliColor, 0) : '#2F80FF',
+    previewField,
+    showMobileTargetControls ? tempContrastSensitivity : 1,
+  );
   const bubblePreviewPaint = resolveBubblePaint(
     showBubbleAppearancePicker || showStimuliColorPicker ? tempBubbleAppearance : 'solid',
     previewStimuliHex,
-    { borderFill: '#0D0D0D', solidBorderWidth: 0 },
+    { borderFill: previewField, solidBorderWidth: 0 },
   );
   const peripheralHexR = Math.max(36, Math.min(54, clampHexSizePx(tempHexSizePx) * 0.85));
   const peripheralLetterPx = peripheralLetterFontPx(clampHexSizePx(tempHexSizePx), tempLetterSize);
@@ -1051,7 +1084,7 @@ export function ClinicalSettingsModal({
               <>
                 <View
                   style={{
-                    backgroundColor: '#0D0D0D',
+                    backgroundColor: previewField,
                     borderRadius: s(16),
                     borderWidth: 1,
                     borderColor: '#1F2937',
@@ -1195,6 +1228,99 @@ export function ClinicalSettingsModal({
                     </View>
                     <StepSlider values={SPEED_PRESETS} value={tempSpeed} onChange={setTempSpeed} format={(n) => `${n}`} />
                   </Card>
+                ) : null}
+
+                {showMobileTargetControls ? (
+                  <>
+                    <Card>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: s(4) }}>
+                        <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8 }}>
+                          TRAVEL SPEED
+                        </Text>
+                        <Text style={{ color: '#67E8F9', fontSize: fs(16), fontWeight: '900' }}>{tempSpeedPxPerSec} px/s</Text>
+                      </View>
+                      <StepSlider
+                        values={MOBILE_TARGET_SPEED_PX_STEPS}
+                        value={tempSpeedPxPerSec}
+                        onChange={(n) => setTempSpeedPxPerSec(clampMobileTargetSpeedPx(n))}
+                        format={(n) => `${n}`}
+                      />
+                    </Card>
+                    <Card>
+                      <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
+                        MOVEMENT AXIS
+                      </Text>
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(10) }}>
+                        Horizontal and vertical bounce along one axis. Random 2D uses both.
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                        {MOBILE_TARGET_MOVEMENT_AXES.map((axis) => (
+                          <Chip
+                            key={axis.id}
+                            label={axis.label}
+                            active={tempMovementAxis === axis.id}
+                            onPress={() => setTempMovementAxis(axis.id)}
+                          />
+                        ))}
+                      </View>
+                    </Card>
+                    <Card>
+                      <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(6) }}>
+                        FIELD
+                      </Text>
+                      <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginBottom: s(10) }}>
+                        Playfield behind the bubbles. Lower contrast fades the target toward the field.
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                        {CLINICAL_BG_COLORS.map((c) => {
+                          const active = (tempBgColor || CLINICAL_INK).toLowerCase() === c.code.toLowerCase();
+                          return (
+                            <Pressable
+                              key={c.code}
+                              onPress={() => setTempBgColor(c.code)}
+                              accessibilityLabel={`Field color ${c.name}`}
+                              style={{ alignItems: 'center', width: s(52) }}
+                            >
+                              <View
+                                style={{
+                                  width: s(28),
+                                  height: s(28),
+                                  borderRadius: s(8),
+                                  backgroundColor: c.code,
+                                  borderWidth: active ? 2 : 1,
+                                  borderColor: active ? '#FFFFFF' : '#4B5563',
+                                }}
+                              />
+                              <Text
+                                style={{
+                                  color: active ? '#FFFFFF' : '#6B7280',
+                                  fontSize: fs(9),
+                                  fontWeight: '700',
+                                  marginTop: s(4),
+                                  textAlign: 'center',
+                                }}
+                              >
+                                {c.name}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Text style={{ color: '#E5E7EB', fontSize: fs(12), fontWeight: '800', letterSpacing: 0.8, marginBottom: s(8) }}>
+                        CONTRAST · {Math.round(tempContrastSensitivity * 100)}%
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                        {CLINICAL_CONTRAST_PRESETS.map((val) => (
+                          <Chip
+                            key={val}
+                            label={`${Math.round(val * 100)}%`}
+                            active={tempContrastSensitivity === val}
+                            onPress={() => setTempContrastSensitivity(val)}
+                          />
+                        ))}
+                      </View>
+                    </Card>
+                  </>
                 ) : null}
 
                 {showWheelColorControl ? (

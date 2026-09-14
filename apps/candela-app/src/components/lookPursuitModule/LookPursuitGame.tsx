@@ -8,6 +8,7 @@ import {
   calculateAnticipationVsLag,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
+  playMissPressSoundAndHaptic,
   PursuitSettings,
   PursuitTrialMetric,
   PursuitBlockMetric,
@@ -21,12 +22,14 @@ import {
   createLookDwellState,
   resolveLookOverId,
   buildSessionMetrics,
+  useHowToPlayGate,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { useFaceLook } from '@/lib/use-face-look';
 import { GameMenuDrawer, ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { PursuitResultsModal } from '../pursuitModule/PursuitResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import { GazeHoldGame } from './GazeHoldGame';
@@ -94,8 +97,9 @@ const LookPursuitMovingGame: React.FC<{
   });
   const [elapsedSec, setElapsedSec] = useState<number>(0);
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const missCountRef = useRef(0);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
@@ -142,9 +146,11 @@ const LookPursuitMovingGame: React.FC<{
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
     const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
+      misses,
       timeouts,
       reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
@@ -189,7 +195,7 @@ const LookPursuitMovingGame: React.FC<{
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
-      clicksTotal: allTrials.length,
+      clicksTotal: allTrials.length + misses,
       correct: correctCount,
       ...metrics,
       endedBy: 'cleared',
@@ -235,9 +241,9 @@ const LookPursuitMovingGame: React.FC<{
   );
 
   useEffect(() => {
-    if (isSettingsOpen || !gameStarted) return;
+    if (playBlocked || !gameStarted) return;
     startTrial(currentTrialIndex);
-  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
+  }, [currentTrialIndex, playBlocked, gameStarted, startTrial]);
 
   const handleTrialEnd = useCallback(
     (outcome: 'correct' | 'incorrect' | 'timeout', tapPos: { x: number; y: number }) => {
@@ -256,6 +262,8 @@ const LookPursuitMovingGame: React.FC<{
       const vectorAlignment = calculateAnticipationVsLag(tapPos.x, tapPos.y, ts.x, ts.y, ts.vx, ts.vy);
       if (outcome === 'correct') {
         playCorrectSoundAndHaptic();
+      } else if (outcome === 'timeout') {
+        playMissPressSoundAndHaptic();
       } else {
         playWrongSoundAndHaptic();
       }
@@ -275,7 +283,7 @@ const LookPursuitMovingGame: React.FC<{
   );
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) {
+    if (isBlockPaused || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
@@ -289,8 +297,7 @@ const LookPursuitMovingGame: React.FC<{
   }, [
     currentTrialIndex,
     isBlockPaused,
-    isMenuOpen,
-    isSettingsOpen,
+    playBlocked,
     isResultsOpen,
     trialStartTime,
     settings.trialTimeoutSec,
@@ -328,7 +335,7 @@ const LookPursuitMovingGame: React.FC<{
   decoyStatesRef.current = decoyStates;
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) {
+    if (isBlockPaused || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
     let lastTime = performance.now();
@@ -360,8 +367,7 @@ const LookPursuitMovingGame: React.FC<{
     };
   }, [
     isBlockPaused,
-    isMenuOpen,
-    isSettingsOpen,
+    playBlocked,
     isResultsOpen,
     trialStartTime,
     look.sampleRef,
@@ -373,6 +379,7 @@ const LookPursuitMovingGame: React.FC<{
 
   const resetSession = (openSettings: boolean): void => {
     trialMetricsRef.current = [];
+    missCountRef.current = 0;
     setCurrentTrialIndex(0);
     setIsBlockPaused(false);
     setIsResultsOpen(false);
@@ -386,6 +393,7 @@ const LookPursuitMovingGame: React.FC<{
 
   const handleReplay = (): void => {
     trialMetricsRef.current = [];
+    missCountRef.current = 0;
     setCurrentTrialIndex(0);
     setIsBlockPaused(false);
     setIsResultsOpen(false);
@@ -423,7 +431,7 @@ const LookPursuitMovingGame: React.FC<{
   return (
     <div ref={containerRef} className={styles.gameContainer}>
       <video id="look-pursuit-cam" ref={look.videoRef} className={styles.preview} muted playsInline />
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <ClickToStartOverlay
           accentModuleId="computer_vision"
           title="Look Pursuit"
@@ -457,7 +465,14 @@ const LookPursuitMovingGame: React.FC<{
         </div>
       )}
 
-      <div className={styles.canvas}>
+      <div
+        className={styles.canvas}
+        onClick={() => {
+          if (!gameStarted || isBlockPaused || isResultsOpen || playBlocked || isMenuOpen) return;
+          missCountRef.current += 1;
+          playMissPressSoundAndHaptic();
+        }}
+      >
         {!isBlockPaused && !isResultsOpen && (
           <div
             className={styles.targetBubble}
@@ -501,13 +516,25 @@ const LookPursuitMovingGame: React.FC<{
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={onExit}
         onReset={handleReset}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={gameStarted && !isSettingsOpen && !isResultsOpen}
         settingsSummary={settingsSummary}
       />
 
+      <HowToPlayManual
+        moduleId="computer_vision"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         accentModuleId="computer_vision"
         isOpen={isSettingsOpen}

@@ -1,6 +1,7 @@
 'use client';
 
 import { AuthShell } from '@/components/auth/AuthForm';
+import { ScreenLoader } from '@/components/common/ScreenLoader';
 import { ApiError, api } from '@/lib/api';
 import type { DocIdRequestPreview } from '@candela/shared';
 import Link from 'next/link';
@@ -74,13 +75,7 @@ function DecisionBody({ decision }: { decision: Decision }) {
 
 export function DocIdDecisionPage({ decision }: { decision: Decision }) {
   return (
-    <Suspense
-      fallback={
-        <AuthShell title="DocID request">
-          <p className="text-sm text-gray-500">Loading…</p>
-        </AuthShell>
-      }
-    >
+    <Suspense fallback={<ScreenLoader />}>
       <DecisionBody decision={decision} />
     </Suspense>
   );

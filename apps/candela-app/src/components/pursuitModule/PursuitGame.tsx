@@ -8,6 +8,7 @@ import {
   calculateAnticipationVsLag,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
+  playMissPressSoundAndHaptic,
   PursuitSettings,
   PursuitTrialMetric,
   PursuitBlockMetric,
@@ -94,6 +95,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   // Metrics collection
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
+  const missCountRef = useRef(0);
 
   // Menu & Results Modals
   const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
@@ -298,6 +300,8 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
     if (outcome === 'correct') {
       playCorrectSoundAndHaptic();
+    } else if (outcome === 'timeout') {
+      playMissPressSoundAndHaptic();
     } else {
       playWrongSoundAndHaptic();
     }
@@ -319,15 +323,23 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     setCurrentTrialIndex((prev) => prev + 1);
   };
 
+  const handleFieldMiss = () => {
+    if (!gameStarted || isBlockPaused || isResultsOpen || playBlocked || isMenuOpen) return;
+    missCountRef.current += 1;
+    playMissPressSoundAndHaptic();
+  };
+
   // Complete Session & Aggregate Metrics
   const completeSession = () => {
     const allTrials = trialMetricsRef.current;
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
     const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
+      misses,
       timeouts,
       reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
@@ -384,7 +396,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
-      clicksTotal: allTrials.length,
+      clicksTotal: allTrials.length + misses,
       correct: correctCount,
       ...metrics,
       endedBy: 'cleared',
@@ -404,6 +416,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   const handleReset = () => {
     trialMetricsRef.current = [];
+    missCountRef.current = 0;
     setCurrentTrialIndex(0);
     setIsBlockPaused(false);
     setIsResultsOpen(false);
@@ -413,6 +426,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   const handleReplay = () => {
     trialMetricsRef.current = [];
+    missCountRef.current = 0;
     setCurrentTrialIndex(0);
     setIsBlockPaused(false);
     setIsResultsOpen(false);
@@ -496,7 +510,16 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       )}
 
       {/* BARE FIELD CANVAS WITH MOVING BUBBLES */}
-      <div className={styles.canvas} style={{ backgroundColor: fieldColor }}>
+      <div
+        className={styles.canvas}
+        style={{ backgroundColor: fieldColor }}
+        onClick={handleFieldMiss}
+        onTouchStart={(e) => {
+          if (e.target !== e.currentTarget) return;
+          e.preventDefault();
+          handleFieldMiss();
+        }}
+      >
         {/* TARGET BUBBLE (High Luminance, Bright Color) */}
         {!isBlockPaused && !isResultsOpen && (
           <div
@@ -512,6 +535,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
               touchAction: 'none',
             }}
             onClick={(e) => {
+              e.stopPropagation();
               const rect = containerRef.current?.getBoundingClientRect();
               const tapX = rect ? e.clientX - rect.left : e.clientX;
               const tapY = rect ? e.clientY - rect.top : e.clientY;
@@ -547,6 +571,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
                 touchAction: 'none',
               }}
               onClick={(e) => {
+                e.stopPropagation();
                 const rect = containerRef.current?.getBoundingClientRect();
                 const tapX = rect ? e.clientX - rect.left : e.clientX;
                 const tapY = rect ? e.clientY - rect.top : e.clientY;
@@ -584,7 +609,11 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         onOpenHowToPlay={openHowToPlay}
         onQuit={onExit}
         onReset={handleReset}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={gameStarted && !isSettingsOpen && !isResultsOpen}
         settingsSummary={settingsSummary}
       />

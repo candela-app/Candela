@@ -25,7 +25,9 @@ import {
   efficiencyIndex,
   round1,
   sessionAccuracy,
+  sessionCountValue,
 } from './session-metrics';
+import type { SessionResultData } from './types';
 
 function session(partial: Partial<StoredGameSession> & { recordedAt: string; sessionNumber: number }): StoredGameSession {
   return {
@@ -103,6 +105,17 @@ describe('session metrics', () => {
   it('round1 keeps tenth-point gains', () => {
     expect(round1(0.44)).toBe(0.4);
     expect(round1(0.45)).toBe(0.5);
+  });
+
+  it('counts Bubble Chase pops as correct hits, not target plus decoy', () => {
+    expect(
+      sessionCountValue({
+        gameName: 'Numeric Bubble Chase',
+        stimuliCount: 40,
+        correct: 20,
+        setMetrics: [{ setIndex: 0, targetValue: '1', distractorValue: '2', outcome: 'correct', reactionTimeMs: 400, wrongClicksCount: 0 }],
+      } as SessionResultData),
+    ).toBe('20');
   });
 });
 

@@ -1,5 +1,5 @@
 import { reactionStatsFromMs } from './game-logic';
-import type { SessionResultData } from './types';
+import type { MobileTargetSessionResultData, SessionResultData } from './types';
 
 /** One-decimal percent (thesis-style; never rounds a 0.4-point gain to zero). */
 export function round1(value: number): number {
@@ -134,6 +134,12 @@ export function formatReactionMsFromSec(sec: number | undefined | null): string 
   return `${Math.round((Number(sec) || 0) * 1000)}ms`;
 }
 
+export function isMobileTargetSessionResult(
+  data: SessionResultData,
+): data is MobileTargetSessionResultData {
+  return Array.isArray((data as MobileTargetSessionResultData).setMetrics);
+}
+
 export function sessionCountLabel(data: SessionResultData): string {
   const name = (data.gameName || '').toLowerCase();
   if ('boardId' in data && 'leftHalfAccuracy' in data) return 'Patterns Drawn';
@@ -147,6 +153,9 @@ export function sessionCountLabel(data: SessionResultData): string {
 export function sessionCountValue(data: SessionResultData): string {
   if ('digitsFound' in data) {
     return String((data as { digitsFound?: number }).digitsFound ?? data.correct);
+  }
+  if (isMobileTargetSessionResult(data)) {
+    return String(data.correct);
   }
   return String(data.stimuliCount);
 }
