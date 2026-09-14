@@ -566,6 +566,7 @@ function MainContent() {
 
   const handleExitGame = () => {
     if (selectedModule) {
+      setView('game');
       updateQueryParams({
         page: null,
         therapy: 'vision',

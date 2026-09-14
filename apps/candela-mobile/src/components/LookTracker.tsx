@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   LOOK_FACE_HOLD_MS,
   LOOK_SMOOTH_ALPHA,
-  lookNormFromMlKitEulerDeg,
   smoothLookNorm,
   type LookPoint,
   type LookSample,
 } from '@candela/shared/rn';
-
-function isExpoGo(): boolean {
-  return Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-}
 
 type LookTrackerProps = {
   sampleRef: { current: LookSample };
@@ -23,6 +17,8 @@ type LookTrackerProps = {
   active?: boolean;
 };
 
+const DEFAULT_CV_WS_URL = process.env.EXPO_PUBLIC_CV_URL || 'ws://localhost:8000/ws/gaze';
+
 export function LookTracker({
   sampleRef,
   onReady,
@@ -30,34 +26,19 @@ export function LookTracker({
   onFaceLost,
   active = true,
 }: LookTrackerProps) {
-  if (isExpoGo()) {
-    return <ExpoLookPreview onReady={onReady} onError={onError} />;
-  }
-  return (
-    <NativeLookTracker
-      sampleRef={sampleRef}
-      onReady={onReady}
-      onError={onError}
-      onFaceLost={onFaceLost}
-      active={active}
-    />
-  );
-}
-
-function ExpoLookPreview({
-  onReady,
-  onError,
-}: {
-  onReady: () => void;
-  onError: (message: string) => void;
-}) {
   const [permission, requestPermission] = useCameraPermissions();
   const asked = useRef(false);
+  const readySent = useRef(false);
+  const cameraRef = useRef<CameraView>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const onFaceLostRef = useRef(onFaceLost);
+  const lastLook = useRef<LookPoint | null>(null);
+  const lastFaceAt = useRef(0);
+  onFaceLostRef.current = onFaceLost;
 
+  // Request camera permissions
   useEffect(() => {
-    if (asked.current || !permission) {
-      return;
-    }
+    if (asked.current || !permission) return;
     asked.current = true;
     if (!permission.granted) {
       void requestPermission().then((next) => {
@@ -68,163 +49,101 @@ function ExpoLookPreview({
     }
   }, [permission, requestPermission, onError]);
 
+  // Connect to Python CV WebSocket Service
   useEffect(() => {
-    if (!permission?.granted) {
+    if (!active) {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
       return;
     }
+
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(DEFAULT_CV_WS_URL);
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[LookTracker] Connected to Python CV service:', DEFAULT_CV_WS_URL);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const now = performance.now();
+          if (data.faceLost) {
+            if (!lastLook.current || now - lastFaceAt.current > LOOK_FACE_HOLD_MS) {
+              sampleRef.current = { ...sampleRef.current, faceLost: true };
+              onFaceLostRef.current(true);
+            }
+          } else if (typeof data.x === 'number' && typeof data.y === 'number') {
+            lastFaceAt.current = now;
+            const raw: LookPoint = { x: data.x, y: data.y };
+            const norm = smoothLookNorm(lastLook.current, raw, LOOK_SMOOTH_ALPHA);
+            lastLook.current = norm;
+            sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
+            onFaceLostRef.current(false);
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+      };
+
+      ws.onerror = () => {
+        // Fallback gracefully if CV service is not running locally during development
+        console.warn('[LookTracker] Python CV service not reachable at', DEFAULT_CV_WS_URL);
+      };
+    } catch {
+      // Ignored
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [active, sampleRef]);
+
+  // Trigger onReady once permission is granted
+  useEffect(() => {
+    if (!permission?.granted || readySent.current) {
+      return;
+    }
+    readySent.current = true;
     onReady();
-    onError('Look tracking needs the Kandela APK (Expo Go cannot run ML Kit).');
-  }, [onReady, onError, permission?.granted]);
+  }, [permission?.granted, onReady]);
 
   if (!permission?.granted) {
     return null;
   }
 
   return (
-    <View
-      style={{
-        position: 'absolute',
-        left: 12,
-        bottom: 12,
-        width: 112,
-        height: 84,
-        borderRadius: 12,
-        overflow: 'hidden',
-        zIndex: 50,
-      }}
-    >
-      <CameraView facing="front" style={{ width: 112, height: 84 }} />
-    </View>
-  );
-}
-
-function NativeLookTracker({
-  sampleRef,
-  onReady,
-  onError,
-  onFaceLost,
-  active = true,
-}: LookTrackerProps) {
-  const vision = require('react-native-vision-camera') as typeof import('react-native-vision-camera');
-  const detector = require('react-native-vision-camera-face-detector') as typeof import('react-native-vision-camera-face-detector');
-  const { Camera: VisionCamera, useCameraDevice } = vision;
-  const { Camera } = detector;
-  const device = useCameraDevice('front');
-  const [permission, setPermission] = useState(() => VisionCamera.getCameraPermissionStatus());
-  const readySent = useRef(false);
-  const cameraRef = useRef(null);
-  const onFaceLostRef = useRef(onFaceLost);
-  const lastFaceAt = useRef(0);
-  const lastLook = useRef<LookPoint | null>(null);
-  onFaceLostRef.current = onFaceLost;
-
-  const faceDetectionOptions = useRef({
-    performanceMode: 'fast' as const,
-    landmarkMode: 'none' as const,
-    contourMode: 'none' as const,
-    classificationMode: 'none' as const,
-    minFaceSize: 0.08,
-    trackingEnabled: true,
-    cameraFacing: 'front' as const,
-    autoMode: false,
-  }).current;
-
-  useEffect(() => {
-    if (permission === 'granted') {
-      return;
-    }
-    let cancelled = false;
-    void VisionCamera.requestCameraPermission()
-      .then((status) => {
-        if (cancelled) return;
-        setPermission(status);
-        if (status !== 'granted') {
-          onError('Camera permission denied');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          onError('Camera permission denied');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [VisionCamera, onError, permission]);
-
-  useEffect(() => {
-    if (permission !== 'granted') {
-      return;
-    }
-    if (device) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      onError('No front camera found');
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [device, onError, permission]);
-
-  useEffect(() => {
-    if (permission !== 'granted' || !device || readySent.current) {
-      return;
-    }
-    readySent.current = true;
-    onReady();
-  }, [device, onReady, permission]);
-
-  const onFaces = useCallback(
-    (faces: { yawAngle: number; pitchAngle: number }[]) => {
-      const now = performance.now();
-      const face = faces[0];
-      if (!face) {
-        if (!lastLook.current || now - lastFaceAt.current > LOOK_FACE_HOLD_MS) {
-          sampleRef.current = { ...sampleRef.current, faceLost: true };
-          onFaceLostRef.current(true);
-        }
-        return;
-      }
-      lastFaceAt.current = now;
-      const raw = lookNormFromMlKitEulerDeg(face.yawAngle, face.pitchAngle);
-      const norm = smoothLookNorm(lastLook.current, raw, LOOK_SMOOTH_ALPHA);
-      lastLook.current = norm;
-      sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
-      onFaceLostRef.current(false);
-    },
-    [sampleRef],
-  );
-
-  if (permission !== 'granted') {
-    return null;
-  }
-
-  if (!device) {
-    return null;
-  }
-
-  return (
-    <View
-      style={{
-        position: 'absolute',
-        left: 12,
-        bottom: 12,
-        width: 112,
-        height: 84,
-        borderRadius: 12,
-        overflow: 'hidden',
-        zIndex: 50,
-      }}
-    >
-      <Camera
+    <View style={styles.previewContainer}>
+      <CameraView
         ref={cameraRef}
-        device={device}
-        isActive={active}
-        pixelFormat="yuv"
-        style={{ width: 112, height: 84 }}
-        faceDetectionOptions={faceDetectionOptions}
-        faceDetectionCallback={onFaces}
-        onError={(err) => onError(err.message || 'Camera failed')}
+        facing="front"
+        style={styles.camera}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  previewContainer: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    width: 112,
+    height: 84,
+    borderRadius: 12,
+    overflow: 'hidden',
+    zIndex: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  camera: {
+    width: 112,
+    height: 84,
+  },
+});
