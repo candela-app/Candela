@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult, formatReactionMsFromSec, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult, isMobileTargetSessionResult, formatReactionMsFromSec, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
 import { useSavedSessionNumber } from '@/lib/use-saved-session-number';
 import { ResultsConfetti } from './ResultsConfetti';
@@ -54,6 +54,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   const isGeoboard = 'boardId' in beeData && 'leftHalfAccuracy' in beeData;
   const isRotatory = isRotatorySessionResult(data);
   const rotatory = isRotatory ? data : null;
+  const mobileTarget = isMobileTargetSessionResult(data) ? data : null;
 
   const currentRound =
     beeData.roundResults?.[activeRoundTab] || beeData.roundResults?.[0];
@@ -603,6 +604,59 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                 <span className="font-mono text-gray-500">{beeData.penColor.toUpperCase()}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {mobileTarget && (
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-4 mb-5 relative z-10 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
+                  Set performance
+                </div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  {mobileTarget.totalSets} sets · {mobileTarget.speedPxPerSec} px/s
+                  {mobileTarget.gameMode ? ` · ${mobileTarget.gameMode}` : ''}
+                </div>
+              </div>
+              <div className="text-lg tracking-[0.15em] text-amber-400 shrink-0">
+                {'★'.repeat(mobileTarget.starRating ?? 0)}
+                <span className="text-white/15">{'★'.repeat(5 - (mobileTarget.starRating ?? 0))}</span>
+              </div>
+            </div>
+            <div className="bg-slate-950/60 rounded-xl p-3 border border-white/5 max-h-44 overflow-y-auto custom-scrollbar space-y-1.5 text-xs">
+              <div className="grid grid-cols-4 font-bold text-gray-400 pb-1 border-b border-gray-700/60 text-center">
+                <span>Set</span>
+                <span>Target</span>
+                <span>Outcome</span>
+                <span>Reaction</span>
+              </div>
+              {mobileTarget.setMetrics.map((metric) => (
+                <div
+                  key={metric.setIndex}
+                  className="grid grid-cols-4 text-center items-center py-1 border-b border-gray-800/40 last:border-0"
+                >
+                  <span className="font-semibold text-gray-300">#{metric.setIndex + 1}</span>
+                  <span className="font-bold text-white">{metric.targetValue}</span>
+                  <span
+                    className={`font-semibold capitalize ${
+                      metric.outcome === 'correct'
+                        ? 'text-emerald-400'
+                        : metric.outcome === 'incorrect'
+                          ? 'text-rose-400'
+                          : 'text-amber-400'
+                    }`}
+                  >
+                    {metric.outcome}
+                  </span>
+                  <span className="text-gray-300 font-mono">
+                    {metric.outcome === 'timeout'
+                      ? 'Timeout'
+                      : `${(metric.reactionTimeMs / 1000).toFixed(2)}s`}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
           </>

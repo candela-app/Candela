@@ -19,6 +19,15 @@ import {
   usePauseShiftedClock,
   buildSessionMetrics,
   MODULE_CTA,
+  CLINICAL_INK,
+  getContrastAdjustedColor,
+  isDarkClinicalBg,
+  mobileTargetAxisLabel,
+  clinicalColorSessionFields,
+  clampSortingNumberRange,
+  sortingNumberSequence,
+  DEFAULT_SORTING_NUMBER_FROM,
+  DEFAULT_SORTING_NUMBER_TO,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal } from '../components/ClinicalSettingsModal';
 import { HowToPlayManual } from '../components/HowToPlayManual';
@@ -26,7 +35,7 @@ import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameResultsModal } from '../components/GameResultsModal';
 import { SlidersIcon, PlayIcon, PauseIcon, ChevronUpIcon, VolumeIcon, ReplayIcon } from '../components/icons';
 import { ResetConfirmDialog } from '../components/ResetConfirmDialog';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { useLayout } from '../lib/layout';
@@ -81,9 +90,14 @@ export function MobileTargetGame({
     totalSets: 10,
     bubbleSize: 96,
     letterSize: 32,
+    movementAxis: 'random',
     hasBackground: false,
     therapyColors: THERAPY_COLOR_ITEMS.map((item) => item.code),
     stimuliColor: DEFAULT_STIMULI_BUBBLE_COLOR,
+    bgColor: CLINICAL_INK,
+    contrastSensitivity: 1,
+    numberRangeFrom: DEFAULT_SORTING_NUMBER_FROM,
+    numberRangeTo: DEFAULT_SORTING_NUMBER_TO,
   });
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [targetItem, setTargetItem] = useState<{ value: string; color: string; name?: string }>({
@@ -113,7 +127,9 @@ export function MobileTargetGame({
     setStartTimeRef.current += delta;
   }, setStartTimeRef.current);
   const wrongClicksSetRef = useRef(0);
+  const missCountRef = useRef(0);
   const shuffledPoolRef = useRef<string[]>([]);
+  const tapLockUntilRef = useRef(0);
 
   useEffect(() => {
     bubblesRef.current = bubbles;
@@ -142,12 +158,23 @@ export function MobileTargetGame({
           : 'Uppercase Bubble Chase';
 
   const generateShuffledPool = useCallback(
-    (mode: GameMode, variant?: AlphabetVariant, enabledColors?: string[]) => {
+    (
+      mode: GameMode,
+      variant?: AlphabetVariant,
+      enabledColors?: string[],
+      rangeFrom?: number,
+      rangeTo?: number,
+    ) => {
       let items: string[] = [];
       if (mode === 'alphabets') {
         items = (variant === 'lowercase' ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ').split('');
       } else if (mode === 'numbers') {
-        items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        const from = rangeFrom ?? settings.numberRangeFrom ?? DEFAULT_SORTING_NUMBER_FROM;
+        const to = rangeTo ?? settings.numberRangeTo ?? DEFAULT_SORTING_NUMBER_TO;
+        items = sortingNumberSequence(from, to);
+        if (items.length < 2) {
+          items = sortingNumberSequence(from, from + 1);
+        }
       } else {
         items = activeTherapyColors(enabledColors ?? settings.therapyColors).map((c) => c.name);
       }
@@ -158,14 +185,20 @@ export function MobileTargetGame({
       shuffledPoolRef.current = items;
       return items;
     },
-    [settings.therapyColors]
+    [settings.therapyColors, settings.numberRangeFrom, settings.numberRangeTo]
   );
 
   const generateSetPair = useCallback(
-    (setIdx: number, mode: GameMode, variant?: AlphabetVariant, customSettings?: MobileTargetSettings, shouldSpeak = false) => {
+    (setIdx: number, mode: GameMode, variant?: AlphabetVariant, customSettings?: MobileTargetSettings, shouldSpeak = false, avoidTargetSlot?: number) => {
       const effSettings = customSettings || settings;
       if (shuffledPoolRef.current.length === 0 || setIdx === 0) {
-        generateShuffledPool(mode, variant, effSettings.therapyColors);
+        generateShuffledPool(
+          mode,
+          variant,
+          effSettings.therapyColors,
+          effSettings.numberRangeFrom,
+          effSettings.numberRangeTo,
+        );
       }
       const pool = shuffledPoolRef.current;
       if (settings.totalSets !== pool.length) {
@@ -227,7 +260,12 @@ export function MobileTargetGame({
       }
       const existingB0 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[0] : null;
       const existingB1 = setIdx > 0 && bubblesRef.current.length >= 2 ? bubblesRef.current[1] : null;
-      const targetSlot = Math.random() < 0.5 ? 0 : 1;
+      const targetSlot =
+        setIdx > 0 && (avoidTargetSlot === 0 || avoidTargetSlot === 1)
+          ? 1 - avoidTargetSlot
+          : Math.random() < 0.5
+            ? 0
+            : 1;
       const initialBubbles: MovingBubble[] = [
         {
           id: `b_0_${setIdx}`,
@@ -264,6 +302,7 @@ export function MobileTargetGame({
     setCurrentSetIndex(0);
     setCorrectCount(0);
     setWrongCount(0);
+    missCountRef.current = 0;
     setSetMetrics([]);
     setIsPlaying(false);
     setIsPaused(true);
@@ -276,6 +315,7 @@ export function MobileTargetGame({
 
   const advanceToNextSet = useCallback(
     (outcome: 'correct', reactionMs: number) => {
+      const poppedSlot = bubblesRef.current.findIndex((b) => b.isTarget);
       const metric: MobileTargetSetMetric = {
         setIndex: currentSetIndex,
         targetValue: targetItem.value,
@@ -292,9 +332,11 @@ export function MobileTargetGame({
         setIsPlaying(false);
         const totalCorrect = updatedMetrics.length;
         const totalWrong = updatedMetrics.reduce((acc, m) => acc + m.wrongClicksCount, 0);
+        const totalMisses = missCountRef.current;
         const metrics = buildSessionMetrics({
           correct: totalCorrect,
           wrongTaps: totalWrong,
+          misses: totalMisses,
           reactionMs: updatedMetrics.map((m) => m.reactionTimeMs),
         });
         setSessionResult({
@@ -302,11 +344,11 @@ export function MobileTargetGame({
           sessionId: Date.now(),
           date: new Date().toISOString(),
           gameName: gameTitle,
-          stimuliCount: settings.totalSets * 2,
+          stimuliCount: settings.totalSets,
           letterSize: settings.letterSize || 32,
           speed: `${settings.speedPxPerSec} px/s`,
           durationSec: Math.round(updatedMetrics.reduce((acc, m) => acc + m.reactionTimeMs, 0) / 1000),
-          clicksTotal: totalCorrect + totalWrong,
+          clicksTotal: totalCorrect + totalWrong + totalMisses,
           correct: totalCorrect,
           ...metrics,
           endedBy: 'cleared',
@@ -317,11 +359,23 @@ export function MobileTargetGame({
           timeoutCount: 0,
           setMetrics: updatedMetrics,
           starRating: metrics.accuracy >= 90 ? 5 : metrics.accuracy >= 75 ? 4 : metrics.accuracy >= 60 ? 3 : 2,
+          ...clinicalColorSessionFields(
+            settings.bgColor || CLINICAL_INK,
+            settings.stimuliColor === 'mixed' ? '#FFFFFF' : settings.stimuliColor || '#FFFFFF',
+            settings.contrastSensitivity ?? 1,
+          ),
         });
         setShowResults(true);
       } else {
         setCurrentSetIndex(nextSet);
-        generateSetPair(nextSet, settings.gameMode, settings.alphabetVariant, undefined, true);
+        generateSetPair(
+          nextSet,
+          settings.gameMode,
+          settings.alphabetVariant,
+          undefined,
+          true,
+          poppedSlot >= 0 ? poppedSlot : undefined,
+        );
       }
     },
     [currentSetIndex, generateSetPair, setMetrics, settings, gameTitle, targetItem],
@@ -406,9 +460,11 @@ export function MobileTargetGame({
   const bottomPad = insets.bottom + s(12);
   const rightPad = s(12);
   const isColors = settings.gameMode === 'colors';
+  const fieldColor = settings.bgColor || CLINICAL_INK;
+  const fieldIsDark = isDarkClinicalBg(fieldColor);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#05070F' }}>
+    <View style={{ flex: 1, backgroundColor: fieldColor }}>
       {showClickToStart && !showHowToPlay && !showSettings && !showResults ? (
         <View style={{ ...absoluteFill, alignItems: 'center', justifyContent: 'center', zIndex: 20, backgroundColor: '#06070D' }}>
           <Text style={{ color: '#fff', fontSize: fs(24), fontWeight: '900', marginBottom: s(16), textAlign: 'center' }}>{gameTitle}</Text>
@@ -425,7 +481,13 @@ export function MobileTargetGame({
           </Pressable>
         </View>
       ) : null}
-      <View
+      <Pressable
+        onPress={() => {
+          if (!isPlaying || engineFrozen) return;
+          if (performance.now() < tapLockUntilRef.current) return;
+          missCountRef.current += 1;
+          void hapticMiss();
+        }}
         style={{ flex: 1 }}
         onLayout={(e) => {
           const { width: w, height: h } = e.nativeEvent.layout;
@@ -435,17 +497,25 @@ export function MobileTargetGame({
         {bubbles.map((bubble) => {
           const size = bubble.radius * 2;
           const appearance = resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
-          const paint = resolveBubblePaint(appearance, bubble.color, {
-            borderFill: '#121626',
-            solidBorderColor: '#FFFFFF',
+          const paintedFill = getContrastAdjustedColor(
+            bubble.color,
+            fieldColor,
+            settings.contrastSensitivity ?? 1,
+          );
+          const paint = resolveBubblePaint(appearance, paintedFill, {
+            borderFill: fieldIsDark ? '#121626' : '#E8ECF0',
+            solidBorderColor: fieldIsDark ? '#FFFFFF' : '#0F172A',
             solidBorderWidth: 3,
           });
           return (
             <Pressable
               key={bubble.id}
-              onPress={() => {
+              onPress={(e) => {
+                e.stopPropagation();
                 if (!isPlaying || engineFrozen) return;
+                if (performance.now() < tapLockUntilRef.current) return;
                 if (bubble.isTarget) {
+                  tapLockUntilRef.current = performance.now() + 280;
                   void hapticCorrect();
                   setCorrectCount((c) => c + 1);
                   advanceToNextSet('correct', performance.now() - setStartTimeRef.current);
@@ -483,7 +553,7 @@ export function MobileTargetGame({
             </Pressable>
           );
         })}
-      </View>
+      </Pressable>
 
       <View
         style={{
@@ -746,32 +816,54 @@ export function MobileTargetGame({
         patientName={settings.patientName}
         letterSize={(settings.letterSize || 32) / 16}
         bubbleSize={settings.bubbleSize || 96}
-        sampleSymbol={settings.gameMode === 'colors' ? '' : settings.gameMode === 'numbers' ? '7' : settings.alphabetVariant === 'lowercase' ? 'a' : 'A'}
+        sampleSymbol={settings.gameMode === 'colors' ? '' : settings.gameMode === 'numbers' ? String(settings.numberRangeFrom ?? DEFAULT_SORTING_NUMBER_FROM) : settings.alphabetVariant === 'lowercase' ? 'a' : 'A'}
+        showMobileTargetControls
         showTherapyColorPicker={settings.gameMode === 'colors'}
         showStimuliColorPicker={settings.gameMode !== 'colors'}
         showLetterSizeControl={settings.gameMode !== 'colors'}
+        showNumberRangeControl={settings.gameMode === 'numbers'}
+        numberRangeFrom={settings.numberRangeFrom ?? DEFAULT_SORTING_NUMBER_FROM}
+        numberRangeTo={settings.numberRangeTo ?? DEFAULT_SORTING_NUMBER_TO}
+        speedPxPerSec={settings.speedPxPerSec}
+        movementAxis={settings.movementAxis || 'random'}
         therapyColors={settings.therapyColors}
         stimuliColor={settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR}
         showBubbleAppearancePicker
         bubbleAppearance={resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)}
+        bgColor={settings.bgColor || CLINICAL_INK}
+        contrastSensitivity={settings.contrastSensitivity ?? 1}
         onApply={(next) => {
           const wasPlaying = !showResults && !showClickToStart;
           const nextColors = activeTherapyColors(next.therapyColors).map((item) => item.code);
           const appearance = next.bubbleAppearance ?? resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground);
+          const range =
+            next.numberRangeFrom != null && next.numberRangeTo != null
+              ? clampSortingNumberRange(next.numberRangeFrom, next.numberRangeTo)
+              : {
+                  from: settings.numberRangeFrom ?? DEFAULT_SORTING_NUMBER_FROM,
+                  to: settings.numberRangeTo ?? DEFAULT_SORTING_NUMBER_TO,
+                };
           const nextSettings: MobileTargetSettings = {
             ...settings,
             patientName: next.patientName,
             letterSize: Math.round(next.letterSize * 16),
             bubbleSize: next.bubbleSize,
+            speedPxPerSec: next.speedPxPerSec ?? settings.speedPxPerSec,
+            movementAxis: next.movementAxis ?? settings.movementAxis,
             therapyColors: nextColors,
             stimuliColor: next.stimuliColor ?? settings.stimuliColor ?? DEFAULT_STIMULI_BUBBLE_COLOR,
             bubbleAppearance: appearance,
             hasBackground: appearance === 'solid',
+            bgColor: next.bgColor ?? settings.bgColor,
+            contrastSensitivity: next.contrastSensitivity ?? settings.contrastSensitivity,
+            numberRangeFrom: range.from,
+            numberRangeTo: range.to,
           };
           setSettings(nextSettings);
           setShowSettings(false);
           setShowClickToStart(true);
           setIsPlaying(false);
+          missCountRef.current = 0;
           generateSetPair(0, nextSettings.gameMode, nextSettings.alphabetVariant, nextSettings, false);
           if (wasPlaying) {
             setCurrentSetIndex(0);
@@ -780,7 +872,7 @@ export function MobileTargetGame({
         sessionLocked={!showResults && !showClickToStart && isPlaying}
       />
       {sessionResult ? (
-        <GameResultsModal isOpen={showResults} data={sessionResult} onClose={requestExit} onReplay={() => { setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
+        <GameResultsModal isOpen={showResults} data={sessionResult} onClose={requestExit} onReplay={() => { missCountRef.current = 0; setShowResults(false); setCurrentSetIndex(0); generateSetPair(0, settings.gameMode, settings.alphabetVariant); setShowClickToStart(true); }} />
       ) : null}
       <GameMenuDrawer
         isOpen={isMenuOpen}
@@ -789,6 +881,7 @@ export function MobileTargetGame({
         onQuit={requestExit}
         sessionInProgress={!showResults && !showSettings && !showClickToStart}
         onReset={() => {
+          missCountRef.current = 0;
           setCurrentSetIndex(0);
           generateSetPair(0, settings.gameMode, settings.alphabetVariant);
         }}
@@ -798,6 +891,16 @@ export function MobileTargetGame({
         }}
         settingsSummary={[
           { label: 'Patient', value: settings.patientName },
+          { label: 'Speed', value: `${settings.speedPxPerSec} px/s` },
+          { label: 'Axis', value: mobileTargetAxisLabel(settings.movementAxis) },
+          ...(settings.gameMode === 'numbers'
+            ? [
+                {
+                  label: 'Range',
+                  value: `${settings.numberRangeFrom ?? DEFAULT_SORTING_NUMBER_FROM}–${settings.numberRangeTo ?? DEFAULT_SORTING_NUMBER_TO}`,
+                },
+              ]
+            : []),
           ...(settings.gameMode === 'colors'
             ? []
             : [{ label: 'Stimuli Color', value: stimuliColorLabel(settings.stimuliColor) }]),
@@ -805,6 +908,7 @@ export function MobileTargetGame({
             label: 'Bubble Style',
             value: bubbleAppearanceLabel(resolveBubbleAppearance(settings.bubbleAppearance, settings.hasBackground)),
           },
+          { label: 'Contrast', value: `${Math.round((settings.contrastSensitivity ?? 1) * 100)}%` },
         ]}
       />
       <ResetConfirmDialog
@@ -813,6 +917,7 @@ export function MobileTargetGame({
         onConfirm={() => {
           setConfirmReset(false);
           setIsAssistiveTouchOpen(false);
+          missCountRef.current = 0;
           setCurrentSetIndex(0);
           generateSetPair(0, settings.gameMode, settings.alphabetVariant);
         }}

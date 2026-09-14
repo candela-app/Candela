@@ -6,7 +6,7 @@ const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL ||
 
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@candela/shared', '@mediapipe/tasks-vision', 'webeyetrack'],
+  transpilePackages: ['@candela/shared', '@mediapipe/tasks-vision', 'webeyetrack', 'lottie-react'],
   webpack: (config) => {
     config.resolve.alias['@candela/shared/assets'] = path.resolve(
       __dirname,

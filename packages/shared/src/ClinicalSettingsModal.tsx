@@ -10,9 +10,16 @@ import {
   DEFAULT_SORTING_NUMBER_TO,
   DEFAULT_STIMULI_BUBBLE_COLOR,
   MAX_SORTING_NUMBER_COUNT,
+  MOBILE_TARGET_MOVEMENT_AXES,
+  MOBILE_TARGET_SPEED_PX_MAX,
+  MOBILE_TARGET_SPEED_PX_MIN,
+  MOBILE_TARGET_SPEED_PX_PRESETS,
   STIMULI_BUBBLE_COLOR_OPTIONS,
   STIMULI_COLOR_MIXED,
+  THERAPY_COLOR_ITEMS,
+  THERAPY_COLORS,
   WHEEL_COLOR_PRESETS,
+  clampMobileTargetSpeedPx,
   wheelColorLabel,
 } from './constants';
 import { requestFullScreenSafe, clampSortingNumberRange, getContrastColor, getDeviceTier, resolveBubblePaint, resolveStimuliBubbleColor } from './game-logic';
@@ -161,6 +168,7 @@ import {
   GeoboardBoardId,
   GeoboardMatrixTier,
   GeoboardTransform,
+  MobileTargetMovementAxis,
   PursuitMovementPattern,
   PursuitTargetColor,
 } from './types';
@@ -236,6 +244,12 @@ export interface AppliedClinicalSettings {
   pursuitDecoyCount?: number;
   pursuitSpeedPxPerSec?: number;
   pursuitTrialTimeoutSec?: number;
+  /** Bubble Chase: travel speed in px/s (not the wheel multiplier). */
+  speedPxPerSec?: number;
+  /** Bubble Chase: bounce axis. */
+  movementAxis?: MobileTargetMovementAxis;
+  /** Color-discrimination palette (hex). Keep at least two. */
+  therapyColors?: string[];
   /** Gaze Hold: hold duration before a pop (ms). */
   gazeHoldDwellMs?: number;
   /** Gaze Hold: neutral glyph fill. */
@@ -341,6 +355,13 @@ export interface ClinicalSettingsModalProps {
   lookStationaryMode?: boolean;
   /** Gaze Hold-only settings (gaze time, neutral glyph color, size, count). */
   showGazeHoldControls?: boolean;
+  /** Bubble Chase: travel speed (px/s) + movement axis in the default bubble layout. */
+  showMobileTargetControls?: boolean;
+  /** Color-discrimination palette picker. Hide for letter/number modes. */
+  showTherapyColorPicker?: boolean;
+  therapyColors?: string[];
+  speedPxPerSec?: number;
+  movementAxis?: MobileTargetMovementAxis;
   pursuitMovementPattern?: PursuitMovementPattern;
   pursuitTargetColor?: PursuitTargetColor;
   pursuitDecoyCount?: number;
@@ -460,6 +481,11 @@ export function ClinicalSettingsModal({
   showPursuitControls = false,
   lookStationaryMode = false,
   showGazeHoldControls = false,
+  showMobileTargetControls = false,
+  showTherapyColorPicker = false,
+  therapyColors = THERAPY_COLORS,
+  speedPxPerSec = 70,
+  movementAxis = 'random',
   pursuitMovementPattern = 'linear_bounce',
   pursuitTargetColor = '#00E5FF',
   pursuitDecoyCount = 0,
@@ -548,6 +574,9 @@ export function ClinicalSettingsModal({
   const [tempPursuitDecoyCount, setTempPursuitDecoyCount] = useState<number>(pursuitDecoyCount);
   const [tempPursuitSpeedPxPerSec, setTempPursuitSpeedPxPerSec] = useState<number>(pursuitSpeedPxPerSec);
   const [tempPursuitTrialTimeoutSec, setTempPursuitTrialTimeoutSec] = useState<number>(pursuitTrialTimeoutSec);
+  const [tempSpeedPxPerSec, setTempSpeedPxPerSec] = useState<number>(clampMobileTargetSpeedPx(speedPxPerSec));
+  const [tempMovementAxis, setTempMovementAxis] = useState<MobileTargetMovementAxis>(movementAxis);
+  const [tempTherapyColors, setTempTherapyColors] = useState<string[]>(therapyColors);
   const [tempGazeHoldDwellMs, setTempGazeHoldDwellMs] = useState<number>(clampGazeHoldDwellMs(gazeHoldDwellMs));
   const [tempGazeHoldGlyphColor, setTempGazeHoldGlyphColor] = useState<string>(
     resolveGazeHoldGlyphColor(gazeHoldGlyphColor),
@@ -673,6 +702,9 @@ export function ClinicalSettingsModal({
       setTempPursuitDecoyCount(pursuitDecoyCount);
       setTempPursuitSpeedPxPerSec(pursuitSpeedPxPerSec);
       setTempPursuitTrialTimeoutSec(pursuitTrialTimeoutSec);
+      setTempSpeedPxPerSec(clampMobileTargetSpeedPx(speedPxPerSec));
+      setTempMovementAxis(movementAxis);
+      setTempTherapyColors(therapyColors.length ? therapyColors : THERAPY_COLORS);
       setTempGazeHoldDwellMs(clampGazeHoldDwellMs(gazeHoldDwellMs));
       setTempGazeHoldGlyphColor(resolveGazeHoldGlyphColor(gazeHoldGlyphColor));
       setTempGazeHoldGlyphCount(clampGazeHoldGlyphCount(gazeHoldGlyphCount));
@@ -686,7 +718,7 @@ export function ClinicalSettingsModal({
       setTempOcularity(ocularity);
       setTempTimeLimitSec(timeLimitSec);
       setTempContrastSensitivity(contrastSensitivity);
-      setTempBgColor(showPursuitControls ? (bgColor || '#000000') : bgColor);
+      setTempBgColor(showPursuitControls ? (bgColor || '#000000') : showMobileTargetControls ? (bgColor || CLINICAL_INK) : bgColor);
       setTempShapeColor(shapeColor);
       setTempPenColor(penColor);
       setTempPegSizeScale(pegSizeScale);
@@ -775,6 +807,9 @@ export function ClinicalSettingsModal({
     pursuitDecoyCount,
     pursuitSpeedPxPerSec,
     pursuitTrialTimeoutSec,
+    speedPxPerSec,
+    movementAxis,
+    therapyColors,
     alphabetVariant,
     bpm,
     metronomeEnabled,
@@ -819,6 +854,8 @@ export function ClinicalSettingsModal({
     showPatternMatchControls,
     showLocationMemoryControls,
     showDirectionSenseControls,
+    showMobileTargetControls,
+    showTherapyColorPicker,
     directionSenseChoiceCount,
     directionSenseTrials,
     directionSenseShapeSizePx,
@@ -863,6 +900,9 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount: tempPursuitDecoyCount,
       pursuitSpeedPxPerSec: tempPursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec: tempPursuitTrialTimeoutSec,
+      speedPxPerSec: clampMobileTargetSpeedPx(tempSpeedPxPerSec),
+      movementAxis: tempMovementAxis,
+      therapyColors: tempTherapyColors,
       gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(tempGazeHoldDwellMs) : tempGazeHoldDwellMs,
       gazeHoldGlyphColor: showGazeHoldControls
         ? resolveGazeHoldGlyphColor(tempGazeHoldGlyphColor)
@@ -988,6 +1028,9 @@ export function ClinicalSettingsModal({
       pursuitDecoyCount,
       pursuitSpeedPxPerSec,
       pursuitTrialTimeoutSec,
+      speedPxPerSec: clampMobileTargetSpeedPx(speedPxPerSec),
+      movementAxis,
+      therapyColors,
       gazeHoldDwellMs: showGazeHoldControls ? clampGazeHoldDwellMs(gazeHoldDwellMs) : gazeHoldDwellMs,
       gazeHoldGlyphColor: showGazeHoldControls
         ? resolveGazeHoldGlyphColor(gazeHoldGlyphColor)
@@ -1104,13 +1147,13 @@ export function ClinicalSettingsModal({
 
   const previewStimuliHex = getContrastAdjustedColor(
     showStimuliColorPicker ? resolveStimuliBubbleColor(tempStimuliColor, 0) : '#FFFFFF',
-    showWheelColorControl ? tempWheelColor : tempBgColor || CLINICAL_INK,
+    showWheelColorControl || showMobileTargetControls ? (showWheelColorControl ? tempWheelColor : tempBgColor || CLINICAL_INK) : tempBgColor || CLINICAL_INK,
     tempContrastSensitivity,
   );
   const bubblePreviewPaint = resolveBubblePaint(
     showBubbleAppearancePicker || showStimuliColorPicker ? tempBubbleAppearance : 'solid',
     previewStimuliHex,
-    { borderFill: showWheelColorControl ? tempWheelColor : '#0B1220', solidBorderWidth: 0 },
+    { borderFill: showWheelColorControl ? tempWheelColor : showMobileTargetControls ? tempBgColor || CLINICAL_INK : '#0B1220', solidBorderWidth: 0 },
   );
 
   return createPortal(
@@ -1150,6 +1193,8 @@ export function ClinicalSettingsModal({
                         ? 'Configure hive size, batch density, and therapy stimulus colors for peripheral fields.'
                         : showPursuitControls
                           ? 'Configure pursuit trajectory, target salience, decoy density and trial timing.'
+                          : showMobileTargetControls
+                            ? 'Configure bubble size, travel speed, movement axis, and field contrast.'
                           : 'Configure patient parameters, stimulus diameter & optical symbol scaling.'}
               </p>
             </div>
@@ -3205,6 +3250,43 @@ export function ClinicalSettingsModal({
                 </div>
               )}
 
+              {showMobileTargetControls ? (
+                <div
+                  className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <div className="flex justify-between items-center text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider border-b border-gray-800 pb-2.5">
+                    <span>Travel Speed</span>
+                    <span className="font-black text-cyan-400 font-mono text-lg">{tempSpeedPxPerSec} px/s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={MOBILE_TARGET_SPEED_PX_MIN}
+                    max={MOBILE_TARGET_SPEED_PX_MAX}
+                    step={5}
+                    className="w-full accent-cyan-500 cursor-pointer h-2.5 my-2"
+                    value={tempSpeedPxPerSec}
+                    onChange={(e) => setTempSpeedPxPerSec(clampMobileTargetSpeedPx(parseInt(e.target.value, 10)))}
+                  />
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {MOBILE_TARGET_SPEED_PX_PRESETS.map((spd) => (
+                      <button
+                        key={spd.value}
+                        type="button"
+                        onClick={() => setTempSpeedPxPerSec(spd.value)}
+                        className={`py-1.5 px-1 text-center rounded-xl text-[10px] font-bold transition-all ${
+                          tempSpeedPxPerSec === spd.value
+                            ? 'bg-cyan-500 text-slate-950 shadow-md'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {spd.label} ({spd.value})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {showWheelColorControl ? (
                 <div
                   className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
@@ -3257,6 +3339,22 @@ export function ClinicalSettingsModal({
                     onStimulusColor={setTempStimuliColor}
                     onContrast={setTempContrastSensitivity}
                     hint="Wheel field and bubble fill. Mixed stimuli still use this contrast against the field."
+                  />
+                </div>
+              ) : null}
+
+              {showMobileTargetControls ? (
+                <div className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg" style={{ backgroundColor: '#242424' }}>
+                  <ClinicalColorFields
+                    bgColor={tempBgColor || CLINICAL_INK}
+                    stimulusColor={
+                      tempStimuliColor === 'mixed' ? '#FFFFFF' : tempStimuliColor || '#FFFFFF'
+                    }
+                    contrast={tempContrastSensitivity}
+                    onBgColor={setTempBgColor}
+                    onStimulusColor={setTempStimuliColor}
+                    onContrast={setTempContrastSensitivity}
+                    hint="Field behind the bubbles. Lower contrast fades the target toward the field."
                   />
                 </div>
               ) : null}
@@ -3355,6 +3453,36 @@ export function ClinicalSettingsModal({
                 </div>
               ) : null}
 
+              {showMobileTargetControls ? (
+                <div
+                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider block mb-1.5">
+                    Movement Axis
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-3">
+                    Horizontal and vertical bounce along one axis. Random 2D uses both.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MOBILE_TARGET_MOVEMENT_AXES.map((axis) => (
+                      <button
+                        key={axis.id}
+                        type="button"
+                        onClick={() => setTempMovementAxis(axis.id)}
+                        className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all ${
+                          tempMovementAxis === axis.id
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {axis.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {showStimuliColorPicker ? (
                 <div
                   className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
@@ -3420,12 +3548,65 @@ export function ClinicalSettingsModal({
                   </div>
                 </div>
               ) : null}
+
+              {showTherapyColorPicker ? (
+                <div
+                  className="bg-[#242424] p-5 rounded-2xl border border-gray-800 shadow-lg"
+                  style={{ backgroundColor: '#242424' }}
+                >
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs sm:text-sm font-extrabold text-gray-200 uppercase tracking-wider">
+                      Therapy Colors
+                    </label>
+                    <span className="font-black text-cyan-400 font-mono text-xs uppercase">
+                      {tempTherapyColors.length} selected
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-3">
+                    Simple names children know. Keep at least two selected.
+                  </p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {THERAPY_COLOR_ITEMS.map((item) => {
+                      const active = tempTherapyColors.some((hex) => hex.toLowerCase() === item.code.toLowerCase());
+                      return (
+                        <button
+                          key={item.code}
+                          type="button"
+                          title={item.name}
+                          onClick={() => {
+                            setTempTherapyColors((prev) => {
+                              const on = prev.some((hex) => hex.toLowerCase() === item.code.toLowerCase());
+                              if (on) {
+                                if (prev.length <= 2) return prev;
+                                return prev.filter((hex) => hex.toLowerCase() !== item.code.toLowerCase());
+                              }
+                              return [...prev, item.code];
+                            });
+                          }}
+                          className={`flex flex-col items-center gap-1 w-11 ${active ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                        >
+                          <span
+                            className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                              active ? 'border-white scale-110' : 'border-transparent'
+                            }`}
+                            style={{ backgroundColor: item.code }}
+                          />
+                          <span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-gray-500'}`}>
+                            {item.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* COLUMN 3 (RIGHT): LIVE PREVIEW */}
             <div className="lg:col-span-4 flex flex-col">
               <div
                 className="bg-[#0B1220] p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center gap-5 overflow-hidden shadow-inner relative h-full"
+                style={showMobileTargetControls ? { backgroundColor: tempBgColor || CLINICAL_INK } : undefined}
               >
                 <div className="w-full flex items-center justify-between text-xs font-extrabold text-cyan-300 uppercase tracking-widest shrink-0">
                   <span className="flex items-center gap-2">

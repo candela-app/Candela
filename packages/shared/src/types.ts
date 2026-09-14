@@ -350,6 +350,8 @@ export interface PursuitSessionResultData extends SessionResultData {
 }
 
 // --- Mobile Bouncing 2-Target Pursuit Module Types ---
+export type MobileTargetMovementAxis = 'horizontal' | 'vertical' | 'random';
+
 export interface MobileTargetSettings {
   patientName: string;
   gameMode: GameMode;
@@ -359,7 +361,7 @@ export interface MobileTargetSettings {
   totalSets: number;
   bubbleSize?: number; // bubble size in px (e.g. 60-130px)
   letterSize?: number; // font size in px (e.g. 18-48px)
-  movementAxis?: 'horizontal' | 'vertical' | 'random';
+  movementAxis?: MobileTargetMovementAxis;
   hasBackground?: boolean; // true = filled bubble background, false = outline / no background
   therapyColors?: string[]; // enabled hex colors for color-discriminant mode
   /** Letter/number bubble fill: hex or `mixed`. Ignored in colors mode. */
@@ -368,6 +370,9 @@ export interface MobileTargetSettings {
   bubbleAppearance?: BubbleAppearance;
   bgColor?: string;
   contrastSensitivity?: number;
+  /** Numeric Bubble Chase: inclusive From–To (same clamp as Numeric Sorting). */
+  numberRangeFrom?: number;
+  numberRangeTo?: number;
 }
 
 export interface MobileTargetSetMetric {

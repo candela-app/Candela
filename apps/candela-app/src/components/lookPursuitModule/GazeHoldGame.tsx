@@ -15,12 +15,15 @@ import {
   gazeHoldColorLabel,
   lookHitsBubble,
   playCorrectSoundAndHaptic,
+  playMissPressSoundAndHaptic,
   resolveGazeHoldGlyphColor,
+  useHowToPlayGate,
 } from '@candela/shared';
 import { sessionDisplayName, useAuth } from '@/lib/auth-context';
 import { useFaceLook } from '@/lib/use-face-look';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
+import { HowToPlayManual } from '../shared/HowToPlayManual';
 import { GameMenuDrawer, type ClinicalSettingSummaryItem } from '../shared/GameMenuDrawer';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './LookPursuitGame.module.css';
@@ -51,8 +54,8 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
   }));
   const [started, setStarted] = useState(false);
   const [popping, setPopping] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [bounds, setBounds] = useState({ width: 1024, height: 768 });
   useGameSessionLock(true);
 
@@ -83,8 +86,8 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
 
   const bubbleX = bounds.width / 2;
   const bubbleY = bounds.height / 2;
-  const playActive = started && !isSettingsOpen && !isMenuOpen;
-  const showPlayfield = started && !isSettingsOpen;
+  const playActive = started && !playBlocked;
+  const showPlayfield = started && !isSettingsOpen && !showHowToPlay;
 
   const resetSession = useCallback((openSettings: boolean) => {
     if (popTimeoutRef.current) {
@@ -190,7 +193,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
   return (
     <div ref={containerRef} className={styles.gameContainer}>
       <video id="look-pursuit-cam" ref={look.videoRef} className={styles.preview} muted playsInline />
-      {!started && !isSettingsOpen && !isMenuOpen ? (
+      {!started && !showHowToPlay && !isSettingsOpen && !isMenuOpen ? (
         <ClickToStartOverlay
           accentModuleId="computer_vision"
           title="Gaze Hold"
@@ -203,7 +206,12 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       {look.error ? <div className={styles.faceLost}>{look.error}</div> : null}
       {playActive && look.faceLost && !look.error ? <div className={styles.faceLost}>Face the camera</div> : null}
 
-      <div className={styles.canvas} style={{ pointerEvents: 'none' }}>
+      <div
+        className={styles.canvas}
+        onClick={() => {
+          if (playActive) playMissPressSoundAndHaptic();
+        }}
+      >
         {showPlayfield ? (
           <div
             className={`${styles.targetBubble}${popping ? ` ${styles.gazeHoldPop}` : ''}`}
@@ -213,6 +221,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
               width: `${settings.glyphSizePx}px`,
               height: `${settings.glyphSizePx}px`,
               backgroundColor: settings.glyphColor,
+              pointerEvents: 'none',
             }}
           />
         ) : null}
@@ -233,16 +242,28 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           setIsMenuOpen(false);
           stopAndExit();
         }}
-        onReset={() => resetSession(false)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onReset={() => resetSession(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={started}
         settingsSummary={settingsSummary}
       />
 
+      <HowToPlayManual
+        moduleId="computer_vision"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         accentModuleId="computer_vision"
         isOpen={isSettingsOpen}

@@ -290,7 +290,7 @@ export function HowToPlayManual({
         right: 0,
         bottom: 0,
         left: 0,
-        zIndex: 120,
+        zIndex: 1200,
         backgroundColor: '#06070D',
         paddingTop: insets.top + s(8),
         paddingBottom: insets.bottom + s(16),
