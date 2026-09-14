@@ -24,7 +24,7 @@ import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../componen
 import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { LookTracker } from '../components/LookTracker';
-import { PursuitResultsModal } from '../components/PursuitResultsModal';
+import { GameResultsModal } from '../components/GameResultsModal';
 import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
@@ -482,7 +482,7 @@ function LookPursuitMovingGame({
         sessionLocked={gameStarted && !isResultsOpen}
       />
       {sessionResults ? (
-        <PursuitResultsModal
+        <GameResultsModal
           isOpen={isResultsOpen}
           data={sessionResults}
           onClose={requestExit}

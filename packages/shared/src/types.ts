@@ -314,7 +314,7 @@ export interface PursuitSettings {
   speedPxPerSec: number; // e.g. 100-300 px/s
   trialTimeoutSec: number; // 0 = off, otherwise seconds per trial
   totalTrials: number; // 20 trials total
-  blocksCount: number; // 4 blocks of 5
+  blocksCount: number; // kept for session payload compatibility; play is a single 20-trial run
   orientation?: DeviceOrientation;
   bgColor?: string;
   contrastSensitivity?: number;

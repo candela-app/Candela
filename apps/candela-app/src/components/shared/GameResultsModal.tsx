@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
-import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult, isMobileTargetSessionResult, formatReactionMsFromSec, parentSummaryCells, sessionErrorCounts } from '@candela/shared';
+import { SessionResultData, exportSessionCSV, startResultsCelebrationAudio, ClinicalLookBadge, isRotatorySessionResult, isMobileTargetSessionResult, formatReactionMsFromSec, parentSummaryCells, pursuitPatternName, sessionErrorCounts } from '@candela/shared';
 import { playApplauseClip, preloadApplauseClip, stopApplauseClip } from '@/lib/applause';
 import { useSavedSessionNumber } from '@/lib/use-saved-session-number';
 import { ResultsConfetti } from './ResultsConfetti';
@@ -366,32 +366,6 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
           </div>
         )}
 
-        {/* PURSUIT 4-BLOCK FATIGUE TREND */}
-        {isPursuit && beeData.blockMetrics && beeData.blockMetrics.length > 0 && (
-          <div className="mb-5 relative z-10">
-            <div className="text-xs font-extrabold text-gray-300 uppercase tracking-wider mb-2.5">
-              Block Trend (4 Blocks Fatigue Analysis)
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {beeData.blockMetrics.map((blk: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="bg-white/5 border border-white/10 p-2.5 rounded-xl flex flex-col items-center text-center"
-                >
-                  <span className="text-[10px] font-extrabold text-gray-400 uppercase">
-                    B{blk.blockIndex + 1}
-                  </span>
-                  <span className="text-base font-black text-cyan-400 mt-0.5">
-                    {blk.accuracyPercent}%
-                  </span>
-                  <span className="text-[10px] text-gray-400 font-mono mt-0.5">
-                    {blk.avgTrackingErrorPx}px
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ROTATORY: VISUAL SEARCH PERFORMANCE — not acuity, saccades, or letter knowledge */}
         {rotatory && (
@@ -731,6 +705,22 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             <>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
                 <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Movement Pattern
+                </span>
+                <span className="text-lg font-black text-blue-400">
+                  {beeData.movementPattern ? pursuitPatternName(beeData.movementPattern) : '—'}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Decoys
+                </span>
+                <span className="text-2xl font-black text-violet-400">
+                  {beeData.decoyCount ?? 0}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
                   Tracking Error
                 </span>
                 <span className="text-2xl font-black text-rose-400">
@@ -743,6 +733,22 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                 </span>
                 <span className="text-2xl font-black text-cyan-400">
                   {beeData.speedPxPerSec ?? 180} px/s
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Duration
+                </span>
+                <span className="text-2xl font-black text-emerald-400">
+                  {data.durationSec}s
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center text-center">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  Trials
+                </span>
+                <span className="text-2xl font-black text-fuchsia-400">
+                  {data.stimuliCount}
                 </span>
               </div>
             </>

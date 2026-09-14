@@ -273,6 +273,306 @@ export function getMovementPath(
   return { x, y, vx, vy, isFrozen };
 }
 
+export const PURSUIT_COLLISION_GAP_PX = 8;
+
+export function pursuitSeparationPx(bubbleSizePx: number): number {
+  return bubbleSizePx + PURSUIT_COLLISION_GAP_PX;
+}
+
+function playBounds(containerWidth: number, containerHeight: number, bubbleSizePx: number) {
+  const half = bubbleSizePx / 2;
+  return {
+    minX: half,
+    minY: half,
+    maxX: Math.max(half + 10, containerWidth - half),
+    maxY: Math.max(half + 10, containerHeight - half),
+  };
+}
+
+export function clonePursuitBody(body: ElementState): ElementState {
+  return { x: body.x, y: body.y, vx: body.vx, vy: body.vy, isFrozen: body.isFrozen };
+}
+
+export function renormalizePursuitSpeed(body: ElementState, speedPxPerSec: number): ElementState {
+  const mag = Math.hypot(body.vx, body.vy);
+  const speed = Math.max(1, speedPxPerSec);
+  if (mag < 0.001) {
+    return { ...body, vx: speed, vy: 0 };
+  }
+  return { ...body, vx: (body.vx / mag) * speed, vy: (body.vy / mag) * speed };
+}
+
+export function clampPursuitBody(
+  body: ElementState,
+  containerWidth: number,
+  containerHeight: number,
+  bubbleSizePx: number,
+): ElementState {
+  const { minX, minY, maxX, maxY } = playBounds(containerWidth, containerHeight, bubbleSizePx);
+  let { x, y, vx, vy } = body;
+  if (x < minX) {
+    x = minX;
+    vx = Math.abs(vx);
+  } else if (x > maxX) {
+    x = maxX;
+    vx = -Math.abs(vx);
+  }
+  if (y < minY) {
+    y = minY;
+    vy = Math.abs(vy);
+  } else if (y > maxY) {
+    y = maxY;
+    vy = -Math.abs(vy);
+  }
+  return { ...body, x, y, vx, vy };
+}
+
+export function stepPursuitBody(
+  body: ElementState,
+  dtSec: number,
+  containerWidth: number,
+  containerHeight: number,
+  bubbleSizePx: number,
+  speedPxPerSec: number,
+): ElementState {
+  const dt = Math.max(0, Math.min(0.05, dtSec));
+  const moved = { ...body, x: body.x + body.vx * dt, y: body.y + body.vy * dt };
+  return renormalizePursuitSpeed(
+    clampPursuitBody(moved, containerWidth, containerHeight, bubbleSizePx),
+    speedPxPerSec,
+  );
+}
+
+export function pursuitBodiesOverlap(a: ElementState, b: ElementState, minDist: number): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return dx * dx + dy * dy < minDist * minDist;
+}
+
+/**
+ * Separate two circles and scatter velocities. If `kinematicB` the second body
+ * (the pursuit target) is not moved — only the decoy bounces off it.
+ */
+export function scatterPursuitPair(
+  a: ElementState,
+  b: ElementState,
+  minDist: number,
+  speedA: number,
+  speedB: number,
+  kinematicB = false,
+): { a: ElementState; b: ElementState } {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const distSq = dx * dx + dy * dy;
+  if (distSq >= minDist * minDist) return { a, b };
+
+  const dist = Math.sqrt(distSq) || 0.001;
+  const nx = dx / dist;
+  const ny = dy / dist;
+  const overlap = minDist - dist;
+
+  let ax = a.x;
+  let ay = a.y;
+  let bx = b.x;
+  let by = b.y;
+  if (kinematicB) {
+    ax -= nx * overlap;
+    ay -= ny * overlap;
+  } else {
+    ax -= nx * (overlap / 2);
+    ay -= ny * (overlap / 2);
+    bx += nx * (overlap / 2);
+    by += ny * (overlap / 2);
+  }
+
+  let avx = a.vx;
+  let avy = a.vy;
+  let bvx = b.vx;
+  let bvy = b.vy;
+
+  if (kinematicB) {
+    const closing = avx * nx + avy * ny;
+    if (closing > 0) {
+      avx -= 2 * closing * nx;
+      avy -= 2 * closing * ny;
+    } else if (Math.hypot(avx, avy) < 0.001) {
+      avx = -nx * speedA;
+      avy = -ny * speedA;
+    }
+  } else {
+    const relVx = bvx - avx;
+    const relVy = bvy - avy;
+    const velAlongNormal = relVx * nx + relVy * ny;
+    if (velAlongNormal < 0) {
+      avx += velAlongNormal * nx;
+      avy += velAlongNormal * ny;
+      bvx -= velAlongNormal * nx;
+      bvy -= velAlongNormal * ny;
+    } else if (Math.hypot(avx, avy) < 0.001 && Math.hypot(bvx, bvy) < 0.001) {
+      avx = -nx * speedA;
+      avy = -ny * speedA;
+      bvx = nx * speedB;
+      bvy = ny * speedB;
+    }
+  }
+
+  return {
+    a: renormalizePursuitSpeed({ ...a, x: ax, y: ay, vx: avx, vy: avy }, speedA),
+    b: kinematicB
+      ? b
+      : renormalizePursuitSpeed({ ...b, x: bx, y: by, vx: bvx, vy: bvy }, speedB),
+  };
+}
+
+export function resolvePursuitDecoyCollisions(
+  decoys: ElementState[],
+  target: ElementState | null,
+  bubbleSizePx: number,
+  decoySpeedPxPerSec: number,
+): ElementState[] {
+  const minDist = pursuitSeparationPx(bubbleSizePx);
+  const next = decoys.map(clonePursuitBody);
+
+  const scatterDecoys = () => {
+    for (let i = 0; i < next.length; i += 1) {
+      for (let j = i + 1; j < next.length; j += 1) {
+        const scattered = scatterPursuitPair(next[i], next[j], minDist, decoySpeedPxPerSec, decoySpeedPxPerSec);
+        next[i] = scattered.a;
+        next[j] = scattered.b;
+      }
+    }
+  };
+
+  const bounceOffTarget = () => {
+    if (!target) return;
+    for (let i = 0; i < next.length; i += 1) {
+      next[i] = scatterPursuitPair(next[i], target, minDist, decoySpeedPxPerSec, 1, true).a;
+    }
+  };
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    scatterDecoys();
+    bounceOffTarget();
+  }
+
+  const stillStacked = next.some((a, i) => next.some((b, j) => j > i && pursuitBodiesOverlap(a, b, minDist)));
+  if (stillStacked && next.length > 1) {
+    const cx = next.reduce((sum, d) => sum + d.x, 0) / next.length;
+    const cy = next.reduce((sum, d) => sum + d.y, 0) / next.length;
+    const radius = (minDist * 1.05) / (2 * Math.sin(Math.PI / next.length));
+    next.forEach((decoy, i) => {
+      const ang = (i / next.length) * Math.PI * 2;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      next[i] = renormalizePursuitSpeed(
+        {
+          ...decoy,
+          x: cx + dx * radius,
+          y: cy + dy * radius,
+          vx: dx * decoySpeedPxPerSec,
+          vy: dy * decoySpeedPxPerSec,
+        },
+        decoySpeedPxPerSec,
+      );
+    });
+    bounceOffTarget();
+  }
+
+  return next;
+}
+
+export function spawnPursuitDecoys(
+  count: number,
+  pattern: PursuitMovementPattern,
+  containerWidth: number,
+  containerHeight: number,
+  bubbleSizePx: number,
+  speedPxPerSec: number,
+  seed: number,
+  orientation: ScreenOrientation = 'landscape',
+  tier: DeviceTier = 'mobile',
+): ElementState[] {
+  const decoys: ElementState[] = [];
+  const minDist = pursuitSeparationPx(bubbleSizePx);
+  const n = Math.max(0, Math.min(3, count));
+  for (let i = 0; i < n; i += 1) {
+    let placed: ElementState | null = null;
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const candidate = renormalizePursuitSpeed(
+        getMovementPath(
+          pattern,
+          attempt * 0.41,
+          containerWidth,
+          containerHeight,
+          bubbleSizePx,
+          speedPxPerSec,
+          i + 1,
+          seed + (i + 1) * 19.7 + attempt * 8.3,
+          orientation,
+          tier,
+        ),
+        speedPxPerSec,
+      );
+      if (decoys.every((d) => !pursuitBodiesOverlap(d, candidate, minDist))) {
+        placed = candidate;
+        break;
+      }
+    }
+    decoys.push(
+      placed ??
+        renormalizePursuitSpeed(
+          getMovementPath(
+            pattern,
+            i * 0.9,
+            containerWidth,
+            containerHeight,
+            bubbleSizePx,
+            speedPxPerSec,
+            i + 1,
+            seed + (i + 1) * 19.7,
+            orientation,
+            tier,
+          ),
+          speedPxPerSec,
+        ),
+    );
+  }
+  return decoys;
+}
+
+export function pickPursuitTargetSeed(
+  decoys: ElementState[],
+  pattern: PursuitMovementPattern,
+  containerWidth: number,
+  containerHeight: number,
+  bubbleSizePx: number,
+  speedPxPerSec: number,
+  trialIdx: number,
+  orientation: ScreenOrientation = 'landscape',
+  tier: DeviceTier = 'mobile',
+): number {
+  const minDist = pursuitSeparationPx(bubbleSizePx);
+  for (let attempt = 0; attempt < 28; attempt += 1) {
+    const seed = Math.random() * 80 + trialIdx + attempt * 3.17;
+    const candidate = getMovementPath(
+      pattern,
+      0,
+      containerWidth,
+      containerHeight,
+      bubbleSizePx,
+      speedPxPerSec,
+      0,
+      seed,
+      orientation,
+      tier,
+    );
+    if (decoys.every((d) => !pursuitBodiesOverlap(d, candidate, minDist))) {
+      return seed;
+    }
+  }
+  return Math.random() * 80 + trialIdx;
+}
+
 /**
  * Calculates Euclidean tracking error in pixels between tap location and target center at tap time.
  */

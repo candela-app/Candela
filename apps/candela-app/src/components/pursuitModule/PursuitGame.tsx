@@ -4,14 +4,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getDeviceTier,
   getMovementPath,
+  pickPursuitTargetSeed,
+  resolvePursuitDecoyCollisions,
+  spawnPursuitDecoys,
+  stepPursuitBody,
   calculateTrackingError,
   calculateAnticipationVsLag,
+  ElementState,
   playCorrectSoundAndHaptic,
   playWrongSoundAndHaptic,
   playMissPressSoundAndHaptic,
   PursuitSettings,
   PursuitTrialMetric,
-  PursuitBlockMetric,
   PursuitSessionResultData,
   PursuitMovementPattern,
   AppliedClinicalSettings,
@@ -33,7 +37,7 @@ import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { HowToPlayManual } from '../shared/HowToPlayManual';
-import { PursuitResultsModal } from './PursuitResultsModal';
+import { GameResultsModal } from '../shared/GameResultsModal';
 import { SlidersIcon } from '../icons/VectorIcons';
 import styles from './PursuitGame.module.css';
 
@@ -43,8 +47,6 @@ interface PursuitGameProps {
 }
 
 const TOTAL_TRIALS = 20;
-const TRIALS_PER_BLOCK = 5;
-const TOTAL_BLOCKS = 4;
 
 export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovementPattern = 'linear_bounce' }) => {
   const { session } = useAuth();
@@ -62,7 +64,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     speedPxPerSec: 70,
     trialTimeoutSec: 0,
     totalTrials: TOTAL_TRIALS,
-    blocksCount: TOTAL_BLOCKS,
+    blocksCount: 1,
     orientation: 'auto',
     bgColor: CLINICAL_INK,
     contrastSensitivity: 1,
@@ -80,8 +82,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   // --- Session & Trial Execution State ---
   const [currentTrialIndex, setCurrentTrialIndex] = useState<number>(0);
-  const [isBlockPaused, setIsBlockPaused] = useState<boolean>(false);
-  const [pausedBlockIndex, setPausedBlockIndex] = useState<number>(0);
+  const [sessionEpoch, setSessionEpoch] = useState(0);
   const [trialStartTime, setTrialStartTime] = useState<number | null>(null);
 
   // Locked Container Dimensions per Trial (Orientation Lock)
@@ -96,6 +97,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   // Metrics collection
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
   const missCountRef = useRef(0);
+  const wrongTapCountRef = useRef(0);
 
   // Menu & Results Modals
   const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } = useHowToPlayGate();
@@ -103,7 +105,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   useGameSessionLock(true);
   const [isResultsOpen, setIsResultsOpen] = useState<boolean>(false);
   const [sessionResults, setSessionResults] = useState<PursuitSessionResultData | null>(null);
-  const sessionFrozen = playBlocked || isBlockPaused || isResultsOpen;
+  const sessionFrozen = playBlocked || isResultsOpen;
   usePauseShiftedClock(sessionFrozen, Boolean(gameStarted && trialStartTime != null), (delta) => {
     setTrialStartTime((prev) => (prev == null ? prev : prev + delta));
   }, trialStartTime);
@@ -111,7 +113,13 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   // Animation frame ref & Timeout timer ref
   const animFrameRef = useRef<number | null>(null);
   const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const seedRef = useRef<number>(1);
+  const targetSeedRef = useRef<number>(1);
+  const decoysRef = useRef<ElementState[]>([]);
+  const decoysEpochRef = useRef(-1);
+  const elapsedSecRef = useRef(0);
+  const trialLockRef = useRef(false);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   // Detect device tier
   const deviceTier = getDeviceTier(
@@ -119,19 +127,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     typeof window !== 'undefined' ? window.innerHeight : 768
   );
 
-  // Calculate current block index (0 to 3)
-  const currentBlockIndex = Math.floor(currentTrialIndex / TRIALS_PER_BLOCK);
-
-  // Scaled decoy count by block / difficulty tier:
-  // Entry block (Block 0): 1 target + 1 decoy (2 total)
-  // Higher blocks: 1 target + 2-3 decoys (capped at max 4 total elements on screen)
-  const activeDecoyCount =
-    settings.decoyCount <= 0
-      ? 0
-      : Math.min(
-          3,
-          currentBlockIndex === 0 ? 1 : Math.min(settings.decoyCount, currentBlockIndex + 1),
-        );
+  const activeDecoyCount = Math.max(0, Math.min(3, settings.decoyCount));
 
   // Lock container dimensions at start of each trial to enforce orientation lock
   const updateLockedContainerBounds = useCallback(() => {
@@ -153,45 +149,63 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     }
   }, []);
 
-  // Initialize trial
   const startTrial = useCallback(
     (trialIdx: number) => {
-      if (trialIdx >= TOTAL_TRIALS) {
-        completeSession();
-        return;
-      }
-
-      // Check for block transition (between blocks 0->1, 1->2, 2->3)
-      if (trialIdx > 0 && trialIdx % TRIALS_PER_BLOCK === 0 && !isBlockPaused) {
-        setIsBlockPaused(true);
-        setPausedBlockIndex(Math.floor(trialIdx / TRIALS_PER_BLOCK));
-        setTimeout(() => {
-          setIsBlockPaused(false);
-          updateLockedContainerBounds();
-          seedRef.current = Math.random() * 100 + trialIdx;
-          setTrialStartTime(performance.now());
-          setElapsedSec(0);
-        }, 1500);
-        return;
-      }
-
+      if (trialIdx >= TOTAL_TRIALS) return;
+      trialLockRef.current = false;
       updateLockedContainerBounds();
-      seedRef.current = Math.random() * 100 + trialIdx;
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      const width = Math.max(300, rect && rect.width > 100 ? rect.width : containerBounds.width);
+      const height = Math.max(300, rect && rect.height > 100 ? rect.height : containerBounds.height);
+      const orientation = width >= height ? 'landscape' : 'portrait';
+      const { movementPattern, bubbleSizePx, speedPxPerSec } = settingsRef.current;
+      const decoySpeed = speedPxPerSec * 0.9;
+      const decoyCount = Math.max(0, Math.min(3, settingsRef.current.decoyCount));
+      const tier = getDeviceTier(width, height);
+
+      if (decoysEpochRef.current !== sessionEpoch || decoysRef.current.length !== decoyCount) {
+        decoysEpochRef.current = sessionEpoch;
+        decoysRef.current = spawnPursuitDecoys(
+          decoyCount,
+          movementPattern,
+          width,
+          height,
+          bubbleSizePx,
+          decoySpeed,
+          Math.random() * 100 + sessionEpoch,
+          orientation,
+          tier,
+        );
+      }
+
+      targetSeedRef.current = pickPursuitTargetSeed(
+        decoysRef.current,
+        movementPattern,
+        width,
+        height,
+        bubbleSizePx,
+        speedPxPerSec,
+        trialIdx,
+        orientation,
+        tier,
+      );
+      elapsedSecRef.current = 0;
       setTrialStartTime(performance.now());
       setElapsedSec(0);
     },
-    [isBlockPaused, updateLockedContainerBounds]
+    [updateLockedContainerBounds, sessionEpoch, containerBounds.width, containerBounds.height],
   );
 
-  // Setup trial on mount or trial index change
   useEffect(() => {
-    if (!gameStarted) return;
+    if (!gameStarted || isResultsOpen) return;
+    if (currentTrialIndex >= TOTAL_TRIALS) return;
     startTrial(currentTrialIndex);
-  }, [currentTrialIndex, gameStarted, startTrial]);
+  }, [currentTrialIndex, gameStarted, isResultsOpen, sessionEpoch, startTrial]);
 
   // Timeout handler (logged as miss / timeout, auto advance)
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
+    if (isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
 
@@ -208,7 +222,6 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     };
   }, [
     currentTrialIndex,
-    isBlockPaused,
     isMenuOpen,
     isSettingsOpen,
     isResultsOpen,
@@ -219,17 +232,47 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
   // 60 FPS Continuous Animation Loop using requestAnimationFrame
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
+    if (isMenuOpen || playBlocked || isResultsOpen || !trialStartTime) {
       return;
     }
 
     let lastTime = performance.now();
 
     const loop = (now: number) => {
-      const deltaSec = (now - lastTime) / 1000;
+      const deltaSec = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
-
-      setElapsedSec((prev) => prev + deltaSec);
+      elapsedSecRef.current += deltaSec;
+      const current = settingsRef.current;
+      const decoySpeed = current.speedPxPerSec * 0.9;
+      const orientationNow = containerBounds.width >= containerBounds.height ? 'landscape' : 'portrait';
+      const target = getMovementPath(
+        current.movementPattern,
+        elapsedSecRef.current,
+        containerBounds.width,
+        containerBounds.height,
+        current.bubbleSizePx,
+        current.speedPxPerSec,
+        0,
+        targetSeedRef.current,
+        orientationNow,
+        deviceTier,
+      );
+      decoysRef.current = resolvePursuitDecoyCollisions(
+        decoysRef.current.map((decoy) =>
+          stepPursuitBody(
+            decoy,
+            deltaSec,
+            containerBounds.width,
+            containerBounds.height,
+            current.bubbleSizePx,
+            decoySpeed,
+          ),
+        ),
+        target,
+        current.bubbleSizePx,
+        decoySpeed,
+      );
+      setElapsedSec(elapsedSecRef.current);
       animFrameRef.current = requestAnimationFrame(loop);
     };
 
@@ -238,7 +281,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isBlockPaused, isMenuOpen, playBlocked, isResultsOpen, trialStartTime]);
+  }, [isMenuOpen, playBlocked, isResultsOpen, trialStartTime, containerBounds.width, containerBounds.height, deviceTier]);
 
   // Calculate current target state
   const orientation = containerBounds.width >= containerBounds.height ? 'landscape' : 'portrait';
@@ -251,32 +294,20 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     settings.bubbleSizePx,
     settings.speedPxPerSec,
     0, // element index 0 = target
-    seedRef.current,
+    targetSeedRef.current,
     orientation,
     deviceTier
   );
 
-  // Calculate decoy states
-  const decoyStates = Array.from({ length: activeDecoyCount }, (_, idx) =>
-    getMovementPath(
-      settings.movementPattern,
-      elapsedSec,
-      containerBounds.width,
-      containerBounds.height,
-      settings.bubbleSizePx,
-      settings.speedPxPerSec * 0.9,
-      idx + 1, // decoy index 1..3
-      seedRef.current + (idx + 1) * 1.5,
-      orientation,
-      deviceTier
-    )
-  );
+  const decoyStates = decoysRef.current;
 
   // Handle Trial Completion
   const handleTrialEnd = (
-    outcome: 'correct' | 'incorrect' | 'timeout',
+    outcome: 'correct' | 'timeout',
     tapPos: { x: number; y: number }
   ) => {
+    if (!gameStarted || isResultsOpen || playBlocked || trialLockRef.current) return;
+    trialLockRef.current = true;
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
 
     const now = performance.now();
@@ -300,15 +331,13 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
     if (outcome === 'correct') {
       playCorrectSoundAndHaptic();
-    } else if (outcome === 'timeout') {
-      playMissPressSoundAndHaptic();
     } else {
-      playWrongSoundAndHaptic();
+      playMissPressSoundAndHaptic();
     }
 
     const metric: PursuitTrialMetric = {
       trialIndex: currentTrialIndex,
-      blockIndex: currentBlockIndex,
+      blockIndex: 0,
       outcome,
       reactionTimeMs,
       trackingErrorPx,
@@ -319,21 +348,29 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
     trialMetricsRef.current.push(metric);
 
-    // Advance trial
+    if (trialMetricsRef.current.length >= TOTAL_TRIALS) {
+      completeSession();
+      return;
+    }
     setCurrentTrialIndex((prev) => prev + 1);
   };
 
   const handleFieldMiss = () => {
-    if (!gameStarted || isBlockPaused || isResultsOpen || playBlocked || isMenuOpen) return;
+    if (!gameStarted || isResultsOpen || playBlocked || isMenuOpen) return;
     missCountRef.current += 1;
     playMissPressSoundAndHaptic();
   };
 
-  // Complete Session & Aggregate Metrics
+  const handleWrongTap = () => {
+    if (!gameStarted || isResultsOpen || playBlocked || isMenuOpen || trialLockRef.current) return;
+    wrongTapCountRef.current += 1;
+    playWrongSoundAndHaptic();
+  };
+
   const completeSession = () => {
     const allTrials = trialMetricsRef.current;
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
-    const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
+    const wrongTaps = wrongTapCountRef.current;
     const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
     const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
@@ -362,29 +399,6 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         ? `Lagging Pursuit (${Math.round((1 - avgAnticipation) * 50)}% Trailing)`
         : `Balanced Pursuit (Centered)`;
 
-    // Aggregate Block Metrics
-    const blockMetrics: PursuitBlockMetric[] = Array.from({ length: TOTAL_BLOCKS }, (_, bIdx) => {
-      const bTrials = allTrials.filter((t) => t.blockIndex === bIdx);
-      const bCorrect = bTrials.filter((t) => t.outcome === 'correct').length;
-      const bAcc = Math.round((bCorrect / Math.max(1, bTrials.length)) * 100);
-      const bErr =
-        bTrials.length > 0
-          ? Math.round(bTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / bTrials.length)
-          : 0;
-      const bRx =
-        bTrials.length > 0
-          ? Math.round(bTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / bTrials.length)
-          : 0;
-
-      return {
-        blockIndex: bIdx,
-        accuracyPercent: bAcc,
-        avgTrackingErrorPx: bErr,
-        avgReactionTimeMs: bRx,
-        trials: bTrials,
-      };
-    });
-
     const starRating = Math.max(1, Math.min(5, Math.ceil((metrics.accuracy / 100) * 5)));
 
     const resultData: PursuitSessionResultData = {
@@ -396,7 +410,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
-      clicksTotal: allTrials.length + misses,
+      clicksTotal: correctCount + wrongTaps + misses,
       correct: correctCount,
       ...metrics,
       endedBy: 'cleared',
@@ -405,7 +419,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       speedPxPerSec: settings.speedPxPerSec,
       avgTrackingErrorPx,
       anticipationVsLagScore,
-      blockMetrics,
+      blockMetrics: [],
       starRating,
       ...clinicalColorSessionFields(settings.bgColor || CLINICAL_INK, settings.targetColor, settings.contrastSensitivity ?? 1),
     };
@@ -414,23 +428,40 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     setIsResultsOpen(true);
   };
 
+  const beginPlay = () => {
+    trialMetricsRef.current = [];
+    missCountRef.current = 0;
+    wrongTapCountRef.current = 0;
+    trialLockRef.current = false;
+    setCurrentTrialIndex(0);
+    setIsResultsOpen(false);
+    decoysEpochRef.current = -1;
+    decoysRef.current = [];
+    elapsedSecRef.current = 0;
+    setTrialStartTime(null);
+    setElapsedSec(0);
+    setSessionEpoch((n) => n + 1);
+    setGameStarted(true);
+  };
+
   const handleReset = () => {
     trialMetricsRef.current = [];
     missCountRef.current = 0;
+    wrongTapCountRef.current = 0;
+    trialLockRef.current = false;
     setCurrentTrialIndex(0);
-    setIsBlockPaused(false);
+    decoysEpochRef.current = -1;
+    decoysRef.current = [];
+    elapsedSecRef.current = 0;
     setIsResultsOpen(false);
+    setTrialStartTime(null);
+    setElapsedSec(0);
     setGameStarted(false);
     setIsSettingsOpen(true);
   };
 
   const handleReplay = () => {
-    trialMetricsRef.current = [];
-    missCountRef.current = 0;
-    setCurrentTrialIndex(0);
-    setIsBlockPaused(false);
-    setIsResultsOpen(false);
-    setGameStarted(true);
+    beginPlay();
   };
 
   const handleApplyClinicalSettings = (applied: AppliedClinicalSettings) => {
@@ -447,7 +478,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       contrastSensitivity: applied.contrastSensitivity ?? prev.contrastSensitivity ?? 1,
     }));
     setIsSettingsOpen(false);
-    handleReset();
+    beginPlay();
   };
 
   const fieldColor = settings.bgColor || CLINICAL_INK;
@@ -455,6 +486,11 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
     settings.targetColor,
     fieldColor,
     settings.contrastSensitivity ?? 1,
+  );
+  const paintedDecoy = getContrastAdjustedColor(
+    paintedTarget,
+    fieldColor,
+    settings.decoySalience,
   );
 
   // Menu settings summary
@@ -478,12 +514,12 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         <ClickToStartOverlay
           accentModuleId="pursuit"
           title="Pursuit"
-          onStart={() => setGameStarted(true)}
+          onStart={beginPlay}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExit={onExit}
         />
       ) : null}
-      {!isBlockPaused && !isResultsOpen ? (
+      {gameStarted && !isResultsOpen ? (
         <div
           className="absolute top-12 left-1/2 -translate-x-1/2 z-50 font-bold pointer-events-none"
           style={{ color: isDarkClinicalBg(fieldColor) ? '#F8FAFC' : '#1A2A32' }}
@@ -492,36 +528,17 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
         </div>
       ) : null}
 
-      {/* BLOCK TRANSITION OVERLAY (1.5s neutral pause) */}
-      {isBlockPaused && (
-        <div className={styles.blockOverlay}>
-          <div className={styles.blockCard}>
-            <div className="text-cyan-400 text-xs font-black uppercase tracking-widest mb-2">
-              Neutral Block Pause
-            </div>
-            <h3 className="text-3xl font-extrabold text-white mb-2">
-              Block {pausedBlockIndex + 1} of {TOTAL_BLOCKS} Starting...
-            </h3>
-            <p className="text-sm text-gray-400">
-              Track the bright moving target bubble and ignore dim decoys.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* BARE FIELD CANVAS WITH MOVING BUBBLES */}
       <div
         className={styles.canvas}
         style={{ backgroundColor: fieldColor }}
-        onClick={handleFieldMiss}
-        onTouchStart={(e) => {
+        onPointerDown={(e) => {
           if (e.target !== e.currentTarget) return;
-          e.preventDefault();
           handleFieldMiss();
         }}
       >
         {/* TARGET BUBBLE (High Luminance, Bright Color) */}
-        {!isBlockPaused && !isResultsOpen && (
+        {!isResultsOpen && gameStarted && (
           <div
             className={styles.targetBubble}
             style={{
@@ -534,28 +551,19 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
               boxShadow: 'none',
               touchAction: 'none',
             }}
-            onClick={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               const rect = containerRef.current?.getBoundingClientRect();
               const tapX = rect ? e.clientX - rect.left : e.clientX;
               const tapY = rect ? e.clientY - rect.top : e.clientY;
               handleTrialEnd('correct', { x: tapX, y: tapY });
             }}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const touch = e.touches[0] || e.changedTouches[0];
-              const rect = containerRef.current?.getBoundingClientRect();
-              const tapX = rect && touch ? touch.clientX - rect.left : targetState.x;
-              const tapY = rect && touch ? touch.clientY - rect.top : targetState.y;
-              handleTrialEnd('correct', { x: tapX, y: tapY });
-            }}
           />
         )}
 
         {/* DECOY BUBBLES (Dimmer, Lower Saturation of Similar Hue) */}
-        {!isBlockPaused &&
-          !isResultsOpen &&
+        {!isResultsOpen &&
+          gameStarted &&
           decoyStates.map((decoy, idx) => (
             <div
               key={idx}
@@ -565,26 +573,14 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
                 top: `${decoy.y}px`,
                 width: `${settings.bubbleSizePx}px`,
                 height: `${settings.bubbleSizePx}px`,
-                backgroundColor: paintedTarget,
-                opacity: settings.decoySalience, // Dim salience
+                backgroundColor: paintedDecoy,
+                opacity: 1,
                 border: 'none',
                 touchAction: 'none',
               }}
-              onClick={(e) => {
+              onPointerDown={(e) => {
                 e.stopPropagation();
-                const rect = containerRef.current?.getBoundingClientRect();
-                const tapX = rect ? e.clientX - rect.left : e.clientX;
-                const tapY = rect ? e.clientY - rect.top : e.clientY;
-                handleTrialEnd('incorrect', { x: tapX, y: tapY });
-              }}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const touch = e.touches[0] || e.changedTouches[0];
-                const rect = containerRef.current?.getBoundingClientRect();
-                const tapX = rect && touch ? touch.clientX - rect.left : decoy.x;
-                const tapY = rect && touch ? touch.clientY - rect.top : decoy.y;
-                handleTrialEnd('incorrect', { x: tapX, y: tapY });
+                handleWrongTap();
               }}
             />
           ))}
@@ -647,7 +643,7 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
 
       {/* SESSION RESULTS MODAL */}
       {sessionResults && (
-        <PursuitResultsModal
+        <GameResultsModal
           isOpen={isResultsOpen}
           onClose={() => {
             setIsResultsOpen(false);

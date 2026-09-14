@@ -2059,6 +2059,44 @@ export function ClinicalSettingsModal({
                       </Pressable>
                     ))}
                   </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginTop: s(14), marginBottom: s(8) }}>
+                    FIELD COLOR
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(12) }}>
+                    {CLINICAL_BG_COLORS.map((c) => {
+                      const active = (tempBgColor || '#000000').toLowerCase() === c.code.toLowerCase();
+                      return (
+                        <Pressable key={c.code} onPress={() => setTempBgColor(c.code)} style={{ alignItems: 'center', width: s(52) }}>
+                          <View
+                            style={{
+                              width: s(28),
+                              height: s(28),
+                              borderRadius: s(8),
+                              backgroundColor: c.code,
+                              borderWidth: active ? 2 : 1,
+                              borderColor: active ? '#FFFFFF' : '#4B5563',
+                            }}
+                          />
+                          <Text style={{ color: active ? '#FFFFFF' : '#6B7280', fontSize: fs(9), fontWeight: '700', marginTop: s(4) }}>
+                            {c.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6, marginBottom: s(8) }}>
+                    CONTRAST · {Math.round(tempContrastSensitivity * 100)}%
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {CLINICAL_CONTRAST_PRESETS.map((val) => (
+                      <Chip
+                        key={val}
+                        label={`${Math.round(val * 100)}%`}
+                        active={tempContrastSensitivity === val}
+                        onPress={() => setTempContrastSensitivity(val)}
+                      />
+                    ))}
+                  </View>
                   </>
                   )}
                 </Card>
@@ -2091,6 +2129,7 @@ export function ClinicalSettingsModal({
                   </View>
                   <View style={{ flexDirection: 'row', gap: s(8), marginBottom: s(14) }}>
                     {[
+                      { label: 'None', val: 0 },
                       { label: '1 Decoy', val: 1 },
                       { label: '2 Decoys', val: 2 },
                       { label: '3 Decoys', val: 3 },
@@ -2198,6 +2237,45 @@ export function ClinicalSettingsModal({
                     Off keeps the trial running until the target or a decoy is tapped.
                   </Text>
                 </Card>
+
+                {!lookStationaryMode ? (
+                  <Card>
+                    <Text style={{ color: '#22D3EE', fontSize: fs(12), fontWeight: '800', letterSpacing: 1, marginBottom: s(12) }}>
+                      LIVE PREVIEW
+                    </Text>
+                    {(() => {
+                      const targetSize = Math.min(tempBubbleSize, s(110));
+                      const decoySize = Math.max(s(34), targetSize * 0.72);
+                      const field = tempBgColor || '#000000';
+                      const target = getContrastAdjustedColor(tempTargetColor, field, tempContrastSensitivity);
+                      const decoy = getContrastAdjustedColor(target, field, 0.35);
+                      return (
+                        <View
+                          style={{
+                            minHeight: s(190),
+                            borderRadius: s(16),
+                            borderWidth: 1,
+                            borderColor: '#1F2937',
+                            backgroundColor: field,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: s(18),
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(14) }}>
+                            <View style={{ width: targetSize, height: targetSize, borderRadius: targetSize / 2, backgroundColor: target }} />
+                            {tempDecoys > 0 ? (
+                              <View style={{ width: decoySize, height: decoySize, borderRadius: decoySize / 2, backgroundColor: decoy }} />
+                            ) : null}
+                          </View>
+                          <Text style={{ color: '#94A3B8', fontSize: fs(11), fontWeight: '700', marginTop: s(16) }}>
+                            {tempBubbleSize}px target · {tempDecoys} decoy{tempDecoys === 1 ? '' : 's'}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </Card>
+                ) : null}
               </>
             ) : null}
 

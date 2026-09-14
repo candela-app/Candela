@@ -11,6 +11,7 @@ import {
   isMobileTargetSessionResult,
   isRotatorySessionResult,
   parentSummaryCells,
+  pursuitPatternName,
   sessionErrorCounts,
 } from '@candela/shared/rn';
 import { shareSessionCsv } from '../lib/csv';
@@ -95,6 +96,16 @@ export function GameResultsModal({
   const isRotatory = isRotatorySessionResult(data);
   const rotatory = isRotatory ? data : null;
   const mobileTarget = isMobileTargetSessionResult(data) ? data : null;
+  const pursuitData = data as SessionResultData & {
+    movementPattern?: Parameters<typeof pursuitPatternName>[0];
+    decoyCount?: number;
+    speedPxPerSec?: number;
+    avgTrackingErrorPx?: number;
+    anticipationVsLagScore?: string;
+  };
+  const isPursuit =
+    data.gameName?.toLowerCase().includes('pursuit') ||
+    typeof pursuitData.avgTrackingErrorPx === 'number';
   const parentCells = parentSummaryCells(data);
   const errors = sessionErrorCounts(data);
 
@@ -482,6 +493,60 @@ export function GameResultsModal({
               </>
             ) : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(10), marginBottom: s(18) }}>
+                {isPursuit ? (
+                  <>
+                    {[
+                      {
+                        label: 'Movement Pattern',
+                        value: pursuitData.movementPattern ? pursuitPatternName(pursuitData.movementPattern) : '—',
+                        color: '#60A5FA',
+                      },
+                      { label: 'Decoys', value: String(pursuitData.decoyCount ?? 0), color: '#C084FC' },
+                      { label: 'Tracking Error', value: `${pursuitData.avgTrackingErrorPx ?? 0}px`, color: '#FB7185' },
+                      { label: 'Pursuit Speed', value: `${pursuitData.speedPxPerSec ?? 180} px/s`, color: '#22D3EE' },
+                      { label: 'Duration', value: `${data.durationSec}s`, color: '#34D399' },
+                      { label: 'Trials', value: String(data.stimuliCount), color: '#E879F9' },
+                    ].map((item) => (
+                      <View
+                        key={item.label}
+                        style={{
+                          width: '48%',
+                          flexGrow: 1,
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.1)',
+                          borderRadius: s(16),
+                          padding: s(14),
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#9CA3AF', fontSize: fs(10), fontWeight: '700', letterSpacing: 0.8, marginBottom: s(4) }}>
+                          {item.label.toUpperCase()}
+                        </Text>
+                        <Text style={{ color: item.color, fontSize: fs(18), fontWeight: '900', textAlign: 'center' }}>{item.value}</Text>
+                      </View>
+                    ))}
+                    {pursuitData.anticipationVsLagScore ? (
+                      <View
+                        style={{
+                          width: '100%',
+                          borderRadius: s(16),
+                          borderWidth: 1,
+                          borderColor: 'rgba(34,211,238,0.3)',
+                          backgroundColor: 'rgba(8,145,178,0.12)',
+                          padding: s(14),
+                        }}
+                      >
+                        <Text style={{ color: '#22D3EE', fontSize: fs(10), fontWeight: '800', letterSpacing: 0.8 }}>
+                          PURSUIT VECTOR ALIGNMENT
+                        </Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: fs(14), fontWeight: '800', marginTop: s(5) }}>
+                          {pursuitData.anticipationVsLagScore}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
                 {typeof data.medianReactionSec === 'number' ? (
                   <View
                     style={{

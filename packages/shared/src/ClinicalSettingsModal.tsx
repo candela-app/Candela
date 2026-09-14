@@ -1677,9 +1677,9 @@ export function ClinicalSettingsModal({
             </div>
           </div>
         ) : showPursuitControls ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full items-stretch">
             {/* CONTAINER 1: PATIENT & STIMULUS PROFILES */}
-            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
+            <div className="lg:col-span-4 bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-cyan-400 uppercase tracking-wider border-b border-gray-800 pb-3">
                 <span>Pursuit Stimulus & Target Profile</span>
               </div>
@@ -1726,7 +1726,7 @@ export function ClinicalSettingsModal({
               />
               )}
             </div>
-            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
+            <div className="lg:col-span-5 bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-blue-400 uppercase tracking-wider border-b border-gray-800 pb-3">
                 <span>{lookStationaryMode ? 'Gaze Hold Controls' : 'Dynamics & Selective Attention Controls'}</span>
               </div>
@@ -1841,6 +1841,60 @@ export function ClinicalSettingsModal({
                 </p>
               </div>
             </div>
+
+            {!lookStationaryMode ? (
+              <div className="lg:col-span-3 flex flex-col">
+                <div
+                  className="bg-[#0B1220] p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center gap-5 overflow-hidden shadow-inner relative h-full"
+                  style={{ backgroundColor: tempBgColor || '#000000' }}
+                >
+                  <div className="w-full flex items-center justify-between text-xs font-extrabold text-cyan-300 uppercase tracking-widest shrink-0">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse inline-block" />
+                      Live Preview
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 normal-case tracking-normal">Matches play size</span>
+                  </div>
+                  <div className="flex-1 flex justify-center items-center gap-4 py-6 relative w-full rounded-2xl min-h-[180px]">
+                    <div
+                      className="rounded-full shrink-0 shadow-[0_12px_40px_rgba(34,211,238,0.25)]"
+                      style={{
+                        width: `${Math.min(tempBubbleSize, 130)}px`,
+                        height: `${Math.min(tempBubbleSize, 130)}px`,
+                        backgroundColor: getContrastAdjustedColor(
+                          tempPursuitTargetColor,
+                          tempBgColor || '#000000',
+                          tempContrastSensitivity,
+                        ),
+                      }}
+                    />
+                    {tempPursuitDecoyCount > 0 ? (
+                      <div
+                        className="rounded-full shrink-0"
+                        style={{
+                          width: `${Math.max(34, Math.min(tempBubbleSize, 130) * 0.72)}px`,
+                          height: `${Math.max(34, Math.min(tempBubbleSize, 130) * 0.72)}px`,
+                          backgroundColor: getContrastAdjustedColor(
+                            getContrastAdjustedColor(
+                              tempPursuitTargetColor,
+                              tempBgColor || '#000000',
+                              tempContrastSensitivity,
+                            ),
+                            tempBgColor || '#000000',
+                            0.35,
+                          ),
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2 text-xs text-slate-300 font-mono px-4 py-2.5 rounded-2xl border border-slate-700 bg-slate-950/80 shrink-0">
+                    <span>Target <strong className="text-cyan-300">{tempBubbleSize}px</strong></span>
+                    <span className="text-slate-600">·</span>
+                    <span>{tempPursuitDecoyCount} decoy{tempPursuitDecoyCount === 1 ? '' : 's'}</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : showBeeTracingControls ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch">
