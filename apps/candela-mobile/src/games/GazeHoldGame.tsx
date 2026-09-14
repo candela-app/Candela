@@ -14,13 +14,15 @@ import {
   lookHitsBubble,
   resolveGazeHoldGlyphColor,
   type LookSample,
+  useHowToPlayGate,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
 import { ClickToStartOverlay } from '../components/ClickToStartOverlay';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { LookTracker } from '../components/LookTracker';
 import { SlidersIcon } from '../components/icons';
-import { hapticCorrect } from '../lib/haptics';
+import { hapticCorrect, hapticMiss } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { useLayout } from '../lib/layout';
@@ -52,8 +54,8 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
   const [faceLost, setFaceLost] = useState(true);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const [bounds, setBounds] = useState({ width, height });
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [camActive, setCamActive] = useState(true);
 
   const sampleRef = useRef<LookSample>({ x: 0.5, y: 0.5, faceLost: true });
@@ -63,8 +65,8 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
 
   const bubbleX = bounds.width / 2;
   const bubbleY = bounds.height / 2;
-  const playActive = started && !isSettingsOpen && !isMenuOpen;
-  const showPlayfield = started && !isSettingsOpen;
+  const playActive = started && !playBlocked;
+  const showPlayfield = started && !isSettingsOpen && !showHowToPlay;
   const size = settings.glyphSizePx * (popping ? 0.2 : 1);
   const opacity = popping ? 0 : 1;
 
@@ -172,6 +174,14 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
         />
       ) : null}
       {showPlayfield ? (
+        <Pressable
+          onPress={() => {
+            if (playActive) void hapticMiss();
+          }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+      ) : null}
+      {showPlayfield ? (
         <View
           pointerEvents="none"
           style={{
@@ -212,7 +222,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
           Face the camera
         </Text>
       ) : null}
-      {!started && !isSettingsOpen && !isMenuOpen ? (
+      {!started && !showHowToPlay && !isSettingsOpen && !isMenuOpen ? (
         <ClickToStartOverlay
           accentModuleId="computer_vision"
           title="Gaze Hold"
@@ -237,10 +247,18 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'transparent',
+          zIndex: 50,
         }}
       >
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
+      <HowToPlayManual
+        moduleId="computer_vision"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
@@ -266,12 +284,17 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={() => {
           setIsMenuOpen(false);
           stopAndExit();
         }}
-        onReset={() => resetSession(false)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onReset={() => resetSession(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={started}
         settingsSummary={[
           { label: 'Patient Name', value: settings.patientName },

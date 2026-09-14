@@ -18,12 +18,14 @@ import {
   type LookSample,
   buildSessionMetrics,
   MODULE_CTA,
+  useHowToPlayGate,
 } from '@candela/shared/rn';
 import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../components/ClinicalSettingsModal';
+import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { LookTracker } from '../components/LookTracker';
 import { PursuitResultsModal } from '../components/PursuitResultsModal';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { SlidersIcon } from '../components/icons';
@@ -76,8 +78,8 @@ function LookPursuitMovingGame({
   const [trialStartTime, setTrialStartTime] = useState<number | null>(null);
   const [containerBounds, setContainerBounds] = useState({ width, height });
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const { showHowToPlay, howToPlayMode, isSettingsOpen, setIsSettingsOpen, finishHowToPlay, openHowToPlay, closeHowToPlay, playBlocked, isMenuOpen, setIsMenuOpen } =
+    useHowToPlayGate();
   const [gameStarted, setGameStarted] = useState(false);
   const { requestExit } = useGameSessionLock(onExit);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
@@ -87,6 +89,7 @@ function LookPursuitMovingGame({
   const [faceLost, setFaceLost] = useState(true);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
+  const missCountRef = useRef(0);
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seedRef = useRef(1);
   const targetStateRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
@@ -113,9 +116,11 @@ function LookPursuitMovingGame({
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
     const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
+      misses,
       timeouts,
       reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
@@ -150,7 +155,7 @@ function LookPursuitMovingGame({
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
-      clicksTotal: allTrials.length,
+      clicksTotal: allTrials.length + misses,
       correct: correctCount,
       ...metrics,
       endedBy: 'cleared',
@@ -194,8 +199,8 @@ function LookPursuitMovingGame({
   );
 
   useEffect(() => {
-    if (!isSettingsOpen && gameStarted) startTrial(currentTrialIndex);
-  }, [currentTrialIndex, isSettingsOpen, gameStarted, startTrial]);
+    if (!playBlocked && gameStarted) startTrial(currentTrialIndex);
+  }, [currentTrialIndex, playBlocked, gameStarted, startTrial]);
 
   const handleTrialEnd = useCallback(
     (outcome: 'correct' | 'incorrect' | 'timeout', tapPos: { x: number; y: number }) => {
@@ -209,6 +214,7 @@ function LookPursuitMovingGame({
         outcome === 'timeout' ? Math.round(containerBounds.width * 0.25) : calculateTrackingError(tapPos.x, tapPos.y, ts.x, ts.y);
       const vectorAlignment = calculateAnticipationVsLag(tapPos.x, tapPos.y, ts.x, ts.y, ts.vx, ts.vy);
       if (outcome === 'correct') void hapticCorrect();
+      else if (outcome === 'timeout') void hapticMiss();
       else void hapticWrong();
       trialMetricsRef.current.push({
         trialIndex: currentTrialIndex,
@@ -226,17 +232,17 @@ function LookPursuitMovingGame({
   );
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
+    if (isBlockPaused || playBlocked || isResultsOpen || !trialStartTime) return;
     if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
     if (settings.trialTimeoutSec <= 0) return;
     timeoutTimerRef.current = setTimeout(() => handleTrialEnd('timeout', { x: 0, y: 0 }), settings.trialTimeoutSec * 1000);
     return () => {
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
     };
-  }, [currentTrialIndex, isBlockPaused, isMenuOpen, isSettingsOpen, isResultsOpen, trialStartTime, settings.trialTimeoutSec, handleTrialEnd]);
+  }, [currentTrialIndex, isBlockPaused, playBlocked, isResultsOpen, trialStartTime, settings.trialTimeoutSec, handleTrialEnd]);
 
   useEffect(() => {
-    if (isBlockPaused || isMenuOpen || isSettingsOpen || isResultsOpen || !trialStartTime) return;
+    if (isBlockPaused || playBlocked || isResultsOpen || !trialStartTime) return;
     let lastTime = performance.now();
     let raf = 0;
     const loop = (now: number): void => {
@@ -262,8 +268,7 @@ function LookPursuitMovingGame({
     return () => cancelAnimationFrame(raf);
   }, [
     isBlockPaused,
-    isMenuOpen,
-    isSettingsOpen,
+    playBlocked,
     isResultsOpen,
     trialStartTime,
     containerBounds.width,
@@ -319,8 +324,16 @@ function LookPursuitMovingGame({
           <Text style={{ color: '#fff', fontSize: fs(22), fontWeight: '800' }}>Block {pausedBlockIndex + 1} ready</Text>
         </View>
       ) : null}
-      {!isSettingsOpen && !isResultsOpen && !isBlockPaused ? (
+      {!isSettingsOpen && !showHowToPlay && !isResultsOpen && !isBlockPaused ? (
         <>
+          <Pressable
+            onPress={() => {
+              if (!gameStarted || playBlocked) return;
+              missCountRef.current += 1;
+              void hapticMiss();
+            }}
+            style={absoluteFill}
+          />
           <View
             pointerEvents="none"
             style={{
@@ -380,7 +393,7 @@ function LookPursuitMovingGame({
           Face the camera
         </Text>
       ) : null}
-      {!gameStarted && !isSettingsOpen && !isResultsOpen ? (
+      {!gameStarted && !showHowToPlay && !isSettingsOpen && !isResultsOpen ? (
         <View
           style={{
             position: 'absolute',
@@ -423,10 +436,18 @@ function LookPursuitMovingGame({
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'transparent',
+          zIndex: 50,
         }}
       >
         <SlidersIcon size={22} color="#94A3B8" />
       </Pressable>
+      <HowToPlayManual
+        moduleId="computer_vision"
+        isOpen={showHowToPlay}
+        mode={howToPlayMode}
+        onContinue={finishHowToPlay}
+        onClose={closeHowToPlay}
+      />
       <ClinicalSettingsModal
         accentModuleId="computer_vision"
         isOpen={isSettingsOpen}
@@ -454,6 +475,7 @@ function LookPursuitMovingGame({
           }));
           setIsSettingsOpen(false);
           trialMetricsRef.current = [];
+          missCountRef.current = 0;
           setCurrentTrialIndex(0);
           if (wasPlaying) setGameStarted(true);
         }}
@@ -467,6 +489,7 @@ function LookPursuitMovingGame({
           onReplay={() => {
             setIsResultsOpen(false);
             trialMetricsRef.current = [];
+            missCountRef.current = 0;
             setCurrentTrialIndex(0);
           }}
         />
@@ -474,12 +497,22 @@ function LookPursuitMovingGame({
       <GameMenuDrawer
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
+        onOpenHowToPlay={openHowToPlay}
         onQuit={requestExit}
         onReset={() => {
           trialMetricsRef.current = [];
+          missCountRef.current = 0;
           setCurrentTrialIndex(0);
+          setIsBlockPaused(false);
+          setIsResultsOpen(false);
+          setGameStarted(false);
+          setIsSettingsOpen(true);
         }}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient Name', value: settings.patientName },

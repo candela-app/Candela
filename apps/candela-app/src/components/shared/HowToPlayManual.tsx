@@ -183,6 +183,12 @@ function HowToPlayVisual({ moduleId }: { moduleId: TherapyModuleId }) {
           </div>
         </VisualFrame>
       );
+    case 'computer_vision':
+      return (
+        <VisualFrame>
+          <div className="w-[88px] h-[88px] rounded-full bg-slate-400" />
+        </VisualFrame>
+      );
     case 'familiar_faces':
       return (
         <VisualFrame>
@@ -220,7 +226,7 @@ export function HowToPlayManual({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex flex-col px-5 py-4 sm:px-8 text-left select-none overflow-hidden overscroll-none"
+      className="fixed inset-0 z-[1200] flex flex-col px-5 py-4 sm:px-8 text-left select-none overflow-hidden overscroll-none"
       style={{ backgroundColor: '#06070D' }}
     >
       {isReview ? (

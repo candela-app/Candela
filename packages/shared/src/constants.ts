@@ -1,4 +1,4 @@
-import { ColorItem, DeviceTier } from './types';
+import { ColorItem, DeviceTier, type MobileTargetMovementAxis } from './types';
 
 export const BUBBLES_PER_ROUND: Record<DeviceTier, number> = {
   mobile: 4,
@@ -76,6 +76,32 @@ export function clampBubbleSizeForTier(px: number, tier: DeviceTier): number {
   const value = Number.isFinite(px) ? Math.round(px) : min;
   const clamped = Math.min(max, Math.max(min, value));
   return steps.reduce((best, p) => (Math.abs(p - clamped) < Math.abs(best - clamped) ? p : best), min);
+}
+
+/** Bubble Chase travel speed (px/s). Separate from wheel multiplier SPEED_PRESETS. */
+export const MOBILE_TARGET_SPEED_PX_MIN = 30;
+export const MOBILE_TARGET_SPEED_PX_MAX = 180;
+export const MOBILE_TARGET_SPEED_PX_STEPS = [30, 40, 70, 100, 140, 180];
+export const MOBILE_TARGET_SPEED_PX_PRESETS: { label: string; value: number }[] = [
+  { label: 'Ultra', value: 40 },
+  { label: 'Gentle', value: 70 },
+  { label: 'Mod', value: 100 },
+  { label: 'Active', value: 140 },
+];
+export const MOBILE_TARGET_MOVEMENT_AXES: { id: MobileTargetMovementAxis; label: string }[] = [
+  { id: 'horizontal', label: 'Horizontal' },
+  { id: 'vertical', label: 'Vertical' },
+  { id: 'random', label: 'Random 2D' },
+];
+
+export function clampMobileTargetSpeedPx(n: number): number {
+  const value = Number.isFinite(n) ? Math.round(n) : 70;
+  return Math.max(MOBILE_TARGET_SPEED_PX_MIN, Math.min(MOBILE_TARGET_SPEED_PX_MAX, value));
+}
+
+export function mobileTargetAxisLabel(axis?: MobileTargetMovementAxis): string {
+  const match = MOBILE_TARGET_MOVEMENT_AXES.find((item) => item.id === axis);
+  return match?.label ?? 'Random 2D';
 }
 
 /** Preset wheel backgrounds for rotatory / sorting clinical settings. */

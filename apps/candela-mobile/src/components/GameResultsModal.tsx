@@ -8,6 +8,7 @@ import {
   type NumberSearchSessionResultData,
   type SessionResultData,
   formatReactionMsFromSec,
+  isMobileTargetSessionResult,
   isRotatorySessionResult,
   parentSummaryCells,
   sessionErrorCounts,
@@ -93,6 +94,7 @@ export function GameResultsModal({
   const numberSearch = isNumberSearch ? (data as NumberSearchSessionResultData) : null;
   const isRotatory = isRotatorySessionResult(data);
   const rotatory = isRotatory ? data : null;
+  const mobileTarget = isMobileTargetSessionResult(data) ? data : null;
   const parentCells = parentSummaryCells(data);
   const errors = sessionErrorCounts(data);
 
@@ -328,6 +330,75 @@ export function GameResultsModal({
                     <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '700' }}>{geo.penColorName}</Text>
                   </View>
                 ) : null}
+              </View>
+            ) : null}
+
+            {mobileTarget ? (
+              <View
+                style={{
+                  borderRadius: s(16),
+                  borderWidth: 1,
+                  borderColor: 'rgba(16,185,129,0.25)',
+                  backgroundColor: 'rgba(6,78,59,0.35)',
+                  padding: s(14),
+                  marginBottom: s(16),
+                  gap: s(10),
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1, paddingRight: s(8) }}>
+                    <Text style={{ color: '#34D399', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.8 }}>
+                      SET PERFORMANCE
+                    </Text>
+                    <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: 2 }}>
+                      {mobileTarget.totalSets} sets · {mobileTarget.speedPxPerSec} px/s
+                      {mobileTarget.gameMode ? ` · ${mobileTarget.gameMode}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#FBBF24', fontSize: fs(16) }}>
+                    {'★'.repeat(mobileTarget.starRating ?? 0)}
+                    <Text style={{ color: 'rgba(255,255,255,0.15)' }}>
+                      {'★'.repeat(5 - (mobileTarget.starRating ?? 0))}
+                    </Text>
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', paddingBottom: s(6), borderBottomWidth: 1, borderBottomColor: 'rgba(55,65,81,0.8)' }}>
+                  {['Set', 'Target', 'Outcome', 'Reaction'].map((label) => (
+                    <Text key={label} style={{ flex: 1, color: '#9CA3AF', fontSize: fs(10), fontWeight: '800', textAlign: 'center' }}>
+                      {label}
+                    </Text>
+                  ))}
+                </View>
+                {mobileTarget.setMetrics.map((metric) => (
+                  <View key={metric.setIndex} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ flex: 1, color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', textAlign: 'center' }}>
+                      #{metric.setIndex + 1}
+                    </Text>
+                    <Text style={{ flex: 1, color: '#fff', fontSize: fs(11), fontWeight: '800', textAlign: 'center' }}>
+                      {metric.targetValue}
+                    </Text>
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: fs(11),
+                        fontWeight: '700',
+                        textAlign: 'center',
+                        textTransform: 'capitalize',
+                        color:
+                          metric.outcome === 'correct'
+                            ? '#34D399'
+                            : metric.outcome === 'incorrect'
+                              ? '#FB7185'
+                              : '#FBBF24',
+                      }}
+                    >
+                      {metric.outcome}
+                    </Text>
+                    <Text style={{ flex: 1, color: '#D1D5DB', fontSize: fs(11), fontWeight: '700', textAlign: 'center' }}>
+                      {metric.outcome === 'timeout' ? 'Timeout' : `${(metric.reactionTimeMs / 1000).toFixed(2)}s`}
+                    </Text>
+                  </View>
+                ))}
               </View>
             ) : null}
 

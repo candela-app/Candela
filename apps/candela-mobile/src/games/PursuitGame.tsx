@@ -21,7 +21,7 @@ import { ClinicalSettingsModal, type AppliedClinicalSettings } from '../componen
 import { HowToPlayManual } from '../components/HowToPlayManual';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { PursuitResultsModal } from '../components/PursuitResultsModal';
-import { hapticCorrect, hapticWrong } from '../lib/haptics';
+import { hapticCorrect, hapticMiss, hapticWrong } from '../lib/haptics';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { SlidersIcon } from '../components/icons';
@@ -70,6 +70,7 @@ export function PursuitGame({
     setTrialStartTime((prev) => (prev == null ? prev : prev + delta));
   }, trialStartTime);
   const trialMetricsRef = useRef<PursuitTrialMetric[]>([]);
+  const missCountRef = useRef(0);
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seedRef = useRef(1);
   const targetStateRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
@@ -92,9 +93,11 @@ export function PursuitGame({
     const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = allTrials.filter((t) => t.outcome === 'incorrect').length;
     const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
+      misses,
       timeouts,
       reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
@@ -129,7 +132,7 @@ export function PursuitGame({
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
       durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
-      clicksTotal: allTrials.length,
+      clicksTotal: allTrials.length + misses,
       correct: correctCount,
       ...metrics,
       endedBy: 'cleared',
@@ -234,6 +237,7 @@ export function PursuitGame({
       outcome === 'timeout' ? Math.round(containerBounds.width * 0.25) : calculateTrackingError(tapPos.x, tapPos.y, ts.x, ts.y);
     const vectorAlignment = calculateAnticipationVsLag(tapPos.x, tapPos.y, ts.x, ts.y, ts.vx, ts.vy);
     if (outcome === 'correct') void hapticCorrect();
+    else if (outcome === 'timeout') void hapticMiss();
     else void hapticWrong();
     trialMetricsRef.current.push({
       trialIndex: currentTrialIndex,
@@ -263,7 +267,18 @@ export function PursuitGame({
       {!isSettingsOpen && !isResultsOpen && !isBlockPaused ? (
         <>
           <Pressable
-            onPress={(e) => handleTrialEnd('correct', { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY })}
+            onPress={() => {
+              if (!gameStarted || playBlocked) return;
+              missCountRef.current += 1;
+              void hapticMiss();
+            }}
+            style={absoluteFill}
+          />
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              handleTrialEnd('correct', { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
+            }}
             style={{
               position: 'absolute',
               width: size,
@@ -277,7 +292,10 @@ export function PursuitGame({
           {decoyStates.map((decoy, idx) => (
             <Pressable
               key={idx}
-              onPress={(e) => handleTrialEnd('incorrect', { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY })}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleTrialEnd('incorrect', { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
+              }}
               style={{
                 position: 'absolute',
                 width: size,
@@ -332,6 +350,7 @@ export function PursuitGame({
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'transparent',
+          zIndex: 50,
         }}
       >
         <SlidersIcon size={22} color="#94A3B8" />
@@ -370,6 +389,7 @@ export function PursuitGame({
           }));
           setIsSettingsOpen(false);
           trialMetricsRef.current = [];
+          missCountRef.current = 0;
           setCurrentTrialIndex(0);
           if (wasPlaying) setGameStarted(true);
         }}
@@ -383,6 +403,7 @@ export function PursuitGame({
           onReplay={() => {
             setIsResultsOpen(false);
             trialMetricsRef.current = [];
+            missCountRef.current = 0;
             setCurrentTrialIndex(0);
           }}
         />
@@ -394,9 +415,14 @@ export function PursuitGame({
         onQuit={requestExit}
         onReset={() => {
           trialMetricsRef.current = [];
+          missCountRef.current = 0;
           setCurrentTrialIndex(0);
         }}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => {
+          setIsMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        resetButtonLabel="Restart Session"
         sessionInProgress={gameStarted && !isResultsOpen}
         settingsSummary={[
           { label: 'Patient Name', value: settings.patientName },

@@ -12,6 +12,7 @@
     "@candela/shared": "*",
     "@mediapipe/tasks-vision": "0.10.18",
     "html-to-image": "^1.11.13",
+    "lottie-react": "^3.1.2",
     "lucide-react": "^1.30.0",
     "next": "14.2.35",
     "react": "^18.3.0",
