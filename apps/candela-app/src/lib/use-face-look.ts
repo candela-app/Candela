@@ -48,6 +48,7 @@ export function useFaceLook(active: boolean): {
   error: string | null;
   cursor: { x: number; y: number } | null;
   faceLost: boolean;
+  recalibrateCenter: () => void;
 } {
   const sampleRef = useRef<LookSample>({ x: 0.5, y: 0.5, faceLost: true });
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -55,6 +56,18 @@ export function useFaceLook(active: boolean): {
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const [faceLost, setFaceLost] = useState(true);
+
+  const centerOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const currentRawRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasAutoCalibratedRef = useRef(false);
+
+  const recalibrateCenter = () => {
+    centerOffsetRef.current = {
+      x: currentRawRef.current.x,
+      y: currentRawRef.current.y,
+    };
+    hasAutoCalibratedRef.current = true;
+  };
 
   useEffect(() => {
     if (!active) {
@@ -123,8 +136,23 @@ export function useFaceLook(active: boolean): {
                     return;
                   }
                   lastFaceAt = now;
-                  const raw = lookNormFromWebEyePog(result.normPog[0], result.normPog[1]);
-                  const norm = smoothLookNorm(lastLook, raw, LOOK_SMOOTH);
+                  const rawPogX = result.normPog[0];
+                  const rawPogY = result.normPog[1];
+                  currentRawRef.current = { x: rawPogX, y: rawPogY };
+
+                  if (!hasAutoCalibratedRef.current) {
+                    centerOffsetRef.current = { x: rawPogX, y: rawPogY };
+                    hasAutoCalibratedRef.current = true;
+                  }
+
+                  const centeredPogX = rawPogX - centerOffsetRef.current.x;
+                  const centeredPogY = rawPogY - centerOffsetRef.current.y;
+                  const raw = lookNormFromWebEyePog(centeredPogX, centeredPogY);
+
+                  // Velocity-sensitive alpha: high responsiveness for corner saccades, stable damping for center fixations
+                  const dist = lastLook ? Math.hypot(raw.x - lastLook.x, raw.y - lastLook.y) : 0;
+                  const adaptiveAlpha = Math.min(0.65, Math.max(0.32, dist * 3.2));
+                  const norm = smoothLookNorm(lastLook, raw, adaptiveAlpha);
                   lastLook = norm;
                   sampleRef.current = { x: norm.x, y: norm.y, faceLost: false };
                   setFaceLost(false);
@@ -161,5 +189,5 @@ export function useFaceLook(active: boolean): {
     };
   }, [active]);
 
-  return { sampleRef, videoRef, ready, error, cursor, faceLost };
+  return { sampleRef, videoRef, ready, error, cursor, faceLost, recalibrateCenter };
 }

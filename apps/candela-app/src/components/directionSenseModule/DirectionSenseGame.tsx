@@ -652,7 +652,7 @@ export function DirectionSenseGame({ onExit, levelId = 'face' }: DirectionSenseG
           </div>
 
           {!isStraighten ? (
-          <div className={styles.options}>
+          <div className={`${styles.options} ${trial.options.length === 4 ? styles.optionsFour : ''}`}>
             {trial.options.map((opt) => {
               const isFeedback = feedbackId === opt.id;
               const className = [

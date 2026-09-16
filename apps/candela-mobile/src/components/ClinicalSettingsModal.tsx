@@ -1800,11 +1800,6 @@ export function ClinicalSettingsModal({
                   variant="dark"
                   style={{ marginBottom: s(16) }}
                 />
-                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tracing mode</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  <Chip label="Active" active={tempTracingMode === 'active'} onPress={() => setTempTracingMode('active')} />
-                  <Chip label="Guided" active={tempTracingMode === 'guided'} onPress={() => setTempTracingMode('guided')} />
-                </View>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Path type</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   {PATH_TYPES.map((p) => (
@@ -1815,12 +1810,6 @@ export function ClinicalSettingsModal({
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   {(['short', 'medium', 'long'] as const).map((p) => (
                     <Chip key={p} label={p} active={tempComplexity === p} onPress={() => setTempComplexity(p)} />
-                  ))}
-                </View>
-                <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Bee speed (sec)</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {[3, 5, 8, 10].map((n) => (
-                    <Chip key={n} label={`${n}s`} active={tempBeeSpeed === n} onPress={() => setTempBeeSpeed(n)} />
                   ))}
                 </View>
                 <Text style={{ color: '#D1D5DB', fontSize: fs(13), fontWeight: '600', marginBottom: s(8) }}>Tolerance</Text>

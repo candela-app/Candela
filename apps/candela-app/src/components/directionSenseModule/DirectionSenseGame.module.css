@@ -152,6 +152,17 @@
   margin-top: clamp(40px, 8vh, 72px);
 }
 
+.optionsFour {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  width: min(480px, 100%);
+}
+
+.optionsFour .optionCard {
+  width: 100%;
+  min-width: 0;
+}
+
 .optionCard {
   cursor: pointer;
   touch-action: manipulation;
@@ -179,8 +190,8 @@
 
 .hud {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  right: 16px;
+  bottom: 76px;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -236,4 +247,83 @@
   border-radius: 16px;
   border: 1px solid rgba(52, 211, 153, 0.35);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 640px) {
+  .playField {
+    justify-content: flex-start;
+    overflow-y: auto;
+    gap: 18px;
+    padding:
+      max(72px, calc(env(safe-area-inset-top) + 56px))
+      16px
+      max(76px, calc(env(safe-area-inset-bottom) + 64px));
+  }
+
+  .hud {
+    top: max(16px, env(safe-area-inset-top));
+    left: 16px;
+    bottom: auto;
+    right: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 12px;
+  }
+
+  .probeRow {
+    flex-wrap: nowrap;
+    gap: clamp(18px, 6vw, 28px);
+    min-height: auto;
+    margin-top: 8px;
+  }
+
+  .probeCard,
+  .referenceCard {
+    flex: 0 0 auto;
+  }
+
+  .probeCard svg,
+  .referenceCard svg {
+    width: min(28vw, 120px);
+    height: min(28vw, 120px);
+  }
+
+  .arrowCard svg {
+    width: min(15vw, 56px);
+    height: min(15vw, 56px);
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(340px, 100%);
+    gap: 12px;
+    margin: 16px auto 0 auto;
+  }
+
+  .optionsFour {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(340px, 100%);
+  }
+
+  .optionCard {
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1.5px solid rgba(51, 65, 85, 0.7);
+  }
+
+  .optionCard svg {
+    width: 65% !important;
+    height: 65% !important;
+  }
 }

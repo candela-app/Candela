@@ -28,7 +28,7 @@ import { HowToPlayManual } from '../components/HowToPlayManual';
 import { BeeSettingsModal } from '../components/BeeSettingsModal';
 import { useGameSessionLock } from '../lib/use-game-session-lock';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
-import { ReplayIcon, SlidersIcon } from '../components/icons';
+import { PlayIcon, ReplayIcon, SlidersIcon } from '../components/icons';
 import { hapticCorrect, hapticWrong } from '../lib/haptics';
 import { startBeeBuzz, stopBeeBuzz } from '../lib/sfx';
 import { sessionDisplayName, useAuth } from '../lib/auth-context';
@@ -58,20 +58,21 @@ const PATH_PROGRESSION: BeePathType[] = ['straight', 'curve', 'zigzag', 'wave', 
 const BEE_SIZE = 84;
 const BEE_GRAB_RADIUS = 70;
 const SETTINGS_ICON_SIZE = 44;
+const GUIDED_DEMO_DURATION_MS = 11000;
 
 const BEE_THEMES = {
   dark: {
     bg: '#0C121C',
     path: '#E2B93B',
-    trace: '#4AA8A4',
+    trace: '#00F3FF',
     ui: '#E7EEF5',
     muted: '#9AA8B5',
     flower: '#E56B9A',
   },
   standard: {
     bg: '#F2F5F3',
-    path: '#1F6F6A',
-    trace: '#2E6B9A',
+    path: '#0284C7',
+    trace: '#F59E0B',
     ui: '#1A2A32',
     muted: '#4A5C66',
     flower: '#C44B78',
@@ -212,15 +213,21 @@ export function BeeTracingGame({
     if (tracingRef.current && fingerOnBee(x, y)) startPathBuzz();
     else stopPathBuzz();
   };
+  const lastSampleRef = useRef<PathPoint>({ x: 0, y: 0 });
+  const lastSampleTimeRef = useRef<number>(0);
+  const lastToastTimeRef = useRef<number>(0);
 
-  useEffect(() => {
-    beePosRef.current = beePos;
+  const updateBeePosition = (pt: PathPoint) => {
+    beePosRef.current = pt;
+    setBeePos(pt);
     const path = pathRef.current;
-    if (!path) return;
-    const lookAhead = path.pathType === 'spiral' || path.pathType === 'curve' || path.pathType === 'wave' ? 8 : 4;
-    const target = beeHeadingDeg(path.points, currentPathIndexRef.current, lookAhead);
-    setBeeHeading((prev) => lerpHeadingDeg(prev, target, path.pathType === 'spiral' ? 0.2 : 0.34));
-  }, [beePos]);
+    if (path) {
+      const lookAhead = path.pathType === 'spiral' || path.pathType === 'curve' || path.pathType === 'wave' ? 8 : 4;
+      const target = beeHeadingDeg(path.points, currentPathIndexRef.current, lookAhead);
+      setBeeHeading((prev) => lerpHeadingDeg(prev, target, path.pathType === 'spiral' ? 0.2 : 0.34));
+    }
+  };
+
   useEffect(() => {
     tracingRef.current = isTracing;
   }, [isTracing]);
@@ -281,12 +288,18 @@ export function BeeTracingGame({
     currentPathIndexRef.current = 0;
     reactionReadyAtRef.current = null;
     roundReactionMsRef.current = null;
-    const duration = Math.max(250, settingsRef.current.beeSpeedSec * 1000);
+    if (settingsRef.current.audioEnabled) void startBeeBuzz();
+    hapticCorrect();
+    const duration = GUIDED_DEMO_DURATION_MS;
     const startTime = Date.now();
     let pauseAccum = 0;
     let pauseAt: number | null = null;
+    let lastHapticStep = -1;
     const animate = () => {
-      if (token !== demoTokenRef.current) return;
+      if (token !== demoTokenRef.current) {
+        void stopBeeBuzz();
+        return;
+      }
       if (playBlockedRef.current) {
         if (pauseAt == null) pauseAt = Date.now();
         requestAnimationFrame(animate);
@@ -304,16 +317,24 @@ export function BeeTracingGame({
       beePosRef.current = pt;
       setBeePos(pt);
       setDemoTrail(generated.points.slice(0, ptIndex + 1));
+      const currentStep = Math.floor(progress * 10);
+      if (currentStep > lastHapticStep) {
+        lastHapticStep = currentStep;
+        hapticCorrect();
+      }
       if (progress < 1) {
         requestAnimationFrame(animate);
       } else {
         stopPathBuzz();
+        hapticCorrect();
         guidedRef.current = false;
         setIsGuidedDemoRunning(false);
         setHasDemoPlayed(true);
         setBeePos(generated.startPoint);
         beePosRef.current = generated.startPoint;
-        setDemoTrail(generated.points);
+        currentPathIndexRef.current = 0;
+        setUserTracePoints([generated.startPoint]);
+        setDemoTrail([]);
         reactionReadyAtRef.current = performance.now();
         roundReactionMsRef.current = null;
         showToast('Demo complete! Now trace the path!');
@@ -470,15 +491,23 @@ export function BeeTracingGame({
         );
         const cfg = settingsRef.current;
         const corridorPx = Math.max(cfg.toleranceBandPx, INVISIBLE_CORRIDOR_PX);
+        const now = Date.now();
+
         if (distance > corridorPx) {
           stopPathBuzz();
           void hapticWrong();
-          showToast('Stay on the path!');
+          if (now - lastToastTimeRef.current > 1500) {
+            lastToastTimeRef.current = now;
+            showToast('Stay on the path!');
+          }
           const snapPoint = path.points[currentPathIndexRef.current] || nearestPoint;
-          beePosRef.current = snapPoint;
-          setBeePos(snapPoint);
-          setUserTracePoints((prev) => [...prev, snapPoint]);
-          setUserTimestamps((prev) => [...prev, Date.now()]);
+          updateBeePosition(snapPoint);
+          if (now - lastSampleTimeRef.current >= 40) {
+            lastSampleRef.current = snapPoint;
+            lastSampleTimeRef.current = now;
+            setUserTracePoints((prev) => [...prev, snapPoint]);
+            setUserTimestamps((prev) => [...prev, now]);
+          }
         } else {
           currentPathIndexRef.current = Math.max(currentPathIndexRef.current, index);
           const lerpFactor = cfg.beeSpeedSec >= 10 ? 0.45 : cfg.beeSpeedSec >= 5 ? 0.85 : 1;
@@ -486,10 +515,15 @@ export function BeeTracingGame({
             x: beePosRef.current.x + (nearestPoint.x - beePosRef.current.x) * lerpFactor,
             y: beePosRef.current.y + (nearestPoint.y - beePosRef.current.y) * lerpFactor,
           };
-          beePosRef.current = nextPos;
-          setBeePos(nextPos);
-          setUserTracePoints((prev) => [...prev, currentPt]);
-          setUserTimestamps((prev) => [...prev, Date.now()]);
+          updateBeePosition(nextPos);
+
+          const distFromLast = Math.hypot(currentPt.x - lastSampleRef.current.x, currentPt.y - lastSampleRef.current.y);
+          if (distFromLast >= 5 || now - lastSampleTimeRef.current >= 40) {
+            lastSampleRef.current = currentPt;
+            lastSampleTimeRef.current = now;
+            setUserTracePoints((prev) => [...prev, currentPt]);
+            setUserTimestamps((prev) => [...prev, now]);
+          }
           buzzIfFingerOnBee(x, y);
           const bee = beePosRef.current;
           const distBeeToFlower = Math.hypot(bee.x - path.endPoint.x, bee.y - path.endPoint.y);
@@ -582,7 +616,9 @@ export function BeeTracingGame({
         style={{ flex: 1, marginBottom: insets.bottom + chromeStack }}
         onLayout={(e) => {
           const { width: w, height: h } = e.nativeEvent.layout;
-          setBounds({ w, h });
+          if (Math.abs(w - bounds.w) > 2 || Math.abs(h - bounds.h) > 2) {
+            setBounds({ w, h });
+          }
           playViewRef.current?.measureInWindow((x, y) => {
             playOriginRef.current = { x, y };
           });
@@ -704,46 +740,70 @@ export function BeeTracingGame({
           </Pressable>
         </View>
       ) : null}
-      {isGuided && currentPath ? (
-        <Pressable
-          onPress={() => {
-            if (roundSuccessCelebration) return;
-            runGuidedDemo(currentPath);
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={hasDemoPlayed ? 'Replay demo' : 'Play demo'}
+      {gameStarted && currentPath ? (
+        <View
           style={{
             position: 'absolute',
-            bottom: insets.bottom + SETTINGS_ICON_SIZE,
+            bottom: insets.bottom,
+            right: s(16),
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: s(4),
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              if (roundSuccessCelebration || isGuidedDemoRunning) return;
+              runGuidedDemo(currentPath);
+            }}
+            disabled={isGuidedDemoRunning}
+            accessibilityRole="button"
+            accessibilityLabel="Play guide demo"
+            style={{
+              width: SETTINGS_ICON_SIZE,
+              height: SETTINGS_ICON_SIZE,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'transparent',
+              opacity: isGuidedDemoRunning ? 0.35 : 1,
+            }}
+          >
+            <PlayIcon size={20} color={theme.muted} />
+          </Pressable>
+          <Pressable
+            onPress={() => setIsMenuOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Settings menu"
+            style={{
+              width: SETTINGS_ICON_SIZE,
+              height: SETTINGS_ICON_SIZE,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'transparent',
+            }}
+          >
+            <SlidersIcon size={22} color={theme.muted} />
+          </Pressable>
+        </View>
+      ) : !gameStarted ? (
+        <Pressable
+          onPress={() => setIsMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Settings menu"
+          style={{
+            position: 'absolute',
+            bottom: insets.bottom,
             right: s(16),
             width: SETTINGS_ICON_SIZE,
             height: SETTINGS_ICON_SIZE,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: 'transparent',
-            opacity: isGuidedDemoRunning ? 0.45 : 1,
           }}
         >
-          <ReplayIcon size={22} color={theme.muted} />
+          <SlidersIcon size={22} color={theme.muted} />
         </Pressable>
       ) : null}
-      <Pressable
-        onPress={() => setIsMenuOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Settings menu"
-        style={{
-          position: 'absolute',
-          bottom: insets.bottom,
-          right: s(16),
-          width: SETTINGS_ICON_SIZE,
-          height: SETTINGS_ICON_SIZE,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'transparent',
-        }}
-      >
-        <SlidersIcon size={22} color={theme.muted} />
-      </Pressable>
       <HowToPlayManual
         moduleId="bee_tracing"
         isOpen={showHowToPlay}

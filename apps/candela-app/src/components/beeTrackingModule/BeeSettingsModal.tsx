@@ -54,44 +54,6 @@ export const BeeSettingsModal: React.FC<BeeSettingsModalProps> = ({
             variant="dark"
           />
 
-          {/* Tracing Mode Selection */}
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1.5">
-              Core Mechanic Mode
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => onUpdateSettings({ tracingMode: 'active' })}
-                className={`py-3 px-4 rounded-xl border text-left font-bold transition-all cursor-pointer flex flex-col justify-center ${
-                  settings.tracingMode === 'active'
-                    ? 'border-amber-400 bg-amber-500/20 text-amber-300'
-                    : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                }`}
-              >
-                <span>Active Trace (Default)</span>
-                <span className="text-[11px] font-normal opacity-80 mt-0.5">
-                  Patient directly traces visible path line
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onUpdateSettings({ tracingMode: 'guided' })}
-                className={`py-3 px-4 rounded-xl border text-left font-bold transition-all cursor-pointer flex flex-col justify-center ${
-                  settings.tracingMode === 'guided'
-                    ? 'border-amber-400 bg-amber-500/20 text-amber-300'
-                    : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                }`}
-              >
-                <span>Guided Trace (Demo + Recall)</span>
-                <span className="text-[11px] font-normal opacity-80 mt-0.5">
-                  Bee demos first, patient re-traces faint path
-                </span>
-              </button>
-            </div>
-          </div>
-
           {/* Tolerance Band Width */}
           <div>
             <div className="flex justify-between items-center mb-1.5">

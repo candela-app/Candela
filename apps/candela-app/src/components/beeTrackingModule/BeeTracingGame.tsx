@@ -39,13 +39,14 @@ import { FullscreenToggleButton } from '../shared/FullscreenToggleButton';
 import { useGameSessionLock } from '../shared/useGameSessionLock';
 import { ClickToStartOverlay } from '../shared/ClickToStartOverlay';
 import { HowToPlayManual } from '../shared/HowToPlayManual';
-import { ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
+import { PlayIcon, ReplayIcon, SlidersIcon } from '../icons/VectorIcons';
 import beePng from '@candela/shared/assets/bee.png';
 
 const beeSrc = typeof beePng === 'string' ? beePng : beePng.src;
 const INVISIBLE_CORRIDOR_PX = 96;
 const CORRIDOR_SEARCH_WINDOW = 80;
 const VISIBLE_PATH_WIDTH = 18;
+const GUIDED_DEMO_DURATION_MS = 11000;
 
 interface BeeTracingGameProps {
   onExit: () => void;
@@ -53,7 +54,7 @@ interface BeeTracingGameProps {
 }
 
 const DEFAULT_SETTINGS: Omit<BeeTracingSettings, 'patientName'> = {
-  tracingMode: 'guided',
+  tracingMode: 'active',
   pathType: 'auto',
   toleranceBandPx: 72,
   beeSpeedSec: 6,
@@ -201,10 +202,18 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     setIsGuidedDemoRunning(true);
     reactionReadyAtRef.current = null;
     roundReactionMsRef.current = null;
-    const duration = settings.beeSpeedSec * 1000;
+    setIsTracing(false);
+    setUserTracePoints([generated.startPoint]);
+    setUserTimestamps([Date.now()]);
+    setBeePos(generated.startPoint);
+    currentPathIndexRef.current = 0;
+    if (settings.audioEnabled) triggerAudioBuzz();
+
+    const duration = GUIDED_DEMO_DURATION_MS;
     const startTime = Date.now();
     let pauseAccum = 0;
     let pauseAt: number | null = null;
+    let lastAudioStep = -1;
 
     const animate = () => {
       if (playBlockedRef.current) {
@@ -223,6 +232,13 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
       const pt = generated.points[ptIndex] || generated.startPoint;
       currentPathIndexRef.current = ptIndex;
       setBeePos(pt);
+      setUserTracePoints(generated.points.slice(0, ptIndex + 1));
+
+      const audioStep = Math.floor(progress * 10);
+      if (audioStep > lastAudioStep) {
+        lastAudioStep = audioStep;
+        triggerAudioBuzz();
+      }
 
       if (progress < 1) {
         requestAnimationFrame(animate);
@@ -230,6 +246,8 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         setIsGuidedDemoRunning(false);
         setHasDemoPlayed(true); // Demo complete -> button changes to 'Replay Demo'
         setBeePos(generated.startPoint);
+        currentPathIndexRef.current = 0;
+        setUserTracePoints([generated.startPoint]);
         reactionReadyAtRef.current = performance.now();
         roundReactionMsRef.current = null;
         showToast('Demo complete! Now trace the path!');
@@ -536,6 +554,11 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
     settings.contrastSensitivity ?? 1,
   );
 
+  const traceLineColor = React.useMemo(() => {
+    const isAmberYellow = /#(e2b93b|ffff00|f59e0b|fbbf24|ffd600|ffeb3b|ffb703|ffe600|facc15|d97706)/i.test(pathColor);
+    return isAmberYellow ? '#00F3FF' : '#FBBF24';
+  }, [pathColor]);
+
   const uiColor = isDarkClinicalBg(fieldColor) ? '#F8FAFC' : '#1A2A32';
   const mutedColor = isDarkClinicalBg(fieldColor) ? '#CBD5E1' : '#4A5C66';
   const targetDotColor = settings.targetDotColor || DEFAULT_BEE_TARGET_DOT_COLOR;
@@ -620,7 +643,7 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
                 <polyline
                   points={userTracePoints.map((p) => `${p.x},${p.y}`).join(' ')}
                   fill="none"
-                  stroke="#00F3FF"
+                  stroke={traceLineColor}
                   strokeWidth="6"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -677,24 +700,24 @@ export const BeeTracingGame: React.FC<BeeTracingGameProps> = ({ onExit, initialP
         )}
       </main>
 
-      {isGuided && currentPath ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (roundSuccessCelebration) return;
-            runGuidedDemo(currentPath);
-          }}
-          disabled={isGuidedDemoRunning}
-          className="absolute bottom-14 right-4 z-40 w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer disabled:opacity-45 active:scale-95"
-          style={{ color: mutedColor }}
-          title={hasDemoPlayed ? 'Replay demo' : 'Play demo'}
-        >
-          <ReplayIcon className="w-[22px] h-[22px]" />
-        </button>
-      ) : null}
-
       <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 flex items-center gap-2">
         <FullscreenToggleButton />
+        {gameStarted && currentPath ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (roundSuccessCelebration || isGuidedDemoRunning) return;
+              runGuidedDemo(currentPath);
+            }}
+            disabled={isGuidedDemoRunning}
+            className="w-11 h-11 bg-transparent border-0 flex items-center justify-center cursor-pointer disabled:opacity-35 active:scale-95 transition-opacity"
+            style={{ color: mutedColor }}
+            title="Play guide demo"
+            aria-label="Play guide demo"
+          >
+            <PlayIcon className="w-5 h-5 fill-current" />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setIsMenuOpen(true)}
