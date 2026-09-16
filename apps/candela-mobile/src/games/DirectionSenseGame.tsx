@@ -606,26 +606,28 @@ export function DirectionSenseGame({
           style={{
             flex: 1,
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: isStraighten ? 'center' : 'flex-start',
             paddingHorizontal: s(16),
-            paddingTop: insets.top + s(72),
+            paddingTop: insets.top + s(isStraighten ? 72 : 56),
             paddingBottom: insets.bottom + s(88),
-            gap: s(16),
+            gap: s(isStraighten ? 16 : 20),
           }}
         >
           <View
             style={{
               position: 'absolute',
               top: insets.top + 12,
-              left: 12,
+              left: 16,
               zIndex: 30,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              borderRadius: 16,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 14,
               borderWidth: 1,
-              borderColor: 'rgba(51, 65, 85, 0.9)',
-              backgroundColor: 'rgba(15, 23, 42, 0.72)',
-              gap: 6,
+              borderColor: 'rgba(51, 65, 85, 0.65)',
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
             <Text style={{ color: '#cbd5e1', fontSize: fs(12) }}>
@@ -644,8 +646,10 @@ export function DirectionSenseGame({
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: s(18),
-              flexWrap: 'wrap',
+              gap: s(isStraighten ? 18 : 24),
+              flexWrap: isStraighten ? 'wrap' : 'nowrap',
+              minHeight: isStraighten ? undefined : shapeSizePx,
+              marginTop: s(isStraighten ? 0 : 12),
             }}
           >
             {isStraighten ? (
@@ -744,8 +748,8 @@ export function DirectionSenseGame({
                 </View>
                 <View style={{ backgroundColor: 'transparent', padding: 0 }}>
                   <Svg
-                    width={Math.round(shapeSizePx * 0.52)}
-                    height={Math.round(shapeSizePx * 0.52)}
+                    width={Math.round(shapeSizePx * 0.48)}
+                    height={Math.round(shapeSizePx * 0.48)}
                     viewBox="0 0 100 100"
                   >
                     <Path
@@ -763,44 +767,55 @@ export function DirectionSenseGame({
             )}
           </View>
 
-          {!isStraighten ? (
-          <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: s(12),
-              width: '100%',
-              maxWidth: 920,
-              marginTop: s(48),
-            }}
-          >
-            {trial.options.map((opt) => (
-              <Pressable
-                key={opt.id}
-                disabled={locked}
-                onPress={() => handleOption(opt)}
-                accessibilityLabel="Answer option"
+          {!isStraighten ? (() => {
+            const gap = s(14);
+            const cardSize = Math.min((width - s(32) - gap) / 2, s(150));
+            const gridWidth = cardSize * 2 + gap;
+            const glyphSize = Math.round(cardSize * 0.65);
+            return (
+              <View
                 style={{
-                  borderRadius: 20,
-                  borderWidth: 2,
-                  borderColor: optionBorder(opt),
-                  backgroundColor: 'rgba(15, 23, 42, 0.45)',
-                  padding: s(12),
-                  opacity: locked && feedbackId !== opt.id && !(opt.isCorrect && feedbackCorrect === false) ? 0.85 : 1,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap,
+                  width: gridWidth,
+                  maxWidth: '100%',
+                  marginTop: s(16),
                 }}
               >
-                <ShapeGlyph
-                  shapeId={trial.shapeId}
-                  pose={opt.pose}
-                  color={shapeColor}
-                  size={Math.round(shapeSizePx * 0.92)}
-                />
-              </Pressable>
-            ))}
-          </View>
-          ) : null}
+                {trial.options.map((opt) => (
+                  <Pressable
+                    key={opt.id}
+                    disabled={locked}
+                    onPress={() => handleOption(opt)}
+                    accessibilityLabel="Answer option"
+                    style={{
+                      width: cardSize,
+                      height: cardSize,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 22,
+                      borderWidth: 1.5,
+                      borderColor: optionBorder(opt),
+                      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                      padding: s(8),
+                      opacity:
+                        locked && feedbackId !== opt.id && !(opt.isCorrect && feedbackCorrect === false) ? 0.85 : 1,
+                    }}
+                  >
+                    <ShapeGlyph
+                      shapeId={trial.shapeId}
+                      pose={opt.pose}
+                      color={shapeColor}
+                      size={glyphSize}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            );
+          })() : null}
         </View>
       ) : null}
 

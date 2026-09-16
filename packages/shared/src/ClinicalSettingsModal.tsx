@@ -1952,72 +1952,7 @@ export function ClinicalSettingsModal({
               </div>
             </div>
 
-            {/* CONTAINER 2: TRACING MECHANICS & MODE */}
-            <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
-              <div className="flex justify-between items-center text-sm font-extrabold text-amber-400 uppercase tracking-wider border-b border-gray-800 pb-3">
-                <span>Tracing Mechanics & Mode</span>
-              </div>
-
-              {/* Tracing Mode */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Tracing Mode
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setTempTracingMode('active')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                      tempTracingMode === 'active'
-                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    Active Trace (Manual Pursuit)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTempTracingMode('guided')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                      tempTracingMode === 'guided'
-                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    Guided Trace (Demo First)
-                  </button>
-                </div>
-              </div>
-
-              {/* Bee Speed & Pursuit Responsiveness */}
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block mb-1.5">
-                  Bee Speed & Pursuit Responsiveness
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Slow (10s)', val: 10 },
-                    { label: 'Normal (5s)', val: 5 },
-                    { label: 'Fast (2.5s)', val: 2.5 },
-                  ].map((spd) => (
-                    <button
-                      key={spd.val}
-                      type="button"
-                      onClick={() => setTempBeeSpeedSec(spd.val)}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
-                        tempBeeSpeedSec === spd.val
-                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      }`}
-                    >
-                      {spd.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* CONTAINER 3: PATH GEOMETRY & COMPLEXITY */}
+            {/* CONTAINER 2: PATH GEOMETRY & COMPLEXITY */}
             <div className="bg-[#242424] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between gap-5 shadow-lg">
               <div className="flex justify-between items-center text-sm font-extrabold text-emerald-400 uppercase tracking-wider border-b border-gray-800 pb-3">
                 <span>Path Complexity</span>

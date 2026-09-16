@@ -229,39 +229,6 @@ export function BeeSettingsModal({
               </View>
             </Card>
 
-            <Card title="Tracing Mechanics & Mode" color="#FBBF24">
-              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>TRACING MODE</Text>
-              <View style={{ flexDirection: 'row', gap: s(8) }}>
-                <Option
-                  label="Active Trace (Manual Pursuit)"
-                  active={draft.tracingMode === 'active'}
-                  onPress={() => patch({ tracingMode: 'active' as TracingMode })}
-                />
-                <Option
-                  label="Guided Trace (Demo First)"
-                  active={draft.tracingMode === 'guided'}
-                  onPress={() => patch({ tracingMode: 'guided' as TracingMode })}
-                />
-              </View>
-              <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
-                BEE SPEED & PURSUIT RESPONSIVENESS
-              </Text>
-              <View style={{ flexDirection: 'row', gap: s(8) }}>
-                {[
-                  { label: 'Slow (10s)', val: 10 },
-                  { label: 'Normal (5s)', val: 5 },
-                  { label: 'Fast (2.5s)', val: 2.5 },
-                ].map((item) => (
-                  <Option
-                    key={item.val}
-                    label={item.label}
-                    active={draft.beeSpeedSec === item.val}
-                    onPress={() => patch({ beeSpeedSec: item.val })}
-                  />
-                ))}
-              </View>
-            </Card>
-
             <Card title="Path Complexity" color="#34D399">
               <Text style={{ color: '#D1D5DB', fontSize: fs(11), fontWeight: '800', letterSpacing: 0.6 }}>
                 PATH LENGTH & COMPLEXITY

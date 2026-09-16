@@ -457,7 +457,7 @@ export function PatternMatchGame({
         ) : null}
 
         {phase === 'search' ? (
-          <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={handleBackgroundPress}>
+          <Pressable style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} onPress={handleBackgroundPress}>
             {showHoldCode ? (
               <Text
                 style={{
@@ -466,50 +466,78 @@ export function PatternMatchGame({
                   fontWeight: '900',
                   fontSize: fs(letterSize * 18),
                   letterSpacing: 6,
-                  marginBottom: 12,
+                  marginBottom: s(16),
                 }}
               >
                 {targetCode}
               </Text>
             ) : null}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {cells.map((cell) => {
-                const isPopping = poppingIds.has(cell.id);
-                const isWrong = wrongIds.has(cell.id);
-                return (
-                  <Pressable
-                    key={cell.id}
-                    onPress={(e) => {
-                      e.stopPropagation?.();
-                      onCellPress(cell);
-                    }}
-                    style={{
-                      width: `${100 / 3 - 2}%` as unknown as number,
-                      minWidth: (width - s(48)) / 3 - 8,
-                      paddingVertical: s(14),
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: isWrong ? '#fb7185' : 'rgba(148,163,184,0.35)',
-                      backgroundColor: isPopping ? 'transparent' : 'rgba(15,23,42,0.45)',
-                      opacity: isPopping ? 0.2 : 1,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: charColor,
-                        fontWeight: '800',
-                        fontSize: fs(letterSize * 14),
-                        letterSpacing: 3,
-                        fontVariant: ['tabular-nums'],
-                      }}
-                    >
-                      {cell.code}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {(() => {
+              const colCount = cells.length < 6 ? 2 : 3;
+              const gap = s(12);
+              const containerWidth = Math.min(width - s(32), colCount === 2 ? s(350) : s(400));
+              const cellWidth = (containerWidth - gap * (colCount - 1)) / colCount;
+              const len = Math.max(codeLength, 2);
+              const maxFitFontSize = (cellWidth - s(16)) / (len * 0.72);
+              const baseFontSize = fs(letterSize * (colCount === 2 ? 14 : 11));
+              const fontSize = Math.max(fs(14), Math.min(baseFontSize, maxFitFontSize));
+              const letterSpacing = len >= 4 ? 1.5 : len === 3 ? 2.5 : 4;
+              return (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap,
+                    width: containerWidth,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  {cells.map((cell) => {
+                    const isPopping = poppingIds.has(cell.id);
+                    const isWrong = wrongIds.has(cell.id);
+                    return (
+                      <Pressable
+                        key={cell.id}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          onCellPress(cell);
+                        }}
+                        style={{
+                          width: cellWidth,
+                          minHeight: s(colCount === 2 ? 72 : 56),
+                          paddingVertical: s(colCount === 2 ? 16 : 12),
+                          paddingHorizontal: s(8),
+                          borderRadius: 16,
+                          borderWidth: 1.5,
+                          borderColor: isWrong ? '#fb7185' : 'rgba(148,163,184,0.35)',
+                          backgroundColor: isPopping ? 'transparent' : 'rgba(15,23,42,0.65)',
+                          opacity: isPopping ? 0.2 : 1,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.6}
+                          style={{
+                            color: charColor,
+                            fontWeight: '800',
+                            fontSize,
+                            letterSpacing,
+                            fontVariant: ['tabular-nums'],
+                            textAlign: 'center',
+                          }}
+                        >
+                          {cell.code}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              );
+            })()}
           </Pressable>
         ) : null}
       </View>

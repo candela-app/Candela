@@ -104,11 +104,12 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
 
   const beginPlay = useCallback(() => {
     measure();
+    look.recalibrateCenter();
     dwellRef.current = createLookDwellState();
     poppingRef.current = false;
     setPopping(false);
     setStarted(true);
-  }, [measure]);
+  }, [measure, look]);
 
   const stopAndExit = useCallback(() => {
     setCamActive(false);
@@ -135,7 +136,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
             bubbleX,
             bubbleY,
             settings.glyphSizePx,
-            LOOK_STATIONARY_HIT_PADDING_PX,
+            LOOK_STATIONARY_HIT_PADDING_PX + 24,
           )
             ? 'target'
             : null;
@@ -230,14 +231,33 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setIsMenuOpen(true)}
-        className="absolute bottom-6 right-4 z-50 w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300"
-        title="Settings menu"
-      >
-        <SlidersIcon className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-6 right-4 z-50 flex items-center gap-2">
+        {started ? (
+          <button
+            type="button"
+            onClick={() => {
+              look.recalibrateCenter();
+              dwellRef.current = createLookDwellState();
+            }}
+            className="w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-400 hover:text-cyan-400 bg-transparent border-0"
+            title="Recalibrate Center Gaze"
+            aria-label="Recalibrate Center Gaze"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" strokeWidth="2" />
+              <path strokeWidth="2" d="M12 3v4m0 10v4m-9-9h4m10 0h4m-7 0a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setIsMenuOpen(true)}
+          className="w-11 h-11 flex items-center justify-center cursor-pointer active:scale-95 text-slate-300 bg-transparent border-0"
+          title="Settings menu"
+        >
+          <SlidersIcon className="w-5 h-5" />
+        </button>
+      </div>
 
       <GameMenuDrawer
         isOpen={isMenuOpen}

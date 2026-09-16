@@ -55,11 +55,28 @@ export const LOOK_SMOOTH_ALPHA = 0.32;
 export const LOOK_HEAD_WEIGHT = 0.28;
 export const LOOK_EYE_WEIGHT = 0.36;
 export const LOOK_BLEND_WEIGHT = 0.36;
+export const LOOK_WEB_GAIN_X = 2.5;
+export const LOOK_WEB_GAIN_Y_UP = 3.6;
+export const LOOK_WEB_GAIN_Y_DOWN = 2.5;
 
-export function lookNormFromWebEyePog(pogX: number, pogY: number): LookPoint {
+export function lookNormFromWebEyePog(
+  pogX: number,
+  pogY: number,
+  gainX: number = LOOK_WEB_GAIN_X,
+  gainYUp: number = LOOK_WEB_GAIN_Y_UP,
+  gainYDown: number = LOOK_WEB_GAIN_Y_DOWN,
+): LookPoint {
+  const effectiveGainY = pogY < 0 ? gainYUp : gainYDown;
+  const dx = pogX * gainX;
+  const dy = pogY * effectiveGainY;
+
+  // Non-linear smooth corner expansion (allows eyes to comfortably reach top corners and edges)
+  const boostedX = dx * (1 + 0.65 * Math.abs(dx));
+  const boostedY = dy * (1 + 0.65 * Math.abs(dy));
+
   return {
-    x: clamp01(0.5 + pogX),
-    y: clamp01(0.5 + pogY),
+    x: clamp01(0.5 + boostedX),
+    y: clamp01(0.5 + boostedY),
   };
 }
 

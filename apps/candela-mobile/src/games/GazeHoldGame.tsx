@@ -97,11 +97,13 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
   }, []);
 
   const beginPlay = useCallback(() => {
+    sampleRef.current = { x: 0.5, y: 0.5, faceLost: false };
+    setCursor({ x: bubbleX, y: bubbleY });
     dwellRef.current = createLookDwellState();
     poppingRef.current = false;
     setPopping(false);
     setStarted(true);
-  }, []);
+  }, [bubbleX, bubbleY]);
 
   const stopAndExit = useCallback(() => {
     setCamActive(false);
@@ -126,7 +128,7 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
           bubbleX,
           bubbleY,
           settings.glyphSizePx,
-          LOOK_STATIONARY_HIT_PADDING_PX,
+          LOOK_STATIONARY_HIT_PADDING_PX + 24,
         )
           ? 'target'
           : null;
@@ -174,9 +176,20 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
         />
       ) : null}
       {showPlayfield ? (
-        <Pressable
-          onPress={() => {
-            if (playActive) void hapticMiss();
+        <View
+          onTouchStart={(e) => {
+            if (!playActive) return;
+            const tx = e.nativeEvent.locationX / Math.max(1, bounds.width);
+            const ty = e.nativeEvent.locationY / Math.max(1, bounds.height);
+            sampleRef.current = { x: tx, y: ty, faceLost: false };
+            setCursor({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
+          }}
+          onTouchMove={(e) => {
+            if (!playActive) return;
+            const tx = e.nativeEvent.locationX / Math.max(1, bounds.width);
+            const ty = e.nativeEvent.locationY / Math.max(1, bounds.height);
+            sampleRef.current = { x: tx, y: ty, faceLost: false };
+            setCursor({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
           }}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
@@ -201,16 +214,33 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
           pointerEvents="none"
           style={{
             position: 'absolute',
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            borderWidth: 2,
-            borderColor: '#fff',
-            backgroundColor: 'rgba(148,163,184,0.35)',
-            left: cursor.x - 11,
-            top: cursor.y - 11,
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            borderWidth: 2.5,
+            borderColor: '#FFFFFF',
+            backgroundColor: 'rgba(0, 243, 255, 0.4)',
+            shadowColor: '#00F3FF',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.9,
+            shadowRadius: 10,
+            elevation: 8,
+            left: cursor.x - 15,
+            top: cursor.y - 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
           }}
-        />
+        >
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+        </View>
       ) : null}
       {lookError ? (
         <Text style={{ position: 'absolute', top: s(72), alignSelf: 'center', color: '#FDE68A', fontWeight: '700' }}>
@@ -236,22 +266,50 @@ export function GazeHoldGame({ onExit }: { onExit: () => void }) {
           onExit={stopAndExit}
         />
       ) : null}
-      <Pressable
-        onPress={() => setIsMenuOpen(true)}
+      <View
         style={{
           position: 'absolute',
           bottom: s(24),
           right: s(16),
-          width: s(44),
-          height: s(44),
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'transparent',
+          gap: s(6),
           zIndex: 50,
         }}
       >
-        <SlidersIcon size={22} color="#94A3B8" />
-      </Pressable>
+        {started ? (
+          <Pressable
+            onPress={() => {
+              sampleRef.current = { x: 0.5, y: 0.5, faceLost: false };
+              setCursor({ x: bubbleX, y: bubbleY });
+              dwellRef.current = createLookDwellState();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Recalibrate center gaze"
+            style={{
+              width: s(44),
+              height: s(44),
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'transparent',
+            }}
+          >
+            <Text style={{ color: '#94A3B8', fontSize: 18 }}>🎯</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          onPress={() => setIsMenuOpen(true)}
+          style={{
+            width: s(44),
+            height: s(44),
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+          }}
+        >
+          <SlidersIcon size={22} color="#94A3B8" />
+        </Pressable>
+      </View>
       <HowToPlayManual
         moduleId="computer_vision"
         isOpen={showHowToPlay}
