@@ -136,6 +136,26 @@ function MainContent() {
   const [computerVisionPattern, setComputerVisionPattern] = useState<PursuitMovementPattern>('stationary');
   const [familiarFacesLevelId, setFamiliarFacesLevelId] = useState('name_it');
 
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollPositionsRef = React.useRef<Record<string, number>>({});
+  const currentViewKey = `${view}:${selectedFamily || ''}:${selectedModule || ''}`;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    scrollPositionsRef.current[currentViewKey] = e.currentTarget.scrollTop;
+  };
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const targetScroll = scrollPositionsRef.current[currentViewKey] ?? 0;
+    // Restore scroll position after DOM renders
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = targetScroll;
+      }
+    });
+  }, [currentViewKey]);
+
   // Sync state from URL Query Params
   useEffect(() => {
     const pageParam = searchParams.get('page');
@@ -301,7 +321,7 @@ function MainContent() {
       }
     });
     const queryString = newParams.toString();
-    router.push(queryString ? `/dashboard?${queryString}` : '/dashboard');
+    router.push(queryString ? `/dashboard?${queryString}` : '/dashboard', { scroll: false });
   };
 
   const familyQueryFor = (uiId: string) =>
@@ -646,134 +666,129 @@ function MainContent() {
         </div>
       )}
 
-      {/* FAMILY SELECTION VIEW */}
-      {view === 'module' && (
+      {/* CHOOSER CONTAINER (PERSISTENT SCROLL WRAPPER) */}
+      {(isChooserView || isAnalyticsView) && (
         <div className={CHOOSER_PANE}>
-        <div className={CHOOSER_SCROLL}>
-        <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
-            <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
-          </div>
-          <button
-            onClick={navigateToAnalytics}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95"
-            title="View Session Analytics"
-          >
-            <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
-            <span className="hidden sm:inline">Analytics</span>
-          </button>
-        </div>
-        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-          {allowedModuleIds.size === 0 && (
-            <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-              <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
-              <p className="text-[13px] text-shell-muted mt-2">
-                Your doctor has not added any therapy modules. Check back after they prescribe one.
-              </p>
-            </div>
-          )}
-          {visibleFamilies.map((family) => {
-            const playableCount = family.moduleIds.filter((catalogId) =>
-              canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
-            ).length;
-            return (
-              <button
-                key={family.id}
-                type="button"
-                onClick={() => handleSelectFamily(family.id)}
-                className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
-                <div className="pt-2">
-                  <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
-                  <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
+          <div ref={scrollContainerRef} onScroll={handleScroll} className={CHOOSER_SCROLL}>
+            {/* FAMILY SELECTION VIEW */}
+            {view === 'module' && (
+              <>
+                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
+                    <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
+                  </div>
+                  <button
+                    onClick={navigateToAnalytics}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95"
+                    title="View Session Analytics"
+                  >
+                    <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
+                    <span className="hidden sm:inline">Analytics</span>
+                  </button>
                 </div>
-                <span
-                  className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
-                  style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
-                >
-                  {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
-                </span>
-              </button>
-            );
-          })}
-        </main>
-        </div>
-        </div>
-      )}
+                <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+                  {allowedModuleIds.size === 0 && (
+                    <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+                      <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
+                      <p className="text-[13px] text-shell-muted mt-2">
+                        Your doctor has not added any therapy modules. Check back after they prescribe one.
+                      </p>
+                    </div>
+                  )}
+                  {visibleFamilies.map((family) => {
+                    const playableCount = family.moduleIds.filter((catalogId) =>
+                      canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
+                    ).length;
+                    return (
+                      <button
+                        key={family.id}
+                        type="button"
+                        onClick={() => handleSelectFamily(family.id)}
+                        className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                      >
+                        <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
+                        <div className="pt-2">
+                          <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
+                          <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
+                        </div>
+                        <span
+                          className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
+                          style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
+                        >
+                          {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </main>
+              </>
+            )}
 
-      {/* FAMILY ACTIVITIES VIEW */}
-      {view === 'family' && activeFamily && (
-        <div className={CHOOSER_PANE}>
-        <div className={CHOOSER_SCROLL}>
-        <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
-          <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
-          <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
-        </div>
-        <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-          {familyActivityCards.length === 0 && (
-            <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-              <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
-              <p className="text-[13px] text-shell-muted mt-2">
-                Your doctor has not added any games in this family.
-              </p>
-            </div>
-          )}
-          {familyActivityCards.map((card) => (
-            <button
-              key={card.uiId}
-              type="button"
-              onClick={() => handleSelectModule(card.uiId)}
-              className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
-              <div className="pt-2">
-                <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
-                <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
-              </div>
-              <span
-                className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
-                style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
-              >
-                {card.badge}
-              </span>
-            </button>
-          ))}
-        </main>
-        </div>
-        </div>
-      )}
+            {/* FAMILY ACTIVITIES VIEW */}
+            {view === 'family' && activeFamily && (
+              <>
+                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
+                  <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
+                  <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
+                </div>
+                <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
+                  {familyActivityCards.length === 0 && (
+                    <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+                      <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
+                      <p className="text-[13px] text-shell-muted mt-2">
+                        Your doctor has not added any games in this family.
+                      </p>
+                    </div>
+                  )}
+                  {familyActivityCards.map((card) => (
+                    <button
+                      key={card.uiId}
+                      type="button"
+                      onClick={() => handleSelectModule(card.uiId)}
+                      className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
+                      <div className="pt-2">
+                        <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
+                        <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
+                      </div>
+                      <span
+                        className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
+                        style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
+                      >
+                        {card.badge}
+                      </span>
+                    </button>
+                  ))}
+                </main>
+              </>
+            )}
 
-      {/* ANALYTICS PLACEHOLDER VIEW */}
-      {view === 'analytics' && (
-        <div className={CHOOSER_PANE}>
-        <div className={CHOOSER_SCROLL}>
-        <main className="flex flex-col items-stretch px-4 sm:px-6 py-5 sm:py-8 max-w-6xl mx-auto w-full min-w-0 pb-8">
-          <div className="w-full flex items-start gap-3 mb-6 sm:mb-8">
-            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center shrink-0">
-              <AnalyticsIcon className="w-6 h-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg sm:text-[22px] font-extrabold text-shell-text tracking-tight break-words">
-                {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
-              </h2>
-              <p className="text-[13px] text-shell-muted font-medium mt-0.5">
-                Review past session performance across all therapy modules
-              </p>
-            </div>
-          </div>
+            {/* ANALYTICS PLACEHOLDER VIEW */}
+            {view === 'analytics' && (
+              <main className="flex flex-col items-stretch px-4 sm:px-6 py-5 sm:py-8 max-w-6xl mx-auto w-full min-w-0 pb-8">
+                <div className="w-full flex items-start gap-3 mb-6 sm:mb-8">
+                  <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center shrink-0">
+                    <AnalyticsIcon className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg sm:text-[22px] font-extrabold text-shell-text tracking-tight break-words">
+                      {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
+                    </h2>
+                    <p className="text-[13px] text-shell-muted font-medium mt-0.5">
+                      Review past session performance across all therapy modules
+                    </p>
+                  </div>
+                </div>
 
-          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" />
-        </main>
-        </div>
-        </div>
-      )}
+                <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" />
+              </main>
+            )}
 
-      {/* GAME VARIANTS VIEW */}
-      {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
-        <div className={CHOOSER_PANE}>
-        <div className={CHOOSER_SCROLL}>
+            {/* GAME VARIANTS VIEW */}
+            {view === 'game' && selectedModule && canPlayUiModule(selectedModule) && (
+              <>
           <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
             {activeFamily && (
               <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: activeFamily.accent }}>
@@ -1142,7 +1157,9 @@ function MainContent() {
               )}
             </main>
           )}
-        </div>
+        </>
+      )}
+          </div>
         </div>
       )}
 

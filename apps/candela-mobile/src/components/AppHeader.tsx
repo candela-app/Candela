@@ -120,14 +120,17 @@ export function AppHeader({
             <LogOutIcon size={s(16)} color="#DC2626" />
           </Pressable>
         ) : (
-          !loading && (
-            <Pressable
-              onPress={() => router.push('/login')}
-              style={{ paddingHorizontal: s(12), paddingVertical: s(7), borderRadius: s(12), backgroundColor: '#F3F4F6' }}
-            >
-              <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#374151' }}>Sign in</Text>
-            </Pressable>
-          )
+          <Pressable
+            onPress={() => router.push('/login')}
+            style={{
+              paddingHorizontal: s(14),
+              paddingVertical: s(8),
+              borderRadius: s(12),
+              backgroundColor: colors.blue,
+            }}
+          >
+            <Text style={{ fontSize: fs(13), fontWeight: '700', color: colors.white }}>Sign in</Text>
+          </Pressable>
         )}
       </View>
     </View>
