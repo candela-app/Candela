@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -62,6 +62,21 @@ export default function DashboardScreen() {
   const { session, loading } = useAuth();
   const { fs, s, pad, columns, width } = useLayout();
   const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
+
+  const scrollOffsetsRef = useRef<Record<string, number>>({});
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const currentViewKey = `${pageParam || ''}:${familyParam || ''}:${moduleParam || ''}`;
+
+  const handleScroll = (e: any) => {
+    scrollOffsetsRef.current[currentViewKey] = e.nativeEvent.contentOffset.y;
+  };
+
+  useEffect(() => {
+    const targetY = scrollOffsetsRef.current[currentViewKey] ?? 0;
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
+    });
+  }, [currentViewKey]);
 
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
@@ -205,345 +220,6 @@ export default function DashboardScreen() {
     </View>
   );
 
-  if (pageParam === 'analytics') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0, paddingBottom: s(24) }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: s(10), marginBottom: s(16) }}>
-            <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
-              <AnalyticsIcon size={s(22)} color={colors.blue} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: fs(20), fontWeight: '800' }}>
-                {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
-              </Text>
-              <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(2) }}>Review past session performance across all therapy modules</Text>
-            </View>
-          </View>
-          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} />
-          <Pressable
-            onPress={() => router.replace('/dashboard')}
-            style={{
-              marginTop: s(16),
-              alignSelf: 'flex-start',
-              backgroundColor: colors.blue,
-              borderRadius: s(12),
-              paddingHorizontal: s(20),
-              paddingVertical: s(12),
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: s(8),
-            }}
-          >
-            <EyeIcon size={s(18)} color="#fff" />
-            <Text style={{ color: colors.white, fontWeight: '700' }}>Start a Therapy Session</Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'wheel' && canPlayUiModule('wheel')) {
-    const levels = [
-      isLevelAllowed('wheel', 'uppercase') ? variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase')) : null,
-      isLevelAllowed('wheel', 'lowercase') ? variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase')) : null,
-      isLevelAllowed('wheel', 'numbers') ? variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase')) : null,
-      isLevelAllowed('wheel', 'colors') ? variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase')) : null,
-    ].filter(Boolean);
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'sorting' && canPlayUiModule('sorting')) {
-    const levels = [
-      isLevelAllowed('sorting', 'uppercase') ? variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase')) : null,
-      isLevelAllowed('sorting', 'lowercase') ? variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase')) : null,
-      isLevelAllowed('sorting', 'numbers') ? variantCard('Numeric Sorting', () => launchSorting('numbers')) : null,
-    ].filter(Boolean);
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'mobile_target' && canPlayUiModule('mobile_target')) {
-    const levels = [
-      isLevelAllowed('mobile_target', 'uppercase') ? variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase')) : null,
-      isLevelAllowed('mobile_target', 'lowercase') ? variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase')) : null,
-      isLevelAllowed('mobile_target', 'numbers') ? variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase')) : null,
-      isLevelAllowed('mobile_target', 'colors') ? variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase')) : null,
-    ].filter(Boolean);
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'tracing' && canPlayUiModule('tracing')) {
-    const levels = MODULE_LEVELS.bee_tracing
-      .filter((level) => isLevelAllowed('tracing', level.id))
-      .map((level) => variantCard(level.name, () => launchBee(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bee Path Tracing</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a path type to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'pursuit' && canPlayUiModule('pursuit')) {
-    const levels = MODULE_LEVELS.pursuit
-      .filter((level) => isLevelAllowed('pursuit', level.id))
-      .map((level) => variantCard(level.name, () => launchPursuit(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pursuit Module</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a movement pattern to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'geoboard' && canPlayUiModule('geoboard')) {
-    const levels = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) =>
-      variantCard(GEOBOARD_BOARDS[id].shortLabel, () => launchGeoboard(id)),
-    );
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
-          {levels.length === 0 ? noLevelsCard('No boards assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'peripheral' && canPlayUiModule('peripheral')) {
-    const levels = MODULE_LEVELS.peripheral_view
-      .filter((level) => isLevelAllowed('peripheral', level.id))
-      .map((level) => variantCard(level.name, () => launchPeripheral(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Peripheral View</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Select a visual field · designed for landscape
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'number_search' && canPlayUiModule('number_search')) {
-    const levels = MODULE_LEVELS.number_search
-      .filter((level) => isLevelAllowed('number_search', level.id))
-      .map((level) => variantCard(level.name, () => launchNumberSearch()));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Crowded Search</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Find digits hidden among mixed letters
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'pattern_match' && canPlayUiModule('pattern_match')) {
-    const levels = MODULE_LEVELS.pattern_match
-      .filter((level) => isLevelAllowed('pattern_match', level.id))
-      .map((level) => variantCard(level.name, () => launchPatternMatch(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Hold a code — tap every exact match
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'computer_vision' && canPlayUiModule('computer_vision')) {
-    const levels = MODULE_LEVELS.computer_vision
-      .filter((level) => isLevelAllowed('computer_vision', level.id))
-      .map((level) => variantCard(level.name, () => launchComputerVision(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Gaze Hold</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Look at the still bubble and hold your gaze to pop it
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'familiar_faces' && canPlayUiModule('familiar_faces')) {
-    const levels = MODULE_LEVELS.familiar_faces
-      .filter((level) => isLevelAllowed('familiar_faces', level.id))
-      .map((level) => variantCard(level.name, () => launchFamiliarFaces(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Familiar Faces</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Add family photos, then name, find, or hold a face
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'direction_sense' && canPlayUiModule('direction_sense')) {
-    const levels = MODULE_LEVELS.direction_sense
-      .filter((level) => isLevelAllowed('direction_sense', level.id))
-      .map((level) => variantCard(level.name, () => launchDirectionSense(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Direction Sense</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Face & Flip: pick the 90° turn. Straighten: spin the letter to match.
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (moduleParam === 'location_memory' && canPlayUiModule('location_memory')) {
-    const levels = MODULE_LEVELS.location_memory
-      .filter((level) => isLevelAllowed('location_memory', level.id))
-      .map((level) => variantCard(level.name, () => launchLocationMemory(level.id)));
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToFamily} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
-          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Location Memory</Text>
-          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
-            Explore the grid, then recall each number
-          </Text>
-          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
-        </ScrollView>
-      </View>
-    );
-  }
-
   const visibleFamilies = GAME_FAMILIES.filter((family) =>
     family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
   );
@@ -611,16 +287,244 @@ export default function DashboardScreen() {
     </Pressable>
   );
 
-  if (selectedFamily) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={backToModules} />
-        <ScrollView
-          bounces={false}
-          overScrollMode="never"
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-        >
+  let headerBackAction: (() => void) | undefined = undefined;
+  if (moduleParam && canPlayUiModule(moduleParam)) {
+    headerBackAction = backToFamily;
+  } else if (selectedFamily || pageParam === 'analytics') {
+    headerBackAction = backToModules;
+  }
+
+  const renderContent = () => {
+    if (pageParam === 'analytics') {
+      return (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: s(10), marginBottom: s(16) }}>
+            <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+              <AnalyticsIcon size={s(22)} color={colors.blue} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fs(20), fontWeight: '800' }}>
+                {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
+              </Text>
+              <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(2) }}>Review past session performance across all therapy modules</Text>
+            </View>
+          </View>
+          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} />
+          <Pressable
+            onPress={() => router.replace('/dashboard')}
+            style={{
+              marginTop: s(16),
+              alignSelf: 'flex-start',
+              backgroundColor: colors.blue,
+              borderRadius: s(12),
+              paddingHorizontal: s(20),
+              paddingVertical: s(12),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: s(8),
+            }}
+          >
+            <EyeIcon size={s(18)} color="#fff" />
+            <Text style={{ color: colors.white, fontWeight: '700' }}>Start a Therapy Session</Text>
+          </Pressable>
+        </>
+      );
+    }
+
+    if (moduleParam === 'wheel' && canPlayUiModule('wheel')) {
+      const levels = [
+        isLevelAllowed('wheel', 'uppercase') ? variantCard('Uppercase Rotatory', () => launchRotatory('alphabets', 'uppercase')) : null,
+        isLevelAllowed('wheel', 'lowercase') ? variantCard('Lowercase Rotatory', () => launchRotatory('alphabets', 'lowercase')) : null,
+        isLevelAllowed('wheel', 'numbers') ? variantCard('Numeric Rotatory', () => launchRotatory('numbers', 'uppercase')) : null,
+        isLevelAllowed('wheel', 'colors') ? variantCard('Color Discriminant', () => launchRotatory('colors', 'uppercase')) : null,
+      ].filter(Boolean);
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Rotatory Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'sorting' && canPlayUiModule('sorting')) {
+      const levels = [
+        isLevelAllowed('sorting', 'uppercase') ? variantCard('Uppercase Alphabet Sorting', () => launchSorting('uppercase')) : null,
+        isLevelAllowed('sorting', 'lowercase') ? variantCard('Lowercase Alphabet Sorting', () => launchSorting('lowercase')) : null,
+        isLevelAllowed('sorting', 'numbers') ? variantCard('Numeric Sorting', () => launchSorting('numbers')) : null,
+      ].filter(Boolean);
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Sorting Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a sorting category to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'mobile_target' && canPlayUiModule('mobile_target')) {
+      const levels = [
+        isLevelAllowed('mobile_target', 'uppercase') ? variantCard('Uppercase Bubble Chase', () => launchMobileTarget('alphabets', 'uppercase')) : null,
+        isLevelAllowed('mobile_target', 'lowercase') ? variantCard('Lowercase Bubble Chase', () => launchMobileTarget('alphabets', 'lowercase')) : null,
+        isLevelAllowed('mobile_target', 'numbers') ? variantCard('Numeric Bubble Chase', () => launchMobileTarget('numbers', 'uppercase')) : null,
+        isLevelAllowed('mobile_target', 'colors') ? variantCard('Color Discriminant Bubble Chase', () => launchMobileTarget('colors', 'uppercase')) : null,
+      ].filter(Boolean);
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bubble Chase</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select an exercise mode to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'tracing' && canPlayUiModule('tracing')) {
+      const levels = MODULE_LEVELS.bee_tracing
+        .filter((level) => isLevelAllowed('tracing', level.id))
+        .map((level) => variantCard(level.name, () => launchBee(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Bee Path Tracing</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a path type to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'pursuit' && canPlayUiModule('pursuit')) {
+      const levels = MODULE_LEVELS.pursuit
+        .filter((level) => isLevelAllowed('pursuit', level.id))
+        .map((level) => variantCard(level.name, () => launchPursuit(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Pursuit Module</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a movement pattern to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'geoboard' && canPlayUiModule('geoboard')) {
+      const levels = GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) =>
+        variantCard(GEOBOARD_BOARDS[id].shortLabel, () => launchGeoboard(id)),
+      );
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Draw a Pattern</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>Select a board to begin</Text>
+          {levels.length === 0 ? noLevelsCard('No boards assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'peripheral' && canPlayUiModule('peripheral')) {
+      const levels = MODULE_LEVELS.peripheral_view
+        .filter((level) => isLevelAllowed('peripheral', level.id))
+        .map((level) => variantCard(level.name, () => launchPeripheral(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Peripheral View</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Select a visual field · designed for landscape
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'number_search' && canPlayUiModule('number_search')) {
+      const levels = MODULE_LEVELS.number_search
+        .filter((level) => isLevelAllowed('number_search', level.id))
+        .map((level) => variantCard(level.name, () => launchNumberSearch()));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Crowded Search</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Find digits hidden among mixed letters
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'pattern_match' && canPlayUiModule('pattern_match')) {
+      const levels = MODULE_LEVELS.pattern_match
+        .filter((level) => isLevelAllowed('pattern_match', level.id))
+        .map((level) => variantCard(level.name, () => launchPatternMatch(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Hold the Code</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Hold a code — tap every exact match
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'computer_vision' && canPlayUiModule('computer_vision')) {
+      const levels = MODULE_LEVELS.computer_vision
+        .filter((level) => isLevelAllowed('computer_vision', level.id))
+        .map((level) => variantCard(level.name, () => launchComputerVision(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Gaze Hold</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Look at the still bubble and hold your gaze to pop it
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'familiar_faces' && canPlayUiModule('familiar_faces')) {
+      const levels = MODULE_LEVELS.familiar_faces
+        .filter((level) => isLevelAllowed('familiar_faces', level.id))
+        .map((level) => variantCard(level.name, () => launchFamiliarFaces(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Familiar Faces</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Add family photos, then name, find, or hold a face
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'direction_sense' && canPlayUiModule('direction_sense')) {
+      const levels = MODULE_LEVELS.direction_sense
+        .filter((level) => isLevelAllowed('direction_sense', level.id))
+        .map((level) => variantCard(level.name, () => launchDirectionSense(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Direction Sense</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Face & Flip: pick the 90° turn. Straighten: spin the letter to match.
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (moduleParam === 'location_memory' && canPlayUiModule('location_memory')) {
+      const levels = MODULE_LEVELS.location_memory
+        .filter((level) => isLevelAllowed('location_memory', level.id))
+        .map((level) => variantCard(level.name, () => launchLocationMemory(level.id)));
+      return (
+        <>
+          <Text style={{ fontSize: fs(22), fontWeight: '800', marginBottom: s(4) }}>Location Memory</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(16) }}>
+            Explore the grid, then recall each number
+          </Text>
+          {levels.length === 0 ? noLevelsCard('No levels assigned yet') : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(12) }}>{levels}</View>}
+        </>
+      );
+    }
+
+    if (selectedFamily) {
+      return (
+        <>
           <Text style={{ fontSize: fs(22), fontWeight: '800' }}>{selectedFamily.title}</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
             {selectedFamily.body}
@@ -639,20 +543,12 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
-        </ScrollView>
-      </View>
-    );
-  }
+        </>
+      );
+    }
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <AppHeader />
-      <ScrollView
-        bounces={false}
-        overScrollMode="never"
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: pad, flexGrow: 0 }}
-      >
+    return (
+      <>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s(16) }}>
           <View style={{ flex: 1, paddingRight: s(8) }}>
             <Text style={{ fontSize: fs(22), fontWeight: '800' }}>Vision Therapy</Text>
@@ -702,6 +598,23 @@ export default function DashboardScreen() {
             );
           })}
         </View>
+      </>
+    );
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.page }}>
+      <AppHeader onBack={headerBackAction} />
+      <ScrollView
+        ref={scrollViewRef}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        bounces={false}
+        overScrollMode="never"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: pad, flexGrow: 0, paddingBottom: s(24) }}
+      >
+        {renderContent()}
       </ScrollView>
     </View>
   );

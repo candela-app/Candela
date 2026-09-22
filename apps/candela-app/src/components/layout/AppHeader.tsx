@@ -100,14 +100,12 @@ export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
             <LogOutIcon className="w-4 h-4" />
           </button>
         ) : (
-          !loading && (
-            <Link
-              href="/login"
-              className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold transition-colors"
-            >
-              Sign in
-            </Link>
-          )
+          <Link
+            href="/login"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm active:scale-95"
+          >
+            Sign in
+          </Link>
         )}
       </div>
     </header>
