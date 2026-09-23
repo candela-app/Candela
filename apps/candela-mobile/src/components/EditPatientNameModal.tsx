@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import { useAuth } from '../lib/auth-context';
-import { useToast } from '../lib/toast-context';
 import { api, ApiError } from '../lib/api';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
@@ -28,7 +27,6 @@ export function EditPatientNameModal({
 }) {
   const { s, fs } = useLayout();
   const { session, applySession } = useAuth();
-  const toast = useToast();
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -61,12 +59,10 @@ export function EditPatientNameModal({
         body: JSON.stringify({ name: trimmed }),
       });
       applySession(updated);
-      toast.success(isWelcome ? `Welcome, ${trimmed}!` : 'Patient name updated successfully.');
       onClose();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Failed to update patient name.';
       setError(msg);
-      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

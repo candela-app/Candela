@@ -8,11 +8,34 @@ import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { GameSession } from '../entities/game-session.entity';
 import { CreateOrganizationDto } from '../auth/dto';
-import type {
-  OrganizationSummary,
-  SelfUserSummary,
-  SuperAdminMetrics,
-} from '@candela/shared';
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  code: string;
+  contactEmail: string | null;
+  adminName: string | null;
+  adminEmail: string | null;
+  doctorCount: number;
+  patientCount: number;
+  createdAt: string;
+}
+
+export interface SelfUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+  sessionCount: number;
+}
+
+export interface SuperAdminMetrics {
+  totalOrganizations: number;
+  totalDoctors: number;
+  totalOrgPatients: number;
+  totalSelfPatients: number;
+}
 
 const BCRYPT_ROUNDS = 10;
 
