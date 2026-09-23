@@ -75,6 +75,7 @@ function LineChart({
   fs,
   color,
   scale,
+  showGameName = false,
 }: {
   points: DailyPlotPoint[];
   metric: AnalyticsMetricId;
@@ -84,6 +85,7 @@ function LineChart({
   fs: (n: number) => number;
   color: string;
   scale: AnalyticsTimeScale;
+  showGameName?: boolean;
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -262,27 +264,78 @@ function LineChart({
             zIndex: 2,
             left: pad.l,
             top: 4,
-            width: 180,
+            width: showGameName ? Math.min(width - pad.l - 8, 300) : Math.min(width - pad.l - 8, 220),
+            maxHeight: 250,
             backgroundColor: '#0F172A',
-            borderRadius: 10,
+            borderRadius: 12,
             paddingHorizontal: 10,
             paddingVertical: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(51, 65, 85, 0.8)',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
           }}
         >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: fs(11), flex: 1, marginRight: 8 }}>
-              {formatPlotTooltip(tip.date, scale)} · {valueLabel}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: '#1E293B' }}>
+            <Text style={{ color: '#F1F5F9', fontWeight: '800', fontSize: fs(11), flex: 1, marginRight: 8 }} numberOfLines={1}>
+              {formatPlotTooltip(tip.date, scale)}
             </Text>
-            <Text style={{ color: '#94A3B8', fontWeight: '800', fontSize: fs(14), lineHeight: fs(16) }}>×</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ color: '#34D399', fontWeight: '800', fontSize: fs(11) }}>{valueLabel}</Text>
+              <Text style={{ color: '#94A3B8', fontWeight: '800', fontSize: fs(14), lineHeight: fs(16) }}>×</Text>
+            </View>
           </View>
-          <Text style={{ color: '#CBD5E1', fontSize: fs(10), marginTop: 2 }}>
-            {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
-          </Text>
-          {tip.sessions.map((s) => (
-            <Text key={s.sessionNumber} style={{ color: '#CBD5E1', fontSize: fs(10), marginTop: 2 }}>
-              #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s · {s.durationSec}s
-            </Text>
-          ))}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: '#1E293B' }}>
+            <Text style={{ width: 22, color: '#94A3B8', fontSize: fs(9), fontWeight: '700' }}>#</Text>
+            {showGameName ? (
+              <Text style={{ flex: 1, color: '#94A3B8', fontSize: fs(9), fontWeight: '700', paddingRight: 4 }}>Game</Text>
+            ) : null}
+            <Text style={{ width: 34, textAlign: 'right', color: '#94A3B8', fontSize: fs(9), fontWeight: '700' }}>Acc</Text>
+            <Text style={{ width: 34, textAlign: 'right', color: '#94A3B8', fontSize: fs(9), fontWeight: '700' }}>RT</Text>
+            <Text style={{ width: 32, textAlign: 'right', color: '#94A3B8', fontSize: fs(9), fontWeight: '700' }}>Time</Text>
+          </View>
+          <ScrollView
+            style={{ maxHeight: 150 }}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            {tip.sessions.map((s) => (
+              <View
+                key={s.sessionNumber}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 4,
+                  borderBottomWidth: 1,
+                  borderBottomColor: 'rgba(30, 41, 59, 0.5)',
+                }}
+              >
+                <Text style={{ width: 22, color: '#94A3B8', fontSize: fs(10), fontWeight: '600' }}>
+                  #{s.sessionNumber}
+                </Text>
+                {showGameName ? (
+                  <Text
+                    style={{ flex: 1, color: '#67E8F9', fontSize: fs(10), fontWeight: '600', paddingRight: 4 }}
+                    numberOfLines={1}
+                  >
+                    {s.gameName || '—'}
+                  </Text>
+                ) : null}
+                <Text style={{ width: 34, textAlign: 'right', color: '#E2E8F0', fontSize: fs(10), fontWeight: '600' }}>
+                  {s.accuracy}%
+                </Text>
+                <Text style={{ width: 34, textAlign: 'right', color: '#CBD5E1', fontSize: fs(10) }}>
+                  {s.avgReactionSec}s
+                </Text>
+                <Text style={{ width: 32, textAlign: 'right', color: '#94A3B8', fontSize: fs(10) }}>
+                  {s.durationSec}s
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
         </Pressable>
       ) : null}
     </View>
@@ -904,6 +957,7 @@ export function SessionAnalyticsPanel({
               fs={fs}
               color={item.color}
               scale={scale}
+              showGameName={!gameId}
             />
           </View>
         ))}
