@@ -7,6 +7,7 @@ import { PatientProfile } from './entities/patient-profile.entity';
 import { Prescription } from './entities/prescription.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { Organization } from './entities/organization.entity';
 import { User } from './entities/user.entity';
 import { FamiliarFace } from './entities/familiar-face.entity';
 import { GameSession } from './entities/game-session.entity';
@@ -17,6 +18,7 @@ import { AddGoogleAuth1788000000000 } from './migrations/1788000000000-AddGoogle
 import { AddFamiliarFaces1789000000000 } from './migrations/1789000000000-AddFamiliarFaces';
 import { AddGameSessions1790000000000 } from './migrations/1790000000000-AddGameSessions';
 import { AddPasswordResetTokens1791000000000 } from './migrations/1791000000000-AddPasswordResetTokens';
+import { AddOrganizationsAndSuperAdmin1792000000000 } from './migrations/1792000000000-AddOrganizationsAndSuperAdmin';
 import { loadBackendEnv } from './common/load-env';
 import { postgresConnectionUrl } from './common/postgres-url';
 
@@ -28,6 +30,7 @@ export const AppDataSource = new DataSource({
   ssl: { rejectUnauthorized: false },
   extra: { ssl: { rejectUnauthorized: false } },
   entities: [
+    Organization,
     User,
     DoctorProfile,
     PatientProfile,
@@ -47,6 +50,7 @@ export const AppDataSource = new DataSource({
     AddFamiliarFaces1789000000000,
     AddGameSessions1790000000000,
     AddPasswordResetTokens1791000000000,
+    AddOrganizationsAndSuperAdmin1792000000000,
   ],
 });
 

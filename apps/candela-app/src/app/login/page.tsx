@@ -64,7 +64,11 @@ export default function LoginPage() {
       setRedirecting(true);
       applySession(next);
       toast.success(`Welcome back, ${next.user.name}!`);
-      router.replace(roleHomePath(next.user.role));
+      if (next.isNewUser && next.user.role === 'patient') {
+        router.replace('/dashboard?welcome=1');
+      } else {
+        router.replace(roleHomePath(next.user.role));
+      }
     } catch (err) {
       setGoogleBusy(false);
       const msg = err instanceof ApiError ? err.message : 'Could not sign in with Google';

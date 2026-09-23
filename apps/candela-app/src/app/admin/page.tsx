@@ -63,7 +63,7 @@ export default function AdminPage() {
     if (loading) {
       return;
     }
-    if (!session || session.user.role !== 'admin') {
+    if (!session || (session.user.role !== 'admin' && session.user.role !== 'super_admin')) {
       router.replace('/');
       return;
     }
@@ -84,10 +84,8 @@ export default function AdminPage() {
 
   const grouped = useMemo(() => {
     const byDoctor = new Map<string, { doctorName: string; code: string; patients: PatientSummary[] }>();
-    const unlinked: PatientSummary[] = [];
     for (const patient of visiblePatients) {
       if (!patient.doctorId) {
-        unlinked.push(patient);
         continue;
       }
       const existing = byDoctor.get(patient.doctorId);
@@ -101,7 +99,7 @@ export default function AdminPage() {
         });
       }
     }
-    return { byDoctor, unlinked };
+    return { byDoctor };
   }, [visiblePatients]);
 
   async function onCreateDoctor(e: FormEvent) {
@@ -232,7 +230,7 @@ export default function AdminPage() {
     }
   }
 
-  if (loading || dataLoading || !session || session.user.role !== 'admin') {
+  if (loading || dataLoading || !session || (session.user.role !== 'admin' && session.user.role !== 'super_admin')) {
     return (
       <div className="min-h-screen bg-[#F4F7FC]">
         <AppHeader />
@@ -247,8 +245,19 @@ export default function AdminPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Admin</h1>
-          <p className="text-sm text-gray-500 mt-1">Create doctors, edit their details, and review every patient on the platform.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-extrabold text-gray-900">Admin Portal</h1>
+            {session.organization && (
+              <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-200">
+                {session.organization.name}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            {session.organization
+              ? `Manage doctors and review patients enrolled under ${session.organization.name}.`
+              : 'Create doctors, edit their details, and review every patient on the platform.'}
+          </p>
         </div>
 
         {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
@@ -285,11 +294,13 @@ export default function AdminPage() {
               required
             >
               <option value="">Select patient</option>
-              {patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.name} {patient.referralCode ? `(${patient.referralCode})` : '(unlinked)'}
-                </option>
-              ))}
+              {patients
+                .filter((patient) => patient.doctorId)
+                .map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.name} ({patient.referralCode || 'DocID'})
+                  </option>
+                ))}
             </select>
             <FloatingLabelInput
               label="Target DocID"
@@ -388,26 +399,6 @@ export default function AdminPage() {
             </div>
           ))}
           {grouped.byDoctor.size === 0 && <p className="text-sm text-gray-500">No doctor-managed patients yet.</p>}
-        </section>
-
-        <section>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Self-signup patients</h2>
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            {grouped.unlinked.length === 0 && <p className="text-sm text-gray-500">None yet.</p>}
-            <ul className="space-y-2">
-              {grouped.unlinked.map((patient) => (
-                <li key={patient.id} className="text-sm text-gray-700">
-                  {patient.name} · {patient.email} · {patient.phone}
-                  {patient.previousReferralCodes?.length > 0 && (
-                    <span className="text-xs text-gray-400">
-                      {' '}
-                      · previous {patient.previousReferralCodes.join(', ')}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
         </section>
       </main>
 

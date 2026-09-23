@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import type { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
+import { Organization } from '../entities/organization.entity';
 
 const BCRYPT_ROUNDS = 10;
 const MAX_NUMBERED_ADMINS = 9;
@@ -64,17 +65,14 @@ export function adminSeedOverwriteEnabled(env: NodeJS.ProcessEnv = process.env):
 
 export async function seedAdminUsers(
   users: Repository<User>,
+  orgs?: Repository<Organization>,
   options: { overwrite?: boolean } = {},
 ): Promise<AdminSeedResult> {
   const overwrite = options.overwrite ?? adminSeedOverwriteEnabled();
   const accounts = parseAdminSeedFromEnv();
   const result: AdminSeedResult = { created: 0, updated: 0, skipped: 0 };
 
-  if (accounts.length === 0) {
-    console.log('Admin seed skipped: no ADMIN_* credentials in the environment');
-    return result;
-  }
-
+  // 1. Seed super admins from environment
   for (const account of accounts) {
     const existing = await users.findOne({ where: { email: account.email } });
     const passwordHash = await bcrypt.hash(account.password, BCRYPT_ROUNDS);
@@ -86,7 +84,8 @@ export async function seedAdminUsers(
           passwordHash,
           name: account.name,
           phone: '0000000000',
-          role: 'admin',
+          role: 'super_admin',
+          organizationId: null,
         }),
       );
       result.created += 1;
@@ -94,21 +93,71 @@ export async function seedAdminUsers(
     }
 
     if (!overwrite) {
+      if (existing.role === 'admin') {
+        existing.role = 'super_admin';
+        await users.save(existing);
+      }
       result.skipped += 1;
       continue;
     }
 
     existing.passwordHash = passwordHash;
     existing.name = account.name;
-    if (existing.role !== 'admin') {
-      existing.role = 'admin';
-    }
+    existing.role = 'super_admin';
     await users.save(existing);
     result.updated += 1;
   }
 
+  // 2. Ensure Test Hospital organization and Org Admin exist
+  if (orgs) {
+    let testOrg = await orgs.findOne({ where: { code: 'TEST_HOSPITAL' } });
+    if (!testOrg) {
+      testOrg = await orgs.save(
+        orgs.create({
+          name: 'Test Hospital',
+          code: 'TEST_HOSPITAL',
+          contactEmail: 'testHospital@candela.com',
+        }),
+      );
+    }
+
+    // Seed testHospital@candela.com Org Admin
+    const hospitalAdminEmail = 'testhospital@candela.com';
+    const defaultOrgPassword = process.env.ORG_ADMIN_PASSWORD || 'admin123$';
+    const passwordHash = await bcrypt.hash(defaultOrgPassword, BCRYPT_ROUNDS);
+    const existingHospitalAdmin = await users.findOne({ where: { email: hospitalAdminEmail } });
+    if (!existingHospitalAdmin) {
+      await users.save(
+        users.create({
+          email: hospitalAdminEmail,
+          passwordHash,
+          name: 'Test Hospital Admin',
+          phone: '1234567890',
+          role: 'admin',
+          organizationId: testOrg.id,
+        }),
+      );
+      result.created += 1;
+    } else {
+      existingHospitalAdmin.passwordHash = passwordHash;
+      existingHospitalAdmin.organizationId = testOrg.id;
+      existingHospitalAdmin.role = 'admin';
+      await users.save(existingHospitalAdmin);
+      result.updated += 1;
+    }
+
+    // Assign any unassigned doctors to Test Hospital
+    const unassignedDoctors = await users.find({ where: { role: 'doctor' } });
+    for (const doc of unassignedDoctors) {
+      if (!doc.organizationId) {
+        doc.organizationId = testOrg.id;
+        await users.save(doc);
+      }
+    }
+  }
+
   console.log(
-    `Admin seed complete (created ${result.created}, updated ${result.updated}, skipped ${result.skipped})`,
+    `Admin & Organization seed complete (created ${result.created}, updated ${result.updated}, skipped ${result.skipped})`,
   );
   return result;
 }

@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Patch, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Public } from '../common/decorators';
 import { CurrentUser } from '../common/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AuthService, readRefreshCookie } from './auth.service';
-import { GoogleAuthDto, LoginDto, SignupDto, RefreshDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
+import { GoogleAuthDto, LoginDto, SignupDto, RefreshDto, ForgotPasswordDto, ResetPasswordDto, UpdateProfileDto } from './dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -64,4 +64,10 @@ export class AuthController {
   me(@CurrentUser() user: User) {
     return this.auth.getSession(user);
   }
+
+  @Patch('profile')
+  updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(user.id, dto);
+  }
 }
+

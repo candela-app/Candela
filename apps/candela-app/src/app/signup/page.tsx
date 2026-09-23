@@ -63,7 +63,11 @@ export default function SignupPage() {
       setRedirecting(true);
       applySession(next);
       toast.success('Account created successfully! Welcome to Kandela.');
-      router.replace(roleHomePath(next.user.role));
+      if (next.isNewUser && next.user.role === 'patient') {
+        router.replace('/dashboard?welcome=1');
+      } else {
+        router.replace(roleHomePath(next.user.role));
+      }
     } catch (err) {
       setGoogleBusy(false);
       const msg = err instanceof ApiError ? err.message : 'Could not continue with Google';

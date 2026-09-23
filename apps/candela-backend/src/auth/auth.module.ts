@@ -11,6 +11,7 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { Organization } from '../entities/organization.entity';
 import { DocIdModule } from '../docid/docid.module';
 import { MailModule } from '../mail/mail.module';
 import { AuthController } from './auth.controller';
@@ -22,6 +23,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   imports: [
     TypeOrmModule.forFeature([
       User,
+      Organization,
       DoctorProfile,
       PatientProfile,
       Prescription,

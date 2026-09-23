@@ -25,6 +25,7 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
+import { Organization } from '../entities/organization.entity';
 import { MailService } from '../mail/mail.service';
 import { GoogleAuthService } from './google-auth.service';
 import {
@@ -35,6 +36,7 @@ import {
   ResetPasswordDto,
   SignupDto,
   UpdateDoctorDto,
+  UpdateProfileDto,
 } from './dto';
 
 const BCRYPT_ROUNDS = 10;
@@ -45,6 +47,7 @@ const FORGOT_PASSWORD_OK = { ok: true as const };
 export class AuthService implements OnModuleInit {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(Organization) private readonly orgs: Repository<Organization>,
     @InjectRepository(DoctorProfile) private readonly doctors: Repository<DoctorProfile>,
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
@@ -58,7 +61,7 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await seedAdminUsers(this.users);
+    await seedAdminUsers(this.users, this.orgs);
   }
 
   async signup(dto: SignupDto, res: Response) {
@@ -172,7 +175,9 @@ export class AuthService implements OnModuleInit {
       (await this.users.findOne({ where: { googleId: profile.googleId } })) ??
       (await this.users.findOne({ where: { email: profile.email } }));
 
+    let isNewUser = false;
     if (!user) {
+      isNewUser = true;
       user = await this.users.save(
         this.users.create({
           email: profile.email,
@@ -195,7 +200,11 @@ export class AuthService implements OnModuleInit {
       await this.users.save(user);
     }
 
-    return this.issueSession(user, res);
+    const session = await this.issueSession(user, res);
+    return {
+      ...session,
+      isNewUser,
+    };
   }
 
   async refresh(refreshToken: string | undefined, res: Response) {
@@ -229,8 +238,21 @@ export class AuthService implements OnModuleInit {
     return this.toSession(user);
   }
 
-  async createDoctor(dto: CreateAccountDto) {
-    const user = await this.createUser({ ...dto, role: 'doctor' });
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const trimmed = dto.name.trim();
+    if (trimmed.length > 0) {
+      user.name = trimmed;
+      await this.users.save(user);
+    }
+    return this.toSession(user);
+  }
+
+  async createDoctor(dto: CreateAccountDto, organizationId: string | null = null) {
+    const user = await this.createUser({ ...dto, role: 'doctor', organizationId });
     const referralCode = await this.uniqueReferralCode();
     await this.doctors.save(
       this.doctors.create({
@@ -260,14 +282,18 @@ export class AuthService implements OnModuleInit {
     return this.toPatientSummary(user.id);
   }
 
-  async listDoctors() {
+  async listDoctors(organizationId: string | null = null) {
     const doctors = await this.doctors.find({
-      relations: ['user'],
+      relations: ['user', 'user.organization'],
       order: { referralCode: 'ASC' },
     });
-    return doctors.map((d) => ({
+    const filtered = organizationId
+      ? doctors.filter((d) => d.user?.organizationId === organizationId)
+      : doctors;
+    return filtered.map((d) => ({
       ...this.toPublicUser(d.user),
       referralCode: d.referralCode,
+      organizationName: d.user?.organization?.name ?? null,
     }));
   }
 
@@ -322,12 +348,15 @@ export class AuthService implements OnModuleInit {
     return { success: true, id: doctorUserId };
   }
 
-  async listAllPatients() {
+  async listAllPatients(organizationId: string | null = null) {
     const patients = await this.patients.find({
-      relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
+      relations: ['user', 'user.organization', 'doctor', 'doctor.user', 'doctor.user.organization', 'prescriptions'],
       order: { origin: 'ASC' },
     });
-    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
+    const filtered = organizationId
+      ? patients.filter((p) => p.doctor?.user?.organizationId === organizationId)
+      : patients;
+    return this.attachDocIdMeta(filtered.map((p) => this.patientToSummary(p)));
   }
 
   async listDoctorPatients(doctorUserId: string) {
@@ -386,6 +415,7 @@ export class AuthService implements OnModuleInit {
     email: string;
     password: string;
     role: User['role'];
+    organizationId?: string | null;
   }): Promise<User> {
     const email = input.email.trim().toLowerCase();
     const existing = await this.users.findOne({ where: { email } });
@@ -400,6 +430,7 @@ export class AuthService implements OnModuleInit {
         name: input.name.trim(),
         phone: input.phone.trim(),
         role: input.role,
+        organizationId: input.organizationId ?? null,
       }),
     );
   }
@@ -447,19 +478,42 @@ export class AuthService implements OnModuleInit {
   }
 
   async toSession(user: User) {
-    const publicUser = this.toPublicUser(user);
-    if (user.role === 'doctor') {
-      const doctor = await this.doctors.findOne({ where: { userId: user.id } });
+    const fullUser = await this.users.findOne({
+      where: { id: user.id },
+      relations: ['organization'],
+    });
+    const target = fullUser ?? user;
+    const publicUser = this.toPublicUser(target);
+    const organization = target.organization
+      ? {
+          id: target.organization.id,
+          name: target.organization.name,
+          code: target.organization.code,
+        }
+      : null;
+
+    if (target.role === 'super_admin' || target.role === 'admin') {
       return {
         user: publicUser,
+        organization,
+        doctor: null,
+        patient: null,
+        allowedModuleIds: [] as string[],
+      };
+    }
+    if (target.role === 'doctor') {
+      const doctor = await this.doctors.findOne({ where: { userId: target.id } });
+      return {
+        user: publicUser,
+        organization,
         doctor: doctor ? { referralCode: doctor.referralCode } : null,
         patient: null,
         allowedModuleIds: [] as string[],
       };
     }
-    if (user.role === 'patient') {
+    if (target.role === 'patient') {
       const patient = await this.patients.findOne({
-        where: { userId: user.id },
+        where: { userId: target.id },
         relations: ['doctor', 'prescriptions'],
       });
       const prescribed = patient?.prescriptions.map((p) => p.moduleId) ?? [];
@@ -476,6 +530,7 @@ export class AuthService implements OnModuleInit {
         : [];
       return {
         user: publicUser,
+        organization,
         doctor: null,
         patient: patient
           ? {
@@ -493,6 +548,7 @@ export class AuthService implements OnModuleInit {
     }
     return {
       user: publicUser,
+      organization,
       doctor: null,
       patient: null,
       allowedModuleIds: [] as string[],
@@ -506,6 +562,7 @@ export class AuthService implements OnModuleInit {
       name: user.name,
       phone: user.phone ?? '',
       role: user.role,
+      organizationId: user.organizationId ?? null,
     };
   }
 

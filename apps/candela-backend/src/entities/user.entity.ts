@@ -2,18 +2,24 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DoctorProfile } from './doctor-profile.entity';
 import { PatientProfile } from './patient-profile.entity';
+import { Organization } from './organization.entity';
 
-export type UserRole = 'admin' | 'doctor' | 'patient';
+export type UserRole = 'super_admin' | 'admin' | 'doctor' | 'patient';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId: string | null;
 
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
@@ -36,9 +42,14 @@ export class User {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
+  @ManyToOne(() => Organization, (org) => org.users, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: Organization;
+
   @OneToOne(() => DoctorProfile, (profile) => profile.user)
   doctorProfile?: DoctorProfile;
 
   @OneToOne(() => PatientProfile, (profile) => profile.user)
   patientProfile?: PatientProfile;
 }
+
