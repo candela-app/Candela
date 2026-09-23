@@ -48,6 +48,7 @@ import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
 import { SessionAnalyticsPanel } from '@/components/shared/SessionAnalyticsPanel';
+import { EditPatientNameModal } from '@/components/common/EditPatientNameModal';
 import { MODULE_CARDS } from '@/lib/shell';
 
 const VARIANT_TILE =
@@ -65,6 +66,14 @@ function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, loading: authLoading } = useAuth();
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  useEffect(() => {
+    if ((searchParams.get('welcome') === '1' || session?.isNewUser) && session?.user?.role === 'patient') {
+      setShowWelcomeModal(true);
+    }
+  }, [searchParams, session?.isNewUser, session?.user?.role]);
+
   const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
   const canPlayUiModule = (uiId: string) => {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
@@ -1233,6 +1242,21 @@ function MainContent() {
         isLevelAllowed('familiar_faces', familiarFacesLevelId) && (
           <FamiliarFacesGame levelId={familiarFacesLevelId} onExit={handleExitGame} />
         )}
+
+      {session?.user.role === 'patient' && (
+        <EditPatientNameModal
+          isOpen={showWelcomeModal}
+          onClose={() => {
+            setShowWelcomeModal(false);
+            if (typeof window !== 'undefined') {
+              const current = new URL(window.location.href);
+              current.searchParams.delete('welcome');
+              window.history.replaceState({}, '', current.pathname + (current.search ? current.search : ''));
+            }
+          }}
+          isWelcome={true}
+        />
+      )}
     </div>
   );
 }

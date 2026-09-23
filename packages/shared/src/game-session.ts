@@ -67,6 +67,8 @@ export interface DailyPlotSessionTip {
   wrongTaps: number;
   misses: number;
   timeouts: number;
+  gameId?: TherapyModuleId | string;
+  gameName?: string;
 }
 
 export interface DailyPlotPoint {
@@ -330,6 +332,8 @@ function poolSessionsByKey(
           wrongTaps: row.wrongTaps,
           misses: row.misses,
           timeouts: row.timeouts,
+          gameId: row.gameId,
+          gameName: row.gameName,
         })),
     };
   });

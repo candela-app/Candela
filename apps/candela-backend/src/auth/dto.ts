@@ -89,3 +89,36 @@ export class GoogleAuthDto {
   @MinLength(10)
   accessToken?: string;
 }
+
+export class UpdateProfileDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+}
+
+export class CreateOrganizationDto {
+  @IsString()
+  @MinLength(2)
+  name: string;
+
+  @IsString()
+  @MinLength(2)
+  code: string;
+
+  @IsEmail()
+  contactEmail: string;
+
+  @IsString()
+  @MinLength(1)
+  adminName: string;
+
+  @IsString()
+  @MinLength(8)
+  adminPassword: string;
+
+  @IsOptional()
+  @IsString()
+  adminPhone?: string;
+}
+
+

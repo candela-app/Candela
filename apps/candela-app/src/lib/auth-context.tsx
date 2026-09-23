@@ -69,6 +69,9 @@ export function sessionDisplayName(session: SessionUser | null | undefined): str
 }
 
 export function roleHomePath(role: string): string {
+  if (role === 'super_admin') {
+    return '/super-admin';
+  }
   if (role === 'admin') {
     return '/admin';
   }

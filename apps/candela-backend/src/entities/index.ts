@@ -1,3 +1,4 @@
+export { Organization } from './organization.entity';
 export { User } from './user.entity';
 export { DoctorProfile } from './doctor-profile.entity';
 export { PatientProfile } from './patient-profile.entity';
@@ -7,3 +8,4 @@ export { DocIdRequest } from './docid-request.entity';
 export { DocIdHistory } from './docid-history.entity';
 export { FamiliarFace } from './familiar-face.entity';
 export { GameSession } from './game-session.entity';
+

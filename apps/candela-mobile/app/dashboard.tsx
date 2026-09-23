@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -19,6 +19,7 @@ import { AnalyticsIcon, EyeIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import { ScreenLoader } from '../src/components/ScreenLoader';
+import { EditPatientNameModal } from '../src/components/EditPatientNameModal';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -55,11 +56,20 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ module?: string; page?: string; family?: string }>();
+  const params = useLocalSearchParams<{ module?: string; page?: string; family?: string; welcome?: string }>();
   const moduleParam = firstParam(params.module);
   const familyParam = firstParam(params.family);
   const pageParam = firstParam(params.page);
-  const { session, loading } = useAuth();
+  const welcomeParam = firstParam(params.welcome);
+  const { session, loading, applySession } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    if ((welcomeParam === '1' || session?.isNewUser) && session?.user.role === 'patient') {
+      setShowWelcome(true);
+    }
+  }, [welcomeParam, session?.isNewUser, session?.user.role]);
+
   const { fs, s, pad, columns, width } = useLayout();
   const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
 
@@ -616,6 +626,19 @@ export default function DashboardScreen() {
       >
         {renderContent()}
       </ScrollView>
+
+      {session?.user.role === 'patient' && (
+        <EditPatientNameModal
+          visible={showWelcome}
+          onClose={() => {
+            setShowWelcome(false);
+            if (session?.isNewUser) {
+              applySession({ ...session, isNewUser: false });
+            }
+          }}
+          isWelcome={true}
+        />
+      )}
     </View>
   );
 }

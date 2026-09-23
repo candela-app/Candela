@@ -1,6 +1,6 @@
 import { ALL_MODULE_IDS } from './game-registry';
 
-export type UserRole = 'admin' | 'doctor' | 'patient';
+export type UserRole = 'super_admin' | 'admin' | 'doctor' | 'patient';
 export type PatientOrigin = 'doctor_created' | 'self_signup';
 export type DocIdRequestSource = 'self' | 'change' | 'internal';
 export type DocIdRequestStatus = 'pending' | 'accepted' | 'rejected';
@@ -42,11 +42,13 @@ export interface PublicUser {
   name: string;
   phone: string;
   role: UserRole;
+  organizationId?: string | null;
 }
 
 export interface DoctorSummary extends PublicUser {
   role: 'doctor';
   referralCode: string;
+  organizationName?: string | null;
 }
 
 export interface PatientSummary extends PublicUser {
@@ -58,10 +60,44 @@ export interface PatientSummary extends PublicUser {
   prescribedModuleIds: string[];
   prescribedLevels: Record<string, string[]>;
   previousReferralCodes: string[];
+  organizationName?: string | null;
+}
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  code: string;
+  contactEmail: string | null;
+  adminName: string | null;
+  adminEmail: string | null;
+  doctorCount: number;
+  patientCount: number;
+  createdAt: string;
+}
+
+export interface SelfUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+  sessionCount: number;
+}
+
+export interface SuperAdminMetrics {
+  totalOrganizations: number;
+  totalDoctors: number;
+  totalOrgPatients: number;
+  totalSelfPatients: number;
 }
 
 export interface SessionUser {
   user: PublicUser;
+  organization?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
   doctor: { referralCode: string } | null;
   patient: {
     origin: PatientOrigin;
@@ -75,6 +111,7 @@ export interface SessionUser {
   allowedModuleIds: string[];
   accessToken?: string;
   refreshToken?: string;
+  isNewUser?: boolean;
 }
 
 /** UI picker ids in candela-app mapped to catalog module ids. */

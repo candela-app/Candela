@@ -18,18 +18,18 @@ import { Roles } from '../common/decorators';
 import { User } from '../entities/user.entity';
 
 @Controller('api/admin')
-@Roles('admin')
+@Roles('super_admin', 'admin')
 export class AdminController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('doctors')
-  createDoctor(@Body() dto: CreateAccountDto) {
-    return this.auth.createDoctor(dto);
+  createDoctor(@CurrentUser() user: User, @Body() dto: CreateAccountDto) {
+    return this.auth.createDoctor(dto, user.organizationId);
   }
 
   @Get('doctors')
-  listDoctors() {
-    return this.auth.listDoctors();
+  listDoctors(@CurrentUser() user: User) {
+    return this.auth.listDoctors(user.role === 'super_admin' ? null : user.organizationId);
   }
 
   @Patch('doctors/:id')
@@ -43,10 +43,11 @@ export class AdminController {
   }
 
   @Get('patients')
-  listPatients() {
-    return this.auth.listAllPatients();
+  listPatients(@CurrentUser() user: User) {
+    return this.auth.listAllPatients(user.role === 'super_admin' ? null : user.organizationId);
   }
 }
+
 
 @Controller('api/doctors/me')
 @Roles('doctor')

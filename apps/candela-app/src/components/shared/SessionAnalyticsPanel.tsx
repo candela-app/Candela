@@ -64,16 +64,19 @@ function LineChart({
   agg,
   color,
   scale,
+  showGameName = false,
 }: {
   points: DailyPlotPoint[];
   metric: AnalyticsMetricId;
   agg: DailyAggMode;
   color: string;
   scale: AnalyticsTimeScale;
+  showGameName?: boolean;
 }) {
   const height = 236;
   const pad = { l: 58, r: 16, t: 16, b: 28 };
   const plotPadL = 10;
+  const tipWidth = showGameName ? 330 : 240;
   const viewportInner = 640 - pad.l - pad.r;
   const visibleSlots = Math.max(2, analyticsVisibleSlots(scale));
   const slot = viewportInner / (visibleSlots - 1);
@@ -130,6 +133,7 @@ function LineChart({
       return;
     }
     const place = (tipH: number) => {
+      const clampedH = Math.min(250, tipH);
       const origin = viewBoxToScreen(
         svgRef.current!,
         x(hover),
@@ -137,11 +141,11 @@ function LineChart({
       );
       const margin = 8;
       const gap = 12;
-      let left = origin.x - TIP_WIDTH / 2;
-      left = Math.min(window.innerWidth - TIP_WIDTH - margin, Math.max(margin, left));
-      const placeBelow = origin.y - margin < tipH + gap;
-      let top = placeBelow ? origin.y + gap : origin.y - tipH - gap;
-      top = Math.min(window.innerHeight - tipH - margin, Math.max(margin, top));
+      let left = origin.x - tipWidth / 2;
+      left = Math.min(window.innerWidth - tipWidth - margin, Math.max(margin, left));
+      const placeBelow = origin.y - margin < clampedH + gap;
+      let top = placeBelow ? origin.y + gap : origin.y - clampedH - gap;
+      top = Math.min(window.innerHeight - clampedH - margin, Math.max(margin, top));
       return { left, top, placeBelow };
     };
     setTipBox(place(tipRef.current?.offsetHeight || 80));
@@ -273,29 +277,63 @@ function LineChart({
         ? createPortal(
             <div
               ref={tipRef}
-              className="pointer-events-none fixed z-[80] w-[220px] rounded-lg bg-slate-900 px-3 py-2 text-[11px] text-white shadow-lg"
+              className="pointer-events-auto fixed z-[80] rounded-xl bg-slate-900/95 backdrop-blur-xs p-3 text-[11px] text-white shadow-2xl border border-slate-700/60 flex flex-col"
+              onMouseEnter={() => {
+                // Keep tooltip visible while hovering inside
+              }}
+              onMouseLeave={() => {
+                if (!touchOpenRef.current) setHover(null);
+              }}
               style={{
+                width: tipWidth,
+                maxHeight: 250,
                 left: tipBox?.left ?? 0,
                 top: tipBox?.top ?? 0,
                 visibility: tipBox ? 'visible' : 'hidden',
               }}
             >
               {tipBox?.placeBelow ? (
-                <div className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-slate-900" />
+                <div className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-slate-900 border-l border-t border-slate-700/60" />
               ) : (
-                <div className="absolute left-1/2 bottom-0 h-2 w-2 -translate-x-1/2 translate-y-1 rotate-45 bg-slate-900" />
+                <div className="absolute left-1/2 bottom-0 h-2 w-2 -translate-x-1/2 translate-y-1 rotate-45 bg-slate-900 border-r border-b border-slate-700/60" />
               )}
-              <p className="font-bold">
-                {formatPlotTooltip(tip.date, scale)} · {valueLabel}
-              </p>
-              <p className="text-slate-300 mt-0.5">
-                {tip.sessionCount} session{tip.sessionCount === 1 ? '' : 's'}
-              </p>
-              {tip.sessions.map((s) => (
-                <p key={s.sessionNumber} className="text-slate-300 mt-0.5">
-                  #{s.sessionNumber} · acc {s.accuracy}% · RT {s.avgReactionSec}s · {s.durationSec}s
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 gap-2 shrink-0">
+                <p className="font-bold text-slate-100 truncate">
+                  {formatPlotTooltip(tip.date, scale)}
                 </p>
-              ))}
+                <span className="font-mono font-bold text-emerald-400 text-xs shrink-0">
+                  {valueLabel}
+                </span>
+              </div>
+
+              <div className="mt-1.5 overflow-y-auto overflow-x-hidden max-h-[180px] pr-0.5 [scrollbar-width:thin] [scrollbar-color:#475569_transparent]">
+                <table className="w-full text-left border-collapse text-[10px]">
+                  <thead className="sticky top-0 bg-slate-900 z-10 shadow-xs">
+                    <tr className="text-slate-400 border-b border-slate-800 uppercase tracking-wider text-[9px]">
+                      <th className="pb-1 bg-slate-900 font-semibold">#</th>
+                      {showGameName && <th className="pb-1 bg-slate-900 font-semibold">Game</th>}
+                      <th className="pb-1 bg-slate-900 font-semibold text-right">Acc</th>
+                      <th className="pb-1 bg-slate-900 font-semibold text-right">RT</th>
+                      <th className="pb-1 bg-slate-900 font-semibold text-right">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {tip.sessions.map((s) => (
+                      <tr key={s.sessionNumber} className="text-slate-200 hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1 font-mono text-slate-400">#{s.sessionNumber}</td>
+                        {showGameName && (
+                          <td className="py-1 font-medium text-cyan-300 max-w-[110px] truncate" title={s.gameName || ''}>
+                            {s.gameName || '—'}
+                          </td>
+                        )}
+                        <td className="py-1 text-right font-medium">{s.accuracy}%</td>
+                        <td className="py-1 text-right text-slate-300">{s.avgReactionSec}s</td>
+                        <td className="py-1 text-right text-slate-400">{s.durationSec}s</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>,
             document.body,
           )
@@ -572,7 +610,14 @@ export function SessionAnalyticsPanel({
                   <p className="text-[10px] text-gray-400 shrink-0">Preliminary</p>
                 ) : null}
               </div>
-              <LineChart points={plotPoints} metric={item.id} agg={agg} color={item.color} scale={scale} />
+              <LineChart
+                points={plotPoints}
+                metric={item.id}
+                agg={agg}
+                color={item.color}
+                scale={scale}
+                showGameName={!gameId}
+              />
             </div>
           ))}
         </div>
