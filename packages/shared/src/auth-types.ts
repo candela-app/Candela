@@ -75,6 +75,44 @@ export interface OrganizationSummary {
   createdAt: string;
 }
 
+export interface OrganizationDoctorSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  referralCode: string;
+  patientCount: number;
+  createdAt: string;
+}
+
+export interface OrganizationPatientSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  doctorId: string | null;
+  doctorName: string | null;
+  doctorReferralCode: string | null;
+  sessionCount: number;
+  createdAt: string;
+}
+
+export interface OrganizationDetail {
+  id: string;
+  name: string;
+  code: string;
+  contactEmail: string | null;
+  adminName: string | null;
+  adminEmail: string | null;
+  adminPhone: string | null;
+  doctorCount: number;
+  patientCount: number;
+  sessionCount: number;
+  createdAt: string;
+  doctors: OrganizationDoctorSummary[];
+  patients: OrganizationPatientSummary[];
+}
+
 export interface SelfUserSummary {
   id: string;
   name: string;
@@ -89,6 +127,58 @@ export interface SuperAdminMetrics {
   totalDoctors: number;
   totalOrgPatients: number;
   totalSelfPatients: number;
+}
+
+export type AnnouncementPriority = 'info' | 'warning' | 'critical';
+
+export type AnnouncementTargetType =
+  | 'all'
+  | 'homepage'
+  | 'all_hospitals'
+  | 'all_doctors'
+  | 'all_patients'
+  | 'selected_hospitals'
+  | 'selected_users';
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  targetType: AnnouncementTargetType;
+  targetHospitalIds: string[] | null;
+  targetUserIds: string[] | null;
+  targetHospitalNames?: string[];
+  targetUserNames?: string[];
+  isActive: boolean;
+  createdByUserId: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+  readCount?: number;
+  dismissedCount?: number;
+  isRead?: boolean;
+  isDismissed?: boolean;
+}
+
+export interface CreateAnnouncementDto {
+  title: string;
+  content: string;
+  priority?: AnnouncementPriority;
+  targetType: AnnouncementTargetType;
+  targetHospitalIds?: string[];
+  targetUserIds?: string[];
+  isActive?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface RecipientSearchItem {
+  id: string;
+  label: string;
+  sublabel: string;
+  type: 'hospital' | 'user';
+  role?: UserRole;
 }
 
 export interface SessionUser {

@@ -6,7 +6,8 @@ import { ApiError, api } from '@/lib/api';
 import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
-import { EditIcon, TrashIcon, XIcon } from '@/components/icons/VectorIcons';
+import { ArrowLeftIcon, EditIcon, TrashIcon, XIcon } from '@/components/icons/VectorIcons';
+import { SearchInput } from '@/components/common/SearchInput';
 import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
@@ -28,6 +29,13 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
+  // Search Doctors State
+  const [doctorSearch, setDoctorSearch] = useState('');
+
+  // Selected Doctor Drill-Down State
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [doctorPatientFilter, setDoctorPatientFilter] = useState('');
+
   // Edit Doctor Modal State
   const [editDoctor, setEditDoctor] = useState<DoctorSummary | null>(null);
   const [editName, setEditName] = useState('');
@@ -41,7 +49,6 @@ export default function AdminPage() {
   const [deleteDoctor, setDeleteDoctor] = useState<DoctorSummary | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-  const [docIdFilter, setDocIdFilter] = useState('');
   const [transferPatientId, setTransferPatientId] = useState('');
   const [transferCode, setTransferCode] = useState('');
   const [transferSaving, setTransferSaving] = useState(false);
@@ -70,37 +77,47 @@ export default function AdminPage() {
     load().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load'));
   }, [loading, session, router, load]);
 
-  const visiblePatients = useMemo(() => {
-    const q = docIdFilter.trim().toUpperCase();
-    if (!q) {
-      return patients;
+  const doctorPatientCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of patients) {
+      if (p.doctorId) {
+        map.set(p.doctorId, (map.get(p.doctorId) || 0) + 1);
+      }
     }
-    return patients.filter(
-      (patient) =>
-        (patient.referralCode || '').toUpperCase().includes(q) ||
-        (patient.previousReferralCodes || []).some((code) => code.toUpperCase().includes(q)),
-    );
-  }, [patients, docIdFilter]);
+    return map;
+  }, [patients]);
 
-  const grouped = useMemo(() => {
-    const byDoctor = new Map<string, { doctorName: string; code: string; patients: PatientSummary[] }>();
-    for (const patient of visiblePatients) {
-      if (!patient.doctorId) {
-        continue;
-      }
-      const existing = byDoctor.get(patient.doctorId);
-      if (existing) {
-        existing.patients.push(patient);
-      } else {
-        byDoctor.set(patient.doctorId, {
-          doctorName: patient.doctorName || 'Doctor',
-          code: patient.referralCode || '—',
-          patients: [patient],
-        });
-      }
-    }
-    return { byDoctor };
-  }, [visiblePatients]);
+  const filteredDoctors = useMemo(() => {
+    const q = doctorSearch.trim().toLowerCase();
+    if (!q) return doctors;
+    return doctors.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.email.toLowerCase().includes(q) ||
+        d.referralCode.toLowerCase().includes(q) ||
+        (d.phone && d.phone.toLowerCase().includes(q)),
+    );
+  }, [doctors, doctorSearch]);
+
+  const selectedDoctor = useMemo(() => {
+    if (!selectedDoctorId) return null;
+    return doctors.find((d) => d.id === selectedDoctorId) || null;
+  }, [doctors, selectedDoctorId]);
+
+  const selectedDoctorPatients = useMemo(() => {
+    if (!selectedDoctorId) return [];
+    const docPatients = patients.filter((p) => p.doctorId === selectedDoctorId);
+    const q = doctorPatientFilter.trim().toLowerCase();
+    if (!q) return docPatients;
+    return docPatients.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q) ||
+        (p.phone && p.phone.toLowerCase().includes(q)) ||
+        (p.referralCode && p.referralCode.toLowerCase().includes(q)) ||
+        (p.previousReferralCodes && p.previousReferralCodes.some((c) => c.toLowerCase().includes(q))),
+    );
+  }, [patients, selectedDoctorId, doctorPatientFilter]);
 
   async function onCreateDoctor(e: FormEvent) {
     e.preventDefault();
@@ -321,85 +338,214 @@ export default function AdminPage() {
           </form>
         </section>
 
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Doctors</h2>
-            <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-              {doctors.length} {doctors.length === 1 ? 'Doctor' : 'Doctors'}
-            </span>
-          </div>
-          <div className="grid gap-4">
-            {doctors.length === 0 && <p className="text-sm text-gray-500">No doctors yet.</p>}
-            {doctors.map((doctor) => (
-              <div
-                key={doctor.id}
-                className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <p className="font-bold text-gray-900 text-base">{doctor.name}</p>
-                  <p className="text-sm text-gray-500">{doctor.email} · {doctor.phone}</p>
+        {!selectedDoctorId ? (
+          /* Doctors List View */
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Doctors</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Click on any doctor to view their assigned patients.
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                {doctors.length} {doctors.length === 1 ? 'Doctor' : 'Doctors'}
+              </span>
+            </div>
+
+            {/* Doctor Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <SearchInput
+                value={doctorSearch}
+                onChange={setDoctorSearch}
+                placeholder="Search doctors by name, DocID, email..."
+                className="w-full sm:w-80"
+                aria-label="Search doctors"
+              />
+              <span className="text-xs text-gray-500">
+                Showing {filteredDoctors.length} of {doctors.length} doctors
+              </span>
+            </div>
+
+            <div className="grid gap-3">
+              {filteredDoctors.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-500 text-sm">
+                  {doctorSearch ? 'No matching doctors found.' : 'No doctors yet. Create one above to get started.'}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-base font-extrabold tracking-widest text-blue-700 bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100/80">
-                    {doctor.referralCode}
-                  </span>
-                  <div className="flex items-center gap-1 pl-2 border-l border-gray-100">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(doctor)}
-                      className="p-2 rounded-xl text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                      title={`Edit Dr. ${doctor.name}`}
+              ) : (
+                filteredDoctors.map((doctor) => {
+                  const count = doctorPatientCountMap.get(doctor.id) ?? 0;
+                  return (
+                    <div
+                      key={doctor.id}
+                      onClick={() => {
+                        setSelectedDoctorId(doctor.id);
+                        setDoctorPatientFilter('');
+                      }}
+                      className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group"
                     >
-                      <EditIcon className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDeleteModal(doctor)}
-                      className="p-2 rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                      title={`Delete Dr. ${doctor.name}`}
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 font-extrabold flex items-center justify-center text-sm">
+                          {doctor.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-gray-900 text-base group-hover:text-blue-600 transition-colors">
+                              {doctor.name}
+                            </p>
+                            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                              {count} {count === 1 ? 'patient' : 'patients'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {doctor.email} · {doctor.phone || 'No phone'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm font-extrabold tracking-wider text-blue-700 bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100">
+                          {doctor.referralCode}
+                        </span>
+                        <span className="text-xs text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">
+                          View patients →
+                        </span>
+                        <div className="flex items-center gap-1 pl-2 border-l border-gray-100" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(doctor)}
+                            className="p-2 rounded-xl text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            title={`Edit Dr. ${doctor.name}`}
+                          >
+                            <EditIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDeleteModal(doctor)}
+                            className="p-2 rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title={`Delete Dr. ${doctor.name}`}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        ) : selectedDoctor ? (
+          /* Doctor Drill-Down Managed Patients View */
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedDoctorId(null)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 hover:text-blue-600 hover:border-blue-300 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                <ArrowLeftIcon className="w-3.5 h-3.5" />
+                <span>Back to all doctors</span>
+              </button>
+              <span className="text-xs text-gray-500">
+                Doctor details & managed patients
+              </span>
+            </div>
+
+            {/* Doctor Profile Summary Card */}
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm">
+                  {selectedDoctor.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-xl font-bold text-gray-900">{selectedDoctor.name}</h3>
+                    <span className="font-mono text-xs font-extrabold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                      DocID: {selectedDoctor.referralCode}
+                    </span>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Email: <strong className="text-gray-700">{selectedDoctor.email}</strong> · Phone: <strong className="text-gray-700">{selectedDoctor.phone || '—'}</strong>
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h2 className="text-lg font-bold text-gray-900">Patients managed by doctors</h2>
-            <FloatingLabelInput
-              label="Filter by DocID"
-              value={docIdFilter}
-              onChange={(v) => setDocIdFilter(v.toUpperCase())}
-              className="sm:max-w-xs [&_input]:font-mono [&_input]:uppercase"
-            />
-          </div>
-          {[...Array.from(grouped.byDoctor.entries())].map(([id, group]) => (
-            <div key={id} className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="font-bold text-gray-900">
-                {group.doctorName}{' '}
-                <span className="font-mono text-blue-700 text-sm">({group.code})</span>
-              </p>
-              <ul className="mt-3 space-y-2">
-                {group.patients.map((patient: PatientSummary) => (
-                  <li key={patient.id} className="text-sm text-gray-700">
-                    {patient.name} · {patient.email} · {patient.phone}
-                    {patient.previousReferralCodes?.length > 0 && (
-                      <span className="text-xs text-gray-400">
-                        {' '}
-                        · previous {patient.previousReferralCodes.join(', ')}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(selectedDoctor)}
+                  className="px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Edit Doctor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openDeleteModal(selectedDoctor)}
+                  className="px-3.5 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Delete Doctor
+                </button>
+              </div>
             </div>
-          ))}
-          {grouped.byDoctor.size === 0 && <p className="text-sm text-gray-500">No doctor-managed patients yet.</p>}
-        </section>
+
+            {/* Managed Patients Search & Table */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <SearchInput
+                  value={doctorPatientFilter}
+                  onChange={setDoctorPatientFilter}
+                  placeholder={`Search patients of Dr. ${selectedDoctor.name}...`}
+                  className="w-full sm:w-80"
+                  aria-label="Search managed patients"
+                />
+                <span className="text-xs text-gray-500">
+                  Showing {selectedDoctorPatients.length} of {doctorPatientCountMap.get(selectedDoctor.id) ?? 0} managed patients
+                </span>
+              </div>
+
+              {selectedDoctorPatients.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-500 text-sm">
+                  {doctorPatientFilter
+                    ? 'No matching patients found.'
+                    : `No patients currently registered under Dr. ${selectedDoctor.name}.`}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-600">
+                      <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 text-xs uppercase tracking-wider">
+                        <tr>
+                          <th className="px-6 py-3.5">Patient Name</th>
+                          <th className="px-6 py-3.5">Contact Email</th>
+                          <th className="px-6 py-3.5">Phone Number</th>
+                          <th className="px-6 py-3.5">DocID Referral History</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {selectedDoctorPatients.map((p) => (
+                          <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{p.name}</td>
+                            <td className="px-6 py-4 text-gray-700">{p.email}</td>
+                            <td className="px-6 py-4 text-gray-500">{p.phone || '—'}</td>
+                            <td className="px-6 py-4 text-xs text-gray-500">
+                              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 mr-2">
+                                {p.referralCode || selectedDoctor.referralCode}
+                              </span>
+                              {p.previousReferralCodes && p.previousReferralCodes.length > 0 && (
+                                <span className="text-gray-400">
+                                  (prev: {p.previousReferralCodes.join(', ')})
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
       </main>
 
       {/* EDIT DOCTOR MODAL */}

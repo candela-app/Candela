@@ -8,4 +8,6 @@ export { DocIdRequest } from './docid-request.entity';
 export { DocIdHistory } from './docid-history.entity';
 export { FamiliarFace } from './familiar-face.entity';
 export { GameSession } from './game-session.entity';
+export { Announcement } from './announcement.entity';
+export { UserAnnouncementRead } from './user-announcement-read.entity';
 

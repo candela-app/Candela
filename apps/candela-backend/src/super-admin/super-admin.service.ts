@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import bcrypt from 'bcrypt';
 import { Organization } from '../entities/organization.entity';
 import { User } from '../entities/user.entity';
@@ -8,6 +8,11 @@ import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { GameSession } from '../entities/game-session.entity';
 import { CreateOrganizationDto } from '../auth/dto';
+import type {
+  OrganizationDetail,
+  OrganizationDoctorSummary,
+  OrganizationPatientSummary,
+} from '@candela/shared';
 
 export interface OrganizationSummary {
   id: string;
@@ -176,6 +181,87 @@ export class SuperAdminService {
       totalDoctors,
       totalOrgPatients,
       totalSelfPatients,
+    };
+  }
+
+  async getOrganizationDetail(orgId: string): Promise<OrganizationDetail> {
+    const org = await this.orgs.findOne({ where: { id: orgId } });
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const orgUsers = await this.users.find({ where: { organizationId: org.id } });
+    const admin = orgUsers.find((u) => u.role === 'admin');
+    const doctorUsers = orgUsers.filter((u) => u.role === 'doctor');
+    const doctorUserIds = doctorUsers.map((d) => d.id);
+
+    const doctorProfiles =
+      doctorUserIds.length > 0
+        ? await this.doctors.findBy({ userId: In(doctorUserIds) })
+        : [];
+    const doctorProfileMap = new Map(doctorProfiles.map((dp) => [dp.userId, dp]));
+
+    const doctorsList: OrganizationDoctorSummary[] = [];
+    for (const docUser of doctorUsers) {
+      const profile = doctorProfileMap.get(docUser.id);
+      const patientCount = await this.patients.count({ where: { doctorId: docUser.id } });
+      doctorsList.push({
+        id: docUser.id,
+        name: docUser.name,
+        email: docUser.email,
+        phone: docUser.phone,
+        referralCode: profile?.referralCode || '—',
+        patientCount,
+        createdAt: docUser.createdAt.toISOString(),
+      });
+    }
+
+    let orgPatients: PatientProfile[] = [];
+    if (doctorUserIds.length > 0) {
+      orgPatients = await this.patients.find({
+        where: { doctorId: In(doctorUserIds) },
+        relations: ['user'],
+      });
+    }
+
+    const doctorMap = new Map(doctorUsers.map((d) => [d.id, d]));
+    const patientsList: OrganizationPatientSummary[] = [];
+    let sessionCount = 0;
+
+    for (const p of orgPatients) {
+      if (!p.user) continue;
+      const doc = p.doctorId ? doctorMap.get(p.doctorId) : null;
+      const docProfile = p.doctorId ? doctorProfileMap.get(p.doctorId) : null;
+      const pSessions = await this.sessions.count({ where: { patientId: p.userId } });
+      sessionCount += pSessions;
+
+      patientsList.push({
+        id: p.userId,
+        name: p.user.name,
+        email: p.user.email,
+        phone: p.user.phone,
+        doctorId: p.doctorId,
+        doctorName: doc?.name || null,
+        doctorReferralCode: docProfile?.referralCode || null,
+        sessionCount: pSessions,
+        createdAt: p.user.createdAt.toISOString(),
+      });
+    }
+
+    return {
+      id: org.id,
+      name: org.name,
+      code: org.code,
+      contactEmail: org.contactEmail,
+      adminName: admin ? admin.name : null,
+      adminEmail: admin ? admin.email : null,
+      adminPhone: admin ? admin.phone : null,
+      doctorCount: doctorUsers.length,
+      patientCount: patientsList.length,
+      sessionCount,
+      createdAt: org.createdAt.toISOString(),
+      doctors: doctorsList,
+      patients: patientsList,
     };
   }
 }

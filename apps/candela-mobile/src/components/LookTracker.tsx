@@ -295,7 +295,7 @@ export function LookTracker({
         javaScriptEnabled={true}
         domStorageEnabled={true}
         mediaCapturePermissionGrantType="grant"
-        onPermissionRequest={(request) => {
+        onPermissionRequest={(request: any) => {
           request.grant(request.resources);
         }}
         onMessage={handleWebViewMessage}

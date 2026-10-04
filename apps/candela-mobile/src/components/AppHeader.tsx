@@ -1,15 +1,19 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { AnnouncementItem } from '@candela/shared/rn';
 import { roleHomePath, useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
+import { api } from '../lib/api';
 import { colors } from '../lib/theme';
 import {
+  AlertCircleIcon,
   ArrowLeftIcon,
   ChevronDownIcon,
   CloseIcon,
   LogOutIcon,
+  MegaphoneIcon,
   PencilIcon,
   UserIcon,
 } from './icons';
@@ -27,6 +31,7 @@ export function AppHeader({
   const { session, loading, logout } = useAuth();
   const [showEditName, setShowEditName] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -34,6 +39,39 @@ export function AppHeader({
   const homeHref = session ? roleHomePath(session.user.role) : '/';
   const onDocIdPage = pathname === '/docid';
   const showBack = Boolean(onBack || backHref || onDocIdPage);
+
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      if (session) {
+        const active = await api<AnnouncementItem[]>('/api/announcements/my-active');
+        setAnnouncements(active);
+      } else {
+        const publicActive = await api<AnnouncementItem[]>('/api/announcements/public');
+        setAnnouncements(publicActive);
+      }
+    } catch {
+      // Non-critical, ignore
+    }
+  }, [session]);
+
+  useEffect(() => {
+    fetchAnnouncements();
+    const interval = setInterval(fetchAnnouncements, 60000);
+    return () => clearInterval(interval);
+  }, [fetchAnnouncements]);
+
+  const handleDismissBanner = async (annId: string) => {
+    try {
+      setAnnouncements((prev) =>
+        prev.map((a) => (a.id === annId ? { ...a, isDismissed: true, isRead: true } : a)),
+      );
+      if (session) {
+        await api(`/api/announcements/${annId}/dismiss`, { method: 'POST' });
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const handleBack = () => {
     if (onBack) {
@@ -46,12 +84,62 @@ export function AppHeader({
   };
 
   const initialLetter = session?.user?.name ? session.user.name.trim().charAt(0).toUpperCase() : '';
+  const topBanners = announcements.filter(
+    (a) => (a.priority === 'critical' || a.priority === 'warning') && !a.isDismissed,
+  );
 
   return (
     <>
+      {/* Top Alert Banners */}
+      {topBanners.map((banner) => (
+        <View
+          key={banner.id}
+          style={{
+            paddingTop: insets.top > 0 ? insets.top : s(8),
+            paddingBottom: s(8),
+            paddingHorizontal: pad,
+            backgroundColor: banner.priority === 'critical' ? '#DC2626' : '#F59E0B',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: s(8),
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6), flex: 1 }}>
+            {banner.priority === 'critical' ? (
+              <AlertCircleIcon size={s(16)} color="#FFFFFF" />
+            ) : (
+              <MegaphoneIcon size={s(16)} color="#451A03" />
+            )}
+            <Text
+              numberOfLines={2}
+              style={{
+                fontSize: fs(12),
+                fontWeight: '600',
+                color: banner.priority === 'critical' ? '#FFFFFF' : '#451A03',
+                flex: 1,
+              }}
+            >
+              <Text style={{ fontWeight: '800' }}>{banner.title}: </Text>
+              {banner.content}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => void handleDismissBanner(banner.id)}
+            hitSlop={s(8)}
+            style={{ padding: s(4) }}
+          >
+            <CloseIcon
+              size={s(16)}
+              color={banner.priority === 'critical' ? '#FFFFFF' : '#451A03'}
+            />
+          </Pressable>
+        </View>
+      ))}
+
       <View
         style={{
-          paddingTop: insets.top + s(8),
+          paddingTop: topBanners.length > 0 ? s(8) : insets.top + s(8),
           paddingHorizontal: pad,
           paddingBottom: s(12),
           minHeight: s(72),
