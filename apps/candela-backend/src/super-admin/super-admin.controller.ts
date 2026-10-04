@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { Roles } from '../common/decorators';
 import { SuperAdminService } from './super-admin.service';
 import { CreateOrganizationDto } from '../auth/dto';
@@ -14,6 +14,11 @@ export class SuperAdminController {
   @Get('organizations')
   listOrganizations() {
     return this.superAdmin.listOrganizations();
+  }
+
+  @Get('organizations/:id')
+  getOrganizationDetail(@Param('id') id: string) {
+    return this.superAdmin.getOrganizationDetail(id);
   }
 
   @Post('organizations')

@@ -39,6 +39,10 @@ export default function AdminScreen() {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const [doctorSearch, setDoctorSearch] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [doctorPatientFilter, setDoctorPatientFilter] = useState('');
+
   const [docIdFilter, setDocIdFilter] = useState('');
   const [transferPatientId, setTransferPatientId] = useState('');
   const [transferCode, setTransferCode] = useState('');
@@ -67,36 +71,46 @@ export default function AdminScreen() {
     load().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load'));
   }, [loading, session, router, load]);
 
-  const visiblePatients = useMemo(() => {
-    const q = docIdFilter.trim().toUpperCase();
-    if (!q) return patients;
-    return patients.filter(
-      (patient) =>
-        (patient.referralCode || '').toUpperCase().includes(q) ||
-        (patient.previousReferralCodes || []).some((code) => code.toUpperCase().includes(q)),
-    );
-  }, [patients, docIdFilter]);
-
-  const grouped = useMemo(() => {
-    const byDoctor = new Map<string, { doctorName: string; code: string; patients: PatientSummary[] }>();
-    const unlinked: PatientSummary[] = [];
-    for (const patient of visiblePatients) {
-      if (!patient.doctorId) {
-        unlinked.push(patient);
-        continue;
-      }
-      const existing = byDoctor.get(patient.doctorId);
-      if (existing) existing.patients.push(patient);
-      else {
-        byDoctor.set(patient.doctorId, {
-          doctorName: patient.doctorName || 'Doctor',
-          code: patient.referralCode || '—',
-          patients: [patient],
-        });
+  const doctorPatientCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of patients) {
+      if (p.doctorId) {
+        map.set(p.doctorId, (map.get(p.doctorId) ?? 0) + 1);
       }
     }
-    return { byDoctor, unlinked };
-  }, [visiblePatients]);
+    return map;
+  }, [patients]);
+
+  const filteredDoctors = useMemo(() => {
+    const q = doctorSearch.trim().toLowerCase();
+    if (!q) return doctors;
+    return doctors.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.referralCode.toLowerCase().includes(q) ||
+        d.email.toLowerCase().includes(q) ||
+        (d.phone || '').toLowerCase().includes(q),
+    );
+  }, [doctors, doctorSearch]);
+
+  const selectedDoctor = useMemo(
+    () => doctors.find((d) => d.id === selectedDoctorId) || null,
+    [doctors, selectedDoctorId],
+  );
+
+  const selectedDoctorPatients = useMemo(() => {
+    if (!selectedDoctorId) return [];
+    const managed = patients.filter((p) => p.doctorId === selectedDoctorId);
+    const q = doctorPatientFilter.trim().toLowerCase();
+    if (!q) return managed;
+    return managed.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q) ||
+        (p.phone || '').toLowerCase().includes(q) ||
+        (p.referralCode || '').toLowerCase().includes(q),
+    );
+  }, [patients, selectedDoctorId, doctorPatientFilter]);
 
   const transferPatient = patients.find((p) => p.id === transferPatientId);
 
@@ -272,96 +286,304 @@ export default function AdminScreen() {
           </Pressable>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: s(12) }}>
-          <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Doctors</Text>
-          <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(4), borderRadius: 999 }}>
-            {doctors.length}
-          </Text>
-        </View>
-        {doctors.length === 0 ? <Text style={{ color: colors.muted, marginBottom: s(16) }}>No doctors yet.</Text> : null}
-        {doctors.map((doctor) => (
-          <View
-            key={doctor.id}
-            style={{
-              backgroundColor: colors.white,
-              borderRadius: s(16),
-              padding: s(16),
-              marginBottom: s(10),
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: s(8),
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: '700', fontSize: fs(15) }}>{doctor.name}</Text>
-              <Text style={{ color: colors.muted, fontSize: fs(13) }}>
-                {doctor.email} · {doctor.phone}
-              </Text>
-              <Text
-                style={{
-                  marginTop: s(8),
-                  alignSelf: 'flex-start',
-                  fontFamily: 'monospace',
-                  fontWeight: '800',
-                  letterSpacing: 2,
-                  color: '#1D4ED8',
-                  backgroundColor: '#EFF6FF',
-                  paddingHorizontal: s(12),
-                  paddingVertical: s(6),
-                  borderRadius: s(10),
-                }}
-              >
-                {doctor.referralCode}
+        {!selectedDoctorId ? (
+          /* Doctors List View */
+          <View style={{ marginBottom: s(24) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: s(6) }}>
+              <View>
+                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>Doctors</Text>
+                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>
+                  Tap on any doctor to view their assigned patients.
+                </Text>
+              </View>
+              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(4), borderRadius: 999 }}>
+                {doctors.length} {doctors.length === 1 ? 'Doctor' : 'Doctors'}
               </Text>
             </View>
-            <View style={{ gap: s(8) }}>
-              <Pressable onPress={() => openEditModal(doctor)} style={{ backgroundColor: '#EFF6FF', borderRadius: s(10), padding: s(10) }}>
-                <Text style={{ color: colors.blue, fontWeight: '700', fontSize: fs(12) }}>Edit</Text>
-              </Pressable>
-              <Pressable onPress={() => { setDeleteDoctor(doctor); setDeleteError(''); }} style={{ backgroundColor: '#FEF2F2', borderRadius: s(10), padding: s(10) }}>
-                <Text style={{ color: colors.red, fontWeight: '700', fontSize: fs(12) }}>Delete</Text>
-              </Pressable>
-            </View>
+
+            {/* Doctor Search Bar */}
+            <FloatingLabelInput
+              label="Search doctors by name, DocID, email..."
+              value={doctorSearch}
+              onChangeText={setDoctorSearch}
+              style={{ marginTop: s(10), marginBottom: s(12) }}
+            />
+
+            {filteredDoctors.length === 0 ? (
+              <View style={{ backgroundColor: colors.white, borderRadius: s(16), padding: s(24), borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}>
+                <Text style={{ color: colors.muted, fontSize: fs(14) }}>
+                  {doctorSearch ? 'No matching doctors found.' : 'No doctors yet. Create one above to get started.'}
+                </Text>
+              </View>
+            ) : (
+              filteredDoctors.map((doctor) => {
+                const count = doctorPatientCountMap.get(doctor.id) ?? 0;
+                return (
+                  <Pressable
+                    key={doctor.id}
+                    onPress={() => {
+                      setSelectedDoctorId(doctor.id);
+                      setDoctorPatientFilter('');
+                    }}
+                    style={{
+                      backgroundColor: colors.white,
+                      borderRadius: s(16),
+                      padding: s(16),
+                      marginBottom: s(12),
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 2,
+                      elevation: 1,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(8) }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), flex: 1 }}>
+                        <View
+                          style={{
+                            width: s(40),
+                            height: s(40),
+                            borderRadius: s(12),
+                            backgroundColor: '#EFF6FF',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text style={{ fontSize: fs(16), fontWeight: '800', color: '#1D4ED8' }}>
+                            {doctor.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6), flexWrap: 'wrap' }}>
+                            <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: fs(15), color: colors.text }}>
+                              {doctor.name}
+                            </Text>
+                            <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: s(6), paddingVertical: s(2), borderRadius: 999 }}>
+                              <Text style={{ fontSize: fs(11), fontWeight: '700', color: '#1D4ED8' }}>
+                                {count} {count === 1 ? 'patient' : 'patients'}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: fs(12), marginTop: s(2) }}>
+                            {doctor.email} · {doctor.phone || 'No phone'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
+                        <Pressable
+                          onPress={() => openEditModal(doctor)}
+                          hitSlop={s(6)}
+                          style={{ backgroundColor: '#EFF6FF', borderRadius: s(8), padding: s(8) }}
+                        >
+                          <Text style={{ color: colors.blue, fontWeight: '700', fontSize: fs(11) }}>Edit</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            setDeleteDoctor(doctor);
+                            setDeleteError('');
+                          }}
+                          hitSlop={s(6)}
+                          style={{ backgroundColor: '#FEF2F2', borderRadius: s(8), padding: s(8) }}
+                        >
+                          <Text style={{ color: colors.red, fontWeight: '700', fontSize: fs(11) }}>Delete</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: s(10), paddingTop: s(10), borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                      <Text
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: '800',
+                          fontSize: fs(12),
+                          letterSpacing: 1.5,
+                          color: '#1D4ED8',
+                          backgroundColor: '#EFF6FF',
+                          paddingHorizontal: s(10),
+                          paddingVertical: s(4),
+                          borderRadius: s(8),
+                        }}
+                      >
+                        {doctor.referralCode}
+                      </Text>
+                      <Text style={{ fontSize: fs(12), fontWeight: '600', color: colors.blue }}>
+                        View patients →
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
-        ))}
-
-        <FloatingLabelInput
-          label="Filter by DocID"
-          value={docIdFilter}
-          onChangeText={(v) => setDocIdFilter(v.toUpperCase())}
-          autoCapitalize="characters"
-          style={{ marginTop: s(16) }}
-        />
-
-        <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Patients managed by doctors</Text>
-        {[...grouped.byDoctor.entries()].map(([id, group]) => (
-          <View key={id} style={{ backgroundColor: colors.white, borderRadius: s(16), padding: s(16), marginBottom: s(10), borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ fontWeight: '700' }}>
-              {group.doctorName} <Text style={{ color: '#1D4ED8', fontFamily: 'monospace' }}>({group.code})</Text>
-            </Text>
-            {group.patients.map((patient) => (
-              <Text key={patient.id} style={{ marginTop: s(6), color: '#374151', fontSize: fs(13) }}>
-                {patient.name} · {patient.email} · {patient.phone}
-                {patient.previousReferralCodes?.length > 0 ? ` · previous ${patient.previousReferralCodes.join(', ')}` : ''}
+        ) : selectedDoctor ? (
+          /* Doctor Drill-Down Managed Patients View */
+          <View style={{ marginBottom: s(24) }}>
+            {/* Back Button */}
+            <Pressable
+              onPress={() => setSelectedDoctorId(null)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: s(6),
+                alignSelf: 'flex-start',
+                backgroundColor: colors.white,
+                paddingHorizontal: s(12),
+                paddingVertical: s(8),
+                borderRadius: s(12),
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: s(14),
+              }}
+            >
+              <Text style={{ fontSize: fs(13), fontWeight: '700', color: colors.text }}>
+                ← Back to all doctors
               </Text>
-            ))}
-          </View>
-        ))}
-        {grouped.byDoctor.size === 0 ? <Text style={{ color: colors.muted, marginBottom: s(12) }}>No doctor-managed patients yet.</Text> : null}
+            </Pressable>
 
-        <Text style={{ fontSize: fs(17), fontWeight: '700', marginTop: s(8), marginBottom: s(12) }}>Self-signup patients</Text>
-        <View style={{ backgroundColor: colors.white, borderRadius: s(16), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
-          {grouped.unlinked.length === 0 ? <Text style={{ color: colors.muted }}>None yet.</Text> : null}
-          {grouped.unlinked.map((patient) => (
-            <Text key={patient.id} style={{ color: '#374151', fontSize: fs(13), marginBottom: s(6) }}>
-              {patient.name} · {patient.email} · {patient.phone}
-              {patient.previousReferralCodes?.length > 0 ? ` · previous ${patient.previousReferralCodes.join(', ')}` : ''}
-            </Text>
-          ))}
-        </View>
+            {/* Doctor Profile Summary Card */}
+            <View
+              style={{
+                backgroundColor: colors.white,
+                borderRadius: s(20),
+                padding: s(16),
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: s(16),
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(12) }}>
+                <View
+                  style={{
+                    width: s(48),
+                    height: s(48),
+                    borderRadius: s(16),
+                    backgroundColor: colors.blue,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: fs(20), fontWeight: '800', color: colors.white }}>
+                    {selectedDoctor.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), flexWrap: 'wrap' }}>
+                    <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>
+                      {selectedDoctor.name}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: 'monospace',
+                        fontWeight: '800',
+                        fontSize: fs(11),
+                        color: '#1D4ED8',
+                        backgroundColor: '#EFF6FF',
+                        paddingHorizontal: s(8),
+                        paddingVertical: s(2),
+                        borderRadius: s(6),
+                      }}
+                    >
+                      DocID: {selectedDoctor.referralCode}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>
+                    {selectedDoctor.email} · {selectedDoctor.phone || 'No phone'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: s(8), marginTop: s(14), paddingTop: s(12), borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                <Pressable
+                  onPress={() => openEditModal(selectedDoctor)}
+                  style={{ flex: 1, backgroundColor: '#EFF6FF', paddingVertical: s(8), borderRadius: s(10), alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.blue }}>Edit Doctor</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setDeleteDoctor(selectedDoctor);
+                    setDeleteError('');
+                  }}
+                  style={{ flex: 1, backgroundColor: '#FEF2F2', paddingVertical: s(8), borderRadius: s(10), alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.red }}>Delete Doctor</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Managed Patients Section */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: s(8) }}>
+              <Text style={{ fontSize: fs(16), fontWeight: '800', color: colors.text }}>
+                Managed Patients
+              </Text>
+              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted }}>
+                Showing {selectedDoctorPatients.length} of {doctorPatientCountMap.get(selectedDoctor.id) ?? 0}
+              </Text>
+            </View>
+
+            <FloatingLabelInput
+              label={`Search patients of Dr. ${selectedDoctor.name}...`}
+              value={doctorPatientFilter}
+              onChangeText={setDoctorPatientFilter}
+              style={{ marginBottom: s(12) }}
+            />
+
+            {selectedDoctorPatients.length === 0 ? (
+              <View style={{ backgroundColor: colors.white, borderRadius: s(16), padding: s(24), borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}>
+                <Text style={{ color: colors.muted, fontSize: fs(13), textAlign: 'center' }}>
+                  {doctorPatientFilter
+                    ? 'No matching patients found.'
+                    : `No patients currently registered under Dr. ${selectedDoctor.name}.`}
+                </Text>
+              </View>
+            ) : (
+              selectedDoctorPatients.map((p) => (
+                <View
+                  key={p.id}
+                  style={{
+                    backgroundColor: colors.white,
+                    borderRadius: s(14),
+                    padding: s(14),
+                    marginBottom: s(8),
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: fs(15), fontWeight: '700', color: colors.text }}>
+                    {p.name}
+                  </Text>
+                  <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>
+                    {p.email} · {p.phone || 'No phone'}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6), marginTop: s(6), flexWrap: 'wrap' }}>
+                    <Text
+                      style={{
+                        fontFamily: 'monospace',
+                        fontWeight: '800',
+                        fontSize: fs(11),
+                        color: '#1D4ED8',
+                        backgroundColor: '#EFF6FF',
+                        paddingHorizontal: s(8),
+                        paddingVertical: s(2),
+                        borderRadius: s(6),
+                      }}
+                    >
+                      DocID: {p.referralCode || selectedDoctor.referralCode}
+                    </Text>
+                    {p.previousReferralCodes && p.previousReferralCodes.length > 0 && (
+                      <Text style={{ fontSize: fs(11), color: colors.muted }}>
+                        (prev: {p.previousReferralCodes.join(', ')})
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Edit doctor modal */}

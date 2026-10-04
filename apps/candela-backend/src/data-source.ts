@@ -11,6 +11,8 @@ import { Organization } from './entities/organization.entity';
 import { User } from './entities/user.entity';
 import { FamiliarFace } from './entities/familiar-face.entity';
 import { GameSession } from './entities/game-session.entity';
+import { Announcement } from './entities/announcement.entity';
+import { UserAnnouncementRead } from './entities/user-announcement-read.entity';
 import { InitAuth1740000000000 } from './migrations/1740000000000-InitAuth';
 import { AddLevelsToPrescription1786860435953 } from './migrations/1786860435953-AddLevelsToPrescription';
 import { AddDocIdRequestsAndHistory1787000000001 } from './migrations/1787000000001-AddDocIdRequestsAndHistory';
@@ -19,6 +21,7 @@ import { AddFamiliarFaces1789000000000 } from './migrations/1789000000000-AddFam
 import { AddGameSessions1790000000000 } from './migrations/1790000000000-AddGameSessions';
 import { AddPasswordResetTokens1791000000000 } from './migrations/1791000000000-AddPasswordResetTokens';
 import { AddOrganizationsAndSuperAdmin1792000000000 } from './migrations/1792000000000-AddOrganizationsAndSuperAdmin';
+import { AddAnnouncements1793000000000 } from './migrations/1793000000000-AddAnnouncements';
 import { loadBackendEnv } from './common/load-env';
 import { postgresConnectionUrl } from './common/postgres-url';
 
@@ -41,6 +44,8 @@ export const AppDataSource = new DataSource({
     DocIdHistory,
     FamiliarFace,
     GameSession,
+    Announcement,
+    UserAnnouncementRead,
   ],
   migrations: [
     InitAuth1740000000000,
@@ -51,6 +56,7 @@ export const AppDataSource = new DataSource({
     AddGameSessions1790000000000,
     AddPasswordResetTokens1791000000000,
     AddOrganizationsAndSuperAdmin1792000000000,
+    AddAnnouncements1793000000000,
   ],
 });
 
