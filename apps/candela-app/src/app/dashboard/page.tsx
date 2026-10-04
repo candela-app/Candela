@@ -43,7 +43,9 @@ import {
   normalizeDirectionSenseLevelId,
   type PursuitMovementPattern,
   type PeripheralField,
+  type TherapyModuleId,
 } from '@candela/shared';
+import { listMyGameSessions, type StoredGameSessionRecord } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
@@ -62,11 +64,108 @@ const CHOOSER_SCROLL = 'max-h-full overflow-y-auto overscroll-none';
 
 type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
+function formatSessionDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0s';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  if (mins < 60) {
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hours = (seconds / 3600).toFixed(1);
+  return `${hours}h`;
+}
+
+function formatSessionDate(dateStr: string): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime())
+      ? '—'
+      : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  } catch {
+    return '—';
+  }
+}
+
+function DashboardKpiCards({
+  sessionCount,
+  avgAccuracy,
+  lastPlayed,
+  durationSec,
+}: {
+  sessionCount: number;
+  avgAccuracy: number | null;
+  lastPlayed: string;
+  durationSec: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="rounded-2xl border border-shell-border bg-white p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+          Sessions
+        </p>
+        <p className="text-2xl font-extrabold text-shell-ink mt-1">{sessionCount}</p>
+        <p className="text-xs text-shell-muted mt-1">
+          {sessionCount === 1 ? '1 finished play' : `${sessionCount} finished plays`}
+        </p>
+      </div>
+      <div className="rounded-2xl border border-shell-border bg-white p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+          Accuracy
+        </p>
+        <p className="text-2xl font-extrabold text-shell-ink mt-1">
+          {avgAccuracy != null ? `${avgAccuracy}%` : '—'}
+        </p>
+        <p className="text-xs text-shell-muted mt-1">
+          {avgAccuracy != null ? 'Mean score' : 'No plays yet'}
+        </p>
+      </div>
+      <div className="rounded-2xl border border-shell-border bg-white p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+          Last played
+        </p>
+        <p className="text-2xl font-extrabold text-shell-ink mt-1">{lastPlayed}</p>
+        <p className="text-xs text-shell-muted mt-1">
+          {sessionCount ? 'Most recent session' : 'Not played yet'}
+        </p>
+      </div>
+      <div className="rounded-2xl border border-shell-border bg-white p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-violet-600">
+          Time Spent
+        </p>
+        <p className="text-2xl font-extrabold text-shell-ink mt-1">
+          {formatSessionDuration(durationSec)}
+        </p>
+        <p className="text-xs text-shell-muted mt-1">
+          {durationSec > 0 ? 'Total training time' : '0 minutes recorded'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, loading: authLoading } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
+
+  const loadSessions = React.useCallback(async () => {
+    if (session?.user?.role === 'patient') {
+      try {
+        const data = await listMyGameSessions();
+        setSessions(data);
+      } catch {
+        setSessions([]);
+      }
+    }
+  }, [session?.user?.role]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
 
   useEffect(() => {
     if ((searchParams.get('welcome') === '1' || session?.isNewUser) && session?.user?.role === 'patient') {
@@ -594,6 +693,7 @@ function MainContent() {
   };
 
   const handleExitGame = () => {
+    void loadSessions();
     if (selectedModule) {
       setView('game');
       updateQueryParams({
@@ -680,99 +780,261 @@ function MainContent() {
         <div className={CHOOSER_PANE}>
           <div ref={scrollContainerRef} onScroll={handleScroll} className={CHOOSER_SCROLL}>
             {/* FAMILY SELECTION VIEW */}
-            {view === 'module' && (
-              <>
-                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
-                    <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
-                  </div>
-                  <button
-                    onClick={navigateToAnalytics}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95"
-                    title="View Session Analytics"
-                  >
-                    <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
-                    <span className="hidden sm:inline">Analytics</span>
-                  </button>
-                </div>
-                <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-                  {allowedModuleIds.size === 0 && (
-                    <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-                      <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
-                      <p className="text-[13px] text-shell-muted mt-2">
-                        Your doctor has not added any therapy modules. Check back after they prescribe one.
-                      </p>
+            {view === 'module' && (() => {
+              const overallSessionsCount = sessions.length;
+              const overallAvgAccuracy = overallSessionsCount
+                ? Math.round((sessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / overallSessionsCount) * 10) / 10
+                : null;
+              const overallLastPlayed = overallSessionsCount
+                ? formatSessionDate(
+                    [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[overallSessionsCount - 1]
+                      .recordedAt,
+                  )
+                : '—';
+              const overallDurationSec = sessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+
+              return (
+                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
+                      <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
                     </div>
-                  )}
-                  {visibleFamilies.map((family) => {
-                    const playableCount = family.moduleIds.filter((catalogId) =>
-                      canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
-                    ).length;
-                    return (
-                      <button
-                        key={family.id}
-                        type="button"
-                        onClick={() => handleSelectFamily(family.id)}
-                        className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
-                      >
-                        <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
-                        <div className="pt-2">
-                          <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
-                          <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
-                        </div>
-                        <span
-                          className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
-                          style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
+                    <button
+                      onClick={navigateToAnalytics}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95 cursor-pointer hover:border-shell-blue/40"
+                      title="View Session Analytics"
+                    >
+                      <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
+                      <span className="hidden sm:inline">Analytics</span>
+                    </button>
+                  </div>
+
+                  {/* OVERALL TOP KPI SUMMARY CARDS */}
+                  <DashboardKpiCards
+                    sessionCount={overallSessionsCount}
+                    avgAccuracy={overallAvgAccuracy}
+                    lastPlayed={overallLastPlayed}
+                    durationSec={overallDurationSec}
+                  />
+
+                  {/* SECTION DIVIDER WITH OVERLAPPING CENTERED TITLE */}
+                  <div className="relative flex items-center justify-center my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative px-4 bg-page">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                        Game Families
+                      </span>
+                    </div>
+                  </div>
+
+                  <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {allowedModuleIds.size === 0 && (
+                      <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+                        <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
+                        <p className="text-[13px] text-shell-muted mt-2">
+                          Your doctor has not added any therapy modules. Check back after they prescribe one.
+                        </p>
+                      </div>
+                    )}
+                    {visibleFamilies.map((family) => {
+                      const playableCount = family.moduleIds.filter((catalogId) =>
+                        canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId]),
+                      ).length;
+                      const famSessions = sessions.filter((s) =>
+                        family.moduleIds.includes(s.gameId as TherapyModuleId),
+                      );
+                      const famCount = famSessions.length;
+                      const famAcc = famCount
+                        ? Math.round((famSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / famCount) * 10) / 10
+                        : null;
+                      const famLast = famCount
+                        ? formatSessionDate(
+                            [...famSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[famCount - 1]
+                              .recordedAt,
+                          )
+                        : '—';
+                      const famDuration = famSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+
+                      return (
+                        <button
+                          key={family.id}
+                          type="button"
+                          onClick={() => handleSelectFamily(family.id)}
+                          className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
                         >
-                          {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </main>
-              </>
-            )}
+                          <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
+                          <div className="pt-2">
+                            <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
+                            <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
+
+                            {/* GAME FAMILY LEVEL KPI STATS */}
+                            <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-left">
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sessions</span>
+                                <span className="block text-xs font-extrabold text-gray-900">{famCount}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
+                                <span className="block text-xs font-extrabold text-gray-900">{famAcc != null ? `${famAcc}%` : '—'}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last played</span>
+                                <span className="block text-xs font-extrabold text-gray-900 truncate">{famLast}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3 pt-1">
+                            <span
+                              className="px-2.5 py-1 rounded-full text-[10px] font-bold"
+                              style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
+                            >
+                              {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
+                            </span>
+                            {famDuration > 0 && (
+                              <span className="text-[10px] font-semibold text-gray-400">
+                                {formatSessionDuration(famDuration)} played
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </main>
+                </div>
+              );
+            })()}
 
             {/* FAMILY ACTIVITIES VIEW */}
-            {view === 'family' && activeFamily && (
-              <>
-                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
-                  <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
-                  <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
-                </div>
-                <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-                  {familyActivityCards.length === 0 && (
-                    <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-                      <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
-                      <p className="text-[13px] text-shell-muted mt-2">
-                        Your doctor has not added any games in this family.
-                      </p>
+            {view === 'family' && activeFamily && (() => {
+              const activeFamSessions = sessions.filter((s) =>
+                activeFamily.moduleIds.includes(s.gameId as TherapyModuleId),
+              );
+              const activeFamCount = activeFamSessions.length;
+              const activeFamAcc = activeFamCount
+                ? Math.round((activeFamSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / activeFamCount) * 10) / 10
+                : null;
+              const activeFamLast = activeFamCount
+                ? formatSessionDate(
+                    [...activeFamSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[activeFamCount - 1]
+                      .recordedAt,
+                  )
+                : '—';
+              const activeFamDuration = activeFamSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+
+              return (
+                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
+                      <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
                     </div>
-                  )}
-                  {familyActivityCards.map((card) => (
                     <button
-                      key={card.uiId}
-                      type="button"
-                      onClick={() => handleSelectModule(card.uiId)}
-                      className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                      onClick={navigateToAnalytics}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95 cursor-pointer hover:border-shell-blue/40"
+                      title="View Session Analytics"
                     >
-                      <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
-                      <div className="pt-2">
-                        <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
-                        <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
-                      </div>
-                      <span
-                        className="self-center px-2.5 py-1 rounded-full text-[10px] font-bold"
-                        style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
-                      >
-                        {card.badge}
-                      </span>
+                      <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
+                      <span className="hidden sm:inline">Analytics</span>
                     </button>
-                  ))}
-                </main>
-              </>
-            )}
+                  </div>
+
+                  {/* FAMILY LEVEL KPI SUMMARY CARDS */}
+                  <DashboardKpiCards
+                    sessionCount={activeFamCount}
+                    avgAccuracy={activeFamAcc}
+                    lastPlayed={activeFamLast}
+                    durationSec={activeFamDuration}
+                  />
+
+                  {/* SECTION DIVIDER WITH OVERLAPPING CENTERED TITLE */}
+                  <div className="relative flex items-center justify-center my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative px-4 bg-page">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                        Activities
+                      </span>
+                    </div>
+                  </div>
+
+                  <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {familyActivityCards.length === 0 && (
+                      <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
+                        <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
+                        <p className="text-[13px] text-shell-muted mt-2">
+                          Your doctor has not added any games in this family.
+                        </p>
+                      </div>
+                    )}
+                    {familyActivityCards.map((card) => {
+                      const catId = UI_MODULE_TO_CATALOG[card.uiId] || card.uiId;
+                      const modSessions = sessions.filter((s) => s.gameId === catId);
+                      const modCount = modSessions.length;
+                      const modAcc = modCount
+                        ? Math.round((modSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / modCount) * 10) / 10
+                        : null;
+                      const modLast = modCount
+                        ? formatSessionDate(
+                            [...modSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[modCount - 1]
+                              .recordedAt,
+                          )
+                        : '—';
+                      const modDuration = modSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+
+                      return (
+                        <button
+                          key={card.uiId}
+                          type="button"
+                          onClick={() => handleSelectModule(card.uiId)}
+                          className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                        >
+                          <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
+                          <div className="pt-2">
+                            <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
+                            <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
+
+                            {/* ACTIVITY LEVEL KPI STATS */}
+                            <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-left">
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sessions</span>
+                                <span className="block text-xs font-extrabold text-gray-900">{modCount}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
+                                <span className="block text-xs font-extrabold text-gray-900">{modAcc != null ? `${modAcc}%` : '—'}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last played</span>
+                                <span className="block text-xs font-extrabold text-gray-900 truncate">{modLast}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3 pt-1">
+                            <span
+                              className="px-2.5 py-1 rounded-full text-[10px] font-bold"
+                              style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
+                            >
+                              {card.badge}
+                            </span>
+                            {modDuration > 0 && (
+                              <span className="text-[10px] font-semibold text-gray-400">
+                                {formatSessionDuration(modDuration)} played
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </main>
+                </div>
+              );
+            })()}
 
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (

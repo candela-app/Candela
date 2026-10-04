@@ -5,6 +5,7 @@ import { useToast } from '@/lib/toast-context';
 import { ApiError, api } from '@/lib/api';
 import type { DocIdRequestResult } from '@candela/shared';
 import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { FormEvent, useState } from 'react';
 
 export function DocIdRequestCard() {
@@ -13,6 +14,8 @@ export function DocIdRequestCard() {
   const [code, setCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const patient = session?.patient;
   if (!patient) {
@@ -52,6 +55,40 @@ export function DocIdRequestCard() {
     }
   }
 
+  async function resendRequest() {
+    setResending(true);
+    try {
+      const result = await api<DocIdRequestResult>('/api/docid/requests/resend', {
+        method: 'POST',
+      });
+      await refresh();
+      toast.success(
+        result.emailSent
+          ? `Request email resent for DocID ${result.targetReferralCode}.`
+          : `Request updated for DocID ${result.targetReferralCode}. The link is active.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not resend DocID request');
+    } finally {
+      setResending(false);
+    }
+  }
+
+  async function cancelRequest() {
+    setCancelling(true);
+    try {
+      await api('/api/docid/requests/cancel', {
+        method: 'POST',
+      });
+      await refresh();
+      toast.success('DocID request cancelled.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not cancel DocID request');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   async function settle(accept: boolean) {
     if (!pending) {
       return;
@@ -76,9 +113,12 @@ export function DocIdRequestCard() {
           <div>
             <p className="text-[11px] font-semibold tracking-wide text-shell-blue">DocID</p>
             {linked ? (
-              <p className="text-sm text-gray-700 mt-1">
-                Linked to <span className="font-mono font-bold text-blue-700">{patient.referralCode}</span>
-              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm text-gray-700">
+                  Linked to <span className="font-mono font-bold text-blue-700">{patient.referralCode}</span>
+                </p>
+                <CopyButton text={patient.referralCode} label="DocID" iconSize={13} />
+              </div>
             ) : (
               <p className="text-sm text-gray-700 mt-1">
                 You are not linked to a doctor yet. Enter a DocID to request an attach.
@@ -93,15 +133,38 @@ export function DocIdRequestCard() {
 
           {pending ? (
             <div className="sm:max-w-md">
-              <p className="text-sm text-gray-600">
-                Pending {pending.source === 'self' ? 'attach' : pending.source === 'change' ? 'reassignment' : 'transfer'} to{' '}
-                <span className="font-mono font-bold">{pending.targetReferralCode}</span>
-                {pending.targetDoctorName ? ` (Dr. ${pending.targetDoctorName})` : ''}.
-              </p>
-              {pending.recipientRole === 'doctor' ? (
-                <p className="text-xs text-gray-500 mt-1">
-                  The doctor must confirm. Check spam if they do not see the email.
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm text-gray-600">
+                  Pending {pending.source === 'self' ? 'attach' : pending.source === 'change' ? 'reassignment' : 'transfer'} to{' '}
+                  <span className="font-mono font-bold text-gray-900">{pending.targetReferralCode}</span>
+                  {pending.targetDoctorName ? ` (Dr. ${pending.targetDoctorName})` : ''}.
                 </p>
+                <CopyButton text={pending.targetReferralCode} label="Target DocID" iconSize={13} />
+              </div>
+              {pending.recipientRole === 'doctor' ? (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500 mb-2.5">
+                    The doctor must confirm. If they didn&apos;t receive the email, you can resend or cancel to enter a new code.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={resending || cancelling}
+                      onClick={() => void resendRequest()}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors disabled:opacity-60"
+                    >
+                      {resending ? 'Resending…' : 'Resend Email'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resending || cancelling}
+                      onClick={() => void cancelRequest()}
+                      className="px-3.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-colors disabled:opacity-60"
+                    >
+                      {cancelling ? 'Cancelling…' : 'Cancel Request'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="flex gap-2 mt-3">
                   <button

@@ -12,6 +12,7 @@ import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
 } from '@/components/ui/FloatingLabelInput';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -402,11 +403,14 @@ export default function AdminPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm font-extrabold tracking-wider text-blue-700 bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100">
-                          {doctor.referralCode}
-                        </span>
-                        <span className="text-xs text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-100">
+                          <span className="font-mono text-sm font-extrabold tracking-wider text-blue-700">
+                            {doctor.referralCode}
+                          </span>
+                          <CopyButton text={doctor.referralCode} label="DocID" iconSize={13} />
+                        </div>
+                        <span className="text-xs text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline ml-1">
                           View patients →
                         </span>
                         <div className="flex items-center gap-1 pl-2 border-l border-gray-100" onClick={(e) => e.stopPropagation()}>
@@ -460,9 +464,12 @@ export default function AdminPage() {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h3 className="text-xl font-bold text-gray-900">{selectedDoctor.name}</h3>
-                    <span className="font-mono text-xs font-extrabold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                      DocID: {selectedDoctor.referralCode}
-                    </span>
+                    <div className="flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                      <span className="font-mono text-xs font-extrabold text-blue-700">
+                        DocID: {selectedDoctor.referralCode}
+                      </span>
+                      <CopyButton text={selectedDoctor.referralCode} label="DocID" iconSize={12} />
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     Email: <strong className="text-gray-700">{selectedDoctor.email}</strong> · Phone: <strong className="text-gray-700">{selectedDoctor.phone || '—'}</strong>
@@ -521,23 +528,27 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {selectedDoctorPatients.map((p) => (
-                          <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-gray-900">{p.name}</td>
-                            <td className="px-6 py-4 text-gray-700">{p.email}</td>
-                            <td className="px-6 py-4 text-gray-500">{p.phone || '—'}</td>
-                            <td className="px-6 py-4 text-xs text-gray-500">
-                              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 mr-2">
-                                {p.referralCode || selectedDoctor.referralCode}
-                              </span>
-                              {p.previousReferralCodes && p.previousReferralCodes.length > 0 && (
-                                <span className="text-gray-400">
-                                  (prev: {p.previousReferralCodes.join(', ')})
+                        {selectedDoctorPatients.map((p) => {
+                          const activeCode = p.referralCode || selectedDoctor.referralCode;
+                          return (
+                            <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                              <td className="px-6 py-4 font-semibold text-gray-900">{p.name}</td>
+                              <td className="px-6 py-4 text-gray-700">{p.email}</td>
+                              <td className="px-6 py-4 text-gray-500">{p.phone || '—'}</td>
+                              <td className="px-6 py-4 text-xs text-gray-500">
+                                <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 mr-2">
+                                  {activeCode}
+                                  <CopyButton text={activeCode} label="DocID" iconSize={11} />
                                 </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                {p.previousReferralCodes && p.previousReferralCodes.length > 0 && (
+                                  <span className="text-gray-400">
+                                    (prev: {p.previousReferralCodes.join(', ')})
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -555,9 +566,10 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Edit Doctor</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                   DocID: <span className="font-mono font-bold text-blue-600">{editDoctor.referralCode}</span>
-                </p>
+                  <CopyButton text={editDoctor.referralCode} label="DocID" iconSize={12} />
+                </div>
               </div>
               <button
                 type="button"
