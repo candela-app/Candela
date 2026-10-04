@@ -9,6 +9,7 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
 import { ArrowLeftIcon } from '@/components/icons/VectorIcons';
 import { SearchInput } from '@/components/common/SearchInput';
+import { CopyButton } from '@/components/ui/CopyButton';
 import Link from 'next/link';
 
 export default function OrganizationDetailPage() {
@@ -227,9 +228,12 @@ export default function OrganizationDetailPage() {
                         <tr key={doc.id} className="hover:bg-gray-50/70 transition-colors">
                           <td className="px-6 py-4 font-semibold text-gray-900">{doc.name}</td>
                           <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-mono font-bold rounded-lg border border-indigo-200">
-                              {doc.referralCode}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-mono font-bold rounded-lg border border-indigo-200">
+                                {doc.referralCode}
+                              </span>
+                              <CopyButton text={doc.referralCode} label="DocID" iconSize={13} />
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-gray-700">{doc.email}</td>
                           <td className="px-6 py-4 text-gray-500">{doc.phone || '—'}</td>
@@ -298,9 +302,12 @@ export default function OrganizationDetailPage() {
                               <div className="flex items-center gap-1.5">
                                 <span className="font-medium text-gray-800">{p.doctorName}</span>
                                 {p.doctorReferralCode && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded border border-gray-200">
-                                    {p.doctorReferralCode}
-                                  </span>
+                                  <>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded border border-gray-200">
+                                      {p.doctorReferralCode}
+                                    </span>
+                                    <CopyButton text={p.doctorReferralCode} label="DocID" iconSize={12} />
+                                  </>
                                 )}
                               </div>
                             ) : (

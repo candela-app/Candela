@@ -15,6 +15,18 @@ export class DocIdController {
     return this.docid.requestByPatient(user, dto.referralCode);
   }
 
+  @Roles('patient')
+  @Post('requests/resend')
+  resendAttach(@CurrentUser() user: User) {
+    return this.docid.resendByPatient(user);
+  }
+
+  @Roles('patient')
+  @Post('requests/cancel')
+  cancelAttach(@CurrentUser() user: User) {
+    return this.docid.cancelByPatient(user);
+  }
+
   @Roles('admin')
   @Post('transfers')
   requestTransfer(@Body() dto: TransferDocIdDto) {

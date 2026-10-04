@@ -11,6 +11,7 @@ import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
 } from '@/components/ui/FloatingLabelInput';
+import { CopyButton } from '@/components/ui/CopyButton';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -121,9 +122,12 @@ export default function DoctorPage() {
       <AppHeader
         extra={
           session.doctor ? (
-            <span className="font-mono text-sm font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
-              {session.doctor.referralCode}
-            </span>
+            <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
+              <span className="font-mono text-sm font-bold text-blue-700">
+                {session.doctor.referralCode}
+              </span>
+              <CopyButton text={session.doctor.referralCode} label="DocID" iconSize={13} />
+            </div>
           ) : null
         }
       />
