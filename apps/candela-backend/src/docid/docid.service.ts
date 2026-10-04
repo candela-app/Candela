@@ -159,6 +159,99 @@ export class DocIdService {
     return open;
   }
 
+  async resendByPatient(user: User): Promise<DocIdRequestResult> {
+    const patient = await this.patients.findOne({
+      where: { userId: user.id },
+      relations: ['user'],
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient record not found');
+    }
+
+    const request = await this.requests.findOne({
+      where: { patientId: patient.userId, status: 'pending' },
+      relations: ['toDoctor', 'toDoctor.user', 'patient', 'patient.user', 'fromDoctor'],
+      order: { createdAt: 'DESC' },
+    });
+    if (!request) {
+      throw new NotFoundException('No pending DocID request found to resend');
+    }
+    if (await this.expireIfNeeded(request)) {
+      throw new GoneException('Your pending request has expired. Please submit a new request.');
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + this.ttlMs());
+    request.tokenHash = hashToken(rawToken);
+    request.expiresAt = expiresAt;
+    await this.requests.save(request);
+
+    const recipient = await this.users.findOne({ where: { id: request.recipientUserId } });
+    if (!recipient) {
+      throw new NotFoundException('Mail recipient not found');
+    }
+
+    const recipientRole: 'doctor' | 'patient' = request.recipientUserId === request.toDoctorId ? 'doctor' : 'patient';
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000').replace(/\/$/, '');
+    const confirmUrl = `${frontendUrl}/docid/confirm?token=${rawToken}`;
+    const rejectUrl = `${frontendUrl}/docid/reject?token=${rawToken}`;
+    const mail = this.buildMail({
+      source: request.source,
+      recipientRole,
+      patientName: patient.user.name,
+      patientEmail: patient.user.email,
+      doctorName: request.toDoctor.user.name,
+      targetReferralCode: request.toDoctor.referralCode,
+      fromReferralCode: request.fromReferralCode,
+      confirmUrl,
+      rejectUrl,
+    });
+
+    let emailSent = false;
+    try {
+      emailSent = await this.mail.send({
+        to: recipient.email,
+        ...mail,
+      });
+    } catch {
+      emailSent = false;
+    }
+
+    if (!emailSent && (this.config.get<string>('MAIL_TRANSPORT') || 'log').trim().toLowerCase() === 'log') {
+      console.log(`[mail] DocID ${request.source} ${recipientRole} confirm (resend): ${confirmUrl}`);
+      console.log(`[mail] DocID ${request.source} ${recipientRole} reject (resend): ${rejectUrl}`);
+    }
+
+    return {
+      emailSent,
+      recipientRole,
+      targetReferralCode: request.toDoctor.referralCode,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  async cancelByPatient(user: User): Promise<{ success: boolean }> {
+    const patient = await this.patients.findOne({
+      where: { userId: user.id },
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient record not found');
+    }
+
+    const request = await this.requests.findOne({
+      where: { patientId: patient.userId, status: 'pending' },
+      order: { createdAt: 'DESC' },
+    });
+    if (!request) {
+      throw new NotFoundException('No pending DocID request found to cancel');
+    }
+
+    request.status = 'rejected';
+    request.resolvedAt = new Date();
+    await this.requests.save(request);
+    return { success: true };
+  }
+
   async listHistoryCodes(patientId: string): Promise<string[]> {
     const rows = await this.history.find({
       where: { patientId },

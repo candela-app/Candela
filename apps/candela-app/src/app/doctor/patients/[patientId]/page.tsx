@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { DoctorPatientPrescribe } from '@/components/doctor/DoctorPatientPrescribe';
 import { DoctorPatientAnalytics } from '@/components/doctor/DoctorPatientAnalytics';
 import { AnalyticsIcon } from '@/components/icons/VectorIcons';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -227,9 +228,12 @@ function DoctorPatientProfile() {
         backHref={isAnalytics && patientId ? `/doctor/patients/${patientId}` : '/doctor'}
         extra={
           session.doctor ? (
-            <span className="font-mono text-sm font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
-              {session.doctor.referralCode}
-            </span>
+            <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
+              <span className="font-mono text-sm font-bold text-blue-700">
+                {session.doctor.referralCode}
+              </span>
+              <CopyButton text={session.doctor.referralCode} label="DocID" iconSize={13} />
+            </div>
           ) : null
         }
       />
@@ -304,6 +308,7 @@ function DoctorPatientProfile() {
                 <section className="bg-white rounded-3xl border border-gray-100 p-6">
                   <DoctorPatientPrescribe
                     patient={patient}
+                    sessions={sessions}
                     onToggleModule={(moduleId, enabled) => void toggleModule(moduleId, enabled)}
                     onToggleLevel={(moduleId, levelId, enabled) => void toggleLevel(moduleId, levelId, enabled)}
                   />

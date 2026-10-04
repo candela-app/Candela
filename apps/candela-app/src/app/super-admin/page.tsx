@@ -27,15 +27,51 @@ import {
 } from '@/components/icons/VectorIcons';
 import { RecipientSelector } from '@/components/super-admin/RecipientSelector';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
-export default function SuperAdminPage() {
+function parseTab(param: string | null): 'orgs' | 'self_users' | 'announcements' {
+  if (!param) return 'orgs';
+  const lower = param.trim().toLowerCase();
+  if (lower === 'announcements' || lower === 'announcement') return 'announcements';
+  if (
+    lower === 'self_users' ||
+    lower === 'self-users' ||
+    lower === 'self-signed' ||
+    lower === 'self_signed' ||
+    lower === 'users' ||
+    lower === 'self' ||
+    lower === 'selfsigned'
+  ) {
+    return 'self_users';
+  }
+  return 'orgs';
+}
+
+function SuperAdminDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session, loading } = useAuth();
   const toast = useToast();
 
-  const [tab, setTab] = useState<'orgs' | 'self_users' | 'announcements'>('orgs');
+  const [tab, setTab] = useState<'orgs' | 'self_users' | 'announcements'>(() =>
+    parseTab(searchParams.get('tab')),
+  );
+
+  useEffect(() => {
+    const nextTab = parseTab(searchParams.get('tab'));
+    setTab(nextTab);
+  }, [searchParams]);
+
+  const handleTabChange = useCallback(
+    (nextTab: 'orgs' | 'self_users' | 'announcements') => {
+      setTab(nextTab);
+      const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+      params.set('tab', nextTab);
+      router.replace(`/super-admin?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
   const [metrics, setMetrics] = useState<SuperAdminMetrics | null>(null);
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
   const [selfUsers, setSelfUsers] = useState<SelfUserSummary[]>([]);
@@ -60,6 +96,13 @@ export default function SuperAdminPage() {
   const [annExpiresAt, setAnnExpiresAt] = useState('');
   const [annSaving, setAnnSaving] = useState(false);
   const [annError, setAnnError] = useState('');
+
+  // Targeted recipient viewer modal state
+  const [viewingRecipients, setViewingRecipients] = useState<{
+    title: string;
+    type: 'hospitals' | 'users';
+    names: string[];
+  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -249,41 +292,81 @@ export default function SuperAdminPage() {
   const getTargetTypeDisplay = (a: AnnouncementItem) => {
     switch (a.targetType) {
       case 'homepage':
-        return <span className="text-xs font-semibold text-sky-700">Public Homepage</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+            Public Homepage
+          </span>
+        );
       case 'all':
-        return <span className="text-xs font-semibold text-slate-700">All Users</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            All Users
+          </span>
+        );
       case 'all_hospitals':
-        return <span className="text-xs font-semibold text-blue-700">All Hospitals</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            All Hospitals
+          </span>
+        );
       case 'all_doctors':
-        return <span className="text-xs font-semibold text-indigo-700">All Doctors</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            All Doctors
+          </span>
+        );
       case 'all_patients':
-        return <span className="text-xs font-semibold text-emerald-700">All Patients</span>;
-      case 'selected_hospitals':
         return (
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-purple-700">Few Hospitals:</span>
-            <div className="flex flex-wrap gap-1 max-w-[200px]">
-              {(a.targetHospitalNames || []).map((name, idx) => (
-                <span key={idx} className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200">
-                  {name}
-                </span>
-              ))}
-            </div>
-          </div>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            All Patients
+          </span>
         );
-      case 'selected_users':
+      case 'selected_hospitals': {
+        const count = a.targetHospitalNames?.length || a.targetHospitalIds?.length || 0;
         return (
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-teal-700">Few Users:</span>
-            <div className="flex flex-wrap gap-1 max-w-[200px]">
-              {(a.targetUserNames || []).map((name, idx) => (
-                <span key={idx} className="text-[10px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded border border-teal-200">
-                  {name}
-                </span>
-              ))}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewingRecipients({
+                title: a.title,
+                type: 'hospitals',
+                names: a.targetHospitalNames || [],
+              });
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer group"
+            title="Click to view targeted hospitals"
+          >
+            <span>Few Hospitals</span>
+            <span className="px-1.5 py-0.2 bg-purple-200/80 group-hover:bg-purple-300 text-purple-900 rounded-md text-[10px] font-bold">
+              {count}
+            </span>
+          </button>
         );
+      }
+      case 'selected_users': {
+        const count = a.targetUserNames?.length || a.targetUserIds?.length || 0;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewingRecipients({
+                title: a.title,
+                type: 'users',
+                names: a.targetUserNames || [],
+              });
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 transition-colors cursor-pointer group"
+            title="Click to view targeted users"
+          >
+            <span>Few Users</span>
+            <span className="px-1.5 py-0.2 bg-teal-200/80 group-hover:bg-teal-300 text-teal-900 rounded-md text-[10px] font-bold">
+              {count}
+            </span>
+          </button>
+        );
+      }
     }
   };
 
@@ -336,22 +419,34 @@ export default function SuperAdminPage() {
 
         {/* Global Metrics Cards */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div
+            onClick={() => handleTabChange('orgs')}
+            className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:border-blue-200 transition-colors cursor-pointer"
+          >
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Organizations</p>
             <p className="text-3xl font-black text-gray-900 mt-2">{metrics?.totalOrganizations ?? 0}</p>
             <p className="text-xs text-blue-600 mt-1 font-medium">Hospitals & Clinics</p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div
+            onClick={() => handleTabChange('orgs')}
+            className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:border-indigo-200 transition-colors cursor-pointer"
+          >
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Doctors</p>
             <p className="text-3xl font-black text-gray-900 mt-2">{metrics?.totalDoctors ?? 0}</p>
             <p className="text-xs text-indigo-600 mt-1 font-medium">Across all orgs</p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Hospital Patients</p>
-            <p className="text-3xl font-black text-gray-900 mt-2">{metrics?.totalOrgPatients ?? 0}</p>
-            <p className="text-xs text-emerald-600 mt-1 font-medium">Doctor-referred</p>
+          <div
+            onClick={() => handleTabChange('self_users')}
+            className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:border-emerald-200 transition-colors cursor-pointer"
+          >
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Direct Users</p>
+            <p className="text-3xl font-black text-gray-900 mt-2">{selfUsers.length}</p>
+            <p className="text-xs text-emerald-600 mt-1 font-medium">Self-signed patients</p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div
+            onClick={() => handleTabChange('announcements')}
+            className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:border-purple-200 transition-colors cursor-pointer"
+          >
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Announcements</p>
             <p className="text-3xl font-black text-gray-900 mt-2">{announcements.length}</p>
             <p className="text-xs text-purple-600 mt-1 font-medium">
@@ -363,7 +458,7 @@ export default function SuperAdminPage() {
         {/* Navigation Tabs */}
         <div className="flex border-b border-gray-200">
           <button
-            onClick={() => setTab('orgs')}
+            onClick={() => handleTabChange('orgs')}
             className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
               tab === 'orgs'
                 ? 'border-blue-600 text-blue-600'
@@ -373,7 +468,7 @@ export default function SuperAdminPage() {
             Organizations ({orgs.length})
           </button>
           <button
-            onClick={() => setTab('self_users')}
+            onClick={() => handleTabChange('self_users')}
             className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
               tab === 'self_users'
                 ? 'border-blue-600 text-blue-600'
@@ -383,7 +478,7 @@ export default function SuperAdminPage() {
             Direct Self-Signed Users ({selfUsers.length})
           </button>
           <button
-            onClick={() => setTab('announcements')}
+            onClick={() => handleTabChange('announcements')}
             className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
               tab === 'announcements'
                 ? 'border-blue-600 text-blue-600'
@@ -651,10 +746,10 @@ export default function SuperAdminPage() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm overflow-y-auto"
         >
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl space-y-5 my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4 shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
                   {editingAnnouncement ? 'Edit Announcement' : 'Announce'}
@@ -676,12 +771,12 @@ export default function SuperAdminPage() {
             </div>
 
             {annError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium shrink-0">
                 {annError}
               </div>
             )}
 
-            <form onSubmit={handleSaveAnnouncement} className="space-y-4">
+            <form onSubmit={handleSaveAnnouncement} className="space-y-4 overflow-y-auto pr-1">
               {/* Title */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-700">Announcement Title / Subject *</label>
@@ -695,36 +790,39 @@ export default function SuperAdminPage() {
                 />
               </div>
 
-              {/* Priority Dropdown */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700">Priority Level *</label>
-                <select
-                  value={annPriority}
-                  onChange={(e) => setAnnPriority(e.target.value as AnnouncementPriority)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-medium"
-                >
-                  <option value="info">Info (Standard)</option>
-                  <option value="warning">Maintenance / Warning</option>
-                  <option value="critical">Critical Alert (Top Banner)</option>
-                </select>
-              </div>
+              {/* 2-Column Grid: Priority & Target Audience */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Priority Dropdown */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-700">Priority Level *</label>
+                  <select
+                    value={annPriority}
+                    onChange={(e) => setAnnPriority(e.target.value as AnnouncementPriority)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-medium"
+                  >
+                    <option value="info">Info (Standard)</option>
+                    <option value="warning">Maintenance / Warning</option>
+                    <option value="critical">Critical Alert (Top Banner)</option>
+                  </select>
+                </div>
 
-              {/* Target Audience Dropdown */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700">Target Audience *</label>
-                <select
-                  value={annTargetType}
-                  onChange={(e) => setAnnTargetType(e.target.value as AnnouncementTargetType)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-medium"
-                >
-                  <option value="homepage">Homepage (Public Visitors / Commoners / New Signups)</option>
-                  <option value="all">All Users (Everyone on platform)</option>
-                  <option value="all_hospitals">All Hospitals (All Hospital Admins)</option>
-                  <option value="all_doctors">All Doctors (All Clinicians)</option>
-                  <option value="all_patients">All Patients (All App Patients)</option>
-                  <option value="selected_hospitals">Few Hospitals (Specific Organizations)</option>
-                  <option value="selected_users">Few Users (Specific Accounts)</option>
-                </select>
+                {/* Target Audience Dropdown */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-700">Target Audience *</label>
+                  <select
+                    value={annTargetType}
+                    onChange={(e) => setAnnTargetType(e.target.value as AnnouncementTargetType)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-medium"
+                  >
+                    <option value="homepage">Homepage (Public Visitors / Commoners / New Signups)</option>
+                    <option value="all">All Users (Everyone on platform)</option>
+                    <option value="all_hospitals">All Hospitals (All Hospital Admins)</option>
+                    <option value="all_doctors">All Doctors (All Clinicians)</option>
+                    <option value="all_patients">All Patients (All App Patients)</option>
+                    <option value="selected_hospitals">Few Hospitals (Specific Organizations)</option>
+                    <option value="selected_users">Few Users (Specific Accounts)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Conditional Recipient Pickers for Few Hospitals / Few Users */}
@@ -762,7 +860,7 @@ export default function SuperAdminPage() {
                 <textarea
                   value={annContent}
                   onChange={(e) => setAnnContent(e.target.value)}
-                  rows={4}
+                  rows={3}
                   placeholder="Type the detailed announcement message here..."
                   required
                   className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -805,7 +903,7 @@ export default function SuperAdminPage() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <div className="flex gap-3 pt-3 border-t border-gray-100 shrink-0">
                 <button
                   type="button"
                   onClick={closeAddAnnouncementModal}
@@ -828,6 +926,86 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Targeted Recipients Viewer Modal */}
+      {viewingRecipients && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setViewingRecipients(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 my-auto max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {viewingRecipients.type === 'hospitals' ? 'Targeted Hospitals' : 'Targeted Users'}
+                </h3>
+                <p className="text-xs text-gray-500 truncate max-w-[280px]">
+                  {viewingRecipients.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingRecipients(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto max-h-64 space-y-2 py-1 pr-1">
+              {viewingRecipients.names.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">No recipient names available.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {viewingRecipients.names.map((name, idx) => (
+                    <span
+                      key={idx}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border ${
+                        viewingRecipients.type === 'hospitals'
+                          ? 'bg-purple-50 text-purple-800 border-purple-200'
+                          : 'bg-teal-50 text-teal-800 border-teal-200'
+                      }`}
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingRecipients(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function SuperAdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F4F7FC]">
+          <AppHeader />
+          <AdminDashboardSkeleton />
+        </div>
+      }
+    >
+      <SuperAdminDashboard />
+    </Suspense>
   );
 }

@@ -14,6 +14,9 @@ export function DocIdRequestCard() {
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
 
+  const [resending, setResending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const patient = session?.patient;
   if (!patient) {
     return null;
@@ -50,6 +53,41 @@ export function DocIdRequestCard() {
       Alert.alert('Error', err instanceof ApiError ? err.message : 'Could not submit DocID');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resendRequest() {
+    setResending(true);
+    try {
+      const result = await api<DocIdRequestResult>('/api/docid/requests/resend', {
+        method: 'POST',
+      });
+      await refresh();
+      Alert.alert(
+        'Request Resent',
+        result.emailSent
+          ? `Request email resent for DocID ${result.targetReferralCode}.`
+          : `Request updated for DocID ${result.targetReferralCode}. Ask doctor to check dashboard.`,
+      );
+    } catch (err) {
+      Alert.alert('Error', err instanceof ApiError ? err.message : 'Could not resend DocID request');
+    } finally {
+      setResending(false);
+    }
+  }
+
+  async function cancelRequest() {
+    setCancelling(true);
+    try {
+      await api('/api/docid/requests/cancel', {
+        method: 'POST',
+      });
+      await refresh();
+      Alert.alert('Cancelled', 'DocID request has been cancelled.');
+    } catch (err) {
+      Alert.alert('Error', err instanceof ApiError ? err.message : 'Could not cancel DocID request');
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -103,9 +141,47 @@ export function DocIdRequestCard() {
             {pending.targetDoctorName ? ` (Dr. ${pending.targetDoctorName})` : ''}.
           </Text>
           {pending.recipientRole === 'doctor' ? (
-            <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(6) }}>
-              The doctor must confirm. Check spam if they do not see the email.
-            </Text>
+            <View style={{ marginTop: s(8) }}>
+              <Text style={{ fontSize: fs(12), color: colors.muted, marginBottom: s(8) }}>
+                The doctor must confirm. If they didn&apos;t receive the email, you can resend or cancel.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: s(8) }}>
+                <Pressable
+                  onPress={() => void resendRequest()}
+                  disabled={resending || cancelling}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#EFF6FF',
+                    borderRadius: s(10),
+                    paddingVertical: s(10),
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#BFDBFE',
+                    opacity: resending || cancelling ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: '#1D4ED8', fontWeight: '700', fontSize: fs(12) }}>
+                    {resending ? 'Resending…' : 'Resend Email'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void cancelRequest()}
+                  disabled={resending || cancelling}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#F3F4F6',
+                    borderRadius: s(10),
+                    paddingVertical: s(10),
+                    alignItems: 'center',
+                    opacity: resending || cancelling ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: '#4B5563', fontWeight: '600', fontSize: fs(12) }}>
+                    {cancelling ? 'Cancelling…' : 'Cancel Request'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: s(8), marginTop: s(12) }}>
               <Pressable
