@@ -43,6 +43,7 @@ export default function RootLayout() {
             <Stack.Screen name="dashboard" options={{ animation: 'none' }} />
             <Stack.Screen name="docid" options={{ animation: 'none' }} />
             <Stack.Screen name="admin" options={{ animation: 'none' }} />
+            <Stack.Screen name="super-admin" options={{ animation: 'none' }} />
             <Stack.Screen name="doctor" options={{ animation: 'none' }} />
             <Stack.Screen
               name="play/geoboard"
