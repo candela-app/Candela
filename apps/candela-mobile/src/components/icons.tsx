@@ -420,6 +420,53 @@ export function TrashIcon({ size = 24, color = 'currentColor' }: IconProps) {
   );
 }
 
+export function BuildingIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+      <Path d="M9 22v-4h6v4" />
+      <Path d="M8 6h.01" />
+      <Path d="M16 6h.01" />
+      <Path d="M12 6h.01" />
+      <Path d="M12 10h.01" />
+      <Path d="M12 14h.01" />
+      <Path d="M16 10h.01" />
+      <Path d="M16 14h.01" />
+      <Path d="M8 10h.01" />
+      <Path d="M8 14h.01" />
+    </Svg>
+  );
+}
+
+export function UsersIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <Circle cx="9" cy="7" r="4" />
+      <Path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <Path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </Svg>
+  );
+}
+
+export function PlusIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M5 12h14" />
+      <Path d="M12 5v14" />
+    </Svg>
+  );
+}
+
+export function EditIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <Path d="m15 5 4 4" />
+    </Svg>
+  );
+}
+
 
 
 
