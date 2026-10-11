@@ -142,10 +142,46 @@ export function HomePageContent({
   const pageRef = React.useRef<HTMLDivElement>(null);
   const productMenuRef = React.useRef<HTMLDivElement>(null);
   const accountMenuRef = React.useRef<HTMLDivElement>(null);
+  const scrollFrameRef = React.useRef<number | null>(null);
   const [isHeaderVisible, setIsHeaderVisible] = React.useState(true);
   const [isProductMenuOpen, setIsProductMenuOpen] = React.useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = React.useState(false);
   const dashboardLabel = authLoading ? 'Checking session…' : isAuthenticated ? 'Open Dashboard' : 'Get Started';
+
+  React.useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
+
+  const scrollToHome = () => {
+    const scrollingElement = document.scrollingElement ?? document.documentElement;
+    const start = scrollingElement.scrollTop || window.scrollY;
+    if (start <= 0) return;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      scrollingElement.scrollTop = 0;
+      return;
+    }
+
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    const duration = Math.min(1600, Math.max(800, start * 0.55));
+    const startedAt = performance.now();
+
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      const next = Math.round(start * (1 - eased));
+      scrollingElement.scrollTop = next;
+      if (progress < 1) {
+        scrollFrameRef.current = requestAnimationFrame(step);
+        return;
+      }
+      scrollFrameRef.current = null;
+    };
+
+    scrollFrameRef.current = requestAnimationFrame(step);
+  };
 
   React.useEffect(() => {
     document.documentElement.classList.add(styles.hideScrollbar);
@@ -389,7 +425,8 @@ export function HomePageContent({
       ) : null}
 
       <main className="relative z-10">
-        <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-28 pt-32 text-white sm:px-8 lg:min-h-[760px]">
+        <div className="lg:flex lg:h-dvh lg:flex-col">
+        <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-28 pt-32 text-white sm:px-8 lg:min-h-0 lg:flex-1">
           <div aria-hidden className="absolute inset-0">
             <img
               src="/hero-background.gif"
@@ -404,16 +441,16 @@ export function HomePageContent({
 
           <div className="relative mx-auto w-full max-w-4xl text-center">
             <div className="mx-auto max-w-4xl">
-              <h1 className="text-4xl font-extrabold leading-[1.15] tracking-[-0.04em] sm:text-5xl lg:text-[3.15rem]">
-                <span className="block">Interactive vision therapy,</span>
-                <span className="mt-1 block">
+              <h1 className="text-[clamp(1.15rem,5vw,1.45rem)] font-extrabold leading-[1.15] tracking-[-0.04em] sm:text-[2rem] md:text-5xl lg:text-[3.6rem]">
+                <span className="block whitespace-nowrap">Interactive vision therapy,</span>
+                <span className="mt-1 block whitespace-nowrap">
                   built around{' '}
                   <span className="bg-gradient-to-r from-blue-300 via-sky-200 to-emerald-200 bg-clip-text text-transparent">
                     measurable progress
                   </span>
                 </span>
               </h1>
-              <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+              <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-slate-300 sm:text-lg sm:leading-8">
                 Configurable visual and cognitive exercises for patients and clinicians, with clear session
                 results and progress analytics across supported devices.
               </p>
@@ -425,7 +462,7 @@ export function HomePageContent({
                   aria-busy={authLoading}
                   onPointerMove={moveSpecularHighlight}
                   onPointerLeave={resetSpecularHighlight}
-                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full border border-white/30 bg-blue-300/[0.08] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04),inset_0_-10px_22px_rgba(96,165,250,0.04),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-blue-200/[0.12] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.68),inset_0_0_0_1px_rgba(255,255,255,0.07),inset_0_-10px_24px_rgba(147,197,253,0.08),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:translate-y-0 active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none sm:px-7 sm:text-base`}
+                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full border border-white/30 bg-blue-300/[0.08] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04),inset_0_-10px_22px_rgba(96,165,250,0.04),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-blue-200/[0.12] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.68),inset_0_0_0_1px_rgba(255,255,255,0.07),inset_0_-10px_24px_rgba(147,197,253,0.08),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:translate-y-0 active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none sm:px-7 sm:text-base`}
                 >
                   <span aria-hidden className={styles.glassSheen} />
                   <span aria-hidden className={styles.refractionBorder} />
@@ -446,7 +483,7 @@ export function HomePageContent({
                   href="#how-it-works"
                   onPointerMove={moveSpecularHighlight}
                   onPointerLeave={resetSpecularHighlight}
-                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center overflow-hidden rounded-full border border-white/25 bg-white/[0.035] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),inset_0_0_0_1px_rgba(255,255,255,0.03),inset_0_-10px_22px_rgba(255,255,255,0.018),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-white/[0.08] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.65),inset_0_0_0_1px_rgba(255,255,255,0.06),inset_0_-10px_24px_rgba(255,255,255,0.04),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
+                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center overflow-hidden whitespace-nowrap rounded-full border border-white/25 bg-white/[0.035] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),inset_0_0_0_1px_rgba(255,255,255,0.03),inset_0_-10px_22px_rgba(255,255,255,0.018),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-white/[0.08] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.65),inset_0_0_0_1px_rgba(255,255,255,0.06),inset_0_-10px_24px_rgba(255,255,255,0.04),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
                 >
                   <span aria-hidden className={styles.glassSheen} />
                   <span aria-hidden className={`${styles.refractionBorder} ${styles.refractionBorderNeutral}`} />
@@ -477,7 +514,7 @@ export function HomePageContent({
           </div>
         </section>
 
-        <section className={`${styles.overviewBridge} relative z-20 px-5 sm:px-8`}>
+        <section className={`${styles.overviewBridge} relative z-20 shrink-0 px-5 sm:px-8`}>
           <div className={`${styles.reveal} ${styles.overviewGlass} mx-auto grid max-w-7xl overflow-hidden rounded-3xl border border-white/65 sm:grid-cols-2 lg:grid-cols-4`}>
             {TRUST_ITEMS.map(({ title, detail }, index) => (
               <div
@@ -492,6 +529,7 @@ export function HomePageContent({
             ))}
           </div>
         </section>
+        </div>
 
         <div className="relative overflow-hidden bg-slate-950 text-white">
           <div aria-hidden className="absolute inset-0">
@@ -827,6 +865,20 @@ export function HomePageContent({
           </div>
         </div>
       </footer>
+
+      {!isHeaderVisible ? (
+        <button
+          type="button"
+          aria-label="Back to top of home"
+          onClick={scrollToHome}
+          className={`${styles.liquidGlassControl} fixed bottom-6 right-6 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_32px_-12px_rgba(0,0,0,0.45)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300`}
+        >
+          <span aria-hidden className={styles.glassSheen} />
+          <svg aria-hidden viewBox="0 0 20 20" className="relative z-10 h-5 w-5" fill="none">
+            <path d="M10 15V5M5.5 9.5 10 5l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      ) : null}
     </div>
   );
 }
