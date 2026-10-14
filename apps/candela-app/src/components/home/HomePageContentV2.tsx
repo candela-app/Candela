@@ -146,7 +146,35 @@ export function HomePageContent({
   const [isHeaderVisible, setIsHeaderVisible] = React.useState(true);
   const [isProductMenuOpen, setIsProductMenuOpen] = React.useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = React.useState(false);
-  const dashboardLabel = authLoading ? 'Checking session…' : isAuthenticated ? 'Open Dashboard' : 'Get Started';
+
+  // Instant session detection to eliminate "Checking session..." delay
+  const [hasCachedSession, setHasCachedSession] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const hint = localStorage.getItem('candela_has_session');
+      if (hint === 'true') {
+        setHasCachedSession(true);
+      } else if (hint === 'false') {
+        setHasCachedSession(false);
+      }
+    } catch {
+      // Ignore storage errors in restricted browser modes
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!authLoading) {
+      try {
+        localStorage.setItem('candela_has_session', isAuthenticated ? 'true' : 'false');
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [authLoading, isAuthenticated]);
+
+  const isUserAuthenticated = isAuthenticated || (authLoading && hasCachedSession === true);
+  const dashboardLabel = isUserAuthenticated ? 'Open Dashboard' : 'Get Started';
 
   React.useEffect(() => {
     return () => {
@@ -356,7 +384,7 @@ export function HomePageContent({
               </nav>
 
               <div className="flex items-center gap-2">
-                {!isAuthenticated ? (
+                {!isUserAuthenticated ? (
                   <Link
                     href="/login"
                     className="rounded-xl px-3 py-2 text-sm font-extrabold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200"
@@ -428,11 +456,22 @@ export function HomePageContent({
         <div className="lg:flex lg:h-dvh lg:flex-col">
         <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-28 pt-32 text-white sm:px-8 lg:min-h-0 lg:flex-1">
           <div aria-hidden className="absolute inset-0">
-            <img
-              src="/hero-background.gif"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              poster="/hero-background.jpg"
+              className="absolute inset-0 h-full w-full object-cover object-center pointer-events-none"
+            >
+              <source src="/hero-background.mp4" type="video/mp4" />
+              <img
+                src="/hero-background.jpg"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-center"
+              />
+            </video>
             <div className="absolute inset-0 bg-slate-950/60" />
             <div className="absolute inset-0 bg-gradient-to-b from-slate-950/30 via-transparent to-slate-950/65" />
             <div className="absolute left-[12%] top-[5%] h-80 w-80 rounded-full bg-blue-600/25 blur-[100px]" />
@@ -458,11 +497,9 @@ export function HomePageContent({
                 <button
                   type="button"
                   onClick={onOpenDashboard}
-                  disabled={authLoading}
-                  aria-busy={authLoading}
                   onPointerMove={moveSpecularHighlight}
                   onPointerLeave={resetSpecularHighlight}
-                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full border border-white/30 bg-blue-300/[0.08] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04),inset_0_-10px_22px_rgba(96,165,250,0.04),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-blue-200/[0.12] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.68),inset_0_0_0_1px_rgba(255,255,255,0.07),inset_0_-10px_24px_rgba(147,197,253,0.08),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:translate-y-0 active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none sm:px-7 sm:text-base`}
+                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full border border-white/30 bg-blue-300/[0.08] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04),inset_0_-10px_22px_rgba(96,165,250,0.04),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-blue-200/[0.12] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.68),inset_0_0_0_1px_rgba(255,255,255,0.07),inset_0_-10px_24px_rgba(147,197,253,0.08),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
                 >
                   <span aria-hidden className={styles.glassSheen} />
                   <span aria-hidden className={styles.refractionBorder} />

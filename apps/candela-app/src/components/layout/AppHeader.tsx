@@ -73,9 +73,22 @@ export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
 
   useEffect(() => {
     fetchAnnouncements();
-    const interval = setInterval(fetchAnnouncements, 60000);
+
+    // Only poll periodically if user is logged in
+    if (!session) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      // Avoid making background requests when the tab is hidden
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+      fetchAnnouncements();
+    }, 180000); // 3 minutes instead of 60 seconds
+
     return () => clearInterval(interval);
-  }, [fetchAnnouncements]);
+  }, [fetchAnnouncements, session]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

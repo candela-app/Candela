@@ -30,6 +30,9 @@ function errorMessage(body: unknown, fallback: string): string {
       return message;
     }
   }
+  if (typeof body === 'string' && body.trim().length > 0) {
+    return body.trim();
+  }
   return fallback;
 }
 
@@ -76,9 +79,19 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     }
   }
 
+  // Gracefully retry on 429 once after 2 seconds (gives sleeping container time to finish booting)
+  if (res.status === 429 && retry) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return api<T>(path, init, false);
+  }
+
   const body = await parseBody(res);
   if (!res.ok) {
-    throw new ApiError(res.status, errorMessage(body, res.statusText));
+    const defaultFallback =
+      res.status === 429
+        ? 'Server is busy or waking up. Please wait a moment and try again.'
+        : res.statusText || `Request failed (${res.status})`;
+    throw new ApiError(res.status, errorMessage(body, defaultFallback));
   }
   return body as T;
 }
@@ -108,9 +121,18 @@ async function apiForm<T>(path: string, form: FormData, retry = true): Promise<T
     }
   }
 
+  if (res.status === 429 && retry) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return apiForm<T>(path, form, false);
+  }
+
   const body = await parseBody(res);
   if (!res.ok) {
-    throw new ApiError(res.status, errorMessage(body, res.statusText));
+    const defaultFallback =
+      res.status === 429
+        ? 'Server is busy or waking up. Please wait a moment and try again.'
+        : res.statusText || `Request failed (${res.status})`;
+    throw new ApiError(res.status, errorMessage(body, defaultFallback));
   }
   return body as T;
 }
