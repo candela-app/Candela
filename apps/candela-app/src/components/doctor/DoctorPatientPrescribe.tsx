@@ -64,18 +64,18 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
 
   return (
     <div>
-      <p className="text-sm font-semibold text-gray-700 mb-3">Prescribed modules</p>
-      <div className="mx-auto mb-4 flex max-w-lg rounded-2xl bg-gray-200 p-1">
+      <p className="mb-[13px] text-[13px] font-semibold text-gray-700">Prescribed modules</p>
+      <div className="mx-auto mb-[21px] flex w-full max-w-[576px] rounded-[13px] bg-gray-200 p-[8px]">
         <button
           type="button"
           onClick={() => selectCatalog('normal')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-[8px] rounded-[8px] py-[13px] text-[13px] font-semibold ${
             catalog === 'normal' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
           }`}
         >
-          Normal games
+          Standard games
           <span
-            className={`rounded-full px-2 py-0.5 text-[11px] ${
+            className={`rounded-full px-[8px] py-[8px] text-[13px] ${
               catalog === 'normal' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
             }`}
           >
@@ -85,13 +85,13 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
         <button
           type="button"
           onClick={() => selectCatalog('pediatric')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-[8px] rounded-[8px] py-[13px] text-[13px] font-semibold ${
             catalog === 'pediatric' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
           }`}
         >
           Pediatric games
           <span
-            className={`rounded-full px-2 py-0.5 text-[11px] ${
+            className={`rounded-full px-[8px] py-[8px] text-[13px] ${
               catalog === 'pediatric' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
             }`}
           >
@@ -100,9 +100,9 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
         </button>
       </div>
       {families.length === 0 ? (
-        <p className="text-sm text-gray-500">No pediatric games yet.</p>
+        <p className="text-[13px] text-gray-500">No pediatric games yet.</p>
       ) : (
-      <div className="space-y-3">
+      <div className="space-y-[13px]">
         {families.map((family) => {
           const familyOpen = openFamilyId === family.id;
           const prescribedInFamily = family.moduleIds.filter((id) =>
@@ -125,22 +125,22 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
           const famDuration = famSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
 
           return (
-            <div key={family.id} className="rounded-2xl border border-gray-100 overflow-hidden">
+            <div key={family.id} className="overflow-hidden rounded-[13px] border border-gray-100">
               <button
                 type="button"
                 onClick={() => {
                   setOpenFamilyId((current) => (current === family.id ? null : family.id));
                   setOpenModuleId(null);
                 }}
-                className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50 cursor-pointer"
+                className="flex w-full cursor-pointer items-center justify-between gap-[13px] px-[13px] py-[13px] text-left hover:bg-gray-50"
               >
                 <span>
-                  <span className="block text-sm font-bold text-gray-900">{family.title}</span>
-                  <span className="block text-xs text-gray-500">{family.body}</span>
+                  <span className="block text-[13px] font-semibold text-gray-900">{family.title}</span>
+                  <span className="mt-[8px] block text-[13px] text-gray-500">{family.body}</span>
                 </span>
-                <span className="flex items-center gap-2 shrink-0">
+                <span className="flex shrink-0 items-center gap-[8px]">
                   <span
-                    className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    className="rounded-full px-[8px] py-[8px] text-[13px] font-semibold"
                     style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
                   >
                     {prescribedInFamily}/{family.moduleIds.length}
@@ -152,27 +152,26 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
               </button>
 
               {familyOpen && (
-                <div className="px-4 pb-4 pt-3 border-t border-gray-100 bg-gray-50/60 space-y-3">
-                  {/* FAMILY LEVEL KPI SUMMARY CARDS */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="rounded-xl border border-gray-200/70 bg-white p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Sessions</p>
-                      <p className="text-lg font-extrabold text-gray-900 mt-0.5">{famCount}</p>
+                <div className="space-y-[13px] border-t border-gray-100 bg-gray-50/60 px-[13px] pb-[13px] pt-[13px]">
+                  <div className="grid grid-cols-2 gap-[13px] sm:grid-cols-4">
+                    <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
+                      <p className="text-[13px] font-bold uppercase tracking-wider text-blue-600">Sessions</p>
+                      <p className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{famCount}</p>
                     </div>
-                    <div className="rounded-xl border border-gray-200/70 bg-white p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Accuracy</p>
-                      <p className="text-lg font-extrabold text-gray-900 mt-0.5">{famAcc != null ? `${famAcc}%` : '—'}</p>
+                    <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
+                      <p className="text-[13px] font-bold uppercase tracking-wider text-emerald-600">Accuracy</p>
+                      <p className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{famAcc != null ? `${famAcc}%` : '—'}</p>
                     </div>
-                    <div className="rounded-xl border border-gray-200/70 bg-white p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Last played</p>
-                      <p className="text-lg font-extrabold text-gray-900 mt-0.5 truncate">{famLast}</p>
+                    <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
+                      <p className="text-[13px] font-bold uppercase tracking-wider text-amber-600">Last played</p>
+                      <p className="mt-[8px] truncate text-[21px] font-semibold leading-none text-gray-900">{famLast}</p>
                     </div>
-                    <div className="rounded-xl border border-gray-200/70 bg-white p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Time spent</p>
-                      <p className="text-lg font-extrabold text-gray-900 mt-0.5">{formatSessionDuration(famDuration)}</p>
+                    <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
+                      <p className="text-[13px] font-bold uppercase tracking-wider text-violet-600">Time spent</p>
+                      <p className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{formatSessionDuration(famDuration)}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div className="grid grid-cols-1 items-start gap-[13px] sm:grid-cols-2">
                     {family.moduleIds.map((moduleId) => {
                       const mod = GAME_CATALOG[moduleId];
                       const card = MODULE_CARDS.find(
@@ -202,7 +201,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                       return (
                         <div
                           key={mod.id}
-                          className={`relative overflow-hidden rounded-2xl bg-white border ${
+                          className={`relative overflow-hidden rounded-[13px] border bg-white ${
                             moduleOpen
                               ? 'border-blue-400 ring-2 ring-blue-100'
                               : 'border-gray-100'
@@ -217,36 +216,36 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                             onClick={() =>
                               setOpenModuleId((current) => (current === mod.id ? null : mod.id))
                             }
-                            className="w-full text-left p-4 hover:bg-gray-50 cursor-pointer"
+                            className="w-full cursor-pointer p-[13px] text-left hover:bg-gray-50"
                           >
-                            <div className="pt-1 flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-[8px] pt-[8px]">
                               <div>
-                                <span className="block font-bold text-gray-900">
+                                <span className="block text-[13px] font-semibold text-gray-900">
                                   {card?.title || mod.name}
                                 </span>
-                                <span className="block text-xs text-gray-500 mt-1 leading-relaxed">
+                                <span className="mt-[8px] block text-[13px] leading-relaxed text-gray-500">
                                   {card?.body || mod.description}
                                 </span>
 
-                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                  <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-semibold text-gray-600">
+                                <div className="mt-[13px] flex flex-wrap items-center gap-[8px]">
+                                  <span className="rounded-[8px] bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-600">
                                     Sessions {modCount}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-semibold text-gray-600">
+                                  <span className="rounded-[8px] bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-600">
                                     Accuracy {modAcc != null ? `${modAcc}%` : '—'}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-semibold text-gray-600">
+                                  <span className="rounded-[8px] bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-600">
                                     Last played {modLast}
                                   </span>
                                 </div>
                               </div>
-                              <span className="flex items-center gap-2 shrink-0">
+                              <span className="flex shrink-0 items-center gap-[8px]">
                                 {on ? (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                                  <span className="rounded-full bg-emerald-50 px-[8px] py-[8px] text-[13px] font-semibold text-emerald-700">
                                     On
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500">
+                                  <span className="rounded-full bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-500">
                                     Off
                                   </span>
                                 )}
@@ -258,26 +257,26 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                           </button>
 
                           {moduleOpen && (
-                            <div className="px-4 pb-4 border-t border-gray-100">
-                              <div className="flex items-center justify-end pt-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                            <div className="border-t border-gray-100 px-[13px] pb-[13px]">
+                              <div className="flex items-center justify-end pt-[13px]">
+                                <label className="flex cursor-pointer items-center gap-[8px]">
                                   <input
                                     type="checkbox"
                                     checked={on}
                                     onChange={(e) => onToggleModule(mod.id, e.target.checked)}
                                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                   />
-                                  <span className="text-sm font-semibold text-gray-700">Prescribe</span>
+                                  <span className="text-[13px] font-semibold text-gray-700">Prescribe</span>
                                 </label>
                               </div>
                               {levels.length > 0 ? (
-                                <div className="mt-3 grid grid-cols-1 gap-2">
+                                <div className="mt-[13px] grid grid-cols-1 gap-[8px]">
                                   {levels.map((level) => {
                                     const levelOn = selectedLevels.includes(level.id);
                                     return (
                                       <label
                                         key={level.id}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                                        className={`flex items-center gap-[8px] rounded-[8px] border px-[13px] py-[13px] ${
                                           on
                                             ? 'cursor-pointer bg-gray-50 border-gray-200'
                                             : 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-100'
@@ -292,7 +291,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                                           }
                                           className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">
+                                        <span className="text-[13px] font-medium text-gray-700">
                                           {level.name}
                                         </span>
                                       </label>
@@ -300,7 +299,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                                   })}
                                 </div>
                               ) : (
-                                <p className="text-xs text-gray-500 mt-3">
+                                <p className="mt-[13px] text-[13px] text-gray-500">
                                   Turn prescribe on to assign this module. There are no extra levels.
                                 </p>
                               )}

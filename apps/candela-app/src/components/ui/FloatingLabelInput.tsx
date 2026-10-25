@@ -22,6 +22,8 @@ type FloatingLabelInputProps = {
   error?: string;
   id?: string;
   className?: string;
+  /** Dashboard chrome: 13px type, 13px radius, 55px field. */
+  scale?: 'default' | 'golden';
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
   disabled?: boolean;
   required?: boolean;
@@ -77,6 +79,7 @@ export function FloatingLabelInput({
   name,
   endAdornment,
   autoFocus,
+  scale = 'default',
 }: FloatingLabelInputProps) {
   const genId = useId();
   const id = idProp ?? genId;
@@ -88,6 +91,7 @@ export function FloatingLabelInput({
   const [autofilled, setAutofilled] = useState(false);
 
   const floated = focused || value.length > 0 || autofilled;
+  const golden = scale === 'golden';
   const theme = shellByVariant[variant];
   const notchBg = variant === 'dark' ? '#141414' : '#ffffff';
 
@@ -134,9 +138,9 @@ export function FloatingLabelInput({
 
   return (
     <div className={className}>
-      <div className={`relative floating-label-field ${disabled ? 'opacity-60' : ''}`}>
+      <div className={`relative floating-label-field ${golden ? 'floating-label-field--golden' : ''} ${disabled ? 'opacity-60' : ''}`}>
         <div
-          className={`relative rounded-xl border transition-all ${theme.wrap} ${
+          className={`relative border transition-all ${golden ? 'rounded-[13px]' : 'rounded-xl'} ${theme.wrap} ${
             error ? 'border-rose-500 focus-within:border-rose-500 focus-within:ring-rose-500/20' : ''
           }`}
         >
@@ -162,30 +166,34 @@ export function FloatingLabelInput({
               const el = inputRef.current;
               if (el && (el.value || isWebkitAutofilled(el))) setAutofilled(true);
             }}
-            className={`floating-label-input peer w-full bg-transparent outline-none text-sm font-medium px-4 py-3.5 ${
-              endAdornment ? 'pr-12' : ''
+            className={`floating-label-input peer w-full bg-transparent outline-none ${
+              golden
+                ? `min-h-[55px] px-[13px] py-[13px] text-[13px] font-semibold ${endAdornment ? 'pr-[55px]' : ''}`
+                : `px-4 py-3.5 text-sm font-medium ${endAdornment ? 'pr-12' : ''}`
             } ${variant === 'dark' ? 'floating-label-input--dark' : ''} ${theme.input}`}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${id}-error` : undefined}
           />
           {endAdornment ? (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 z-[1]">{endAdornment}</div>
+            <div className={`absolute top-1/2 z-[1] -translate-y-1/2 ${golden ? 'right-[13px]' : 'right-3'}`}>{endAdornment}</div>
           ) : null}
         </div>
         <label
           htmlFor={id}
           style={floated ? { backgroundColor: notchBg } : undefined}
-          className={`floating-label-notch pointer-events-none absolute left-3 z-10 transition-all duration-150 ${
+          className={`floating-label-notch pointer-events-none absolute z-10 transition-all duration-150 ${
+            golden ? 'left-[13px]' : 'left-3'
+          } ${
             floated
-              ? `top-0 -translate-y-1/2 px-1.5 text-[11px] font-semibold tracking-wide ${theme.labelActive}`
-              : `top-1/2 -translate-y-1/2 px-1 text-sm font-semibold ${theme.labelIdle}`
+              ? `top-0 -translate-y-1/2 font-semibold ${golden ? 'px-[8px] text-[13px]' : 'px-1.5 text-[11px] tracking-wide'} ${theme.labelActive}`
+              : `top-1/2 -translate-y-1/2 font-semibold ${golden ? 'px-[8px] text-[13px]' : 'px-1 text-sm'} ${theme.labelIdle}`
           }`}
         >
           {label}
         </label>
       </div>
       {error ? (
-        <p id={`${id}-error`} className="mt-1.5 text-xs font-medium text-rose-500">
+        <p id={`${id}-error`} className={golden ? 'mt-[8px] text-[13px] font-medium text-rose-500' : 'mt-1.5 text-xs font-medium text-rose-500'}>
           {error}
         </p>
       ) : null}
@@ -205,6 +213,7 @@ export function FloatingLabelPasswordInput({
   disabled,
   required,
   minLength,
+  scale,
 }: Omit<FloatingLabelInputProps, 'type' | 'endAdornment' | 'inputMode'>) {
   const [visible, setVisible] = useState(false);
   const iconClass =
@@ -226,6 +235,7 @@ export function FloatingLabelPasswordInput({
       disabled={disabled}
       required={required}
       minLength={minLength}
+      scale={scale}
       endAdornment={
         <button
           type="button"

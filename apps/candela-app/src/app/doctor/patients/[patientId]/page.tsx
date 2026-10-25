@@ -16,26 +16,28 @@ import { DoctorPatientAnalytics } from '@/components/doctor/DoctorPatientAnalyti
 import { AnalyticsIcon } from '@/components/icons/VectorIcons';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 function SummaryCard({
   label,
   value,
   hint,
-  labelColor,
+  index,
 }: {
   label: string;
   value: string;
-  hint?: string;
-  labelColor: string;
+  hint: string;
+  index: number;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4">
-      <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
-        {label}
-      </p>
-      <p className="text-2xl font-extrabold text-gray-900 mt-1">{value}</p>
-      {hint ? <p className="text-xs text-gray-500 mt-1">{hint}</p> : null}
+    <div className="flex h-full items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+      <div className="min-w-0">
+        <p className="text-[13px] leading-[21px] text-gray-900">
+          <span className="kpi-draw" style={{ '--kpi-delay': `${index * 180}ms` } as CSSProperties}>{label}</span>
+        </p>
+        <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{hint}</p>
+      </div>
+      <p className="shrink-0 whitespace-nowrap text-[34px] font-semibold leading-none tabular-nums text-gray-900">{value}</p>
     </div>
   );
 }
@@ -47,13 +49,13 @@ function ProfileSkeleton() {
         <Skeleton className="h-8 w-48 mb-2" />
         <Skeleton className="h-4 w-72" />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
+      <div className="grid grid-cols-2 gap-[13px] lg:grid-cols-4">
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
       </div>
-      <Skeleton className="h-96 rounded-3xl" />
+      <Skeleton className="h-96 rounded-[13px]" />
     </main>
   );
 }
@@ -71,7 +73,7 @@ export default function DoctorPatientProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#F4F7FC]">
+        <div className="min-h-screen page-wash">
           <AppHeader onBack={() => goToPreviousPage(router)} />
           <ProfileSkeleton />
         </div>
@@ -224,7 +226,7 @@ function DoctorPatientProfile() {
 
   if (loading || dataLoading || !session || session.user.role !== 'doctor') {
     return (
-      <div className="min-h-screen bg-[#F4F7FC]">
+      <div className="min-h-screen page-wash">
         <AppHeader onBack={() => goToPreviousPage(router)} />
         <ProfileSkeleton />
       </div>
@@ -232,13 +234,13 @@ function DoctorPatientProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC]">
+    <div className="min-h-screen page-wash">
       <AppHeader
         onBack={() => goToPreviousPage(router)}
         extra={
           session.doctor ? (
-            <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
-              <span className="font-mono text-sm font-bold text-blue-700">
+            <div className="flex items-center gap-[8px] rounded-[8px] border border-blue-200/60 bg-blue-50 px-[13px] py-[8px]">
+              <span className="font-mono text-[13px] font-semibold text-blue-700">
                 {session.doctor.referralCode}
               </span>
               <CopyButton text={session.doctor.referralCode} label="DocID" iconSize={13} />
@@ -247,69 +249,69 @@ function DoctorPatientProfile() {
         }
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+      <main className="mx-auto max-w-[930px] space-y-[34px] px-[21px] py-[34px]">
         {!patient && (
-          <section className="bg-white rounded-3xl border border-gray-100 p-8 text-center">
-            <h1 className="text-xl font-extrabold text-gray-900">Patient not found</h1>
-            <p className="text-sm text-gray-500 mt-2">{error || 'This patient is not on your list.'}</p>
+          <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] text-center shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+            <h1 className="text-[21px] font-semibold text-gray-900">Patient not found</h1>
+            <p className="mt-[8px] text-[13px] text-gray-500">{error || 'This patient is not on your list.'}</p>
           </section>
         )}
 
         {patient && (
           <>
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-[13px]">
               <div>
-                <h1 className="text-3xl font-extrabold text-gray-900">{patient.name}</h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <h1 className="text-[34px] font-semibold leading-none text-gray-900">{patient.name}</h1>
+                <p className="mt-[8px] text-[13px] text-gray-500">
                   {patient.email} · {patient.phone}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-[8px]">
                 {!isAnalytics && (
                   <button
                     type="button"
                     onClick={() => router.push(`/doctor/patients/${patient.id}?view=analytics`)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-semibold text-[13px] hover:border-blue-200 cursor-pointer"
+                    className="flex cursor-pointer items-center gap-[8px] rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 hover:border-blue-200"
                     title="View Session Analytics"
                   >
-                    <AnalyticsIcon className="w-[18px] h-[18px] text-blue-600" />
+                    <AnalyticsIcon className="h-[13px] w-[13px] text-blue-600" />
                     <span className="hidden sm:inline">Analytics</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => toast.info('Coming soon.')}
-                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold text-gray-800 hover:border-blue-200 hover:text-blue-700 cursor-pointer"
+                  className="cursor-pointer rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 hover:border-blue-200 hover:text-blue-700"
                 >
                   Other device games
                 </button>
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+            {error && <p className="text-[13px] font-medium text-red-600">{error}</p>}
 
             {isAnalytics ? (
               <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
             ) : (
               <>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 items-stretch gap-[13px] md:grid-cols-2">
                   <SummaryCard
                     label="Sessions"
                     value={String(sessions.length)}
-                    hint={sessions.length ? 'Finished games saved' : 'No sessions yet'}
-                    labelColor="#2563EB"
+                    hint={sessions.length === 1 ? '1 finished play' : `${sessions.length} finished plays`}
+                    index={0}
                   />
                   <SummaryCard
                     label="Last played"
                     value={lastPlayed}
-                    hint={sessions.length ? 'Most recent saved session' : 'Not stored yet'}
-                    labelColor="#D97706"
+                    hint={sessions.length ? 'Most recent session' : 'Not played yet'}
+                    index={1}
                   />
                   <SummaryCard
                     label="Accuracy"
                     value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
-                    hint={avgAccuracy != null ? 'Mean of saved sessions' : 'Not stored yet'}
-                    labelColor="#059669"
+                    hint={avgAccuracy != null ? 'Mean score' : 'No plays yet'}
+                    index={2}
                   />
                   <SummaryCard
                     label="Prescribed"
@@ -319,11 +321,11 @@ function DoctorPatientProfile() {
                         ? '1 activity'
                         : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`
                     }
-                    labelColor="#7C3AED"
+                    index={3}
                   />
                 </div>
 
-                <section className="bg-white rounded-3xl border border-gray-100 p-6">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                   <DoctorPatientPrescribe
                     patient={patient}
                     sessions={sessions}

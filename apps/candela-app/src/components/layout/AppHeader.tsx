@@ -215,7 +215,8 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
         </div>
       ))}
 
-      <header className="sticky top-0 z-40 min-h-[72px] flex flex-row items-center justify-between px-4 sm:px-6 py-3 bg-white/95 backdrop-blur-md border-b border-[#F3F4F6] gap-2">
+      <div className="px-[13px] pt-[13px]">
+      <header className="header-glass sticky top-[13px] z-40 mb-[13px] flex h-[55px] flex-row items-center justify-between gap-[8px] rounded-[13px] px-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
         <div className="flex-1 flex items-center min-w-0 gap-1">
           {leading}
           {showBack ? (
@@ -235,7 +236,7 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
               className="text-left py-1 cursor-pointer truncate max-w-full"
               title="Go home"
             >
-              <span className="block truncate text-base font-bold text-shell-text">{session.user.name}</span>
+              <span className="block truncate text-[21px] font-semibold leading-none text-shell-text">{session.user.name}</span>
             </button>
           ) : (
             <Link
@@ -448,6 +449,7 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
           )}
         </div>
       </header>
+      </div>
 
       {session?.user.role === 'patient' && (
         <EditPatientNameModal

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { GAME_CATALOG, GAME_FAMILIES, PEDIATRIC_GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { AnalyticsIcon, BellIcon, CheckIcon, ChevronUpIcon, LogOutIcon, MonitorIcon, SearchIcon, SideDockIcon, SlidersIcon, UserIcon, UsersIcon, XIcon } from '../src/components/icons';
@@ -68,16 +69,12 @@ function SummaryCard({
   label,
   value,
   hint,
-  labelColor,
-  isTablet,
   fs,
   s,
 }: {
   label: string;
   value: string;
-  hint?: string;
-  labelColor: string;
-  isTablet: boolean;
+  hint: string;
   fs: (n: number) => number;
   s: (n: number) => number;
 }) {
@@ -85,19 +82,24 @@ function SummaryCard({
     <View
       style={{
         flexGrow: 1,
-        flexBasis: isTablet ? '22%' : '47%',
+        flexBasis: '47%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: s(13),
         backgroundColor: colors.white,
-        borderRadius: s(16),
-        padding: s(14),
+        borderRadius: s(13),
+        padding: s(21),
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: '#E5E7EB',
+        ...cardShadow,
       }}
     >
-      <Text style={{ fontSize: fs(11), fontWeight: '700', color: labelColor, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-        {label}
-      </Text>
-      <Text style={{ fontSize: fs(22), fontWeight: '800', color: colors.text, marginTop: s(4) }}>{value}</Text>
-      {hint ? <Text style={{ fontSize: fs(11), color: colors.muted, marginTop: s(4) }}>{hint}</Text> : null}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.text }}>{label}</Text>
+        <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{hint}</Text>
+      </View>
+      <Text style={{ fontSize: fs(34), fontWeight: '600', color: colors.text }}>{value}</Text>
     </View>
   );
 }
@@ -106,6 +108,7 @@ export default function DoctorScreen() {
   const router = useRouter();
   const { session, loading, logout } = useAuth();
   const { fs, s, pad, isTablet } = useLayout();
+  const insets = useSafeAreaInsets();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -362,16 +365,16 @@ export default function DoctorScreen() {
       <View style={{ flex: 1, backgroundColor: colors.page }}>
         <AppHeader onBack={closeAnalytics} extra={referralExtra} />
         <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
-          <Text style={{ fontSize: fs(28), fontWeight: '800' }}>{selected.name}</Text>
+          <Text style={{ fontSize: fs(21), fontWeight: '600' }}>{selected.name}</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(20) }}>
             {selected.email} · {selected.phone}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10), marginBottom: s(16) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(13), marginBottom: s(21) }}>
             <View
               style={{
                 width: s(40),
                 height: s(40),
-                borderRadius: s(12),
+                borderRadius: s(13),
                 backgroundColor: '#EFF6FF',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -389,8 +392,8 @@ export default function DoctorScreen() {
               style={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                borderRadius: s(12),
-                paddingHorizontal: s(12),
+                borderRadius: s(13),
+                paddingHorizontal: s(13),
                 paddingVertical: s(8),
                 backgroundColor: colors.white,
               }}
@@ -415,12 +418,12 @@ export default function DoctorScreen() {
     transfers: 'Transfer requests',
     settings: 'Settings',
   };
-  const phoneNav: { id: PhoneSection; label: string; icon: typeof UsersIcon; badge?: number }[] = [
+  const phoneNav: { id: PhoneSection; label: string; icon: typeof UsersIcon }[] = [
     { id: 'overview', label: 'Overview', icon: MonitorIcon },
-    { id: 'patients', label: 'My patients', icon: UsersIcon, badge: patients.length },
+    { id: 'patients', label: 'My patients', icon: UsersIcon },
     { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
-    { id: 'transfers', label: 'Transfer requests', icon: BellIcon, badge: incoming.length },
+    { id: 'transfers', label: 'Transfer requests', icon: BellIcon },
     { id: 'settings', label: 'Settings', icon: UserIcon },
   ];
   const prescribedPatientCount = patients.filter((patient) => patient.prescribedModuleIds.length > 0).length;
@@ -437,10 +440,11 @@ export default function DoctorScreen() {
     <View
       style={{
         backgroundColor: colors.white,
-        borderRadius: s(24),
+        borderRadius: s(13),
         borderWidth: 1,
         borderColor: colors.border,
-        padding: s(12),
+        padding: s(13),
+        gap: s(8),
         ...cardShadow,
       }}
     >
@@ -455,32 +459,16 @@ export default function DoctorScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               gap: s(8),
-              borderRadius: s(12),
-              paddingHorizontal: s(12),
-              paddingVertical: s(10),
-              backgroundColor: active ? colors.blue : 'transparent',
+              borderRadius: s(8),
+              paddingHorizontal: s(13),
+              paddingVertical: s(13),
+              backgroundColor: active ? '#111827' : 'transparent',
             }}
           >
             <Icon size={s(16)} color={active ? colors.white : '#374151'} />
-            <Text style={{ flex: 1, fontSize: fs(14), fontWeight: '600', color: active ? colors.white : '#374151' }}>
+            <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600', color: active ? colors.white : '#374151' }}>
               {item.label}
             </Text>
-            {item.badge ? (
-              <Text
-                style={{
-                  fontSize: fs(11),
-                  fontWeight: '700',
-                  color: active ? colors.white : colors.blue,
-                  backgroundColor: active ? 'rgba(255,255,255,0.2)' : '#EFF6FF',
-                  paddingHorizontal: s(8),
-                  paddingVertical: s(2),
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                }}
-              >
-                {item.badge}
-              </Text>
-            ) : null}
           </Pressable>
         );
       })}
@@ -493,14 +481,14 @@ export default function DoctorScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           gap: s(8),
-          borderRadius: s(12),
-          paddingHorizontal: s(12),
-          paddingVertical: s(10),
-          marginTop: s(8),
+          borderRadius: s(8),
+          paddingHorizontal: s(13),
+          paddingVertical: s(13),
+          marginTop: s(13),
         }}
       >
         <LogOutIcon size={s(16)} color="#DC2626" />
-        <Text style={{ fontSize: fs(14), fontWeight: '600', color: '#DC2626' }}>Sign out</Text>
+        <Text style={{ fontSize: fs(13), fontWeight: '600', color: '#DC2626' }}>Sign out</Text>
       </Pressable>
     </View>
     );
@@ -527,7 +515,7 @@ export default function DoctorScreen() {
       />
       <Modal visible={navOpen && !isTablet} transparent animationType="fade" onRequestClose={() => setNavOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' }} onPress={() => setNavOpen(false)}>
-          <View style={{ marginTop: s(88), marginLeft: s(16), width: s(220) }}>
+          <View style={{ marginTop: insets.top + s(68), marginLeft: s(13), width: s(220) }}>
             {renderNav()}
           </View>
         </Pressable>
@@ -540,12 +528,12 @@ export default function DoctorScreen() {
         ) : null}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
         {!phoneProfile ? (
-          <Text style={{ fontSize: fs(28), fontWeight: '800', marginBottom: s(16) }}>{sectionTitle[phoneSection]}</Text>
+          <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(34) }}>{sectionTitle[phoneSection]}</Text>
         ) : null}
-        {error ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{error}</Text> : null}
+        {error ? <Text style={{ color: colors.red, marginBottom: s(13) }}>{error}</Text> : null}
 
         {!phoneProfile && phoneSection === 'overview' ? (
-          <View style={{ gap: s(10), marginBottom: s(16) }}>
+          <View style={{ gap: s(13), marginBottom: s(34) }}>
             {[
               { label: 'Assigned patients', value: String(patients.length), hint: 'Patients you can open', color: '#2563EB' },
               { label: 'Pending transfers', value: String(incoming.length), hint: 'Attach and change requests', color: '#D97706' },
@@ -553,11 +541,11 @@ export default function DoctorScreen() {
             ].map((card) => (
               <View
                 key={card.label}
-                style={{ backgroundColor: colors.white, borderRadius: s(16), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}
+                style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}
               >
-                <Text style={{ fontSize: fs(11), fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: card.color }}>{card.label}</Text>
-                <Text style={{ fontSize: fs(24), fontWeight: '800', color: colors.text, marginTop: s(4) }}>{card.value}</Text>
-                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(4) }}>{card.hint}</Text>
+                <Text style={{ fontSize: fs(13), fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: card.color }}>{card.label}</Text>
+                <Text style={{ fontSize: fs(34), fontWeight: '600', color: colors.text, marginTop: s(8) }}>{card.value}</Text>
+                <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{card.hint}</Text>
               </View>
             ))}
           </View>
@@ -567,16 +555,16 @@ export default function DoctorScreen() {
           <View
             style={{
               backgroundColor: colors.white,
-              borderRadius: s(20),
-              padding: s(16),
+              borderRadius: s(13),
+              padding: s(21),
               borderWidth: 1,
               borderColor: '#BFDBFE',
-              marginBottom: s(16),
+              marginBottom: s(21),
               ...cardShadow,
             }}
           >
-            <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(4) }}>Incoming attach requests</Text>
-            <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(12) }}>
+            <Text style={{ fontSize: fs(21), fontWeight: '700', marginBottom: s(4) }}>Incoming attach requests</Text>
+            <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(13) }}>
               Patients asked to join or switch to your DocID. Confirm or reject here if the email is delayed.
             </Text>
             {incoming.map((request) => (
@@ -585,25 +573,25 @@ export default function DoctorScreen() {
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  borderRadius: s(14),
-                  padding: s(12),
+                  borderRadius: s(13),
+                  padding: s(13),
                   marginBottom: s(8),
                 }}
               >
-                <Text style={{ fontWeight: '700', fontSize: fs(14) }}>{request.patientName}</Text>
-                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>
+                <Text style={{ fontWeight: '700', fontSize: fs(13) }}>{request.patientName}</Text>
+                <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(2) }}>
                   {request.patientEmail}
                   {request.source === 'change' ? ' · reassignment' : ' · new attach'}
                 </Text>
-                <View style={{ flexDirection: 'row', gap: s(8), marginTop: s(10) }}>
+                <View style={{ flexDirection: 'row', gap: s(8), marginTop: s(13) }}>
                   <Pressable
                     onPress={() => void settleIncoming(request.id, true)}
                     disabled={incomingBusy === request.id}
                     style={{
                       flex: 1,
                       backgroundColor: colors.blue,
-                      borderRadius: s(10),
-                      paddingVertical: s(10),
+                      borderRadius: s(8),
+                      paddingVertical: s(13),
                       alignItems: 'center',
                       opacity: incomingBusy === request.id ? 0.6 : 1,
                     }}
@@ -616,8 +604,8 @@ export default function DoctorScreen() {
                     style={{
                       flex: 1,
                       backgroundColor: '#F3F4F6',
-                      borderRadius: s(10),
-                      paddingVertical: s(10),
+                      borderRadius: s(8),
+                      paddingVertical: s(13),
                       alignItems: 'center',
                       opacity: incomingBusy === request.id ? 0.6 : 1,
                     }}
@@ -635,9 +623,9 @@ export default function DoctorScreen() {
             style={{
               flexDirection: 'row',
               backgroundColor: '#E5E7EB',
-              borderRadius: s(14),
+              borderRadius: s(13),
               padding: s(4),
-              marginBottom: s(16),
+              marginBottom: s(21),
             }}
           >
             <Pressable
@@ -646,8 +634,8 @@ export default function DoctorScreen() {
               accessibilityState={{ selected: phoneTab === 'create' }}
               style={{
                 flex: 1,
-                paddingVertical: s(10),
-                borderRadius: s(11),
+                paddingVertical: s(13),
+                borderRadius: s(8),
                 backgroundColor: phoneTab === 'create' ? colors.white : 'transparent',
                 alignItems: 'center',
               }}
@@ -662,63 +650,61 @@ export default function DoctorScreen() {
               accessibilityState={{ selected: phoneTab === 'patients' }}
               style={{
                 flex: 1,
-                paddingVertical: s(10),
-                borderRadius: s(11),
+                paddingVertical: s(13),
+                borderRadius: s(8),
                 backgroundColor: phoneTab === 'patients' ? colors.white : 'transparent',
                 alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                gap: s(6),
               }}
             >
               <Text style={{ fontWeight: '700', fontSize: fs(13), color: phoneTab === 'patients' ? colors.blue : colors.muted }}>
                 Patients
-              </Text>
-              <Text
-                style={{
-                  fontSize: fs(11),
-                  fontWeight: '700',
-                  color: phoneTab === 'patients' ? colors.blue : colors.muted,
-                  backgroundColor: phoneTab === 'patients' ? '#EFF6FF' : '#F3F4F6',
-                  paddingHorizontal: s(7),
-                  paddingVertical: s(1),
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                }}
-              >
-                {patients.length}
               </Text>
             </Pressable>
           </View>
         ) : null}
 
         {!phoneProfile && phoneSection === 'patients' && phoneTab === 'create' ? (
-        <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16), ...cardShadow }}>
-          <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
-          <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
-          <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <FloatingLabelPasswordInput label="Password (min 8)" value={password} onChangeText={setPassword} />
+        <View style={{ backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, marginBottom: s(21), ...cardShadow }}>
+          <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(21) }}>Create patient</Text>
+          <FloatingLabelInput label="Name" value={name} onChangeText={setName} scale="golden" />
+          <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" scale="golden" />
+          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" scale="golden" />
+          <FloatingLabelPasswordInput label="Password (min 8)" value={password} onChangeText={setPassword} scale="golden" style={{ marginBottom: s(21) }} />
           <Pressable
             onPress={() => void onCreatePatient()}
             disabled={saving}
-            style={{ backgroundColor: colors.blue, borderRadius: s(12), padding: s(14), alignItems: 'center', opacity: saving ? 0.6 : 1 }}
+            style={{ alignSelf: 'flex-start', backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(21), paddingVertical: s(13), alignItems: 'center', opacity: saving ? 0.6 : 1 }}
           >
-            <Text style={{ color: colors.white, fontWeight: '700' }}>{saving ? 'Creating…' : 'Create patient'}</Text>
+            <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>{saving ? 'Creating…' : 'Create patient'}</Text>
           </Pressable>
         </View>
         ) : null}
 
         {phoneProfile || (phoneSection === 'patients' && phoneTab === 'patients') ? (
-        <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
+        <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(13) }}>
           {isTablet || !selected ? (
-          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: s(10) }}>
-              <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Patients</Text>
-              <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999, marginLeft: s(8) }}>
-                {patients.length}
-              </Text>
-              <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(13), marginBottom: s(13) }}>
+              {searchOpen ? (
+                <View style={{ flex: 1 }}>
+                  <FloatingLabelInput
+                    label="Search patient name, email..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoFocus
+                    scale="golden"
+                    style={{ marginBottom: 0 }}
+                  />
+                </View>
+              ) : (
+                <>
+                  <Text style={{ fontSize: fs(21), fontWeight: '600' }}>Patients</Text>
+                  <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(8), borderRadius: 999 }}>
+                    {patients.length}
+                  </Text>
+                  <View style={{ flex: 1 }} />
+                </>
+              )}
               <Pressable
                 onPress={() => {
                   if (searchOpen) {
@@ -734,7 +720,7 @@ export default function DoctorScreen() {
                 style={{
                   width: s(36),
                   height: s(36),
-                  borderRadius: s(12),
+                  borderRadius: s(13),
                   backgroundColor: searchOpen ? '#EFF6FF' : '#F3F4F6',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -743,31 +729,13 @@ export default function DoctorScreen() {
                 {searchOpen ? <XIcon size={s(16)} color={colors.blue} /> : <SearchIcon size={s(18)} color={colors.muted} />}
               </Pressable>
             </View>
-            {searchOpen ? (
-              <FloatingLabelInput
-                label="Search patient name, email..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-                style={{ marginBottom: s(12) }}
-                endAdornment={
-                  searchQuery ? (
-                    <Pressable onPress={() => setSearchQuery('')} accessibilityLabel="Clear search" hitSlop={8}>
-                      <XIcon size={s(14)} color="#9CA3AF" />
-                    </Pressable>
-                  ) : (
-                    <SearchIcon size={s(16)} color="#9CA3AF" />
-                  )
-                }
-              />
-            ) : null}
             {patients.length === 0 ? (
               <View style={{ paddingVertical: s(8) }}>
                 <Text style={{ color: colors.muted }}>No patients yet.</Text>
                 {!isTablet ? (
                   <Pressable
                     onPress={() => setPhoneTab('create')}
-                    style={{ marginTop: s(12), backgroundColor: colors.blue, borderRadius: s(12), padding: s(12), alignItems: 'center' }}
+                    style={{ marginTop: s(13), backgroundColor: colors.blue, borderRadius: s(13), padding: s(13), alignItems: 'center' }}
                   >
                     <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(13) }}>Create a patient</Text>
                   </Pressable>
@@ -777,8 +745,8 @@ export default function DoctorScreen() {
             {patients.length > 0 && filteredPatients.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: s(16) }}>
                 <SearchIcon size={s(28)} color="#D1D5DB" />
-                <Text style={{ color: colors.muted, textAlign: 'center', marginTop: s(8), fontSize: fs(12), fontWeight: '600' }}>No patients found</Text>
-                <Text style={{ color: '#9CA3AF', fontSize: fs(11), marginTop: s(2) }}>No match for "{searchQuery}"</Text>
+                <Text style={{ color: colors.muted, textAlign: 'center', marginTop: s(8), fontSize: fs(13), fontWeight: '600' }}>No patients found</Text>
+                <Text style={{ color: '#9CA3AF', fontSize: fs(13), marginTop: s(2) }}>No match for "{searchQuery}"</Text>
               </View>
             ) : null}
             {filteredPatients.map((patient) => (
@@ -791,9 +759,9 @@ export default function DoctorScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: s(12),
+                  gap: s(13),
                   borderRadius: isTablet ? s(12) : 0,
-                  padding: s(12),
+                  padding: s(13),
                   marginBottom: isTablet ? s(8) : 0,
                   borderBottomWidth: isTablet ? 0 : 1,
                   borderBottomColor: '#E5E7EB',
@@ -805,19 +773,19 @@ export default function DoctorScreen() {
                     style={{
                       width: s(40),
                       height: s(40),
-                      borderRadius: s(20),
+                      borderRadius: s(13),
                       backgroundColor: colors.blue,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(12) }}>{patientInitials(patient.name)}</Text>
+                    <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(13) }}>{patientInitials(patient.name)}</Text>
                   </View>
                 ) : null}
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontWeight: '700', color: isTablet && selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
                   {isTablet ? (
-                    <Text style={{ fontSize: fs(12), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
+                    <Text style={{ fontSize: fs(13), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
                       {patient.email} · {patient.phone}
                     </Text>
                   ) : null}
@@ -828,10 +796,10 @@ export default function DoctorScreen() {
           ) : null}
 
           {selected ? (
-          <View style={{ flex: isTablet ? 2 : undefined, alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
-                <View style={{ gap: s(8), marginBottom: s(12) }}>
+          <View style={{ flex: isTablet ? 2 : undefined, alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+                <View style={{ gap: s(8), marginBottom: s(13) }}>
                   <View>
-                    <Text style={{ fontSize: fs(17), fontWeight: '700' }}>{selected.name}</Text>
+                    <Text style={{ fontSize: fs(21), fontWeight: '700' }}>{selected.name}</Text>
                     <Text style={{ color: colors.muted, marginTop: s(2), fontSize: fs(13) }}>
                       {selected.email} · {selected.phone}
                     </Text>
@@ -848,8 +816,8 @@ export default function DoctorScreen() {
                         backgroundColor: colors.white,
                         borderWidth: 1,
                         borderColor: colors.border,
-                        borderRadius: s(12),
-                        paddingHorizontal: s(12),
+                        borderRadius: s(13),
+                        paddingHorizontal: s(13),
                         paddingVertical: s(8),
                       }}
                     >
@@ -861,8 +829,8 @@ export default function DoctorScreen() {
                       style={{
                         borderWidth: 1,
                         borderColor: colors.border,
-                        borderRadius: s(12),
-                        paddingHorizontal: s(12),
+                        borderRadius: s(13),
+                        paddingHorizontal: s(13),
                         paddingVertical: s(8),
                         backgroundColor: colors.white,
                       }}
@@ -871,31 +839,25 @@ export default function DoctorScreen() {
                     </Pressable>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(16) }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13), marginBottom: s(21) }}>
                   <SummaryCard
                     label="Sessions"
                     value={String(sessions.length)}
-                    hint={sessions.length ? 'Finished games saved' : 'No sessions yet'}
-                    labelColor="#2563EB"
-                    isTablet={isTablet}
+                    hint={sessions.length === 1 ? '1 finished play' : `${sessions.length} finished plays`}
                     fs={fs}
                     s={s}
                   />
                   <SummaryCard
                     label="Last played"
                     value={lastPlayed}
-                    hint={sessions.length ? 'Most recent saved session' : 'Not stored yet'}
-                    labelColor="#D97706"
-                    isTablet={isTablet}
+                    hint={sessions.length ? 'Most recent session' : 'Not played yet'}
                     fs={fs}
                     s={s}
                   />
                   <SummaryCard
                     label="Accuracy"
                     value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
-                    hint={avgAccuracy != null ? 'Mean of saved sessions' : 'Not stored yet'}
-                    labelColor="#059669"
-                    isTablet={isTablet}
+                    hint={avgAccuracy != null ? 'Mean score' : 'No plays yet'}
                     fs={fs}
                     s={s}
                   />
@@ -907,13 +869,11 @@ export default function DoctorScreen() {
                         ? '1 activity'
                         : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`
                     }
-                    labelColor="#7C3AED"
-                    isTablet={isTablet}
                     fs={fs}
                     s={s}
                   />
                 </View>
-                <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules & levels</Text>
+                <Text style={{ fontWeight: '600', marginBottom: s(13) }}>Prescribed modules & levels</Text>
                 <View
                   style={{
                     alignSelf: 'center',
@@ -921,14 +881,14 @@ export default function DoctorScreen() {
                     maxWidth: s(420),
                     flexDirection: 'row',
                     backgroundColor: '#E5E7EB',
-                    borderRadius: s(16),
+                    borderRadius: s(13),
                     padding: s(4),
-                    marginBottom: s(12),
+                    marginBottom: s(13),
                   }}
                 >
                   {(
                     [
-                      { id: 'normal' as const, label: 'Normal games', count: GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
+                      { id: 'normal' as const, label: 'Standard games', count: GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
                       { id: 'pediatric' as const, label: 'Pediatric games', count: PEDIATRIC_GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
                     ]
                   ).map((tab) => {
@@ -946,7 +906,7 @@ export default function DoctorScreen() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: s(4),
-                          borderRadius: s(12),
+                          borderRadius: s(13),
                           paddingVertical: s(8),
                           paddingHorizontal: s(6),
                           backgroundColor: active ? colors.white : 'transparent',
@@ -962,7 +922,7 @@ export default function DoctorScreen() {
                         </Text>
                         <Text
                           style={{
-                            fontSize: fs(11),
+                            fontSize: fs(13),
                             fontWeight: '700',
                             color: active ? colors.blue : '#6B7280',
                             backgroundColor: active ? '#EFF6FF' : '#F3F4F6',
@@ -992,8 +952,8 @@ export default function DoctorScreen() {
                       style={{
                         borderWidth: 1,
                         borderColor: colors.border,
-                        borderRadius: s(14),
-                        marginBottom: s(10),
+                        borderRadius: s(13),
+                        marginBottom: s(13),
                         overflow: 'hidden',
                       }}
                     >
@@ -1003,19 +963,19 @@ export default function DoctorScreen() {
                           flexDirection: 'row',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          gap: s(10),
-                          padding: s(12),
+                          gap: s(13),
+                          padding: s(13),
                           backgroundColor: '#F9FAFB',
                         }}
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontWeight: '700', fontSize: fs(15) }}>{family.title}</Text>
-                          <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(2) }}>{family.body}</Text>
+                          <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(2) }}>{family.body}</Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
                           <Text
                             style={{
-                              fontSize: fs(10),
+                              fontSize: fs(13),
                               fontWeight: '700',
                               color: family.accent,
                               backgroundColor: `${family.accent}14`,
@@ -1048,20 +1008,20 @@ export default function DoctorScreen() {
                                 style={{
                                   borderTopWidth: 1,
                                   borderTopColor: colors.border,
-                                  padding: s(12),
+                                  padding: s(13),
                                 }}
                               >
-                                <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(10) }}>
+                                <Pressable onPress={() => void toggleModule(mod.id, !on)} style={{ flexDirection: 'row', gap: s(13) }}>
                                   <View style={{ marginTop: 2 }}>
                                     <PrescriptionTick checked={on} size={s(20)} />
                                   </View>
                                   <View style={{ flex: 1 }}>
                                     <Text style={{ fontWeight: '700' }}>{mod.name}</Text>
-                                    <Text style={{ fontSize: fs(12), color: colors.muted }}>{mod.description}</Text>
+                                    <Text style={{ fontSize: fs(13), color: colors.muted }}>{mod.description}</Text>
                                   </View>
                                 </Pressable>
                                 {on && levels.length > 0 ? (
-                                  <View style={{ marginTop: s(10), marginLeft: s(30), gap: s(6) }}>
+                                  <View style={{ marginTop: s(13), marginLeft: s(30), gap: s(6) }}>
                                     {levels.map((level) => {
                                       const levelOn = selectedLevels.includes(level.id);
                                       return (
@@ -1075,8 +1035,8 @@ export default function DoctorScreen() {
                                             backgroundColor: '#F9FAFB',
                                             borderWidth: 1,
                                             borderColor: colors.border,
-                                            borderRadius: s(10),
-                                            paddingHorizontal: s(10),
+                                            borderRadius: s(8),
+                                            paddingHorizontal: s(13),
                                             paddingVertical: s(8),
                                           }}
                                         >
@@ -1097,15 +1057,15 @@ export default function DoctorScreen() {
                 })}
           </View>
           ) : isTablet ? (
-            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
               <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text>
             </View>
           ) : null}
         </View>
         ) : null}
         {!phoneProfile && (phoneSection === 'overview' || phoneSection === 'prescriptions' || phoneSection === 'analytics') ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
-            <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(8) }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
+            <Text style={{ fontSize: fs(21), fontWeight: '700', marginBottom: s(8) }}>
               {phoneSection === 'overview' ? 'Patients' : 'Assigned patients'}
             </Text>
             {patients.length === 0 ? <Text style={{ color: colors.muted }}>No patients yet.</Text> : null}
@@ -1115,8 +1075,8 @@ export default function DoctorScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: s(12),
-                  paddingVertical: s(12),
+                  gap: s(13),
+                  paddingVertical: s(13),
                   borderBottomWidth: 1,
                   borderBottomColor: '#E5E7EB',
                 }}
@@ -1125,17 +1085,17 @@ export default function DoctorScreen() {
                   style={{
                     width: s(40),
                     height: s(40),
-                    borderRadius: s(20),
+                    borderRadius: s(13),
                     backgroundColor: colors.blue,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(12) }}>{patientInitials(patient.name)}</Text>
+                  <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(13) }}>{patientInitials(patient.name)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontWeight: '700', color: colors.text }} numberOfLines={1}>{patient.name}</Text>
-                  <Text style={{ fontSize: fs(12), color: colors.muted }} numberOfLines={1}>{prescriptionLabel(patient)}</Text>
+                  <Text style={{ fontSize: fs(13), color: colors.muted }} numberOfLines={1}>{prescriptionLabel(patient)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: s(16) }}>
                   <Pressable
@@ -1164,12 +1124,12 @@ export default function DoctorScreen() {
           </View>
         ) : null}
         {!phoneProfile && phoneSection === 'transfers' && incoming.length === 0 ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
-            <Text style={{ color: colors.muted, fontSize: fs(14) }}>No pending transfer requests.</Text>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
+            <Text style={{ color: colors.muted, fontSize: fs(13) }}>No pending transfer requests.</Text>
           </View>
         ) : null}
         {!phoneProfile && phoneSection === 'settings' ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), gap: s(14), ...cardShadow }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), gap: s(13), ...cardShadow }}>
             {[
               ['Name', session.user.name],
               ['Email', session.user.email],
@@ -1178,11 +1138,11 @@ export default function DoctorScreen() {
               ['DocID', session.doctor?.referralCode || '—'],
             ].map(([label, value]) => (
               <View key={label}>
-                <Text style={{ fontSize: fs(11), fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: colors.muted }}>{label}</Text>
+                <Text style={{ fontSize: fs(13), color: colors.muted }}>{label}</Text>
                 {label === 'DocID' && session.doctor?.referralCode ? (
                   <CopyDocId code={session.doctor.referralCode} plain />
                 ) : (
-                  <Text style={{ marginTop: s(4), fontSize: fs(14), fontWeight: '600', color: colors.text }}>{value}</Text>
+                  <Text style={{ marginTop: s(8), fontSize: fs(21), fontWeight: '600', color: colors.text }}>{value}</Text>
                 )}
               </View>
             ))}

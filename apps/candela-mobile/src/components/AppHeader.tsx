@@ -141,13 +141,19 @@ export function AppHeader({
 
       <View
         style={{
-          paddingTop: topBanners.length > 0 ? s(8) : insets.top + s(8),
-          paddingHorizontal: pad,
-          paddingBottom: s(12),
-          minHeight: s(72),
-          backgroundColor: 'rgba(255,255,255,0.96)',
-          borderBottomWidth: 1,
-          borderBottomColor: '#F3F4F6',
+          marginTop: topBanners.length > 0 ? 0 : s(13),
+          marginHorizontal: s(13),
+          marginBottom: s(13),
+          paddingTop: topBanners.length > 0 ? 0 : insets.top,
+          paddingHorizontal: s(21),
+          minHeight: (topBanners.length > 0 ? 0 : insets.top) + s(55),
+          backgroundColor: 'transparent',
+          borderRadius: s(13),
+          shadowColor: '#0f172a',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.14,
+          shadowRadius: 18,
+          elevation: 4,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -173,7 +179,7 @@ export function AppHeader({
             </Pressable>
           ) : session ? (
             <Pressable onPress={() => router.replace(homeHref as never)} style={{ paddingVertical: s(4), maxWidth: '100%' }}>
-              <Text numberOfLines={1} style={{ fontSize: fs(16), fontWeight: '700', color: '#111827' }}>
+              <Text numberOfLines={1} style={{ fontSize: fs(21), fontWeight: '600', color: '#111827' }}>
                 {session.user.name}
               </Text>
             </Pressable>
