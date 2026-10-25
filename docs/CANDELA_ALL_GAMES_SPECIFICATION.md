@@ -11,7 +11,7 @@
 4. [Audio, Haptics & Sensory Feedback Architecture](#4-audio-haptics--sensory-feedback-architecture)
 5. [Universal Clinical Settings & Customization Engine](#5-universal-clinical-settings--customization-engine)
 6. [Data Persistence, Idempotency & Backend Schema](#6-data-persistence-idempotency--backend-schema)
-7. [Comprehensive Deep-Dive: All 14 Therapy Modules](#7-comprehensive-deep-dive-all-14-therapy-modules)
+7. [Comprehensive Deep-Dive: All 13 Therapy Modules](#7-comprehensive-deep-dive-all-13-therapy-modules)
    - [Spin Field Family](#71-spin-field-family)
      - [1. Rotatory Wheel (`rotatory`)](#1-rotatory-wheel-rotatory)
      - [2. Sorting Module (`sorting`)](#2-sorting-module-sorting)
@@ -30,8 +30,6 @@
    - [Trace & Build Family](#75-trace--build-family)
      - [12. Bee Path Tracing (`bee_tracing`)](#12-bee-path-tracing-bee_tracing)
      - [13. Geoboard: Draw a Pattern (`geoboard`)](#13-geoboard-draw-a-pattern-geoboard)
-   - [Pediatric Sensory Module](#76-pediatric-sensory-module)
-     - [14. Pediatric Wind Chime (`wind_chime`)](#14-pediatric-wind-chime-wind_chime)
 8. [Cross-Platform Input & Hardware Considerations](#8-cross-platform-input--hardware-considerations)
 
 ---
@@ -249,7 +247,7 @@ This guarantees monotonic incrementing of `session_number` per patient without r
 
 ---
 
-## 7. Comprehensive Deep-Dive: All 14 Therapy Modules
+## 7. Comprehensive Deep-Dive: All 13 Therapy Modules
 
 ```
                     ┌─────────────────────────┐
@@ -265,7 +263,6 @@ This guarantees monotonic incrementing of `session_number` per patient without r
                                                       sense
                                                     • familiar_
                                                       faces
-                                      + PEDIATRIC SENSORY: wind_chime
 ```
 
 ---
@@ -545,31 +542,6 @@ This guarantees monotonic incrementing of `session_number` per patient without r
 
 ---
 
-### 7.6 Pediatric Sensory Module
-
-#### 14. Pediatric Wind Chime (`wind_chime`)
-- **Module ID:** `wind_chime` | **Family:** Pediatric Sensory Play | **CTA Color:** `#2DD4BF`
-- **Recommended Devices:** Mobile, Tablet, TV.
-- **Clinical Intent:** Sensory processing, motor regulation, acoustic soothing, and bilateral midline crossing for young pediatric patients.
-- **Scale Presets (Acoustic Frequencies):**
-  1. `koshi_aria` (Air): A4 (440 Hz), C5 (523.25 Hz), E5 (659.25 Hz), A5 (880 Hz), B5 (987.77 Hz), C6 (1046.5 Hz).
-  2. `koshi_terra` (Earth): G4 (392 Hz), C5 (523.25 Hz), E5 (659.25 Hz), F5 (698.46 Hz), G5 (783.99 Hz), C6 (1046.5 Hz).
-  3. `pentatonic_major`: C5, D5, E5, G5, A5, C6.
-  4. `zen_solfeggio`: 396 Hz, 417 Hz, 528 Hz, 639 Hz, 741 Hz, 852 Hz (Meditative tones).
-- **Core Rules & Flow:**
-  1. 6 tubular chime bars hang suspended with a central pendulum clapper and wind sail.
-  2. **Interactions:**
-     - Direct touch on chime tubes.
-     - Dragging the central wind sail to swing the clapper into tubes.
-     - Ambient procedural breeze causing natural gentle strikes.
-  3. **Modal Physical Synthesizer (`windChimeAudio.ts`):** Velocity-sensitive strike impulse with inharmonic metallic modal resonances, exponential decay (1.5–5.0s), and spatial stereo panning based on horizontal strike coordinate (left ear to right ear).
-  4. **Pediatric Clinical Metrics (`windChimeAnalytics.ts`):**
-     - `lateralSymmetryPercent`: Percentage balance between left-side strikes and right-side strikes (50% = perfect bilateral integration).
-     - `forceModulationGrade`: `well_graded` vs `predominantly_gentle` vs `predominantly_heavy` based on touch velocity vectors.
-     - `sensoryCalmingIndex`: Pacing deceleration over session duration (0–100 regulation index).
-
----
-
 ## 8. Cross-Platform Input & Hardware Considerations
 
 | Module | Web Interaction | Mobile (React Native Expo) | TV (Smart TV / D-Pad) |
@@ -587,7 +559,6 @@ This guarantees monotonic incrementing of `session_number` per patient without r
 | **Familiar Faces** | Click photo/label | Tap photo | D-Pad carousel selector |
 | **Bee Tracing** | Mouse drag / Touch | PanResponder / GestureHandler | Left/Right analog thumbstick |
 | **Geoboard** | Pointer down-move-up | Continuous GestureHandler touch | Not recommended (flagged) |
-| **Wind Chime** | Click / Drag sail | Multi-touch swipe & drag | Spatial breeze audio only |
 
 ---
 *Document Version: 1.0.0 — Canonical Specification for Candela Vision Therapy.*

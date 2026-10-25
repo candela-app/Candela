@@ -1,7 +1,7 @@
 # Candela Vision Therapy Platform — Module Technical Specification, Graph Storage & GPT Engine Guide
 
 > **Target Audience:** AI Engineering Agents (GPT / Claude), Senior Full-Stack Engineers, and Clinical Diagnostics Developers.  
-> **Mission:** Provide an exhaustive, mathematically rigorous, single-source-of-truth reference covering module mechanics, error taxonomies, trial-level polar telemetry, PostgreSQL persistence schemas, daily attempt-weighted chart aggregation, and an invariant checklist for diagnosing and fixing bugs across all 14 Candela vision therapy games.
+> **Mission:** Provide an exhaustive, mathematically rigorous, single-source-of-truth reference covering module mechanics, error taxonomies, trial-level polar telemetry, PostgreSQL persistence schemas, daily attempt-weighted chart aggregation, and an invariant checklist for diagnosing and fixing bugs across all 13 Candela vision therapy games.
 
 ---
 
@@ -14,12 +14,11 @@
 5. [Spin Field Family: Deep-Dive Specification](#5-spin-field-family-deep-dive-specification)
    - [5.1 Rotatory Wheel (`rotatory`)](#51-rotatory-wheel-rotatory)
    - [5.2 Sequential Sorting (`sorting`)](#52-sequential-sorting-sorting)
-6. [Comprehensive Rules & Mechanics: All Other 12 Modules](#6-comprehensive-rules--mechanics-all-other-12-modules)
+6. [Comprehensive Rules & Mechanics: All Other 11 Modules](#6-comprehensive-rules--mechanics-all-other-11-modules)
    - [Tap Timing: `mobile_target`, `pursuit`, `computer_vision`](#61-tap-timing-family)
    - [Look Jumps: `number_search`, `peripheral_view`](#62-look-jumps-family)
    - [Glimpse Hold: `pattern_match`, `location_memory`, `direction_sense`, `familiar_faces`](#63-glimpse-hold-family)
    - [Trace & Build: `bee_tracing`, `geoboard`](#64-trace--build-family)
-   - [Pediatric Sensory: `wind_chime`](#65-pediatric-sensory-module)
 7. [Common Bugs, Telemetry Pitfalls & Invariant Checklist](#7-common-bugs-telemetry-pitfalls--invariant-checklist)
 
 ---
@@ -324,7 +323,7 @@ When batch $K$ is cleared, batch $K+1$ animates in until the entire sequence com
 
 ---
 
-## 6. Comprehensive Rules & Mechanics: All Other 12 Modules
+## 6. Comprehensive Rules & Mechanics: All Other 11 Modules
 
 ### 6.1 Tap Timing Family
 
@@ -391,15 +390,6 @@ When batch $K$ is cleared, batch $K+1$ animates in until the entire sequence com
 - **Mechanics:** Continuous freehand drawing on a 5×5 peg matrix (indices 0 to 24).
 - **Segment Decomposition (`decomposeSegment`):** A single stroke across $0 \to 1 \to 2$ is decomposed into unit vectors `[0,1]` and `[1,2]`.
 - **Errors:** Stray stroke $< 1.5\%$ of board discarded. Wrong peg connect $\implies$ `wrongTaps`. Missing segment upon submission $\implies$ `misses`.
-
----
-
-### 6.5 Pediatric Sensory Module
-
-#### 12. Pediatric Wind Chime (`wind_chime`)
-- **Mechanics:** 6 suspended musical chime bars with physical clapper and ambient breeze.
-- **Synthesizer:** Modal physical synthesis with exponential decay and stereo spatial panning.
-- **Clinical Telemetry:** Bilateral symmetry percentage (Left vs Right strikes) and Force modulation index.
 
 ---
 
