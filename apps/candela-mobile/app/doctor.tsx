@@ -527,7 +527,7 @@ export default function DoctorScreen() {
       />
       <Modal visible={navOpen && !isTablet} transparent animationType="fade" onRequestClose={() => setNavOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' }} onPress={() => setNavOpen(false)}>
-          <View style={{ marginTop: s(88), marginLeft: s(16), width: s(220) }}>
+          <View style={{ marginTop: s(68), marginLeft: s(13), width: s(220) }}>
             {renderNav()}
           </View>
         </Pressable>
@@ -567,7 +567,7 @@ export default function DoctorScreen() {
           <View
             style={{
               backgroundColor: colors.white,
-              borderRadius: s(20),
+              borderRadius: s(13),
               padding: s(16),
               borderWidth: 1,
               borderColor: '#BFDBFE',
@@ -693,7 +693,7 @@ export default function DoctorScreen() {
         ) : null}
 
         {!phoneProfile && phoneSection === 'patients' && phoneTab === 'create' ? (
-        <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16), ...cardShadow }}>
+        <View style={{ backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, marginBottom: s(16), ...cardShadow }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
           <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
           <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
@@ -712,7 +712,7 @@ export default function DoctorScreen() {
         {phoneProfile || (phoneSection === 'patients' && phoneTab === 'patients') ? (
         <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
           {isTablet || !selected ? (
-          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: s(10) }}>
               <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Patients</Text>
               <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999, marginLeft: s(8) }}>
@@ -805,7 +805,7 @@ export default function DoctorScreen() {
                     style={{
                       width: s(40),
                       height: s(40),
-                      borderRadius: s(20),
+                      borderRadius: s(13),
                       backgroundColor: colors.blue,
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -828,7 +828,7 @@ export default function DoctorScreen() {
           ) : null}
 
           {selected ? (
-          <View style={{ flex: isTablet ? 2 : undefined, alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+          <View style={{ flex: isTablet ? 2 : undefined, alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
                 <View style={{ gap: s(8), marginBottom: s(12) }}>
                   <View>
                     <Text style={{ fontSize: fs(17), fontWeight: '700' }}>{selected.name}</Text>
@@ -928,7 +928,7 @@ export default function DoctorScreen() {
                 >
                   {(
                     [
-                      { id: 'normal' as const, label: 'Normal games', count: GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
+                      { id: 'normal' as const, label: 'Standard games', count: GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
                       { id: 'pediatric' as const, label: 'Pediatric games', count: PEDIATRIC_GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
                     ]
                   ).map((tab) => {
@@ -1097,14 +1097,14 @@ export default function DoctorScreen() {
                 })}
           </View>
           ) : isTablet ? (
-            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
               <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text>
             </View>
           ) : null}
         </View>
         ) : null}
         {!phoneProfile && (phoneSection === 'overview' || phoneSection === 'prescriptions' || phoneSection === 'analytics') ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
             <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(8) }}>
               {phoneSection === 'overview' ? 'Patients' : 'Assigned patients'}
             </Text>
@@ -1125,7 +1125,7 @@ export default function DoctorScreen() {
                   style={{
                     width: s(40),
                     height: s(40),
-                    borderRadius: s(20),
+                    borderRadius: s(13),
                     backgroundColor: colors.blue,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1164,12 +1164,12 @@ export default function DoctorScreen() {
           </View>
         ) : null}
         {!phoneProfile && phoneSection === 'transfers' && incoming.length === 0 ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
             <Text style={{ color: colors.muted, fontSize: fs(14) }}>No pending transfer requests.</Text>
           </View>
         ) : null}
         {!phoneProfile && phoneSection === 'settings' ? (
-          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), gap: s(14), ...cardShadow }}>
+          <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), gap: s(14), ...cardShadow }}>
             {[
               ['Name', session.user.name],
               ['Email', session.user.email],

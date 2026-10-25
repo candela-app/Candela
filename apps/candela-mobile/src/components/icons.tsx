@@ -2,6 +2,17 @@ import Svg, { Circle, Line, Path, Polygon, Polyline, Rect } from 'react-native-s
 
 type IconProps = { size?: number; color?: string };
 
+export function LayoutDashboardIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect width="7" height="9" x="3" y="3" rx="1" />
+      <Rect width="7" height="5" x="14" y="3" rx="1" />
+      <Rect width="7" height="9" x="14" y="12" rx="1" />
+      <Rect width="7" height="5" x="3" y="16" rx="1" />
+    </Svg>
+  );
+}
+
 export function EyeIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -90,6 +101,44 @@ export function SlidersIcon({ size = 24, color = 'currentColor' }: IconProps) {
       <Line x1="2" x2="6" y1="14" y2="14" />
       <Line x1="10" x2="14" y1="8" y2="8" />
       <Line x1="18" x2="22" y1="16" y2="16" />
+    </Svg>
+  );
+}
+
+export function GearIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <Circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function HistoryIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <Path d="M3 3v5h5" />
+      <Path d="M12 7v5l4 2" />
+    </Svg>
+  );
+}
+
+export function CreditCardIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect width="20" height="14" x="2" y="5" rx="2" />
+      <Line x1="2" x2="22" y1="10" y2="10" />
+    </Svg>
+  );
+}
+
+export function InfoIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="10" />
+      <Line x1="12" x2="12" y1="16" y2="12" />
+      <Line x1="12" x2="12.01" y1="8" y2="8" />
     </Svg>
   );
 }
@@ -222,6 +271,30 @@ export function ArrowDownIcon({ size = 24, color = 'currentColor' }: IconProps) 
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M12 5v14" />
       <Path d="m19 12-7 7-7-7" />
+    </Svg>
+  );
+}
+
+export function SortOrderIcon({ size = 24, color = 'currentColor', direction = 'desc' }: IconProps & { direction?: 'asc' | 'desc' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {direction === 'asc' ? (
+        <>
+          <Path d="m3 8 4-4 4 4" />
+          <Path d="M7 4v16" />
+          <Path d="M11 12h4" />
+          <Path d="M11 16h7" />
+          <Path d="M11 20h10" />
+        </>
+      ) : (
+        <>
+          <Path d="m3 16 4 4 4-4" />
+          <Path d="M7 20V4" />
+          <Path d="M11 4h10" />
+          <Path d="M11 8h7" />
+          <Path d="M11 12h4" />
+        </>
+      )}
     </Svg>
   );
 }

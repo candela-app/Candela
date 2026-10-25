@@ -64,12 +64,12 @@ function StatCard({
   labelColor: string;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
+    <div className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+      <p className="text-[13px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
         {label}
       </p>
-      <p className="mt-1 text-2xl font-extrabold text-gray-900">{value}</p>
-      <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      <p className="mt-[8px] text-[34px] font-extrabold leading-none text-gray-900">{value}</p>
+      <p className="mt-[8px] text-[13px] text-gray-500">{hint}</p>
     </div>
   );
 }
@@ -262,20 +262,20 @@ function DoctorDashboard() {
         }
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
+      <div className="mx-auto max-w-[1184px] px-[13px] py-[21px] sm:px-[21px] lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-[34px] lg:py-[34px]">
         {navOpen ? (
           <button
             type="button"
-            className="fixed inset-x-0 bottom-0 top-[72px] z-30 bg-slate-900/40 lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-[68px] z-30 bg-slate-900/40 lg:hidden"
             aria-label="Close menu"
             onClick={() => setNavOpen(false)}
           />
         ) : null}
         <nav
           aria-label="Doctor workspace"
-          className={`dashboard-scrollbar fixed left-4 top-[88px] z-40 flex max-h-[calc(100dvh-104px)] w-[220px] flex-col gap-1 overflow-y-auto rounded-3xl border border-gray-100 bg-white p-3 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] ${
+          className={`dashboard-scrollbar fixed left-4 top-[68px] z-40 flex max-h-[calc(100dvh-81px)] w-[220px] flex-col gap-[8px] overflow-y-auto rounded-[13px] border border-gray-100 bg-white p-[13px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] ${
             navOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
-          } lg:sticky lg:left-auto lg:top-[88px] lg:z-auto lg:mb-0 lg:flex lg:h-auto lg:max-h-none lg:w-auto lg:translate-x-0 lg:self-start lg:overflow-visible`}
+          } lg:sticky lg:left-auto lg:top-[68px] lg:z-auto lg:mb-0 lg:flex lg:h-auto lg:max-h-none lg:w-auto lg:translate-x-0 lg:self-start lg:overflow-visible`}
         >
           {nav.map((item) => {
             const Icon = item.icon;
@@ -289,7 +289,7 @@ function DoctorDashboard() {
                   setNavOpen(false);
                 }}
                 aria-current={active ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold cursor-pointer ${
+                className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold ${
                   active ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-700 hover:bg-blue-50'
                 }`}
               >
@@ -388,7 +388,7 @@ function DoctorDashboard() {
                 }}
               />
               {unprescribedPatients.length > 0 && (
-                <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-sm">
                   <h2 className="text-lg font-bold text-gray-900">Needs a prescription</h2>
                   <p className="mt-1 text-sm text-gray-500">
                     These assigned patients have no activities yet. Open a patient to prescribe on their profile.
@@ -414,7 +414,7 @@ function DoctorDashboard() {
           {section === 'patients' && (
             <>
               <h1 className="text-3xl font-extrabold text-gray-900">My patients</h1>
-              <div className="mx-auto flex max-w-lg rounded-2xl bg-gray-200 p-1">
+              <div className="mx-auto flex max-w-lg rounded-[13px] bg-gray-200 p-1">
                 <button
                   type="button"
                   onClick={() => setListTab('create')}
@@ -442,7 +442,7 @@ function DoctorDashboard() {
                 </button>
               </div>
               {listTab === 'create' && (
-                <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-sm">
                   <h2 className="mb-4 text-lg font-bold text-gray-900">Create patient</h2>
                   <form onSubmit={onCreatePatient} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FloatingLabelInput label="Name" value={name} onChange={setName} required />
@@ -466,7 +466,7 @@ function DoctorDashboard() {
                 </section>
               )}
               {listTab === 'patients' && (
-                <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                   <div className="mb-3 flex items-center">
                     <h2 className="text-lg font-bold text-gray-900">Patients</h2>
                     <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
@@ -578,7 +578,7 @@ function DoctorDashboard() {
             <>
               <h1 className="text-3xl font-extrabold text-gray-900">Transfer requests</h1>
               {incoming.length === 0 ? (
-                <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                   <p className="text-sm text-gray-500">No pending transfer requests.</p>
                 </section>
               ) : (
@@ -607,7 +607,7 @@ function DoctorDashboard() {
           {section === 'settings' && (
             <>
               <h1 className="text-3xl font-extrabold text-gray-900">Settings</h1>
-              <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+              <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                 <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Name</dt>
@@ -654,7 +654,7 @@ function TransferQueue({
   onSettle: (id: string, accept: boolean) => void;
 }) {
   return (
-    <section className="space-y-4 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
+    <section className="space-y-4 rounded-[13px] border border-blue-100 bg-white p-[21px] shadow-sm">
       <div>
         <h2 className="text-lg font-bold text-gray-900">Incoming attach requests</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -665,7 +665,7 @@ function TransferQueue({
         {incoming.map((request) => (
           <li
             key={request.id}
-            className="flex flex-col gap-3 rounded-2xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-[13px] border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <p className="text-sm font-semibold text-gray-900">{request.patientName}</p>
@@ -728,7 +728,7 @@ function PatientTable({
   }, [patients, searchQuery, searchOpen, searchable]);
 
   return (
-    <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+    <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
       <div className={`flex items-center ${searchable ? 'mb-3' : ''}`}>
         <h2 className="text-lg font-bold text-gray-900">{title}</h2>
         {searchable && patients.length > 0 && (

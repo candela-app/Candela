@@ -351,7 +351,7 @@ function LineChart({
 
 function HowToReadCard({ card, gameId, levelId }: { card: string; gameId: string; levelId: string }) {
   return (
-    <div className={`rounded-2xl border ${card} p-4 text-sm text-gray-600 space-y-5 min-w-0 overflow-hidden`}>
+    <div className={`rounded-[13px] border ${card} p-[21px] text-sm text-gray-600 space-y-5 min-w-0 overflow-hidden`}>
       <p className="font-bold text-gray-900 text-base">How to read this</p>
       <section className="space-y-1">
         <p className="font-bold text-gray-900">{ANALYTICS_DOTS_GUIDE.title}</p>
@@ -404,10 +404,12 @@ function HowToReadCard({ card, gameId, levelId }: { card: string; gameId: string
 export function SessionAnalyticsPanel({
   patientId,
   variant = 'light',
+  initialRows,
 }: {
   patientId?: string;
   patientName: string;
   variant?: 'light' | 'shell';
+  initialRows?: StoredGameSessionRecord[];
 }) {
   const [gameId, setGameId] = useState<string>('');
   const [levelId, setLevelId] = useState('');
@@ -415,13 +417,12 @@ export function SessionAnalyticsPanel({
   const [to, setTo] = useState('');
   const [agg, setAgg] = useState<DailyAggMode>('pooled');
   const [scale, setScale] = useState<AnalyticsTimeScale>('week');
-  const [rows, setRows] = useState<StoredGameSessionRecord[]>([]);
+  const [rows, setRows] = useState<StoredGameSessionRecord[]>(initialRows ?? []);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [settled, setSettled] = useState(initialRows !== undefined);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     const params = {
       gameId: gameId || undefined,
       levelId: gameId && levelId ? levelId : undefined,
@@ -445,7 +446,7 @@ export function SessionAnalyticsPanel({
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setSettled(true);
       });
     return () => {
       cancelled = true;
@@ -453,13 +454,6 @@ export function SessionAnalyticsPanel({
   }, [patientId, gameId, levelId, from, to]);
 
   const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
-  const lastPlayed = analytics.totals.lastPlayedAt
-    ? new Date(analytics.totals.lastPlayedAt).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-    : '—';
   const hasPlays = analytics.totals.sessionCount > 0;
   const plotPoints = useMemo(
     () =>
@@ -472,30 +466,13 @@ export function SessionAnalyticsPanel({
 
   const card = variant === 'shell' ? 'bg-white border-shell-border' : 'bg-white border-gray-100';
 
+  if (!settled) {
+    return error ? <p className="text-sm text-red-600">{error}</p> : null;
+  }
+
   return (
     <div className="space-y-5 w-full min-w-0">
-      <div className={`rounded-2xl border ${card} p-4 grid grid-cols-2 lg:grid-cols-4 gap-3`}>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Sessions</p>
-          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">{analytics.totals.sessionCount}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Last played</p>
-          <p className="text-xl sm:text-2xl font-extrabold text-gray-900 break-words">{lastPlayed}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Accuracy</p>
-          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">
-            {analytics.totals.avgAccuracy != null ? `${analytics.totals.avgAccuracy}%` : '—'}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Dates plotted</p>
-          <p className="text-xl sm:text-2xl font-extrabold text-gray-900">{analytics.daily.length}</p>
-        </div>
-      </div>
-
-      <div className={`rounded-2xl border ${card} p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3`}>
+      <div className={`rounded-[13px] border ${card} p-[21px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[13px]`}>
         <label className="text-xs font-semibold text-gray-600 min-w-0">
           Module
           <select
@@ -562,16 +539,15 @@ export function SessionAnalyticsPanel({
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {loading ? <p className="text-sm text-gray-500">Loading sessions…</p> : null}
 
-      {!loading && !hasPlays ? (
-        <div className={`rounded-2xl border border-dashed ${card} p-10 text-center`}>
+      {!hasPlays ? (
+        <div className={`rounded-[13px] border border-dashed ${card} p-[34px] text-center`}>
           <p className="text-sm font-bold text-gray-700">No graphs yet</p>
           <p className="text-xs text-gray-500 mt-1">Finish a play to see a weekly plot. Use − / + to zoom to month or year.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className={`rounded-2xl border ${card} p-3 flex items-center justify-between gap-3`}>
+          <div className={`flex items-center justify-between gap-[13px] rounded-[13px] border ${card} p-[13px]`}>
             <p className="text-xs font-semibold text-gray-600">Time scale</p>
             <div className="flex items-center gap-2">
               <button
@@ -598,8 +574,8 @@ export function SessionAnalyticsPanel({
             </div>
           </div>
           {ANALYTICS_METRICS.map((item) => (
-            <div key={item.id} className={`rounded-2xl border ${card} p-4 min-w-0 overflow-visible`}>
-              <div className="mb-3 flex items-start justify-between gap-3 min-w-0">
+            <div key={item.id} className={`rounded-[13px] border ${card} p-[21px] min-w-0 overflow-visible`}>
+              <div className="mb-3 flex items-start justify-between gap-[13px] min-w-0">
                 <div className="min-w-0">
                   <p className="text-sm font-bold break-words" style={{ color: item.color }}>
                     {item.label}

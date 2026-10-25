@@ -342,7 +342,7 @@ function LineChart({
   );
 }
 
-function DropdownField({
+export function DropdownField({
   label,
   value,
   options,
@@ -350,6 +350,7 @@ function DropdownField({
   fs,
   s,
   disabled = false,
+  shadowed = false,
 }: {
   label: string;
   value: string;
@@ -358,6 +359,7 @@ function DropdownField({
   fs: (n: number) => number;
   s: (n: number) => number;
   disabled?: boolean;
+  shadowed?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((item) => item.value === value)?.label ?? options[0]?.label ?? '';
@@ -382,6 +384,9 @@ function DropdownField({
           alignItems: 'center',
           justifyContent: 'space-between',
           opacity: disabled ? 0.7 : 1,
+          ...(shadowed
+            ? { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 4 }
+            : null),
         }}
       >
         <Text style={{ fontSize: fs(14), fontWeight: '600', color: colors.text, flex: 1, marginRight: s(8) }}>
@@ -438,7 +443,7 @@ function DropdownField({
   );
 }
 
-function DateField({
+export function DateField({
   label,
   value,
   onChange,
@@ -446,6 +451,7 @@ function DateField({
   maximumDate,
   fs,
   s,
+  shadowed = false,
 }: {
   label: string;
   value: string;
@@ -454,6 +460,7 @@ function DateField({
   maximumDate?: Date;
   fs: (n: number) => number;
   s: (n: number) => number;
+  shadowed?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => (value ? parseLocalISODate(value) : new Date()));
@@ -470,6 +477,9 @@ function DateField({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     minHeight: s(42),
+    ...(shadowed
+      ? { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 4 }
+      : null),
   };
 
   if (Platform.OS === 'web') {
@@ -488,6 +498,9 @@ function DateField({
             padding: 10,
             fontSize: 14,
             fontWeight: '600',
+            ...(shadowed
+              ? { boxShadow: '0 12px 32px -14px rgba(15, 23, 42, 0.35)' }
+              : null),
           },
         })}
       </View>
@@ -700,11 +713,10 @@ export function SessionAnalyticsPanel({
   const [scale, setScale] = useState<AnalyticsTimeScale>('week');
   const [rows, setRows] = useState<StoredGameSessionRecord[]>([]);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     const params = {
       gameId: gameId || undefined,
       levelId: gameId && levelId ? levelId : undefined,
@@ -726,7 +738,7 @@ export function SessionAnalyticsPanel({
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setSettled(true);
       });
     return () => {
       cancelled = true;
@@ -734,13 +746,6 @@ export function SessionAnalyticsPanel({
   }, [patientId, gameId, levelId, from, to]);
 
   const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
-  const lastPlayed = analytics.totals.lastPlayedAt
-    ? new Date(analytics.totals.lastPlayedAt).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-    : '—';
   const hasPlays = analytics.totals.sessionCount > 0;
   const plotPoints = useMemo(
     () =>
@@ -751,39 +756,12 @@ export function SessionAnalyticsPanel({
     [rows, analytics.daily, scale, from, to],
   );
 
+  if (!settled) {
+    return error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null;
+  }
+
   return (
     <View style={{ gap: s(12) }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
-        {[
-          { label: 'Sessions', value: String(analytics.totals.sessionCount), color: '#2563EB' },
-          { label: 'Last played', value: lastPlayed, color: '#D97706' },
-          {
-            label: 'Accuracy',
-            value: analytics.totals.avgAccuracy != null ? `${analytics.totals.avgAccuracy}%` : '—',
-            color: '#059669',
-          },
-          { label: 'Dates plotted', value: String(analytics.daily.length), color: '#7C3AED' },
-        ].map((item) => (
-          <View
-            key={item.label}
-            style={{
-              flexGrow: 1,
-              flexBasis: '47%',
-              backgroundColor: colors.white,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: s(16),
-              padding: s(12),
-            }}
-          >
-            <Text style={{ fontSize: fs(10), fontWeight: '800', color: item.color, letterSpacing: 0.6 }}>
-              {item.label.toUpperCase()}
-            </Text>
-            <Text style={{ fontSize: fs(20), fontWeight: '800', color: colors.text, marginTop: s(4) }}>{item.value}</Text>
-          </View>
-        ))}
-      </View>
-
       <View
         style={{
           backgroundColor: colors.white,
@@ -852,9 +830,8 @@ export function SessionAnalyticsPanel({
       </View>
 
       {error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null}
-      {loading ? <Text style={{ color: colors.muted, fontSize: fs(13) }}>Loading sessions…</Text> : null}
 
-      {!loading && !hasPlays ? (
+      {!hasPlays ? (
         <View
           style={{
             backgroundColor: colors.white,
