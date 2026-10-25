@@ -6,6 +6,7 @@ import {
   CATALOG_TO_UI_MODULE,
   GAME_CATALOG,
   GAME_FAMILIES,
+  PEDIATRIC_GAME_FAMILIES,
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
   type PatientSummary,
@@ -45,15 +46,64 @@ type Props = {
   onToggleLevel: (moduleId: TherapyModuleId, levelId: string, enabled: boolean) => void;
 };
 
+function moduleCount(families: { moduleIds: string[] }[]) {
+  return families.reduce((sum, family) => sum + family.moduleIds.length, 0);
+}
+
 export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule, onToggleLevel }: Props) {
+  const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
   const [openModuleId, setOpenModuleId] = useState<TherapyModuleId | null>(null);
+  const families = catalog === 'normal' ? GAME_FAMILIES : PEDIATRIC_GAME_FAMILIES;
+
+  function selectCatalog(next: 'normal' | 'pediatric') {
+    setCatalog(next);
+    setOpenFamilyId(null);
+    setOpenModuleId(null);
+  }
 
   return (
     <div>
       <p className="text-sm font-semibold text-gray-700 mb-3">Prescribed modules</p>
+      <div className="mx-auto mb-4 flex max-w-lg rounded-2xl bg-gray-200 p-1">
+        <button
+          type="button"
+          onClick={() => selectCatalog('normal')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${
+            catalog === 'normal' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          Normal games
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] ${
+              catalog === 'normal' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            {moduleCount(GAME_FAMILIES)}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => selectCatalog('pediatric')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${
+            catalog === 'pediatric' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          Pediatric games
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] ${
+              catalog === 'pediatric' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            {moduleCount(PEDIATRIC_GAME_FAMILIES)}
+          </span>
+        </button>
+      </div>
+      {families.length === 0 ? (
+        <p className="text-sm text-gray-500">No pediatric games yet.</p>
+      ) : (
       <div className="space-y-3">
-        {GAME_FAMILIES.map((family) => {
+        {families.map((family) => {
           const familyOpen = openFamilyId === family.id;
           const prescribedInFamily = family.moduleIds.filter((id) =>
             patient.prescribedModuleIds.includes(id),
@@ -266,6 +316,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
           );
         })}
       </div>
+      )}
     </div>
   );
 }

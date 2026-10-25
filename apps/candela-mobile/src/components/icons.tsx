@@ -138,6 +138,15 @@ export function CheckIcon({ size = 24, color = 'currentColor' }: IconProps) {
   );
 }
 
+export function CopyIcon({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="9" y="9" width="13" height="13" rx="2" />
+      <Path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </Svg>
+  );
+}
+
 export function AnalyticsIcon({ size = 24, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -463,6 +472,16 @@ export function EditIcon({ size = 24, color = 'currentColor' }: IconProps) {
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <Path d="m15 5 4 4" />
+    </Svg>
+  );
+}
+
+export function SideDockIcon({ size = 24, color = 'currentColor', open = false }: IconProps & { open?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
+      <Path d="M9 3v18" />
+      {open ? <Rect x="4" y="4" width="5" height="16" rx="1" fill={color} stroke="none" /> : null}
     </Svg>
   );
 }

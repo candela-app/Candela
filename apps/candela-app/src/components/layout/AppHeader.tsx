@@ -26,11 +26,12 @@ const logoSrc = typeof logoPng === 'string' ? logoPng : logoPng.src;
 
 export interface AppHeaderProps {
   extra?: React.ReactNode;
+  leading?: React.ReactNode;
   onBack?: () => void;
   backHref?: string;
 }
 
-export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
+export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) {
   const { session, loading, logout } = useAuth();
   const [showEditName, setShowEditName] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -215,7 +216,8 @@ export function AppHeader({ extra, onBack, backHref }: AppHeaderProps) {
       ))}
 
       <header className="sticky top-0 z-40 min-h-[72px] flex flex-row items-center justify-between px-4 sm:px-6 py-3 bg-white/95 backdrop-blur-md border-b border-[#F3F4F6] gap-2">
-        <div className="flex-1 flex items-center min-w-0">
+        <div className="flex-1 flex items-center min-w-0 gap-1">
+          {leading}
           {showBack ? (
             <button
               type="button"

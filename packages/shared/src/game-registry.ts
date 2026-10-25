@@ -301,15 +301,25 @@ export const GAME_FAMILIES: GameFamily[] = [
   },
 ];
 
+/**
+ * Pediatric prescription families. Add a GameFamily here when its modules are in the catalog.
+ * The doctor prescription tab reads this list and stays empty until then.
+ */
+export const PEDIATRIC_GAME_FAMILIES: GameFamily[] = [];
+
+function allGameFamilies(): GameFamily[] {
+  return [...GAME_FAMILIES, ...PEDIATRIC_GAME_FAMILIES];
+}
+
 export function isTherapyFamilyId(id: string): id is TherapyFamilyId {
-  return GAME_FAMILIES.some((family) => family.id === id);
+  return allGameFamilies().some((family) => family.id === id);
 }
 
 export function getGameFamily(id: string | null | undefined): GameFamily | undefined {
   if (!id) return undefined;
-  return GAME_FAMILIES.find((family) => family.id === id);
+  return allGameFamilies().find((family) => family.id === id);
 }
 
 export function familyForModuleId(moduleId: string): GameFamily | undefined {
-  return GAME_FAMILIES.find((family) => family.moduleIds.includes(moduleId as TherapyModuleId));
+  return allGameFamilies().find((family) => family.moduleIds.includes(moduleId as TherapyModuleId));
 }

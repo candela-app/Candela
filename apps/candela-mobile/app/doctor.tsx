@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
-import { AnalyticsIcon, CheckIcon, ChevronUpIcon, SearchIcon, XIcon } from '../src/components/icons';
+import { GAME_CATALOG, GAME_FAMILIES, PEDIATRIC_GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { AnalyticsIcon, BellIcon, CheckIcon, ChevronUpIcon, LogOutIcon, MonitorIcon, SearchIcon, SideDockIcon, SlidersIcon, UserIcon, UsersIcon, XIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
+import { CopyDocId } from '../src/components/CopyDocId';
 import { AppToastHost, pushAppToast, type AppToastItem } from '../src/components/AppToast';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
@@ -15,6 +16,31 @@ import { ApiError, api, listPatientGameSessions, type StoredGameSessionRecord } 
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
+
+const PHONE_SECTIONS = ['overview', 'patients', 'prescriptions', 'analytics', 'transfers', 'settings'] as const;
+type PhoneSection = (typeof PHONE_SECTIONS)[number];
+
+function prescriptionLabel(patient: PatientSummary) {
+  const activities = patient.prescribedModuleIds.length;
+  if (activities === 0) return 'None';
+  const levels = Object.values(patient.prescribedLevels || {}).reduce((sum, ids) => sum + ids.length, 0);
+  return levels > 0 ? `${activities} activities · ${levels} levels` : `${activities} activities`;
+}
+
+function patientInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+const cardShadow = {
+  shadowColor: '#0f172a',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.14,
+  shadowRadius: 18,
+  elevation: 4,
+};
 
 function PrescriptionTick({ checked, size }: { checked: boolean; size: number }) {
   return (
@@ -78,7 +104,7 @@ function SummaryCard({
 
 export default function DoctorScreen() {
   const router = useRouter();
-  const { session, loading } = useAuth();
+  const { session, loading, logout } = useAuth();
   const { fs, s, pad, isTablet } = useLayout();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,8 +119,12 @@ export default function DoctorScreen() {
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
   const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [phoneTab, setPhoneTab] = useState<'create' | 'patients'>('patients');
+  const [phoneSection, setPhoneSection] = useState<PhoneSection>('patients');
+  const [navOpen, setNavOpen] = useState(false);
+  const [analyticsOrigin, setAnalyticsOrigin] = useState<{ section: PhoneSection; patientId: string | null } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [toasts, setToasts] = useState<AppToastItem[]>([]);
   const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
@@ -186,6 +216,7 @@ export default function DoctorScreen() {
       setEmail('');
       setPassword('');
       setSelectedId(created.id);
+      setPhoneSection('patients');
       setPhoneTab('patients');
       await load();
       Alert.alert('Success', `Patient ${patientName} created successfully!`);
@@ -308,27 +339,28 @@ export default function DoctorScreen() {
     return <ScreenLoader />;
   }
 
-  const referralExtra = session.doctor ? (
-    <Text
-      style={{
-        fontFamily: 'monospace',
-        fontSize: fs(12),
-        fontWeight: '700',
-        color: '#1D4ED8',
-        backgroundColor: '#EFF6FF',
-        paddingHorizontal: s(10),
-        paddingVertical: s(4),
-        borderRadius: s(8),
-      }}
-    >
-      {session.doctor.referralCode}
-    </Text>
-  ) : null;
+  const referralExtra = session.doctor ? <CopyDocId code={session.doctor.referralCode} /> : null;
+
+  function openAnalytics(patientId: string) {
+    setAnalyticsOrigin({ section: phoneSection, patientId: selectedId });
+    setSelectedId(patientId);
+    setShowAnalytics(true);
+  }
+
+  function closeAnalytics() {
+    setShowAnalytics(false);
+    if (analyticsOrigin) {
+      setPhoneSection(analyticsOrigin.section);
+      setPhoneTab('patients');
+      setSelectedId(analyticsOrigin.patientId);
+      setAnalyticsOrigin(null);
+    }
+  }
 
   if (showAnalytics && selected) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <AppHeader onBack={() => setShowAnalytics(false)} extra={referralExtra} />
+        <AppHeader onBack={closeAnalytics} extra={referralExtra} />
         <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
           <Text style={{ fontSize: fs(28), fontWeight: '800' }}>{selected.name}</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(20) }}>
@@ -352,6 +384,19 @@ export default function DoctorScreen() {
                 Performance for {selected.name} across therapy modules
               </Text>
             </View>
+            <Pressable
+              onPress={() => Alert.alert('Coming soon.')}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: s(12),
+                paddingHorizontal: s(12),
+                paddingVertical: s(8),
+                backgroundColor: colors.white,
+              }}
+            >
+              <Text style={{ fontWeight: '600', fontSize: fs(13), color: colors.text }}>Other device games</Text>
+            </Pressable>
           </View>
           <SessionAnalyticsPanel patientId={selected.id} patientName={selected.name} />
         </ScrollView>
@@ -361,25 +406,164 @@ export default function DoctorScreen() {
   }
 
   const phoneProfile = !isTablet && Boolean(selected);
+  const phoneHome = !isTablet && !phoneProfile;
+  const sectionTitle: Record<PhoneSection, string> = {
+    overview: 'Doctor dashboard',
+    patients: 'My patients',
+    prescriptions: 'Prescriptions',
+    analytics: 'Analytics',
+    transfers: 'Transfer requests',
+    settings: 'Settings',
+  };
+  const phoneNav: { id: PhoneSection; label: string; icon: typeof UsersIcon; badge?: number }[] = [
+    { id: 'overview', label: 'Overview', icon: MonitorIcon },
+    { id: 'patients', label: 'My patients', icon: UsersIcon, badge: patients.length },
+    { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
+    { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
+    { id: 'transfers', label: 'Transfer requests', icon: BellIcon, badge: incoming.length },
+    { id: 'settings', label: 'Settings', icon: UserIcon },
+  ];
+  const prescribedPatientCount = patients.filter((patient) => patient.prescribedModuleIds.length > 0).length;
+
+  function openPhoneSection(next: PhoneSection) {
+    setPhoneSection(next);
+    setSelectedId(null);
+    setShowAnalytics(false);
+    setNavOpen(false);
+  }
+
+  function renderNav() {
+    return (
+    <View
+      style={{
+        backgroundColor: colors.white,
+        borderRadius: s(24),
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: s(12),
+        ...cardShadow,
+      }}
+    >
+      {phoneNav.map((item) => {
+        const Icon = item.icon;
+        const active = phoneSection === item.id;
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => openPhoneSection(item.id)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: s(8),
+              borderRadius: s(12),
+              paddingHorizontal: s(12),
+              paddingVertical: s(10),
+              backgroundColor: active ? colors.blue : 'transparent',
+            }}
+          >
+            <Icon size={s(16)} color={active ? colors.white : '#374151'} />
+            <Text style={{ flex: 1, fontSize: fs(14), fontWeight: '600', color: active ? colors.white : '#374151' }}>
+              {item.label}
+            </Text>
+            {item.badge ? (
+              <Text
+                style={{
+                  fontSize: fs(11),
+                  fontWeight: '700',
+                  color: active ? colors.white : colors.blue,
+                  backgroundColor: active ? 'rgba(255,255,255,0.2)' : '#EFF6FF',
+                  paddingHorizontal: s(8),
+                  paddingVertical: s(2),
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                }}
+              >
+                {item.badge}
+              </Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
+      <Pressable
+        onPress={() => {
+          setNavOpen(false);
+          void logout().then(() => router.replace('/' as never));
+        }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: s(8),
+          borderRadius: s(12),
+          paddingHorizontal: s(12),
+          paddingVertical: s(10),
+          marginTop: s(8),
+        }}
+      >
+        <LogOutIcon size={s(16)} color="#DC2626" />
+        <Text style={{ fontSize: fs(14), fontWeight: '600', color: '#DC2626' }}>Sign out</Text>
+      </Pressable>
+    </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <AppHeader
         extra={referralExtra}
         onBack={phoneProfile ? () => setSelectedId(null) : undefined}
+        leading={
+          phoneHome ? (
+            <Pressable
+              onPress={() => setNavOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityLabel={navOpen ? 'Close sidebar' : 'Open sidebar'}
+              hitSlop={s(8)}
+              style={{ width: s(36), height: s(36), alignItems: 'center', justifyContent: 'center' }}
+            >
+              <SideDockIcon size={s(22)} color="#111827" open={navOpen} />
+            </Pressable>
+          ) : null
+        }
       />
-      <ScrollView contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
+      <Modal visible={navOpen && !isTablet} transparent animationType="fade" onRequestClose={() => setNavOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' }} onPress={() => setNavOpen(false)}>
+          <View style={{ marginTop: s(88), marginLeft: s(16), width: s(220) }}>
+            {renderNav()}
+          </View>
+        </Pressable>
+      </Modal>
+      <View style={{ flex: 1, flexDirection: isTablet ? 'row' : 'column' }}>
+        {isTablet ? (
+          <View style={{ width: s(220), paddingLeft: pad, paddingTop: pad }}>
+            {renderNav()}
+          </View>
+        ) : null}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: pad, paddingBottom: s(40) }}>
         {!phoneProfile ? (
-          <>
-            <Text style={{ fontSize: fs(28), fontWeight: '800' }}>Doctor dashboard</Text>
-            <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4), marginBottom: s(16) }}>
-              Patients you create are automatically linked to your DocID. Prescribe modules and levels by adding or removing them.
-            </Text>
-          </>
+          <Text style={{ fontSize: fs(28), fontWeight: '800', marginBottom: s(16) }}>{sectionTitle[phoneSection]}</Text>
         ) : null}
         {error ? <Text style={{ color: colors.red, marginBottom: s(12) }}>{error}</Text> : null}
 
-        {!phoneProfile && incoming.length > 0 ? (
+        {!phoneProfile && phoneSection === 'overview' ? (
+          <View style={{ gap: s(10), marginBottom: s(16) }}>
+            {[
+              { label: 'Assigned patients', value: String(patients.length), hint: 'Patients you can open', color: '#2563EB' },
+              { label: 'Pending transfers', value: String(incoming.length), hint: 'Attach and change requests', color: '#D97706' },
+              { label: 'Active prescriptions', value: String(prescribedPatientCount), hint: 'Patients with activities assigned', color: '#7C3AED' },
+            ].map((card) => (
+              <View
+                key={card.label}
+                style={{ backgroundColor: colors.white, borderRadius: s(16), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}
+              >
+                <Text style={{ fontSize: fs(11), fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: card.color }}>{card.label}</Text>
+                <Text style={{ fontSize: fs(24), fontWeight: '800', color: colors.text, marginTop: s(4) }}>{card.value}</Text>
+                <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(4) }}>{card.hint}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {!phoneProfile && incoming.length > 0 && (phoneSection === 'overview' || phoneSection === 'transfers') ? (
           <View
             style={{
               backgroundColor: colors.white,
@@ -388,6 +572,7 @@ export default function DoctorScreen() {
               borderWidth: 1,
               borderColor: '#BFDBFE',
               marginBottom: s(16),
+              ...cardShadow,
             }}
           >
             <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(4) }}>Incoming attach requests</Text>
@@ -445,7 +630,7 @@ export default function DoctorScreen() {
           </View>
         ) : null}
 
-        {!isTablet && !phoneProfile ? (
+        {!phoneProfile && phoneSection === 'patients' ? (
           <View
             style={{
               flexDirection: 'row',
@@ -507,8 +692,8 @@ export default function DoctorScreen() {
           </View>
         ) : null}
 
-        {isTablet || (phoneTab === 'create' && !phoneProfile) ? (
-        <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
+        {!phoneProfile && phoneSection === 'patients' && phoneTab === 'create' ? (
+        <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16), ...cardShadow }}>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(12) }}>Create patient</Text>
           <FloatingLabelInput label="Name" value={name} onChangeText={setName} />
           <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
@@ -524,10 +709,10 @@ export default function DoctorScreen() {
         </View>
         ) : null}
 
-        {isTablet || phoneTab === 'patients' || phoneProfile ? (
+        {phoneProfile || (phoneSection === 'patients' && phoneTab === 'patients') ? (
         <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
           {isTablet || !selected ? (
-          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ flex: 1, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: s(10) }}>
               <Text style={{ fontSize: fs(17), fontWeight: '700' }}>Patients</Text>
               <Text style={{ fontSize: fs(11), fontWeight: '700', color: colors.muted, backgroundColor: '#F3F4F6', paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999, marginLeft: s(8) }}>
@@ -604,49 +789,87 @@ export default function DoctorScreen() {
                   setSearchOpen(false);
                 }}
                 style={{
-                  borderRadius: s(12),
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: s(12),
+                  borderRadius: isTablet ? s(12) : 0,
                   padding: s(12),
-                  marginBottom: s(8),
-                  backgroundColor: isTablet && selectedId === patient.id ? colors.blue : '#F9FAFB',
+                  marginBottom: isTablet ? s(8) : 0,
+                  borderBottomWidth: isTablet ? 0 : 1,
+                  borderBottomColor: '#E5E7EB',
+                  backgroundColor: isTablet && selectedId === patient.id ? colors.blue : isTablet ? '#F9FAFB' : 'transparent',
                 }}
               >
-                <Text style={{ fontWeight: '700', color: isTablet && selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
-                <Text style={{ fontSize: fs(12), color: isTablet && selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
-                  {patient.email} · {patient.phone}
-                </Text>
+                {!isTablet ? (
+                  <View
+                    style={{
+                      width: s(40),
+                      height: s(40),
+                      borderRadius: s(20),
+                      backgroundColor: colors.blue,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(12) }}>{patientInitials(patient.name)}</Text>
+                  </View>
+                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: isTablet && selectedId === patient.id ? colors.white : colors.text }}>{patient.name}</Text>
+                  {isTablet ? (
+                    <Text style={{ fontSize: fs(12), color: selectedId === patient.id ? '#DBEAFE' : colors.muted }}>
+                      {patient.email} · {patient.phone}
+                    </Text>
+                  ) : null}
+                </View>
               </Pressable>
             ))}
           </View>
           ) : null}
 
           {selected ? (
-          <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: s(8), marginBottom: s(12) }}>
-                  <View style={{ flex: 1 }}>
+          <View style={{ flex: isTablet ? 2 : undefined, alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+                <View style={{ gap: s(8), marginBottom: s(12) }}>
+                  <View>
                     <Text style={{ fontSize: fs(17), fontWeight: '700' }}>{selected.name}</Text>
                     <Text style={{ color: colors.muted, marginTop: s(2), fontSize: fs(13) }}>
                       {selected.email} · {selected.phone}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={() => setShowAnalytics(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="View Session Analytics"
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: s(6),
-                      backgroundColor: colors.white,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: s(12),
-                      paddingHorizontal: s(12),
-                      paddingVertical: s(8),
-                    }}
-                  >
-                    <AnalyticsIcon size={s(18)} color={colors.blue} />
-                    <Text style={{ fontWeight: '600', fontSize: fs(13) }}>Analytics</Text>
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+                    <Pressable
+                      onPress={() => openAnalytics(selected.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel="View Session Analytics"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: s(6),
+                        backgroundColor: colors.white,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: s(12),
+                        paddingHorizontal: s(12),
+                        paddingVertical: s(8),
+                      }}
+                    >
+                      <AnalyticsIcon size={s(18)} color={colors.blue} />
+                      <Text style={{ fontWeight: '600', fontSize: fs(13) }}>Analytics</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => Alert.alert('Coming soon.')}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: s(12),
+                        paddingHorizontal: s(12),
+                        paddingVertical: s(8),
+                        backgroundColor: colors.white,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '600', fontSize: fs(13), color: colors.text }}>Other device games</Text>
+                    </Pressable>
+                  </View>
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8), marginBottom: s(16) }}>
                   <SummaryCard
@@ -691,7 +914,74 @@ export default function DoctorScreen() {
                   />
                 </View>
                 <Text style={{ fontWeight: '600', marginBottom: s(10) }}>Prescribed modules & levels</Text>
-                {GAME_FAMILIES.map((family) => {
+                <View
+                  style={{
+                    alignSelf: 'center',
+                    width: '100%',
+                    maxWidth: s(420),
+                    flexDirection: 'row',
+                    backgroundColor: '#E5E7EB',
+                    borderRadius: s(16),
+                    padding: s(4),
+                    marginBottom: s(12),
+                  }}
+                >
+                  {(
+                    [
+                      { id: 'normal' as const, label: 'Normal games', count: GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
+                      { id: 'pediatric' as const, label: 'Pediatric games', count: PEDIATRIC_GAME_FAMILIES.reduce((sum, family) => sum + family.moduleIds.length, 0) },
+                    ]
+                  ).map((tab) => {
+                    const active = catalog === tab.id;
+                    return (
+                      <Pressable
+                        key={tab.id}
+                        onPress={() => {
+                          setCatalog(tab.id);
+                          setOpenFamilyId(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: s(4),
+                          borderRadius: s(12),
+                          paddingVertical: s(8),
+                          paddingHorizontal: s(6),
+                          backgroundColor: active ? colors.white : 'transparent',
+                        }}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.8}
+                          style={{ fontSize: fs(13), fontWeight: '700', color: active ? colors.blue : '#6B7280', textAlign: 'center' }}
+                        >
+                          {tab.label}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: fs(11),
+                            fontWeight: '700',
+                            color: active ? colors.blue : '#6B7280',
+                            backgroundColor: active ? '#EFF6FF' : '#F3F4F6',
+                            paddingHorizontal: s(8),
+                            paddingVertical: s(2),
+                            borderRadius: 999,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {tab.count}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {(catalog === 'normal' ? GAME_FAMILIES : PEDIATRIC_GAME_FAMILIES).length === 0 ? (
+                  <Text style={{ color: colors.muted, fontSize: fs(13) }}>No pediatric games yet.</Text>
+                ) : null}
+                {(catalog === 'normal' ? GAME_FAMILIES : PEDIATRIC_GAME_FAMILIES).map((family) => {
                   const familyOpen = openFamilyId === family.id;
                   const prescribedInFamily = family.moduleIds.filter((id) =>
                     selected.prescribedModuleIds.includes(id),
@@ -807,13 +1097,99 @@ export default function DoctorScreen() {
                 })}
           </View>
           ) : isTablet ? (
-            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ flex: 2, backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
               <Text style={{ color: colors.muted }}>Select a patient to prescribe modules.</Text>
             </View>
           ) : null}
         </View>
         ) : null}
+        {!phoneProfile && (phoneSection === 'overview' || phoneSection === 'prescriptions' || phoneSection === 'analytics') ? (
+          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
+            <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(8) }}>
+              {phoneSection === 'overview' ? 'Patients' : 'Assigned patients'}
+            </Text>
+            {patients.length === 0 ? <Text style={{ color: colors.muted }}>No patients yet.</Text> : null}
+            {patients.map((patient) => (
+              <View
+                key={patient.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: s(12),
+                  paddingVertical: s(12),
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#E5E7EB',
+                }}
+              >
+                <View
+                  style={{
+                    width: s(40),
+                    height: s(40),
+                    borderRadius: s(20),
+                    backgroundColor: colors.blue,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ color: colors.white, fontWeight: '700', fontSize: fs(12) }}>{patientInitials(patient.name)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: colors.text }} numberOfLines={1}>{patient.name}</Text>
+                  <Text style={{ fontSize: fs(12), color: colors.muted }} numberOfLines={1}>{prescriptionLabel(patient)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: s(16) }}>
+                  <Pressable
+                    onPress={() => {
+                      if (isTablet) {
+                        setPhoneSection('patients');
+                        setPhoneTab('patients');
+                      }
+                      setSelectedId(patient.id);
+                    }}
+                    hitSlop={s(4)}
+                  >
+                    <Text style={{ color: colors.blue, fontWeight: '700', fontSize: fs(13), paddingVertical: s(4) }}>Open</Text>
+                  </Pressable>
+                  {phoneSection === 'analytics' ? (
+                    <Pressable
+                      onPress={() => openAnalytics(patient.id)}
+                      hitSlop={s(4)}
+                    >
+                      <Text style={{ color: colors.blue, fontWeight: '700', fontSize: fs(13), paddingVertical: s(4) }}>Analytics</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {!phoneProfile && phoneSection === 'transfers' && incoming.length === 0 ? (
+          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), ...cardShadow }}>
+            <Text style={{ color: colors.muted, fontSize: fs(14) }}>No pending transfer requests.</Text>
+          </View>
+        ) : null}
+        {!phoneProfile && phoneSection === 'settings' ? (
+          <View style={{ backgroundColor: colors.white, borderRadius: s(20), borderWidth: 1, borderColor: colors.border, padding: s(16), gap: s(14), ...cardShadow }}>
+            {[
+              ['Name', session.user.name],
+              ['Email', session.user.email],
+              ['Phone', session.user.phone || '—'],
+              ['Organization', session.organization?.name || '—'],
+              ['DocID', session.doctor?.referralCode || '—'],
+            ].map(([label, value]) => (
+              <View key={label}>
+                <Text style={{ fontSize: fs(11), fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: colors.muted }}>{label}</Text>
+                {label === 'DocID' && session.doctor?.referralCode ? (
+                  <CopyDocId code={session.doctor.referralCode} plain />
+                ) : (
+                  <Text style={{ marginTop: s(4), fontSize: fs(14), fontWeight: '600', color: colors.text }}>{value}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
+      </View>
       <AppToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))} />
     </View>
   );

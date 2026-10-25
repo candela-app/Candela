@@ -21,10 +21,12 @@ import { EditPatientNameModal } from './EditPatientNameModal';
 
 export function AppHeader({
   extra,
+  leading,
   onBack,
   backHref,
 }: {
   extra?: ReactNode;
+  leading?: ReactNode;
   onBack?: () => void;
   backHref?: string;
 }) {
@@ -152,7 +154,8 @@ export function AppHeader({
           gap: s(8),
         }}
       >
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+          {leading}
           {showBack ? (
             <Pressable
               onPress={handleBack}
@@ -202,7 +205,7 @@ export function AppHeader({
 
           {extra}
 
-          {session ? (
+          {session?.user.role === 'doctor' ? null : session ? (
             <Pressable
               onPress={() => setShowUserMenu(true)}
               style={{
