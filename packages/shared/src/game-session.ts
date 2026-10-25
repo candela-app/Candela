@@ -238,9 +238,9 @@ export function consistencyStreak(recordedAts: string[], now = new Date()): numb
   }
   if (days.size === 0) return 0;
   let latest = '';
-  for (const day of days) {
+  days.forEach((day) => {
     if (day > latest) latest = day;
-  }
+  });
   const today = localDayKey(now.toISOString());
   if (latest !== today && latest !== shiftLocalDayKey(today, -1)) return 0;
   let streak = 0;
