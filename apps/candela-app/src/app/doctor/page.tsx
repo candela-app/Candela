@@ -68,7 +68,7 @@ function StatCard({
       <p className="text-[13px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
         {label}
       </p>
-      <p className="mt-[8px] text-[34px] font-extrabold leading-none text-gray-900">{value}</p>
+      <p className="mt-[8px] text-[34px] font-semibold leading-none text-gray-900">{value}</p>
       <p className="mt-[8px] text-[13px] text-gray-500">{hint}</p>
     </div>
   );
@@ -78,7 +78,7 @@ export default function DoctorPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#F4F7FC]">
+        <div className="min-h-screen page-wash">
           <AppHeader />
           <DoctorDashboardSkeleton />
         </div>
@@ -209,30 +209,30 @@ function DoctorDashboard() {
 
   if (loading || dataLoading || !session || session.user.role !== 'doctor') {
     return (
-      <div className="min-h-screen bg-[#F4F7FC]">
+      <div className="min-h-screen page-wash">
         <AppHeader />
         <DoctorDashboardSkeleton />
       </div>
     );
   }
 
-  const nav: { id: Section; label: string; icon: typeof LayoutDashboardIcon; badge?: number }[] = [
+  const nav: { id: Section; label: string; icon: typeof LayoutDashboardIcon }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboardIcon },
-    { id: 'patients', label: 'My patients', icon: UsersIcon, badge: patients.length },
+    { id: 'patients', label: 'My patients', icon: UsersIcon },
     { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
-    { id: 'transfers', label: 'Transfer requests', icon: BellIcon, badge: incoming.length },
+    { id: 'transfers', label: 'Transfer requests', icon: BellIcon },
     { id: 'settings', label: 'Settings', icon: UserIcon },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC]">
+    <div className="min-h-screen page-wash">
       <AppHeader
         leading={
           <button
             type="button"
             onClick={() => setNavOpen((open) => !open)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 lg:hidden"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[13px] text-gray-700 hover:bg-gray-100 lg:hidden"
             aria-label={navOpen ? 'Close sidebar' : 'Open sidebar'}
             aria-expanded={navOpen}
           >
@@ -254,8 +254,8 @@ function DoctorDashboard() {
         }
         extra={
           session.doctor ? (
-            <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
-              <span className="font-mono text-sm font-bold text-blue-700">{session.doctor.referralCode}</span>
+            <div className="flex items-center gap-[8px] bg-blue-50 px-[13px] py-[8px] rounded-[8px] border border-blue-200/60">
+              <span className="font-mono text-[13px] font-semibold text-blue-700">{session.doctor.referralCode}</span>
               <CopyButton text={session.doctor.referralCode} label="DocID" iconSize={13} />
             </div>
           ) : null
@@ -290,67 +290,31 @@ function DoctorDashboard() {
                 }}
                 aria-current={active ? 'page' : undefined}
                 className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold ${
-                  active ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-700 hover:bg-blue-50'
+                  active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>
-                {item.badge ? (
-                  <span
-                    className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${
-                      active ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                ) : null}
               </button>
             );
           })}
           <button
             type="button"
             onClick={() => void onSignOut()}
-            className="mt-2 flex shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-transparent px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100"
+            className="mt-[13px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
           >
             <LogOutIcon className="h-4 w-4 shrink-0" />
             <span>Sign out</span>
           </button>
         </nav>
 
-        <main className="min-w-0 space-y-6">
-          <nav aria-label="Breadcrumb" className="text-sm">
-            <ol className="flex flex-wrap items-center gap-2 text-gray-500">
-              <li>
-                {section === 'overview' ? (
-                  <span className="font-semibold text-gray-900">Doctor dashboard</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openSection('overview')}
-                    className="font-semibold text-blue-600 hover:underline"
-                  >
-                    Doctor dashboard
-                  </button>
-                )}
-              </li>
-              {section !== 'overview' && (
-                <>
-                  <li aria-hidden className="text-gray-300">
-                    /
-                  </li>
-                  <li className="font-semibold text-gray-900" aria-current="page">
-                    {nav.find((item) => item.id === section)?.label}
-                  </li>
-                </>
-              )}
-            </ol>
-          </nav>
-          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+        <main className="min-w-0 space-y-[34px]">
+          {error && <p className="text-[13px] font-medium text-red-600">{error}</p>}
 
           {section === 'overview' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">Doctor dashboard</h1>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <h1 className="text-[21px] font-semibold text-gray-900">Doctor dashboard</h1>
+              <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-3">
                 <StatCard
                   label="Assigned patients"
                   value={String(patients.length)}
@@ -388,20 +352,20 @@ function DoctorDashboard() {
                 }}
               />
               {unprescribedPatients.length > 0 && (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-sm">
-                  <h2 className="text-lg font-bold text-gray-900">Needs a prescription</h2>
-                  <p className="mt-1 text-sm text-gray-500">
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-[21px] font-semibold text-gray-900">Needs a prescription</h2>
+                  <p className="mt-[8px] text-[13px] text-gray-500">
                     These assigned patients have no activities yet. Open a patient to prescribe on their profile.
                   </p>
-                  <ul className="mt-4 space-y-2">
+                  <ul className="mt-[21px] space-y-[13px]">
                     {unprescribedPatients.map((patient) => (
                       <li key={patient.id}>
                         <Link
                           href={`/doctor/patients/${patient.id}`}
-                          className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3 text-sm hover:border-blue-200 hover:bg-blue-50"
+                          className="flex items-center justify-between rounded-[13px] border border-gray-100 px-[13px] py-[13px] text-[13px] hover:border-blue-200 hover:bg-blue-50"
                         >
                           <span className="font-semibold text-gray-900">{patient.name}</span>
-                          <span className="font-bold text-blue-600">Open</span>
+                          <span className="font-semibold text-blue-600">Open</span>
                         </Link>
                       </li>
                     ))}
@@ -413,12 +377,12 @@ function DoctorDashboard() {
 
           {section === 'patients' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">My patients</h1>
-              <div className="mx-auto flex max-w-lg rounded-[13px] bg-gray-200 p-1">
+              <h1 className="text-[21px] font-semibold text-gray-900">My patients</h1>
+              <div className="mx-auto flex w-full max-w-[576px] rounded-[13px] bg-gray-200 p-[8px]">
                 <button
                   type="button"
                   onClick={() => setListTab('create')}
-                  className={`flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold ${
+                  className={`flex-1 cursor-pointer rounded-[13px] py-[13px] text-[13px] font-semibold ${
                     listTab === 'create' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
                   }`}
                 >
@@ -427,38 +391,32 @@ function DoctorDashboard() {
                 <button
                   type="button"
                   onClick={() => setListTab('patients')}
-                  className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${
+                  className={`flex-1 cursor-pointer rounded-[13px] py-[13px] text-[13px] font-semibold ${
                     listTab === 'patients' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
                   }`}
                 >
                   Patients
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                      listTab === 'patients' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {patients.length}
-                  </span>
                 </button>
               </div>
               {listTab === 'create' && (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-sm">
-                  <h2 className="mb-4 text-lg font-bold text-gray-900">Create patient</h2>
-                  <form onSubmit={onCreatePatient} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FloatingLabelInput label="Name" value={name} onChange={setName} required />
-                    <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required />
-                    <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required />
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+                  <h2 className="mb-[21px] text-[21px] font-semibold leading-none text-gray-900">Create patient</h2>
+                  <form onSubmit={onCreatePatient} className="grid grid-cols-1 gap-[21px] sm:grid-cols-2">
+                    <FloatingLabelInput label="Name" value={name} onChange={setName} required scale="golden" />
+                    <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required scale="golden" />
+                    <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required scale="golden" />
                     <FloatingLabelPasswordInput
                       label="Password (min 8)"
                       value={password}
                       onChange={setPassword}
                       required
                       minLength={8}
+                      scale="golden"
                     />
                     <button
                       type="submit"
                       disabled={saving}
-                      className="rounded-xl bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-60 sm:col-span-2"
+                      className="w-fit rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white disabled:opacity-60 sm:col-span-2"
                     >
                       {saving ? 'Creating…' : 'Create patient'}
                     </button>
@@ -467,12 +425,26 @@ function DoctorDashboard() {
               )}
               {listTab === 'patients' && (
                 <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <div className="mb-3 flex items-center">
-                    <h2 className="text-lg font-bold text-gray-900">Patients</h2>
-                    <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                      {patients.length}
-                    </span>
-                    <div className="flex-1" />
+                  <div className="mb-[13px] flex items-center gap-[13px]">
+                    {searchOpen ? (
+                      <div className="min-w-0 flex-1">
+                        <FloatingLabelInput
+                          label="Search patient name, email..."
+                          value={searchQuery}
+                          onChange={setSearchQuery}
+                          autoFocus
+                          scale="golden"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <h2 className="text-[21px] font-semibold text-gray-900">Patients</h2>
+                        <span className="rounded-full bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-500">
+                          {patients.length}
+                        </span>
+                        <div className="flex-1" />
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -483,7 +455,7 @@ function DoctorDashboard() {
                           setSearchOpen(true);
                         }
                       }}
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                      className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[13px] ${
                         searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
                       }`}
                       title={searchOpen ? 'Close search' : 'Search patients'}
@@ -492,59 +464,35 @@ function DoctorDashboard() {
                       {searchOpen ? <XIcon className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
                     </button>
                   </div>
-                  {searchOpen && (
-                    <div className="relative mb-3 max-w-md">
-                      <FloatingLabelInput
-                        label="Search patient name, email..."
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                        autoFocus
-                        endAdornment={
-                          searchQuery ? (
-                            <button
-                              type="button"
-                              onClick={() => setSearchQuery('')}
-                              className="cursor-pointer text-gray-400 hover:text-gray-600"
-                              title="Clear search"
-                            >
-                              <XIcon className="h-3.5 w-3.5" />
-                            </button>
-                          ) : (
-                            <SearchIcon className="h-4 w-4 text-gray-400" />
-                          )
-                        }
-                      />
-                    </div>
-                  )}
                   {patients.length === 0 && (
                     <div className="py-2">
-                      <p className="text-sm text-gray-500">No patients yet.</p>
+                      <p className="text-[13px] text-gray-500">No patients yet.</p>
                       <button
                         type="button"
                         onClick={() => setListTab('create')}
-                        className="mt-3 cursor-pointer rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"
+                        className="mt-[13px] cursor-pointer rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
                       >
                         Create a patient
                       </button>
                     </div>
                   )}
                   {patients.length > 0 && filteredPatients.length === 0 && (
-                    <div className="px-2 py-6 text-center text-gray-400">
+                    <div className="px-[13px] py-[34px] text-center text-gray-400">
                       <SearchIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                      <p className="text-xs font-semibold text-gray-500">No patients found</p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
+                      <p className="text-[13px] font-semibold text-gray-500">No patients found</p>
+                      <p className="mt-0.5 text-[13px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
                     </div>
                   )}
-                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <ul className="grid grid-cols-2 gap-[13px]">
                     {filteredPatients.map((patient) => (
-                      <li key={patient.id}>
+                      <li key={patient.id} className="min-w-0">
                         <Link
                           href={`/doctor/patients/${patient.id}`}
-                          className="flex items-center gap-3 rounded-xl border border-transparent bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50"
+                          className="flex min-w-0 items-center gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50"
                         >
                           <span
                             aria-hidden
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold uppercase text-white"
+                            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
                           >
                             {patientInitials(patient.name)}
                           </span>
@@ -560,7 +508,7 @@ function DoctorDashboard() {
 
           {section === 'prescriptions' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">Prescriptions</h1>
+              <h1 className="text-[21px] font-semibold text-gray-900">Prescriptions</h1>
               <PatientTable
                 title="Assigned patients"
                 patients={patients}
@@ -576,10 +524,10 @@ function DoctorDashboard() {
 
           {section === 'transfers' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">Transfer requests</h1>
+              <h1 className="text-[21px] font-semibold text-gray-900">Transfer requests</h1>
               {incoming.length === 0 ? (
                 <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <p className="text-sm text-gray-500">No pending transfer requests.</p>
+                  <p className="text-[13px] text-gray-500">No pending transfer requests.</p>
                 </section>
               ) : (
                 <TransferQueue
@@ -593,7 +541,7 @@ function DoctorDashboard() {
 
           {section === 'analytics' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">Analytics</h1>
+              <h1 className="text-[21px] font-semibold text-gray-900">Analytics</h1>
               <PatientTable
                 title="Assigned patients"
                 patients={patients}
@@ -606,29 +554,29 @@ function DoctorDashboard() {
 
           {section === 'settings' && (
             <>
-              <h1 className="text-3xl font-extrabold text-gray-900">Settings</h1>
+              <h1 className="text-[21px] font-semibold text-gray-900">Settings</h1>
               <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <dl className="grid grid-cols-1 gap-[21px] sm:grid-cols-2">
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Name</dt>
-                    <dd className="mt-1 text-sm font-semibold text-gray-900">{session.user.name}</dd>
+                    <dt className="text-[13px] text-gray-500">Name</dt>
+                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Email</dt>
-                    <dd className="mt-1 text-sm font-semibold text-gray-900">{session.user.email}</dd>
+                    <dt className="text-[13px] text-gray-500">Email</dt>
+                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.email}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Phone</dt>
-                    <dd className="mt-1 text-sm font-semibold text-gray-900">{session.user.phone || '—'}</dd>
+                    <dt className="text-[13px] text-gray-500">Phone</dt>
+                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.phone || '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Organization</dt>
-                    <dd className="mt-1 text-sm font-semibold text-gray-900">{session.organization?.name || '—'}</dd>
+                    <dt className="text-[13px] text-gray-500">Organization</dt>
+                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.organization?.name || '—'}</dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-500">DocID</dt>
-                    <dd className="mt-1 flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-blue-700">
+                    <dt className="text-[13px] text-gray-500">DocID</dt>
+                    <dd className="mt-[8px] flex items-center gap-[8px]">
+                      <span className="font-mono text-[21px] font-semibold leading-none text-blue-700">
                         {session.doctor?.referralCode || '—'}
                       </span>
                       <CopyButton text={session.doctor?.referralCode} label="DocID" iconSize={13} />
@@ -654,32 +602,32 @@ function TransferQueue({
   onSettle: (id: string, accept: boolean) => void;
 }) {
   return (
-    <section className="space-y-4 rounded-[13px] border border-blue-100 bg-white p-[21px] shadow-sm">
+    <section className="space-y-[21px] rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
       <div>
-        <h2 className="text-lg font-bold text-gray-900">Incoming attach requests</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-[21px] font-semibold text-gray-900">Incoming attach requests</h2>
+        <p className="mt-[8px] text-[13px] text-gray-500">
           Patients asked to join or switch to your DocID. Confirm or reject here if the email is delayed.
         </p>
       </div>
-      <ul className="space-y-3">
+      <ul className="space-y-[13px]">
         {incoming.map((request) => (
           <li
             key={request.id}
-            className="flex flex-col gap-3 rounded-[13px] border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-[13px] rounded-[13px] border border-gray-100 p-[13px] sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="text-sm font-semibold text-gray-900">{request.patientName}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-[13px] font-semibold text-gray-900">{request.patientName}</p>
+              <p className="text-[13px] text-gray-500">
                 {request.patientEmail}
                 {request.source === 'change' ? ' · reassignment' : ' · new attach'}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-[8px]">
               <button
                 type="button"
                 disabled={incomingBusy === request.id}
                 onClick={() => onSettle(request.id, true)}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 Confirm
               </button>
@@ -687,7 +635,7 @@ function TransferQueue({
                 type="button"
                 disabled={incomingBusy === request.id}
                 onClick={() => onSettle(request.id, false)}
-                className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-60"
+                className="rounded-[13px] bg-gray-100 px-[13px] py-[13px] text-[13px] font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-60"
               >
                 Reject
               </button>
@@ -729,107 +677,97 @@ function PatientTable({
 
   return (
     <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <div className={`flex items-center ${searchable ? 'mb-3' : ''}`}>
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        {searchable && patients.length > 0 && (
+      <div className={`flex items-center gap-[13px] ${searchable ? 'mb-[13px]' : ''}`}>
+        {searchable && patients.length > 0 && searchOpen ? (
+          <div className="min-w-0 flex-1">
+            <FloatingLabelInput
+              label="Search patient name, email..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+              autoFocus
+              scale="golden"
+            />
+          </div>
+        ) : (
           <>
-            <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-              {patients.length}
-            </span>
+            <h2 className="text-[21px] font-semibold text-gray-900">{title}</h2>
+            {searchable && patients.length > 0 && (
+              <span className="rounded-full bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-500">
+                {patients.length}
+              </span>
+            )}
             <div className="flex-1" />
-            <button
-              type="button"
-              onClick={() => {
-                if (searchOpen) {
-                  setSearchOpen(false);
-                  setSearchQuery('');
-                } else {
-                  setSearchOpen(true);
-                }
-              }}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-              }`}
-              title={searchOpen ? 'Close search' : 'Search patients'}
-              aria-label={searchOpen ? 'Close search' : 'Search patients'}
-            >
-              {searchOpen ? <XIcon className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
-            </button>
           </>
         )}
+        {searchable && patients.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (searchOpen) {
+                setSearchOpen(false);
+                setSearchQuery('');
+              } else {
+                setSearchOpen(true);
+              }
+            }}
+            className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[13px] ${
+              searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+            }`}
+            title={searchOpen ? 'Close search' : 'Search patients'}
+            aria-label={searchOpen ? 'Close search' : 'Search patients'}
+          >
+            {searchOpen ? <XIcon className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
+          </button>
+        )}
       </div>
-      {searchable && patients.length > 0 && searchOpen && (
-        <div className="relative mb-3 max-w-md">
-          <FloatingLabelInput
-            label="Search patient name, email..."
-            value={searchQuery}
-            onChange={setSearchQuery}
-            autoFocus
-            endAdornment={
-              searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="cursor-pointer text-gray-400 hover:text-gray-600"
-                  title="Clear search"
-                >
-                  <XIcon className="h-3.5 w-3.5" />
-                </button>
-              ) : (
-                <SearchIcon className="h-4 w-4 text-gray-400" />
-              )
-            }
-          />
-        </div>
-      )}
       {patients.length === 0 ? (
         <div className="py-2">
-          <p className="text-sm text-gray-500">{empty}</p>
+          <p className="text-[13px] text-gray-500">{empty}</p>
           {onCreate && (
             <button
               type="button"
               onClick={onCreate}
-              className="mt-3 cursor-pointer rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"
+              className="mt-[13px] cursor-pointer rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
             >
               Create a patient
             </button>
           )}
         </div>
       ) : visiblePatients.length === 0 ? (
-        <div className="px-2 py-6 text-center text-gray-400">
+        <div className="px-[13px] py-[34px] text-center text-gray-400">
           <SearchIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          <p className="text-xs font-semibold text-gray-500">No patients found</p>
-          <p className="mt-0.5 text-[11px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
+          <p className="text-[13px] font-semibold text-gray-500">No patients found</p>
+          <p className="mt-0.5 text-[13px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
         </div>
       ) : (
         <>
-          <ul className={`md:hidden ${searchable ? '' : 'mt-4'}`}>
+          <ul className={`md:hidden ${searchable ? '' : 'mt-[21px]'}`}>
             {visiblePatients.map((patient) => (
               <li key={patient.id} className="border-b border-gray-200 py-3">
-                <div className="flex items-center gap-3 rounded-xl border border-transparent bg-gray-50 px-4 py-3 transition-colors hover:border-blue-200 hover:bg-blue-50">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex items-center gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] transition-colors hover:border-blue-200 hover:bg-blue-50">
+                  <div className="flex min-w-0 flex-1 items-center gap-[13px]">
                     <span
                       aria-hidden
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold uppercase text-white"
+                      className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
                     >
                       {patientInitials(patient.name)}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-800">{patient.name}</p>
-                      <p className="truncate text-xs text-gray-500">{prescriptionLabel(patient)}</p>
+                      <p className="truncate text-[13px] font-semibold text-gray-800">{patient.name}</p>
+                      <p className="truncate text-[13px] text-gray-500">{prescriptionLabel(patient)}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end">
                     <Link
                       href={`/doctor/patients/${patient.id}`}
-                      className="cursor-pointer rounded-lg px-2.5 py-1 text-sm font-bold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
+                      className="cursor-pointer rounded-[8px] px-[13px] py-[8px] text-[13px] font-semibold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
                     >
                       Open
                     </Link>
                     {showAnalytics && (
                       <Link
                         href={`/doctor/patients/${patient.id}?view=analytics`}
-                        className="cursor-pointer rounded-lg px-2.5 py-1 text-sm font-bold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
+                        className="cursor-pointer rounded-[8px] px-[13px] py-[8px] text-[13px] font-semibold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
                       >
                         Analytics
                       </Link>
@@ -839,42 +777,42 @@ function PatientTable({
               </li>
             ))}
           </ul>
-          <div className={`dashboard-scrollbar hidden overflow-x-auto md:block ${searchable ? '' : 'mt-4'}`}>
-            <table className="w-full min-w-[520px] text-left text-sm">
+          <div className={`dashboard-scrollbar hidden overflow-x-auto md:block ${searchable ? '' : 'mt-[21px]'}`}>
+            <table className="w-full min-w-[520px] text-left text-[13px]">
               <thead>
-                <tr className="border-b border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                  <th className="px-2 py-2 font-bold">Patient</th>
-                  <th className="px-2 py-2 font-bold">Prescription</th>
-                  <th className="px-2 py-2 font-bold">Action</th>
+                <tr className="border-b border-gray-100 text-[13px] font-semibold text-gray-500">
+                  <th className="px-[13px] py-[13px] font-semibold">Patient</th>
+                  <th className="px-[13px] py-[13px] font-semibold">Prescription</th>
+                  <th className="px-[13px] py-[13px] text-center font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {visiblePatients.map((patient) => (
                   <tr key={patient.id} className="border-b border-gray-50 last:border-0 transition-colors hover:bg-[#F4F7FC]">
-                    <td className="px-2 py-3">
-                      <div className="flex items-center gap-3">
+                    <td className="px-[13px] py-[13px]">
+                      <div className="flex items-center gap-[13px]">
                         <span
                           aria-hidden
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold uppercase text-white"
+                          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
                         >
                           {patientInitials(patient.name)}
                         </span>
                         <p className="truncate font-semibold text-gray-900">{patient.name}</p>
                       </div>
                     </td>
-                    <td className="px-2 py-3 text-gray-700">{prescriptionLabel(patient)}</td>
-                    <td className="px-2 py-3">
-                      <div className="flex items-center gap-2">
+                    <td className="px-[13px] py-[13px] text-gray-700">{prescriptionLabel(patient)}</td>
+                    <td className="px-[13px] py-[13px] text-center">
+                      <div className="flex items-center justify-center gap-[8px]">
                         <Link
                           href={`/doctor/patients/${patient.id}`}
-                          className="cursor-pointer rounded-lg px-2.5 py-1 font-bold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
+                          className="cursor-pointer rounded-[8px] px-[13px] py-[8px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
                         >
                           Open
                         </Link>
                         {showAnalytics && (
                           <Link
                             href={`/doctor/patients/${patient.id}?view=analytics`}
-                            className="cursor-pointer rounded-lg px-2.5 py-1 font-bold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
+                            className="cursor-pointer rounded-[8px] px-[13px] py-[8px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
                           >
                             Analytics
                           </Link>

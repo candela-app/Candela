@@ -29,6 +29,8 @@ type FloatingLabelInputProps = {
   style?: StyleProp<ViewStyle>;
   endAdornment?: ReactNode;
   autoFocus?: boolean;
+  /** Dashboard chrome: 13px type, 13px radius, 55px field. */
+  scale?: 'default' | 'golden';
 };
 
 export function FloatingLabelInput({
@@ -46,9 +48,11 @@ export function FloatingLabelInput({
   style,
   endAdornment,
   autoFocus,
+  scale = 'default',
 }: FloatingLabelInputProps) {
   const { fs, s } = useLayout();
   const [focused, setFocused] = useState(false);
+  const golden = scale === 'golden';
   const floated = focused || value.length > 0;
   const dark = variant === 'dark';
 
@@ -72,16 +76,16 @@ export function FloatingLabelInput({
       : '#6B7280';
 
   return (
-    <View style={[{ marginBottom: s(14), marginTop: floated ? s(8) : 0 }, style]}>
+    <View style={[{ marginBottom: golden ? s(21) : s(14), marginTop: floated ? s(8) : 0 }, style]}>
       <View style={{ position: 'relative' }}>
         <View
           style={{
             borderWidth: 1,
             borderColor,
-            borderRadius: s(12),
+            borderRadius: golden ? s(13) : s(12),
             backgroundColor: bg,
             opacity: editable ? 1 : 0.6,
-            minHeight: s(52),
+            minHeight: golden ? s(55) : s(52),
             justifyContent: 'center',
           }}
         >
@@ -103,11 +107,11 @@ export function FloatingLabelInput({
             placeholder=""
             placeholderTextColor="transparent"
             style={{
-              paddingHorizontal: s(14),
-              paddingVertical: s(14),
-              paddingRight: endAdornment ? s(44) : s(14),
-              fontSize: fs(14),
-              fontWeight: '500',
+              paddingHorizontal: golden ? s(13) : s(14),
+              paddingVertical: golden ? s(13) : s(14),
+              paddingRight: endAdornment ? s(golden ? 55 : 44) : golden ? s(13) : s(14),
+              fontSize: golden ? fs(13) : fs(14),
+              fontWeight: golden ? '600' : '500',
               color: textColor,
             }}
           />
@@ -115,7 +119,7 @@ export function FloatingLabelInput({
             <View
               style={{
                 position: 'absolute',
-                right: s(10),
+                right: golden ? s(13) : s(10),
                 top: 0,
                 bottom: 0,
                 justifyContent: 'center',
@@ -130,10 +134,10 @@ export function FloatingLabelInput({
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: s(12),
+            left: golden ? s(13) : s(12),
             top: floated ? -fs(7) : '50%',
             marginTop: floated ? 0 : -fs(9),
-            fontSize: floated ? fs(11) : fs(14),
+            fontSize: golden ? fs(13) : floated ? fs(11) : fs(14),
             fontWeight: '600',
             color: labelColor,
             zIndex: 10,
@@ -147,7 +151,7 @@ export function FloatingLabelInput({
         </Text>
       </View>
       {error ? (
-        <Text style={{ marginTop: s(6), fontSize: fs(12), fontWeight: '600', color: '#F43F5E' }}>
+        <Text style={{ marginTop: golden ? s(8) : s(6), fontSize: golden ? fs(13) : fs(12), fontWeight: '600', color: '#F43F5E' }}>
           {error}
         </Text>
       ) : null}
@@ -164,6 +168,7 @@ export function FloatingLabelPasswordInput({
   autoComplete,
   editable,
   style,
+  scale,
 }: Omit<FloatingLabelInputProps, 'secureTextEntry' | 'endAdornment' | 'keyboardType'>) {
   const [visible, setVisible] = useState(false);
   const { s } = useLayout();
@@ -180,6 +185,7 @@ export function FloatingLabelPasswordInput({
       autoCapitalize="none"
       secureTextEntry={!visible}
       editable={editable}
+      scale={scale}
       style={style}
       endAdornment={
         <Pressable

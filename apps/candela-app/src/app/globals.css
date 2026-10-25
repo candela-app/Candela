@@ -329,6 +329,15 @@ html, body {
   color: var(--shell-blue);
 }
 
+.floating-label-field--golden:has(.floating-label-input:-webkit-autofill) .floating-label-notch,
+.floating-label-field--golden:has(.floating-label-input:not(:placeholder-shown)) .floating-label-notch,
+.floating-label-field--golden:has(.floating-label-input:focus) .floating-label-notch {
+  font-size: 13px !important;
+  letter-spacing: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 .floating-label-field:has(.floating-label-input--dark:-webkit-autofill) .floating-label-notch,
 .floating-label-field:has(.floating-label-input--dark:not(:placeholder-shown)) .floating-label-notch,
 .floating-label-field:has(.floating-label-input--dark:focus) .floating-label-notch {
