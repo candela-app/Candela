@@ -181,6 +181,70 @@ export function SlidersIcon({ className = 'w-6 h-6', size, ...props }: IconProps
   );
 }
 
+export function GearIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function HistoryIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
+export function CreditCardIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <rect width="20" height="14" x="2" y="5" rx="2" />
+      <line x1="2" x2="22" y1="10" y2="10" />
+    </svg>
+  );
+}
+
 export function AnalyticsIcon({ className = 'w-6 h-6', size, ...props }: IconProps) {
   return (
     <svg
@@ -330,6 +394,47 @@ export function ArrowDownIcon({ className = 'w-6 h-6', size, ...props }: IconPro
     >
       <path d="M12 5v14" />
       <path d="m19 12-7 7-7-7" />
+    </svg>
+  );
+}
+
+export function SortOrderIcon({
+  direction = 'desc',
+  className = 'w-6 h-6',
+  size,
+  ...props
+}: IconProps & { direction?: 'asc' | 'desc' }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      {direction === 'asc' ? (
+        <>
+          <path d="m3 8 4-4 4 4" />
+          <path d="M7 4v16" />
+          <path d="M11 12h4" />
+          <path d="M11 16h7" />
+          <path d="M11 20h10" />
+        </>
+      ) : (
+        <>
+          <path d="m3 16 4 4 4-4" />
+          <path d="M7 20V4" />
+          <path d="M11 4h10" />
+          <path d="M11 8h7" />
+          <path d="M11 12h4" />
+        </>
+      )}
     </svg>
   );
 }

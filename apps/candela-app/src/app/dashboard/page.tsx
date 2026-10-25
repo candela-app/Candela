@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RotatoryWheelGame } from '@/components/rotatoryModule/RotatoryWheelGame';
 import { SortingGame } from '@/components/sortingModule/SortingGame';
@@ -17,6 +18,16 @@ import { GazeHoldGame } from '@/components/lookPursuitModule/GazeHoldGame';
 import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFacesGame';
 import {
   AnalyticsIcon,
+  ArrowRightIcon,
+  CreditCardIcon,
+  GearIcon,
+  HistoryIcon,
+  InfoIcon,
+  EyeIcon,
+  LayoutDashboardIcon,
+  LogOutIcon,
+  SortOrderIcon,
+  UserIcon,
 } from '@/components/icons/VectorIcons';
 import {
   GameMode,
@@ -30,7 +41,11 @@ import {
   CATALOG_TO_UI_MODULE,
   MODULE_LEVELS,
   resolveAllowedModuleIds,
+  ALL_MODULE_IDS,
+  GAME_CATALOG,
   GAME_FAMILIES,
+  PEDIATRIC_GAME_FAMILIES,
+  levelsForTherapyModule,
   getGameFamily,
   familyForModuleId,
   isTherapyFamilyId,
@@ -41,28 +56,134 @@ import {
   resolvePeripheralField,
   directionSensePrescribedAllows,
   normalizeDirectionSenseLevelId,
+  buildGameSessionAnalytics,
+  consistencyStreak,
   type PursuitMovementPattern,
   type PeripheralField,
   type TherapyModuleId,
 } from '@candela/shared';
 import { listMyGameSessions, type StoredGameSessionRecord } from '@/lib/api';
+import streakFire from '@candela/shared/assets/lottie/streak-fire.json';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
-import { PatientDashboardSkeleton } from '@/components/common/Skeleton';
 import { SessionAnalyticsPanel } from '@/components/shared/SessionAnalyticsPanel';
 import { EditPatientNameModal } from '@/components/common/EditPatientNameModal';
+import { CopyButton } from '@/components/ui/CopyButton';
+import { DocIdRequestCard } from '@/components/docid/DocIdRequestCard';
 import { MODULE_CARDS } from '@/lib/shell';
 
+const StreakFire = dynamic(() => import('lottie-react').then((mod) => mod.Lottie), {
+  ssr: false,
+});
+
 const VARIANT_TILE =
-  'min-h-[140px] w-full rounded-2xl bg-white text-center flex justify-center items-center p-4 border-2 border-shell-border hover:border-shell-blue cursor-pointer transition-colors';
+  'min-h-[140px] w-full rounded-2xl bg-white text-center flex flex-col justify-center items-center gap-2 p-4 border border-gray-200 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] hover:border-gray-300 cursor-pointer';
 
 const EMPTY_LEVELS =
-  'col-span-full bg-white rounded-3xl border border-shell-border p-10 text-center w-full';
+  'col-span-full bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] p-10 text-center w-full';
 
-const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none';
-const CHOOSER_SCROLL = 'max-h-full overflow-y-auto overscroll-none';
+const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none lg:overflow-visible';
+const CHOOSER_SCROLL = 'relative z-0 max-h-full overflow-y-auto overscroll-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:-mt-[81px] lg:h-[calc(100%+81px)] lg:max-h-none lg:pt-[81px]';
 
-type ActiveView = 'module' | 'family' | 'game' | 'analytics' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
+type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
+
+const DASHBOARD_SHADOW = 'shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]';
+
+function OpenArrow() {
+  const timing = React.useRef({
+    delay: Math.random() * 1.8,
+    duration: 2.2 + Math.random() * 0.8,
+  });
+
+  return (
+    <ArrowRightIcon
+      className="open-hint size-3.5"
+      style={{
+        animation: `open-hint ${timing.current.duration}s cubic-bezier(0.22, 1, 0.36, 1) ${timing.current.delay}s infinite`,
+      }}
+    />
+  );
+}
+
+function DigitReel({ digit, clock }: { digit: number; clock: string }) {
+  const cells = [digit, ...Array.from({ length: 10 }, (_, index) => index % 10), digit];
+
+  return (
+    <span className="block h-4 overflow-hidden">
+      <span
+        className="digit-reel"
+        style={{
+          animation: `digit-reel ${clock}`,
+          ['--reel-land' as string]: `-${cells.length - 1}rem`,
+        }}
+      >
+        {cells.map((value, index) => (
+          <span key={index} className="block h-4 text-center leading-4">
+            {value}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function PrescribedCount({
+  count,
+  duration,
+  delay,
+}: {
+  count: number;
+  duration: string;
+  delay: number;
+}) {
+  if (count <= 0) {
+    return (
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-gray-600">
+        0
+      </span>
+    );
+  }
+
+  const digits = String(count).split('').map((value) => Number(value));
+
+  return (
+    <span className="inline-flex items-center gap-px overflow-hidden rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-blue-600">
+      {digits.map((digit, index) => (
+        <DigitReel
+          key={`${digit}-${index}`}
+          digit={digit}
+          clock={`${duration}s linear ${(delay + index * 0.08).toFixed(2)}s infinite`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function ShineLabel({ children, clock }: { children: React.ReactNode; clock: string }) {
+  return (
+    <span className="count-shine">
+      {children}
+      <span aria-hidden="true" className="count-shine-glint" style={{ animation: `count-shine ${clock}` }}>
+        {children}
+      </span>
+    </span>
+  );
+}
+
+function CatalogCue({ label, count }: { label: string; count: number }) {
+  const cue = React.useRef({
+    duration: (2.6 + Math.random() * 0.3).toFixed(2),
+    delay: Number((Math.random() * 1.2).toFixed(2)),
+  });
+  const clock = `${cue.current.duration}s linear ${cue.current.delay.toFixed(2)}s infinite`;
+
+  return (
+    <>
+      {count > 0 ? <ShineLabel clock={clock}>{label}</ShineLabel> : label}
+      <PrescribedCount count={count} duration={cue.current.duration} delay={cue.current.delay} />
+    </>
+  );
+}
 
 function formatSessionDuration(seconds: number): string {
   if (!seconds || seconds <= 0) return '0s';
@@ -82,10 +203,149 @@ function formatSessionDate(dateStr: string): string {
     const d = new Date(dateStr);
     return isNaN(d.getTime())
       ? '—'
-      : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   } catch {
     return '—';
   }
+}
+
+function sessionDayKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return 'unknown';
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+function formatHistoryDay(dayKey: string): string {
+  if (dayKey === 'unknown') return 'Unknown date';
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function LinkedDoctor({ name, code }: { name: string | null | undefined; code: string | null | undefined }) {
+  if (!name && !code) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-[13px] gap-y-[8px]">
+      <span className="text-[21px] font-semibold leading-none text-gray-900">{name ? `Dr. ${name}` : 'Your doctor'}</span>
+      {code ? (
+        <span className="inline-flex items-center gap-[8px] font-mono text-[21px] font-semibold leading-none tabular-nums text-gray-900">
+          {code}
+          <CopyButton text={code} label="DocID" iconSize={13} />
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
+function DashboardSummary({
+  sessions,
+  doctorName,
+  doctorCode,
+}: {
+  sessions: StoredGameSessionRecord[];
+  doctorName: string | null | undefined;
+  doctorCode: string | null | undefined;
+}) {
+  const totals = buildGameSessionAnalytics(
+    sessions.map((row) => ({
+      ...row,
+      gameId: row.gameId as TherapyModuleId,
+      levelId: row.levelId ?? null,
+      deviceTier: row.deviceTier ?? null,
+    })),
+  ).totals;
+  let lastPlayed = '—';
+  let lastPlayedHint = totals.sessionCount ? 'Most recent session' : 'Not played yet';
+  if (totals.lastPlayedAt) {
+    const parsed = new Date(totals.lastPlayedAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      lastPlayed = parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      lastPlayedHint = `Most recent session in ${parsed.getFullYear()}`;
+    }
+  }
+  const mean = (value: number | null, suffix = '') => (value != null ? `${value}${suffix}` : '—');
+  const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
+  const streakFireRef = React.useRef<{ play: () => void } | null>(null);
+  const cards: { label: string; value: string; hint: string }[] = [
+    { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
+    { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
+    {
+      label: 'Streak',
+      value: String(streak),
+      hint: totals.sessionCount === 0 ? 'Not played yet' : streak > 0 ? 'Consecutive days' : 'No current streak',
+    },
+    { label: 'Accuracy', value: mean(totals.avgAccuracy, '%'), hint: 'Mean' },
+    { label: 'Avg reaction time', value: mean(totals.avgReactionSec, 's'), hint: 'Mean' },
+    { label: 'Efficiency', value: mean(totals.efficiency), hint: 'Mean' },
+    { label: 'Wrong-tap rate', value: mean(totals.wrongTapRate, '%'), hint: 'Mean' },
+    { label: 'Miss rate', value: mean(totals.missRate, '%'), hint: 'Mean' },
+    { label: 'Time to finish', value: mean(totals.avgDurationSec, 's'), hint: 'Mean' },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-[13px] md:grid-cols-2">
+      <div className={`flex items-center justify-between gap-[21px] rounded-[13px] border border-gray-200 bg-white p-[21px] md:col-span-2 ${DASHBOARD_SHADOW}`}>
+        <div className="min-w-0">
+          <p className="text-[13px] leading-[21px] text-gray-900">
+            <span className="kpi-draw">Doctor</span>
+          </p>
+          <p className="mt-[8px] text-[34px] font-semibold leading-none text-gray-900">{doctorName ? `Dr. ${doctorName}` : '—'}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[13px] leading-[21px] text-gray-900">
+            <span className="kpi-draw" style={{ '--kpi-delay': '180ms' } as React.CSSProperties}>DocID</span>
+          </p>
+          <p className="mt-[8px] flex items-center justify-end gap-[8px] font-mono text-[34px] font-semibold leading-none tabular-nums text-gray-900">
+            {doctorCode || '—'}
+            {doctorCode ? <CopyButton text={doctorCode} label="DocID" iconSize={13} /> : null}
+          </p>
+        </div>
+      </div>
+      {cards.map((card, index) => (
+        <div key={card.label} className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+          <div className="min-w-0">
+            <p className="text-[13px] leading-[21px] text-gray-900">
+              <span className="kpi-draw" style={{ '--kpi-delay': `${(index + 2) * 180}ms` } as React.CSSProperties}>{card.label}</span>
+            </p>
+            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{card.hint}</p>
+          </div>
+          <div className={`relative flex h-[34px] shrink-0 items-center ${card.label === 'Streak' ? 'pr-[48px]' : ''}`}>
+            <span className="text-[34px] font-semibold leading-none tabular-nums text-gray-900">{card.value}</span>
+            {card.label === 'Streak' ? (
+              <StreakFire
+                lottieRef={streakFireRef}
+                src={streakFire}
+                loop
+                autoplay
+                subscriptions={{ ready: () => streakFireRef.current?.play() }}
+                className="absolute right-0 top-1/2 h-[55px] w-[40px] -translate-y-[calc(50%+9px)]"
+              />
+            ) : null}
+          </div>
+        </div>
+      ))}
+      <div className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+        <p className="text-[13px] leading-[21px] text-gray-900">
+            <span className="kpi-draw" style={{ '--kpi-delay': `${(cards.length + 2) * 180}ms` } as React.CSSProperties}>Games</span>
+        </p>
+        <div className="flex shrink-0 items-center gap-[21px]">
+          <div className="text-right">
+            <p className="text-[13px] leading-[21px] text-gray-500">Standard</p>
+            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{totals.normalGameCount}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[13px] leading-[21px] text-gray-500">Pediatric</p>
+            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{totals.pediatricGameCount}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DashboardKpiCards({
@@ -100,47 +360,25 @@ function DashboardKpiCards({
   durationSec: number;
 }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <div className="rounded-2xl border border-shell-border bg-white p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
-          Sessions
-        </p>
-        <p className="text-2xl font-extrabold text-shell-ink mt-1">{sessionCount}</p>
-        <p className="text-xs text-shell-muted mt-1">
-          {sessionCount === 1 ? '1 finished play' : `${sessionCount} finished plays`}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-shell-border bg-white p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">
-          Accuracy
-        </p>
-        <p className="text-2xl font-extrabold text-shell-ink mt-1">
-          {avgAccuracy != null ? `${avgAccuracy}%` : '—'}
-        </p>
-        <p className="text-xs text-shell-muted mt-1">
-          {avgAccuracy != null ? 'Mean score' : 'No plays yet'}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-shell-border bg-white p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
-          Last played
-        </p>
-        <p className="text-2xl font-extrabold text-shell-ink mt-1">{lastPlayed}</p>
-        <p className="text-xs text-shell-muted mt-1">
-          {sessionCount ? 'Most recent session' : 'Not played yet'}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-shell-border bg-white p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-violet-600">
-          Time Spent
-        </p>
-        <p className="text-2xl font-extrabold text-shell-ink mt-1">
-          {formatSessionDuration(durationSec)}
-        </p>
-        <p className="text-xs text-shell-muted mt-1">
-          {durationSec > 0 ? 'Total training time' : '0 minutes recorded'}
-        </p>
-      </div>
+    <div className="grid grid-cols-1 gap-[13px] md:grid-cols-2">
+      {(
+        [
+          { label: 'Sessions', value: String(sessionCount), hint: sessionCount === 1 ? '1 finished play' : `${sessionCount} finished plays` },
+          { label: 'Accuracy', value: avgAccuracy != null ? `${avgAccuracy}%` : '—', hint: avgAccuracy != null ? 'Mean score' : 'No plays yet' },
+          { label: 'Last played', value: lastPlayed, hint: sessionCount ? 'Most recent session' : 'Not played yet' },
+          { label: 'Time spent', value: formatSessionDuration(durationSec), hint: durationSec > 0 ? 'Total training time' : '0 minutes recorded' },
+        ]
+      ).map((card, index) => (
+        <div key={card.label} className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+          <div className="min-w-0">
+            <p className="text-[13px] leading-[21px] text-gray-900">
+              <span className="kpi-draw" style={{ '--kpi-delay': `${index * 180}ms` } as React.CSSProperties}>{card.label}</span>
+            </p>
+            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{card.hint}</p>
+          </div>
+          <p className="shrink-0 text-[34px] font-semibold leading-none tabular-nums whitespace-nowrap text-gray-900">{card.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -148,18 +386,28 @@ function DashboardKpiCards({
 function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, logout } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [docIdRequestOpen, setDocIdRequestOpen] = useState(false);
+  const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
+  const [sessionsReady, setSessionsReady] = useState(false);
+  const [historyGameId, setHistoryGameId] = useState('');
+  const [historyLevelId, setHistoryLevelId] = useState('');
+  const [historyFrom, setHistoryFrom] = useState('');
+  const [historyTo, setHistoryTo] = useState('');
+  const [historySort, setHistorySort] = useState<'desc' | 'asc'>('desc');
 
   const loadSessions = React.useCallback(async () => {
-    if (session?.user?.role === 'patient') {
-      try {
-        const data = await listMyGameSessions();
-        setSessions(data);
-      } catch {
-        setSessions([]);
-      }
+    if (session?.user?.role !== 'patient') return;
+    try {
+      const data = await listMyGameSessions();
+      setSessions(data);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsReady(true);
     }
   }, [session?.user?.role]);
 
@@ -391,9 +639,29 @@ function MainContent() {
       setSelectedFamily(familyParam);
       setSelectedModule(null);
       setView('family');
+    } else if (pageParam === 'games') {
+      setSelectedTherapy('vision');
+      setSelectedModule(null);
+      setSelectedFamily(null);
+      setView('games');
     } else if (pageParam === 'analytics') {
       setSelectedTherapy('vision');
       setView('analytics');
+    } else if (pageParam === 'account') {
+      setSelectedTherapy('vision');
+      setView('account');
+    } else if (pageParam === 'settings') {
+      setSelectedTherapy('vision');
+      setView('settings');
+    } else if (pageParam === 'history') {
+      setSelectedTherapy('vision');
+      setView('history');
+    } else if (pageParam === 'subscription') {
+      setSelectedTherapy('vision');
+      setView('subscription');
+    } else if (pageParam === 'help') {
+      setSelectedTherapy('vision');
+      setView('help');
     } else {
       setSelectedTherapy('vision');
       setSelectedModule(null);
@@ -436,6 +704,7 @@ function MainContent() {
     selectedFamily || familyForModuleId(UI_MODULE_TO_CATALOG[uiId] ?? '')?.id || null;
 
   const navigateToAnalytics = () => {
+    setNavOpen(false);
     updateQueryParams({
       page: 'analytics',
       therapy: 'vision',
@@ -448,9 +717,54 @@ function MainContent() {
     });
   };
 
-  const handleBackToModules = () => {
+  const openWorkspace = (page: 'account' | 'settings' | 'history' | 'subscription' | 'help') => {
+    setNavOpen(false);
+    updateQueryParams({
+      page,
+      therapy: 'vision',
+      family: null,
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
+  };
+
+  const openAccount = () => openWorkspace('account');
+  const openSettings = () => openWorkspace('settings');
+
+  const openPractice = () => {
+    setNavOpen(false);
     updateQueryParams({
       page: null,
+      therapy: 'vision',
+      family: null,
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
+  };
+
+  const openGames = () => {
+    setNavOpen(false);
+    updateQueryParams({
+      page: 'games',
+      therapy: 'vision',
+      family: null,
+      module: null,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+    });
+  };
+
+  const handleBackToModules = () => {
+    updateQueryParams({
+      page: 'games',
       therapy: 'vision',
       family: null,
       module: null,
@@ -712,7 +1026,7 @@ function MainContent() {
   };
 
   const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision' || view === 'play_familiar_faces';
-  const isChooserView = view === 'module' || view === 'family' || view === 'game';
+  const isChooserView = view === 'module' || view === 'games' || view === 'family' || view === 'game' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help';
   const isAnalyticsView = view === 'analytics';
   const lockToViewport = isChooserView || isAnalyticsView;
 
@@ -736,21 +1050,43 @@ function MainContent() {
     };
   }, [lockToViewport, isPlayingGame]);
 
-  const visibleFamilies = GAME_FAMILIES.filter((family) =>
+  const practiceFamilies = catalog === 'pediatric' ? PEDIATRIC_GAME_FAMILIES : GAME_FAMILIES;
+  const visibleFamilies = practiceFamilies.filter((family) =>
     family.moduleIds.some((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])),
   );
+  const prescribedIn = (families: typeof GAME_FAMILIES) =>
+    families.reduce(
+      (sum, family) =>
+        sum + family.moduleIds.filter((catalogId) => canPlayUiModule(CATALOG_TO_UI_MODULE[catalogId])).length,
+      0,
+    );
+  const normalPrescribedCount = prescribedIn(GAME_FAMILIES);
+  const pediatricPrescribedCount = prescribedIn(PEDIATRIC_GAME_FAMILIES);
   const activeFamily = getGameFamily(selectedFamily);
   const familyActivityCards = (activeFamily?.moduleIds ?? [])
     .map((catalogId) => MODULE_CARDS.find((card) => card.uiId === CATALOG_TO_UI_MODULE[catalogId]))
     .filter((card): card is (typeof MODULE_CARDS)[number] => Boolean(card && canPlayUiModule(card.uiId)));
+  const selectedCatalogId = selectedModule ? UI_MODULE_TO_CATALOG[selectedModule] ?? '' : '';
+  const selectedGameSessions = sessions.filter((row) => row.gameId === selectedCatalogId);
+  const selectedGameCount = selectedGameSessions.length;
+  const selectedGameAccuracy = selectedGameCount
+    ? Math.round((selectedGameSessions.reduce((sum, row) => sum + (row.accuracy || 0), 0) / selectedGameCount) * 10) / 10
+    : null;
+  const selectedGameLast = selectedGameCount
+    ? formatSessionDate(
+        [...selectedGameSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[selectedGameCount - 1].recordedAt,
+      )
+    : '—';
+  const selectedGameDuration = selectedGameSessions.reduce((sum, row) => sum + (row.durationSec || 0), 0);
+  const levelAccuracy = (levelId: string | number) => {
+    const rows = selectedGameSessions.filter((row) => row.levelId === String(levelId));
+    if (!rows.length) return '—';
+    const value = Math.round((rows.reduce((sum, row) => sum + (row.accuracy || 0), 0) / rows.length) * 10) / 10;
+    return `${value}%`;
+  };
 
-  if (authLoading || !session || session.user.role !== 'patient') {
-    return (
-      <div className="min-h-dvh bg-page flex flex-col">
-        <AppHeader />
-        <PatientDashboardSkeleton />
-      </div>
-    );
+  if (authLoading || !session || session.user.role !== 'patient' || !sessionsReady) {
+    return <div className="h-dvh bg-page" />;
   }
 
   return (
@@ -760,16 +1096,42 @@ function MainContent() {
         : lockToViewport
           ? 'h-dvh overflow-hidden overscroll-none flex flex-col'
           : 'min-h-dvh overflow-x-hidden flex flex-col'
-    } w-full bg-page relative select-none touch-manipulation`}>
+    } w-full relative select-none touch-manipulation ${isPlayingGame ? 'bg-page' : 'page-wash'}`}>
       {!isPlayingGame && (
-        <div className="shrink-0">
+        <div className="relative z-40 shrink-0">
         <AppHeader
+          leading={
+            <button
+              type="button"
+              onClick={() => setNavOpen((open) => !open)}
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 lg:hidden"
+              aria-label={navOpen ? 'Close sidebar' : 'Open sidebar'}
+              aria-expanded={navOpen}
+            >
+              <svg
+                className="size-[22px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18" />
+                {navOpen ? <rect x="4" y="4" width="5" height="16" rx="1" fill="currentColor" stroke="none" /> : null}
+              </svg>
+            </button>
+          }
           onBack={
             view === 'game'
               ? handleBackToFamily
-              : view === 'family' || view === 'analytics'
+              : view === 'family'
                 ? handleBackToModules
-                : undefined
+                : view === 'games' || view === 'analytics' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help'
+                  ? openPractice
+                  : undefined
           }
         />
         </div>
@@ -777,66 +1139,134 @@ function MainContent() {
 
       {/* CHOOSER CONTAINER (PERSISTENT SCROLL WRAPPER) */}
       {(isChooserView || isAnalyticsView) && (
-        <div className={CHOOSER_PANE}>
+        <div className={`${CHOOSER_PANE} lg:grid lg:grid-cols-[220px_minmax(0,930px)] lg:justify-center lg:gap-[34px]`}>
+          {navOpen ? (
+            <button
+              type="button"
+              className="fixed inset-x-0 bottom-0 top-[68px] z-30 bg-slate-900/40 lg:hidden"
+              aria-label="Close menu"
+              onClick={() => setNavOpen(false)}
+            />
+          ) : null}
+          <nav
+            aria-label="Patient workspace"
+            className={`dashboard-scrollbar fixed left-4 top-[68px] z-40 flex max-h-[calc(100dvh-81px)] w-[220px] flex-col gap-[8px] overflow-y-auto rounded-[13px] border border-gray-100 bg-white p-[13px] ${DASHBOARD_SHADOW} ${
+              navOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
+            } lg:sticky lg:left-auto lg:top-4 lg:z-auto lg:flex lg:h-fit lg:max-h-[calc(100dvh-32px)] lg:w-auto lg:translate-x-0 lg:self-start`}
+          >
+            {(
+              [
+                { id: 'practice' as const, label: 'Dashboard', icon: LayoutDashboardIcon, active: view === 'module', onClick: openPractice },
+                { id: 'games' as const, label: 'My games', icon: EyeIcon, active: view === 'games' || view === 'family' || view === 'game', onClick: openGames },
+                { id: 'analytics' as const, label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
+                { id: 'history' as const, label: 'Session history', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
+                { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon, active: view === 'subscription', onClick: () => openWorkspace('subscription') },
+                { id: 'account' as const, label: 'Account', icon: UserIcon, active: view === 'account', onClick: openAccount },
+                { id: 'settings' as const, label: 'Settings', icon: GearIcon, active: view === 'settings', onClick: openSettings },
+                { id: 'help' as const, label: 'Help', icon: InfoIcon, active: view === 'help', onClick: () => openWorkspace('help') },
+              ]
+            ).map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  aria-current={item.active ? 'page' : undefined}
+                  className={`flex shrink-0 items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold cursor-pointer ${
+                    item.active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                void logout().then(() => router.replace('/'));
+              }}
+              className="mt-[8px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
+            >
+              <LogOutIcon className="size-4 shrink-0" />
+              <span>Sign out</span>
+            </button>
+          </nav>
           <div ref={scrollContainerRef} onScroll={handleScroll} className={CHOOSER_SCROLL}>
             {/* FAMILY SELECTION VIEW */}
-            {view === 'module' && (() => {
-              const overallSessionsCount = sessions.length;
-              const overallAvgAccuracy = overallSessionsCount
-                ? Math.round((sessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / overallSessionsCount) * 10) / 10
-                : null;
-              const overallLastPlayed = overallSessionsCount
-                ? formatSessionDate(
-                    [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[overallSessionsCount - 1]
-                      .recordedAt,
-                  )
-                : '—';
-              const overallDurationSec = sessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+            {view === 'module' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Vision Therapy Dashboard</h2>
 
-              return (
-                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 space-y-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">Vision Therapy</h2>
-                      <p className="text-[13px] text-shell-muted font-medium mt-0.5">Pick a family, then an activity</p>
-                    </div>
-                    <button
-                      onClick={navigateToAnalytics}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95 cursor-pointer hover:border-shell-blue/40"
-                      title="View Session Analytics"
-                    >
-                      <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
-                      <span className="hidden sm:inline">Analytics</span>
-                    </button>
-                  </div>
-
-                  {/* OVERALL TOP KPI SUMMARY CARDS */}
-                  <DashboardKpiCards
-                    sessionCount={overallSessionsCount}
-                    avgAccuracy={overallAvgAccuracy}
-                    lastPlayed={overallLastPlayed}
-                    durationSec={overallDurationSec}
+                  <DashboardSummary
+                    sessions={sessions}
+                    doctorName={session.patient?.doctorName}
+                    doctorCode={session.patient?.referralCode}
                   />
+                </div>
+            )}
 
-                  {/* SECTION DIVIDER WITH OVERLAPPING CENTERED TITLE */}
-                  <div className="relative flex items-center justify-center my-6">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200" />
-                    </div>
-                    <div className="relative px-4 bg-page">
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                        Game Families
-                      </span>
-                    </div>
+            {view === 'games' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">My games</h2>
+
+                  <div className="mx-auto flex w-full max-w-lg rounded-[13px] bg-gray-200 p-[8px]">
+                    {(
+                      [
+                        { id: 'normal' as const, label: 'Standard games', count: normalPrescribedCount },
+                        { id: 'pediatric' as const, label: 'Pediatric games', count: pediatricPrescribedCount },
+                      ]
+                    ).map((tab) => {
+                      const active = catalog === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCatalog(tab.id)}
+                          className={`flex flex-1 items-center justify-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold ${
+                            active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                          }`}
+                        >
+                          <CatalogCue label={tab.label} count={tab.count} />
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {allowedModuleIds.size === 0 && (
-                      <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-                        <h3 className="text-lg font-bold text-shell-ink">No modules prescribed yet</h3>
-                        <p className="text-[13px] text-shell-muted mt-2">
+                  {visibleFamilies.length > 0 ? (
+                    <h3 className="text-[13px] font-semibold text-gray-700">Choose a family</h3>
+                  ) : null}
+
+                  <main className="grid content-start grid-cols-1 gap-[13px] sm:grid-cols-2 lg:grid-cols-3">
+                    {catalog === 'pediatric' && visibleFamilies.length === 0 ? (
+                      <div className={`sm:col-span-2 lg:col-span-3 bg-white rounded-[13px] border border-shell-border p-[21px] text-center ${DASHBOARD_SHADOW}`}>
+                        <h3 className="text-lg font-bold text-shell-ink text-balance">No pediatric games yet</h3>
+                        <p className="text-[13px] text-shell-muted mt-2 text-pretty">
+                          Pediatric games will appear here when they are added.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setCatalog('normal')}
+                          className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Show standard games
+                        </button>
+                      </div>
+                    ) : null}
+                    {catalog === 'normal' && allowedModuleIds.size === 0 && (
+                      <div className={`sm:col-span-2 lg:col-span-3 bg-white rounded-[13px] border border-shell-border p-[21px] text-center ${DASHBOARD_SHADOW}`}>
+                        <h3 className="text-lg font-bold text-shell-ink text-balance">No modules prescribed yet</h3>
+                        <p className="text-[13px] text-shell-muted mt-2 text-pretty">
                           Your doctor has not added any therapy modules. Check back after they prescribe one.
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => router.push('/docid')}
+                          className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Open DocID
+                        </button>
                       </div>
                     )}
                     {visibleFamilies.map((family) => {
@@ -846,67 +1276,44 @@ function MainContent() {
                       const famSessions = sessions.filter((s) =>
                         family.moduleIds.includes(s.gameId as TherapyModuleId),
                       );
-                      const famCount = famSessions.length;
-                      const famAcc = famCount
-                        ? Math.round((famSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / famCount) * 10) / 10
-                        : null;
-                      const famLast = famCount
+                      const famLast = famSessions.length
                         ? formatSessionDate(
-                            [...famSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[famCount - 1]
+                            [...famSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[famSessions.length - 1]
                               .recordedAt,
                           )
-                        : '—';
-                      const famDuration = famSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+                        : null;
 
                       return (
                         <button
                           key={family.id}
                           type="button"
                           onClick={() => handleSelectFamily(family.id)}
-                          className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                          className={`group relative flex w-full cursor-pointer flex-col justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] text-left ${DASHBOARD_SHADOW} hover:border-gray-400`}
                         >
-                          <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: family.bar }} />
-                          <div className="pt-2">
-                            <h3 className="m-0 text-lg font-bold text-shell-ink">{family.title}</h3>
-                            <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{family.body}</p>
-
-                            {/* GAME FAMILY LEVEL KPI STATS */}
-                            <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-left">
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sessions</span>
-                                <span className="block text-xs font-extrabold text-gray-900">{famCount}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
-                                <span className="block text-xs font-extrabold text-gray-900">{famAcc != null ? `${famAcc}%` : '—'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last played</span>
-                                <span className="block text-xs font-extrabold text-gray-900 truncate">{famLast}</span>
-                              </div>
-                            </div>
+                          <span className="absolute -right-px -top-px z-10 rounded-bl-[8px] rounded-tr-[13px] border border-gray-200 bg-gray-50 px-[8px] py-[5px] text-[8px] leading-[13px] font-semibold tabular-nums text-gray-600 group-hover:border-gray-400">
+                            {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
+                          </span>
+                          <div>
+                            <h3 className="m-0 pr-[89px] text-[21px] font-semibold leading-[34px] text-gray-900">{family.title}</h3>
+                            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">{family.body}</p>
+                            {famLast ? (
+                              <p className="mt-[13px] text-[13px] leading-[21px] text-gray-500">
+                                Last played <span className="font-semibold tabular-nums text-gray-900">{famLast}</span>
+                              </p>
+                            ) : null}
                           </div>
-
-                          <div className="flex items-center justify-between mt-3 pt-1">
-                            <span
-                              className="px-2.5 py-1 rounded-full text-[10px] font-bold"
-                              style={{ color: family.accent, backgroundColor: `${family.accent}14` }}
-                            >
-                              {playableCount} {playableCount === 1 ? 'activity' : 'activities'}
+                          <div className="flex justify-end">
+                            <span className="inline-flex items-center gap-[8px] text-[13px] font-semibold text-blue-600">
+                              Open
+                              <OpenArrow />
                             </span>
-                            {famDuration > 0 && (
-                              <span className="text-[10px] font-semibold text-gray-400">
-                                {formatSessionDuration(famDuration)} played
-                              </span>
-                            )}
                           </div>
                         </button>
                       );
                     })}
                   </main>
                 </div>
-              );
-            })()}
+            )}
 
             {/* FAMILY ACTIVITIES VIEW */}
             {view === 'family' && activeFamily && (() => {
@@ -926,20 +1333,10 @@ function MainContent() {
               const activeFamDuration = activeFamSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
 
               return (
-                <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 space-y-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">{activeFamily.title}</h2>
-                      <p className="text-[13px] text-shell-muted font-medium mt-0.5">{activeFamily.body}</p>
-                    </div>
-                    <button
-                      onClick={navigateToAnalytics}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-shell-border text-shell-text font-semibold text-[13px] transition-all active:scale-95 cursor-pointer hover:border-shell-blue/40"
-                      title="View Session Analytics"
-                    >
-                      <AnalyticsIcon className="w-[18px] h-[18px] text-shell-blue" />
-                      <span className="hidden sm:inline">Analytics</span>
-                    </button>
+                <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                  <div>
+                    <h2 className="text-[21px] font-semibold text-gray-900 text-balance">{activeFamily.title}</h2>
+                    <p className="mt-[8px] text-[13px] leading-[21px] text-shell-muted font-medium text-pretty">{activeFamily.body}</p>
                   </div>
 
                   {/* FAMILY LEVEL KPI SUMMARY CARDS */}
@@ -950,83 +1347,58 @@ function MainContent() {
                     durationSec={activeFamDuration}
                   />
 
-                  {/* SECTION DIVIDER WITH OVERLAPPING CENTERED TITLE */}
-                  <div className="relative flex items-center justify-center my-6">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200" />
-                    </div>
-                    <div className="relative px-4 bg-page">
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                        Activities
-                      </span>
-                    </div>
-                  </div>
+                  {familyActivityCards.length > 0 ? (
+                    <h3 className="text-[13px] font-semibold text-gray-700">Choose an activity</h3>
+                  ) : null}
 
-                  <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <main className="grid content-start grid-cols-1 gap-[13px] sm:grid-cols-2 lg:grid-cols-3">
                     {familyActivityCards.length === 0 && (
-                      <div className="sm:col-span-2 lg:col-span-3 bg-white rounded-3xl border border-shell-border p-7 text-center">
-                        <h3 className="text-lg font-bold text-shell-ink">No activities prescribed yet</h3>
-                        <p className="text-[13px] text-shell-muted mt-2">
+                      <div className={`sm:col-span-2 lg:col-span-3 bg-white rounded-[13px] border border-shell-border p-[21px] text-center ${DASHBOARD_SHADOW}`}>
+                        <h3 className="text-lg font-bold text-shell-ink text-balance">No activities prescribed yet</h3>
+                        <p className="text-[13px] text-shell-muted mt-2 text-pretty">
                           Your doctor has not added any games in this family.
                         </p>
+                        <button
+                          type="button"
+                          onClick={handleBackToModules}
+                          className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Back to games
+                        </button>
                       </div>
                     )}
                     {familyActivityCards.map((card) => {
                       const catId = UI_MODULE_TO_CATALOG[card.uiId] || card.uiId;
                       const modSessions = sessions.filter((s) => s.gameId === catId);
-                      const modCount = modSessions.length;
-                      const modAcc = modCount
-                        ? Math.round((modSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / modCount) * 10) / 10
-                        : null;
-                      const modLast = modCount
+                      const modLast = modSessions.length
                         ? formatSessionDate(
-                            [...modSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[modCount - 1]
+                            [...modSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[modSessions.length - 1]
                               .recordedAt,
                           )
-                        : '—';
-                      const modDuration = modSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+                        : null;
 
                       return (
                         <button
                           key={card.uiId}
                           type="button"
                           onClick={() => handleSelectModule(card.uiId)}
-                          className="relative overflow-hidden min-h-[160px] w-full rounded-[22px] bg-white text-left flex flex-col justify-between p-5 border border-shell-border cursor-pointer hover:border-shell-blue/40 transition-colors"
+                          className={`flex w-full cursor-pointer flex-col justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] text-left ${DASHBOARD_SHADOW} hover:border-gray-400`}
                         >
-                          <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: card.bar }} />
-                          <div className="pt-2">
-                            <h3 className="m-0 text-lg font-bold text-shell-ink">{card.title}</h3>
-                            <p className="text-xs text-shell-muted mt-1.5 font-medium leading-relaxed">{card.body}</p>
-
-                            {/* ACTIVITY LEVEL KPI STATS */}
-                            <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-left">
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sessions</span>
-                                <span className="block text-xs font-extrabold text-gray-900">{modCount}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
-                                <span className="block text-xs font-extrabold text-gray-900">{modAcc != null ? `${modAcc}%` : '—'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last played</span>
-                                <span className="block text-xs font-extrabold text-gray-900 truncate">{modLast}</span>
-                              </div>
-                            </div>
+                          <div>
+                            <h3 className="m-0 text-[21px] font-semibold leading-[34px] text-gray-900">{card.title}</h3>
+                            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">{card.body}</p>
+                            {modLast ? (
+                              <p className="mt-[13px] text-[13px] leading-[21px] text-gray-500">
+                                Last played <span className="font-semibold tabular-nums text-gray-900">{modLast}</span>
+                              </p>
+                            ) : null}
                           </div>
-
-                          <div className="flex items-center justify-between mt-3 pt-1">
-                            <span
-                              className="px-2.5 py-1 rounded-full text-[10px] font-bold"
-                              style={{ color: card.accent, backgroundColor: `${card.accent}14` }}
-                            >
-                              {card.badge}
+                          <div className="flex items-center justify-between gap-[13px]">
+                            <span className="text-[13px] leading-[21px] text-gray-500">{card.badge}</span>
+                            <span className="inline-flex items-center gap-[8px] text-[13px] font-semibold text-blue-600">
+                              Play
+                              <OpenArrow />
                             </span>
-                            {modDuration > 0 && (
-                              <span className="text-[10px] font-semibold text-gray-400">
-                                {formatSessionDuration(modDuration)} played
-                              </span>
-                            )}
                           </div>
                         </button>
                       );
@@ -1038,23 +1410,232 @@ function MainContent() {
 
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (
-              <main className="flex flex-col items-stretch px-4 sm:px-6 py-5 sm:py-8 max-w-6xl mx-auto w-full min-w-0 pb-8">
-                <div className="w-full flex items-start gap-3 mb-6 sm:mb-8">
-                  <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-shell-blue flex items-center justify-center shrink-0">
-                    <AnalyticsIcon className="w-6 h-6" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-lg sm:text-[22px] font-extrabold text-shell-text tracking-tight break-words">
-                      {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
-                    </h2>
-                    <p className="text-[13px] text-shell-muted font-medium mt-0.5">
-                      Review past session performance across all therapy modules
-                    </p>
+              <main className="flex w-full min-w-0 max-w-[930px] flex-col items-stretch mr-auto px-[13px] py-[21px] pb-[34px] sm:px-[21px]">
+                <h2 className="mb-[34px] text-[21px] font-semibold text-gray-900 text-balance break-words">
+                  {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
+                </h2>
+
+                <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" initialRows={sessions} />
+              </main>
+            )}
+
+            {view === 'account' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Account</h2>
+                <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                  <dl className="space-y-[21px]">
+                    <div>
+                      <dt className="text-[13px] leading-[21px] text-gray-900">Name</dt>
+                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.name}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[13px] leading-[21px] text-gray-900">Email</dt>
+                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.email}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[13px] leading-[21px] text-gray-900">Phone</dt>
+                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.phone || '—'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            )}
+
+            {view === 'settings' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <div>
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Settings</h2>
+                  <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">Your doctor link.</p>
+                </div>
+                <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                  <LinkedDoctor name={session.patient?.doctorName} code={session.patient?.referralCode} />
+                  {(() => {
+                    const patient = session.patient;
+                    const linked = Boolean(patient?.doctorId && patient?.referralCode);
+                    const pending = Boolean(patient?.pendingDocIdRequest);
+                    const copy = pending
+                      ? 'A DocID request is waiting. Open it to confirm, resend, or cancel.'
+                      : linked
+                        ? "Enter another doctor's DocID. That doctor confirms the change."
+                        : patient?.origin === 'self_signup'
+                          ? "Enter a doctor's DocID to ask to join their clinic."
+                          : 'Ask an administrator to transfer you to a doctor.';
+                    const action = pending
+                      ? 'Review request'
+                      : linked
+                        ? 'Request a change'
+                        : patient?.origin === 'self_signup'
+                          ? 'Request attach'
+                          : null;
+                    return (
+                      <>
+                        <p className={`${patient?.doctorName || patient?.referralCode ? 'mt-[21px]' : ''} text-[13px] leading-[21px] text-gray-600 text-pretty`}>{copy}</p>
+                        {action && !docIdRequestOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setDocIdRequestOpen(true)}
+                            className="mt-[21px] rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
+                          >
+                            {action}
+                          </button>
+                        ) : null}
+                        {docIdRequestOpen ? <DocIdRequestCard embedded /> : null}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {view === 'history' && (() => {
+              const historyRows = [...sessions]
+                .filter((row) => {
+                  if (historyGameId && row.gameId !== historyGameId) return false;
+                  if (historyLevelId && row.levelId !== historyLevelId) return false;
+                  const day = sessionDayKey(row.recordedAt);
+                  if (historyFrom && day < historyFrom) return false;
+                  if (historyTo && day > historyTo) return false;
+                  return true;
+                })
+                .sort((a, b) => (historySort === 'asc' ? 1 : -1) * a.recordedAt.localeCompare(b.recordedAt));
+              const historyGroups: { day: string; rows: StoredGameSessionRecord[] }[] = [];
+              for (const row of historyRows) {
+                const day = sessionDayKey(row.recordedAt);
+                const last = historyGroups[historyGroups.length - 1];
+                if (!last || last.day !== day) historyGroups.push({ day, rows: [row] });
+                else last.rows.push(row);
+              }
+              const historyLevels = levelsForTherapyModule(historyGameId);
+
+              return (
+              <main className="mr-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px]">
+                <div className="flex flex-wrap items-center justify-between gap-x-[21px] gap-y-[13px]">
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Session history</h2>
+                  <div className="flex flex-wrap items-center gap-[13px]">
+                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      Module
+                      <select
+                        value={historyGameId}
+                        onChange={(event) => {
+                          setHistoryGameId(event.target.value);
+                          setHistoryLevelId('');
+                        }}
+                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
+                      >
+                        <option value="">All modules</option>
+                        {ALL_MODULE_IDS.map((id) => (
+                          <option key={id} value={id}>{GAME_CATALOG[id].name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      Level
+                      <select
+                        value={historyLevelId}
+                        onChange={(event) => setHistoryLevelId(event.target.value)}
+                        disabled={!historyGameId}
+                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 disabled:bg-gray-50 disabled:text-gray-400 ${DASHBOARD_SHADOW}`}
+                      >
+                        <option value="">{historyGameId ? 'All levels' : 'Pick a module first'}</option>
+                        {historyLevels.map((level) => (
+                          <option key={level.id} value={level.id}>{level.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      From
+                      <input
+                        type="date"
+                        value={historyFrom}
+                        max={historyTo || undefined}
+                        onChange={(event) => setHistoryFrom(event.target.value)}
+                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
+                      />
+                    </label>
+                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      To
+                      <input
+                        type="date"
+                        value={historyTo}
+                        min={historyFrom || undefined}
+                        onChange={(event) => setHistoryTo(event.target.value)}
+                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setHistorySort((current) => (current === 'desc' ? 'asc' : 'desc'))}
+                      aria-label={historySort === 'desc' ? 'Sort descending' : 'Sort ascending'}
+                      className={`inline-flex size-[34px] items-center justify-center rounded-[13px] border border-gray-200 bg-white text-gray-900 ${DASHBOARD_SHADOW}`}
+                    >
+                      <SortOrderIcon direction={historySort} className="size-[13px]" />
+                    </button>
                   </div>
                 </div>
-
-                <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" />
+                {sessions.length === 0 ? (
+                  <div className={`mt-[34px] rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                    <p className="text-[13px] text-gray-600 text-pretty">No completed sessions yet.</p>
+                  </div>
+                ) : historyRows.length === 0 ? (
+                  <div className={`mt-[34px] rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                    <p className="text-[13px] text-gray-600 text-pretty">No sessions match these filters.</p>
+                  </div>
+                ) : (
+                  <div className="mt-[34px] space-y-[34px]">
+                    {historyGroups.map((group) => (
+                      <section key={group.day}>
+                        <div className="flex items-center gap-[13px]">
+                          <div className="h-px flex-1 bg-gray-200" />
+                          <p className="text-[13px] font-semibold text-gray-500">{formatHistoryDay(group.day)}</p>
+                          <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+                        <ul className="mt-[13px] grid grid-cols-1 gap-[13px] sm:grid-cols-2">
+                          {group.rows.map((row) => (
+                            <li key={row.id} className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                              <div className="flex items-start justify-between gap-[21px]">
+                                <p className="text-[13px] font-semibold text-gray-900">{row.gameName}</p>
+                                <div className="text-right">
+                                  <p className="text-[21px] font-semibold leading-none tabular-nums text-gray-900">{Math.round(row.accuracy * 10) / 10}%</p>
+                                  <p className="mt-[8px] text-[13px] text-gray-500">{formatSessionDuration(row.durationSec)}</p>
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                )}
               </main>
+              );
+            })()}
+
+            {view === 'subscription' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Subscription</h2>
+                <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                  <p className="text-[13px] leading-[21px] text-gray-600 text-pretty">There is no subscription on this account yet. Billing is not set up, so this page does not show a trial, a price, or a renewal date.</p>
+                </div>
+              </div>
+            )}
+
+            {view === 'help' && (
+              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <div>
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Help</h2>
+                  <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">How to get support.</p>
+                </div>
+                <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                  <p className="text-[13px] leading-[21px] text-gray-600 text-pretty">There is no help desk in the app yet. Use Settings to open your DocID and the doctor linked to this account.</p>
+                  <button
+                    type="button"
+                    onClick={openSettings}
+                    className="mt-[21px] rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
+                  >
+                    Open Settings
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* GAME VARIANTS VIEW */}
@@ -1062,11 +1643,9 @@ function MainContent() {
               <>
           <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-6 pb-2">
             {activeFamily && (
-              <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: activeFamily.accent }}>
-                {activeFamily.title}
-              </p>
+              <p className="mb-1 text-sm text-gray-500">{activeFamily.title}</p>
             )}
-            <h2 className="text-[22px] font-extrabold text-shell-text tracking-tight">
+            <h2 className="text-xl font-semibold text-gray-900 text-balance">
               {selectedModule === 'wheel' && 'Rotatory Module'}
               {selectedModule === 'sorting' && 'Sorting Module'}
               {selectedModule === 'tracing' && 'Bee Path Tracing'}
@@ -1098,26 +1677,39 @@ function MainContent() {
             </p>
           </div>
 
+          <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-4">
+            <DashboardKpiCards
+              sessionCount={selectedGameCount}
+              avgAccuracy={selectedGameAccuracy}
+              lastPlayed={selectedGameLast}
+              durationSec={selectedGameDuration}
+            />
+          </div>
+
           {selectedModule === 'wheel' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {isLevelAllowed('wheel', 'uppercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Rotatory</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
                 </button>
               )}
               {isLevelAllowed('wheel', 'lowercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Rotatory</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
                 </button>
               )}
               {isLevelAllowed('wheel', 'numbers') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('numbers', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Rotatory</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
                 </button>
               )}
               {isLevelAllowed('wheel', 'colors') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('colors', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('colors')}</p>
                 </button>
               )}
               {!isLevelAllowed('wheel', 'uppercase') &&
@@ -1139,16 +1731,19 @@ function MainContent() {
               {isLevelAllowed('sorting', 'uppercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Alphabet Sorting</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
                 </button>
               )}
               {isLevelAllowed('sorting', 'lowercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('lowercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Alphabet Sorting</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
                 </button>
               )}
               {isLevelAllowed('sorting', 'numbers') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('numbers')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Sorting</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
                 </button>
               )}
               {!isLevelAllowed('sorting', 'uppercase') &&
@@ -1170,6 +1765,7 @@ function MainContent() {
                 isLevelAllowed('tracing', level.id) ? (
                   <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchBee(level.id)}>
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1190,6 +1786,7 @@ function MainContent() {
                 isLevelAllowed('pursuit', level.id) ? (
                   <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchPursuit(level.id)}>
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1209,21 +1806,25 @@ function MainContent() {
               {isLevelAllowed('mobile_target', 'uppercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Bubble Chase</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
                 </button>
               )}
               {isLevelAllowed('mobile_target', 'lowercase') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Bubble Chase</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
                 </button>
               )}
               {isLevelAllowed('mobile_target', 'numbers') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Bubble Chase</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
                 </button>
               )}
               {isLevelAllowed('mobile_target', 'colors') && (
                 <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}>
                   <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant Bubble Chase</p>
+                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('colors')}</p>
                 </button>
               )}
               {!isLevelAllowed('mobile_target', 'uppercase') &&
@@ -1253,6 +1854,7 @@ function MainContent() {
                 GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) => (
                   <button type="button" key={id} className={VARIANT_TILE} onClick={() => handleLaunchGeoboard(id)}>
                     <p className="m-0 text-lg font-semibold text-shell-ink">{GEOBOARD_BOARDS[id].shortLabel}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(id)}</p>
                   </button>
                 ))
               )}
@@ -1270,6 +1872,7 @@ function MainContent() {
                     onClick={() => handleLaunchPeripheral(level.id as PeripheralField)}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1295,6 +1898,7 @@ function MainContent() {
                     onClick={handleLaunchNumberSearch}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1320,6 +1924,7 @@ function MainContent() {
                     onClick={() => handleLaunchPatternMatch(level.id)}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1345,6 +1950,7 @@ function MainContent() {
                     onClick={() => handleLaunchLocationMemory(level.id)}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1370,6 +1976,7 @@ function MainContent() {
                     onClick={() => handleLaunchDirectionSense(level.id)}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1390,6 +1997,7 @@ function MainContent() {
                 isLevelAllowed('computer_vision', level.id) ? (
                   <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchComputerVision(level.id)}>
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}
@@ -1415,6 +2023,7 @@ function MainContent() {
                     onClick={() => handleLaunchFamiliarFaces(level.id)}
                   >
                     <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
+                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
                   </button>
                 ) : null,
               )}

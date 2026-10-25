@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth-context';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 
-export function DocIdRequestCard() {
+export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
   const { session, refresh } = useAuth();
   const { fs, s } = useLayout();
   const [code, setCode] = useState('');
@@ -105,6 +105,79 @@ export function DocIdRequestCard() {
     }
   }
 
+  const requestBody = pending ? (
+    <View style={{ gap: s(13) }}>
+      <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+        Pending {pending.source === 'self' ? 'attach' : pending.source === 'change' ? 'reassignment' : 'transfer'} to {pending.targetReferralCode}
+        {pending.targetDoctorName ? ` (Dr. ${pending.targetDoctorName})` : ''}.
+      </Text>
+      {pending.recipientRole === 'doctor' ? (
+        <>
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+            The doctor must confirm. If they didn&apos;t receive the email, you can resend or cancel.
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
+            <Pressable
+              onPress={() => void resendRequest()}
+              disabled={resending || cancelling}
+              style={{ backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(13), paddingVertical: s(13), opacity: resending || cancelling ? 0.6 : 1 }}
+            >
+              <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>{resending ? 'Resending…' : 'Resend email'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void cancelRequest()}
+              disabled={resending || cancelling}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(13), paddingHorizontal: s(13), paddingVertical: s(13), opacity: resending || cancelling ? 0.6 : 1 }}
+            >
+              <Text style={{ color: colors.ink, fontSize: fs(13), fontWeight: '600' }}>{cancelling ? 'Cancelling…' : 'Cancel request'}</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
+          <Pressable
+            onPress={() => void settle(true)}
+            disabled={resolving}
+            style={{ backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(13), paddingVertical: s(13), opacity: resolving ? 0.6 : 1 }}
+          >
+            <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>{resolving ? 'Saving…' : 'Confirm'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void settle(false)}
+            disabled={resolving}
+            style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(13), paddingHorizontal: s(13), paddingVertical: s(13), opacity: resolving ? 0.6 : 1 }}
+          >
+            <Text style={{ color: colors.ink, fontSize: fs(13), fontWeight: '600' }}>Reject</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  ) : (
+    <View style={{ gap: s(13) }}>
+      <FloatingLabelInput
+        label="DocID"
+        value={code}
+        onChangeText={(v) => setCode(v.toUpperCase())}
+        maxLength={6}
+        autoCapitalize="characters"
+        style={{ marginBottom: 0 }}
+      />
+      <Pressable
+        onPress={() => void onSubmit()}
+        disabled={saving || code.trim().length !== 6}
+        style={{ alignSelf: 'flex-start', backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(13), paddingVertical: s(13), opacity: saving || code.trim().length !== 6 ? 0.6 : 1 }}
+      >
+        <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>
+          {saving ? 'Sending…' : linked ? 'Request a change' : 'Request attach'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+
+  if (embedded) {
+    return <View style={{ marginTop: s(21) }}>{requestBody}</View>;
+  }
+
   return (
     <View
       style={{
@@ -120,7 +193,9 @@ export function DocIdRequestCard() {
       </Text>
       {linked ? (
         <Text style={{ fontSize: fs(14), color: '#374151', marginTop: s(6) }}>
-          Linked to <Text style={{ fontFamily: 'monospace', fontWeight: '800', color: '#1D4ED8' }}>{patient.referralCode}</Text>
+          Linked to {patient.doctorName ? `Dr. ${patient.doctorName}` : 'your doctor'}
+          {' · '}
+          <Text style={{ fontFamily: 'monospace', fontWeight: '800', color: '#1D4ED8' }}>{patient.referralCode}</Text>
         </Text>
       ) : (
         <Text style={{ fontSize: fs(14), color: '#374151', marginTop: s(6) }}>
