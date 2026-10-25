@@ -192,6 +192,7 @@ export interface SessionUser {
   patient: {
     origin: PatientOrigin;
     doctorId: string | null;
+    doctorName: string | null;
     referralCode: string | null;
     prescribedModuleIds: string[];
     prescribedLevels: Record<string, string[]>;

@@ -81,7 +81,11 @@ export function AppHeader({
     } else if (backHref) {
       router.push(backHref as never);
     } else if (onDocIdPage) {
-      router.replace(homeHref as never);
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/dashboard' as never);
+      }
     }
   };
 
@@ -187,28 +191,6 @@ export function AppHeader({
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8), flexShrink: 0 }}>
-          {session?.user.role === 'patient' && !onDocIdPage ? (
-            <Pressable
-              onPress={() => router.push('/docid' as never)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: s(6),
-                paddingHorizontal: s(10),
-                paddingVertical: s(7),
-                borderRadius: s(12),
-                backgroundColor: '#EFF6FF',
-                borderWidth: 1,
-                borderColor: '#BFDBFE',
-              }}
-            >
-              <Text style={{ fontSize: fs(12), fontWeight: '700', color: '#1D4ED8' }}>DocID</Text>
-              {session.patient?.pendingDocIdRequest ? (
-                <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: colors.blue }} />
-              ) : null}
-            </Pressable>
-          ) : null}
-
           {extra}
 
           {session?.user.role === 'doctor' ? null : session ? (

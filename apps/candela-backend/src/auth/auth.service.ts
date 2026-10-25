@@ -514,7 +514,7 @@ export class AuthService implements OnModuleInit {
     if (target.role === 'patient') {
       const patient = await this.patients.findOne({
         where: { userId: target.id },
-        relations: ['doctor', 'prescriptions'],
+        relations: ['doctor', 'doctor.user', 'prescriptions'],
       });
       const prescribed = patient?.prescriptions.map((p) => p.moduleId) ?? [];
       const prescribedLevels = patient?.prescriptions.reduce((acc, p) => {
@@ -536,6 +536,7 @@ export class AuthService implements OnModuleInit {
           ? {
               origin: patient.origin,
               doctorId: patient.doctorId,
+              doctorName: patient.doctor?.user?.name ?? null,
               referralCode: patient.doctor?.referralCode ?? null,
               prescribedModuleIds: prescribed,
               prescribedLevels,

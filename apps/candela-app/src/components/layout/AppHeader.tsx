@@ -120,7 +120,11 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
     } else if (backHref) {
       router.push(backHref);
     } else if (onDocIdPage) {
-      router.replace(homeHref);
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back();
+      } else {
+        router.push('/dashboard?page=settings');
+      }
     }
   };
 
@@ -254,19 +258,6 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {session?.user.role === 'patient' && !onDocIdPage ? (
-            <Link
-              href="/docid"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] text-xs font-bold transition-all active:scale-95"
-              title="Attach or change DocID"
-            >
-              DocID
-              {session.patient?.pendingDocIdRequest ? (
-                <span className="w-2 h-2 rounded-full bg-shell-blue" aria-label="Pending request" />
-              ) : null}
-            </Link>
-          ) : null}
-
           {extra}
 
           {session ? (
