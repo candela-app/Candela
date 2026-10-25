@@ -1,5 +1,5 @@
 import { reactionStatsFromMs } from './game-logic';
-import { GAME_CATALOG, MODULE_LEVELS, isTherapyModuleId } from './game-registry';
+import { GAME_CATALOG, MODULE_LEVELS, PEDIATRIC_GAME_FAMILIES, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
 import type { AnalyticsMetricId } from './session-analytics-copy';
 import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
@@ -98,6 +98,13 @@ export interface GameSessionAnalytics {
     sessionCount: number;
     lastPlayedAt: string | null;
     avgAccuracy: number | null;
+    avgReactionSec: number | null;
+    efficiency: number | null;
+    wrongTapRate: number | null;
+    missRate: number | null;
+    avgDurationSec: number | null;
+    normalGameCount: number;
+    pediatricGameCount: number;
   };
   preliminary: boolean;
 }
@@ -204,6 +211,45 @@ export function utcDateKey(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
   return d.toISOString().slice(0, 10);
+}
+
+function localDayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'unknown';
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+function shiftLocalDayKey(dayKey: string, deltaDays: number): string {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, (day || 1) + deltaDays);
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const nextDay = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${nextMonth}-${nextDay}`;
+}
+
+/** Consecutive local days with a finished play, still open if the latest day is today or yesterday. */
+export function consistencyStreak(recordedAts: string[], now = new Date()): number {
+  const days = new Set<string>();
+  for (const iso of recordedAts) {
+    const key = localDayKey(iso);
+    if (key !== 'unknown') days.add(key);
+  }
+  if (days.size === 0) return 0;
+  let latest = '';
+  for (const day of days) {
+    if (day > latest) latest = day;
+  }
+  const today = localDayKey(now.toISOString());
+  if (latest !== today && latest !== shiftLocalDayKey(today, -1)) return 0;
+  let streak = 0;
+  let cursor = latest;
+  while (days.has(cursor)) {
+    streak += 1;
+    cursor = shiftLocalDayKey(cursor, -1);
+  }
+  return streak;
 }
 
 /** Finished protocols only. Quits / abandoned plays must not enter analytics. */
@@ -631,6 +677,41 @@ export function buildGameSessionAnalytics(
           sorted.reduce((sum, row) => sum + row.accuracy * Math.max(1, attemptsOf(row)), 0) /
             Math.max(1, sorted.reduce((sum, row) => sum + Math.max(1, attemptsOf(row)), 0)),
         );
+  const pediatricIds = new Set<string>(PEDIATRIC_GAME_FAMILIES.flatMap((family) => family.moduleIds));
+  const normalGames = new Set<string>();
+  const pediatricGames = new Set<string>();
+  let correct = 0;
+  let wrongTaps = 0;
+  let misses = 0;
+  let timeouts = 0;
+  const reactionMs: number[] = [];
+  const durations: number[] = [];
+  const sessionReaction: number[] = [];
+  for (const row of sorted) {
+    correct += row.correct;
+    wrongTaps += row.wrongTaps;
+    misses += row.misses;
+    timeouts += row.timeouts;
+    reactionMs.push(...(row.reactionMs || []));
+    if (row.avgReactionSec > 0) sessionReaction.push(row.avgReactionSec);
+    if (row.durationSec > 0) durations.push(row.durationSec);
+    if (pediatricIds.has(row.gameId)) pediatricGames.add(row.gameId);
+    else normalGames.add(row.gameId);
+  }
+  const attemptTotal = correct + wrongTaps + misses + timeouts;
+  const reaction = reactionStatsFromMs(reactionMs);
+  const avgReactionSec =
+    sorted.length === 0
+      ? null
+      : reaction.count > 0
+        ? reaction.avgSec
+        : sessionReaction.length
+          ? round1(sessionReaction.reduce((sum, value) => sum + value, 0) / sessionReaction.length)
+          : null;
+  const efficiency =
+    attemptWeighted != null && avgReactionSec != null && avgReactionSec > 0
+      ? efficiencyIndex(attemptWeighted, avgReactionSec)
+      : null;
   return {
     sessions: sorted,
     daily,
@@ -638,6 +719,15 @@ export function buildGameSessionAnalytics(
       sessionCount: sorted.length,
       lastPlayedAt: sorted.length ? sorted[sorted.length - 1].recordedAt : null,
       avgAccuracy: attemptWeighted,
+      avgReactionSec,
+      efficiency,
+      wrongTapRate: attemptTotal > 0 ? sessionErrorRate(wrongTaps, attemptTotal) : null,
+      missRate: attemptTotal > 0 ? sessionErrorRate(misses, attemptTotal) : null,
+      avgDurationSec: durations.length
+        ? round1(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+        : null,
+      normalGameCount: normalGames.size,
+      pediatricGameCount: pediatricGames.size,
     },
     preliminary: playedDates > 0 && playedDates < 5,
   };

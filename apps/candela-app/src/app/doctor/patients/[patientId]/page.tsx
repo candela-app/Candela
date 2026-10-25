@@ -30,7 +30,7 @@ function SummaryCard({
   labelColor: string;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4">
+    <div className="rounded-[13px] border border-gray-100 bg-white p-4">
       <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
         {label}
       </p>
@@ -48,12 +48,12 @@ function ProfileSkeleton() {
         <Skeleton className="h-4 w-72" />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
+        <Skeleton className="h-24 rounded-[13px]" />
       </div>
-      <Skeleton className="h-96 rounded-3xl" />
+      <Skeleton className="h-96 rounded-[13px]" />
     </main>
   );
 }
@@ -247,10 +247,10 @@ function DoctorPatientProfile() {
         }
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+      <main className="mx-auto max-w-[930px] space-y-[34px] px-[21px] py-[34px]">
         {!patient && (
-          <section className="bg-white rounded-3xl border border-gray-100 p-8 text-center">
-            <h1 className="text-xl font-extrabold text-gray-900">Patient not found</h1>
+          <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] text-center">
+            <h1 className="text-[21px] font-extrabold text-gray-900">Patient not found</h1>
             <p className="text-sm text-gray-500 mt-2">{error || 'This patient is not on your list.'}</p>
           </section>
         )}
@@ -259,7 +259,7 @@ function DoctorPatientProfile() {
           <>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h1 className="text-3xl font-extrabold text-gray-900">{patient.name}</h1>
+                <h1 className="text-[34px] font-extrabold leading-none text-gray-900">{patient.name}</h1>
                 <p className="text-sm text-gray-500 mt-1">
                   {patient.email} · {patient.phone}
                 </p>
@@ -323,7 +323,7 @@ function DoctorPatientProfile() {
                   />
                 </div>
 
-                <section className="bg-white rounded-3xl border border-gray-100 p-6">
+                <section className="bg-white rounded-[13px] border border-gray-100 p-6">
                   <DoctorPatientPrescribe
                     patient={patient}
                     sessions={sessions}

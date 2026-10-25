@@ -73,7 +73,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
             catalog === 'normal' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
           }`}
         >
-          Normal games
+          Standard games
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] ${
               catalog === 'normal' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'

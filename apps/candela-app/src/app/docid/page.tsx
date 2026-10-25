@@ -26,7 +26,7 @@ export default function DocIdPage() {
 
   if (loading || !session || session.user.role !== 'patient') {
     return (
-      <div className="min-h-screen bg-[#F4F7FC] flex flex-col">
+      <div className="min-h-dvh bg-page flex flex-col">
         <AppHeader />
         <PatientDashboardSkeleton />
       </div>
@@ -34,11 +34,11 @@ export default function DocIdPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] flex flex-col">
+    <div className="min-h-dvh bg-page flex flex-col">
       <AppHeader />
       <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-10">
-        <h1 className="text-3xl font-extrabold text-gray-900">Doctor link</h1>
-        <p className="text-sm text-gray-500 mt-2 mb-8">
+        <h1 className="text-[21px] font-semibold text-gray-900 text-balance">Doctor link</h1>
+        <p className="mt-2 mb-8 text-sm text-gray-500 text-pretty">
           Attach to a clinic with a DocID, or request a switch if you are already linked. The requested doctor
           confirms attach and reassignment. An admin transfer is confirmed here by you.
         </p>
