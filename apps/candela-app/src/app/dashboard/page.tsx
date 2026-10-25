@@ -71,6 +71,7 @@ import { EditPatientNameModal } from '@/components/common/EditPatientNameModal';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { DocIdRequestCard } from '@/components/docid/DocIdRequestCard';
 import { MODULE_CARDS } from '@/lib/shell';
+import type { LottieHandle } from 'lottie-react';
 
 const StreakFire = dynamic(() => import('lottie-react').then((mod) => mod.Lottie), {
   ssr: false,
@@ -270,7 +271,7 @@ function DashboardSummary({
   }
   const mean = (value: number | null, suffix = '') => (value != null ? `${value}${suffix}` : '—');
   const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
-  const streakFireRef = React.useRef<{ play: () => void } | null>(null);
+  const streakFireRef = React.useRef<LottieHandle>(null);
   const cards: { label: string; value: string; hint: string }[] = [
     { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
     { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
