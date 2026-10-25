@@ -2,6 +2,12 @@
 
 Start here. Each file covers one concern; session scoring lives in [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
 
+## Business plan
+
+| Doc | What it covers |
+|---|---|
+| [CANDELA_HIGH_LEVEL_BUSINESS_ARCHITECTURE.html](./CANDELA_HIGH_LEVEL_BUSINESS_ARCHITECTURE.html) | Current high-level business plan: roles, journeys, dashboards, access, transfers, Normal vs Pediatric navigation, and hospital-entered measurements. Open decisions at the end are not finalized requirements. |
+
 ## Platform
 
 | Doc | What it covers |

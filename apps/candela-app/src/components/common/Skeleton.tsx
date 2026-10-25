@@ -106,35 +106,31 @@ export function LevelSelectionSkeleton({ count = 4, isGeoboard = false }: { coun
 
 export function DoctorDashboardSkeleton() {
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 animate-pulse">
-      <div>
-        <div className="h-9 w-64 bg-gray-200 rounded-xl mb-2" />
-        <div className="h-4 w-96 bg-gray-100 rounded-md" />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 animate-pulse">
+      <div className="mb-4 flex gap-2 lg:mb-0 lg:flex-col lg:rounded-3xl lg:border lg:border-gray-100 lg:bg-white lg:p-3">
+        <div className="h-10 w-28 rounded-xl bg-gray-200 lg:w-full" />
+        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
+        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
+        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
       </div>
-
-      {/* Create patient form skeleton */}
-      <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-4">
-        <div className="h-6 w-36 bg-gray-200 rounded-lg" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="h-12 bg-gray-100 rounded-xl" />
-          <div className="h-12 bg-gray-100 rounded-xl" />
-          <div className="h-12 bg-gray-100 rounded-xl" />
-          <div className="h-12 bg-gray-100 rounded-xl" />
-          <div className="sm:col-span-2 h-12 bg-blue-100/70 rounded-xl" />
+      <main className="space-y-6">
+        <div>
+          <div className="mb-2 h-9 w-64 rounded-xl bg-gray-200" />
+          <div className="h-4 w-96 max-w-full rounded-md bg-gray-100" />
         </div>
-      </section>
-
-      <section className="bg-white rounded-3xl border border-gray-100 p-5 space-y-3">
-        <div className="h-6 w-28 bg-gray-200 rounded-lg mb-4" />
-        <div className="h-12 bg-gray-100 rounded-xl max-w-md" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="h-16 bg-gray-100 rounded-xl" />
-          <div className="h-16 bg-gray-100 rounded-xl" />
-          <div className="h-16 bg-gray-100 rounded-xl" />
-          <div className="h-16 bg-gray-100 rounded-xl" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="h-24 rounded-2xl bg-white" />
+          <div className="h-24 rounded-2xl bg-white" />
+          <div className="h-24 rounded-2xl bg-white" />
         </div>
-      </section>
-    </main>
+        <section className="space-y-3 rounded-3xl border border-gray-100 bg-white p-5">
+          <div className="h-6 w-28 rounded-lg bg-gray-200" />
+          <div className="h-14 rounded-xl bg-gray-100" />
+          <div className="h-14 rounded-xl bg-gray-100" />
+          <div className="h-14 rounded-xl bg-gray-100" />
+        </section>
+      </main>
+    </div>
   );
 }
 

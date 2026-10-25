@@ -58,12 +58,21 @@ function ProfileSkeleton() {
   );
 }
 
+function goToPreviousPage(router: ReturnType<typeof useRouter>) {
+  if (typeof window !== 'undefined' && window.history.length > 1) {
+    router.back();
+    return;
+  }
+  router.push('/doctor');
+}
+
 export default function DoctorPatientProfilePage() {
+  const router = useRouter();
   return (
     <Suspense
       fallback={
         <div className="min-h-screen bg-[#F4F7FC]">
-          <AppHeader backHref="/doctor" />
+          <AppHeader onBack={() => goToPreviousPage(router)} />
           <ProfileSkeleton />
         </div>
       }
@@ -216,7 +225,7 @@ function DoctorPatientProfile() {
   if (loading || dataLoading || !session || session.user.role !== 'doctor') {
     return (
       <div className="min-h-screen bg-[#F4F7FC]">
-        <AppHeader backHref="/doctor" />
+        <AppHeader onBack={() => goToPreviousPage(router)} />
         <ProfileSkeleton />
       </div>
     );
@@ -225,7 +234,7 @@ function DoctorPatientProfile() {
   return (
     <div className="min-h-screen bg-[#F4F7FC]">
       <AppHeader
-        backHref={isAnalytics && patientId ? `/doctor/patients/${patientId}` : '/doctor'}
+        onBack={() => goToPreviousPage(router)}
         extra={
           session.doctor ? (
             <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200/60">
@@ -255,17 +264,26 @@ function DoctorPatientProfile() {
                   {patient.email} · {patient.phone}
                 </p>
               </div>
-              {!isAnalytics && (
+              <div className="flex shrink-0 items-center gap-2">
+                {!isAnalytics && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/doctor/patients/${patient.id}?view=analytics`)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-semibold text-[13px] hover:border-blue-200 cursor-pointer"
+                    title="View Session Analytics"
+                  >
+                    <AnalyticsIcon className="w-[18px] h-[18px] text-blue-600" />
+                    <span className="hidden sm:inline">Analytics</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => router.push(`/doctor/patients/${patient.id}?view=analytics`)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-semibold text-[13px] hover:border-blue-200 cursor-pointer"
-                  title="View Session Analytics"
+                  onClick={() => toast.info('Coming soon.')}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold text-gray-800 hover:border-blue-200 hover:text-blue-700 cursor-pointer"
                 >
-                  <AnalyticsIcon className="w-[18px] h-[18px] text-blue-600" />
-                  <span className="hidden sm:inline">Analytics</span>
+                  Other device games
                 </button>
-              )}
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}

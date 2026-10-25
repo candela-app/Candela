@@ -98,6 +98,31 @@ html, body {
   background: rgba(16, 185, 129, 0.65);
 }
 
+/* Light scrollbar for the doctor dashboard */
+.dashboard-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #93c5fd #f4f7fc;
+}
+
+.dashboard-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dashboard-scrollbar::-webkit-scrollbar-track {
+  background: #f4f7fc;
+  border-radius: 9999px;
+}
+
+.dashboard-scrollbar::-webkit-scrollbar-thumb {
+  background: #93c5fd;
+  border-radius: 9999px;
+}
+
+.dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
 .paused {
   animation-play-state: paused !important;
 }
