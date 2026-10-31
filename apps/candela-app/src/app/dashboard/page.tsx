@@ -19,6 +19,8 @@ import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFace
 import {
   AnalyticsIcon,
   ArrowRightIcon,
+  ChevronDownIcon,
+  CloseIcon,
   CreditCardIcon,
   GearIcon,
   HistoryIcon,
@@ -218,14 +220,299 @@ function sessionDayKey(dateStr: string): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function formatHistoryDay(dayKey: string): string {
-  if (dayKey === 'unknown') return 'Unknown date';
+type HistoryMonth = { year: number; month: number };
+
+function currentHistoryMonth(): HistoryMonth {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
+function todayHistoryDay(): string {
+  return historyDayKey(currentHistoryMonth(), new Date().getDate());
+}
+
+function monthPrefix(cursor: HistoryMonth): string {
+  return `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`;
+}
+
+function daysInHistoryMonth(cursor: HistoryMonth): number {
+  return new Date(cursor.year, cursor.month + 1, 0).getDate();
+}
+
+function historyDayKey(cursor: HistoryMonth, day: number): string {
+  return `${monthPrefix(cursor)}-${String(day).padStart(2, '0')}`;
+}
+
+const HISTORY_MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+function historyYearOptions(rows: StoredGameSessionRecord[], selectedYear?: number): number[] {
+  const years = new Set<number>([new Date().getFullYear()]);
+  if (selectedYear) years.add(selectedYear);
+  for (const row of rows) {
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    years.add(Number(day.slice(0, 4)));
+  }
+  return Array.from(years).sort((a, b) => a - b);
+}
+
+function weekdayLabel(cursor: HistoryMonth, day: number): string {
+  return new Date(cursor.year, cursor.month, day).toLocaleDateString('en-GB', { weekday: 'short' });
+}
+
+function latestHistoryDay(
+  rows: StoredGameSessionRecord[],
+  gameId: string,
+  levelId: string,
+  prefix?: string,
+): string {
+  let latest = '';
+  for (const row of rows) {
+    if (gameId && row.gameId !== gameId) continue;
+    if (levelId && (row.levelId ?? '') !== levelId) continue;
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    if (prefix && !day.startsWith(prefix)) continue;
+    if (day > latest) latest = day;
+  }
+  return latest;
+}
+
+function monthFromDayKey(dayKey: string): HistoryMonth {
+  const [year, month] = dayKey.split('-').map(Number);
+  return { year, month: (month || 1) - 1 };
+}
+
+function formatSelectedHistoryDay(dayKey: string): string {
+  if (!dayKey || dayKey === 'unknown') return '';
   const [year, month, day] = dayKey.split('-').map(Number);
   return new Date(year, (month || 1) - 1, day || 1).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
-    year: 'numeric',
   });
+}
+
+function historyPlayCounts(
+  rows: StoredGameSessionRecord[],
+  gameId: string,
+  levelId: string,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (gameId && row.gameId !== gameId) continue;
+    if (levelId && (row.levelId ?? '') !== levelId) continue;
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function monthContributionWeeks(year: number, month: number): (string | null)[][] {
+  const weeks: (string | null)[][] = [];
+  let week: (string | null)[] = Array.from({ length: new Date(year, month, 1).getDay() }, () => null);
+  const days = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= days; day += 1) {
+    week.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+function contributionDotClass(count: number): string {
+  if (count >= 4) return 'bg-emerald-600';
+  if (count >= 2) return 'bg-emerald-400';
+  if (count >= 1) return 'bg-emerald-200';
+  return 'bg-gray-200';
+}
+
+function StreakDotsDialog({
+  open,
+  sessions,
+  onClose,
+}: {
+  open: boolean;
+  sessions: StoredGameSessionRecord[];
+  onClose: () => void;
+}) {
+  const nowYear = new Date().getFullYear();
+  const [year, setYear] = React.useState(nowYear);
+  const counts = historyPlayCounts(sessions, '', '');
+  const yearOptions = historyYearOptions(sessions, year);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-[21px]" role="presentation">
+      <button type="button" aria-label="Close streak graph" onClick={onClose} className="absolute inset-0 bg-gray-900/40" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Streak"
+        className={`relative z-10 max-h-[calc(100dvh-42px)] w-full max-w-[930px] overflow-y-auto rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}
+      >
+        <div className="mb-[21px] flex items-center justify-between gap-[13px]">
+          <HistoryMenu
+            label="Year"
+            value={String(year)}
+            options={yearOptions.map((option) => ({ value: String(option), label: String(option) }))}
+            onChange={(next) => setYear(Number(next))}
+          />
+          <p className="self-end pb-[13px] text-[13px] font-semibold text-gray-500">Played days</p>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className={`inline-flex size-[34px] items-center justify-center rounded-[13px] border border-gray-200 bg-white text-gray-900 ${DASHBOARD_SHADOW}`}
+          >
+            <CloseIcon className="size-[13px]" />
+          </button>
+        </div>
+        <div className="overflow-x-auto overflow-y-visible pt-[34px] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-full justify-between gap-[8px]">
+            {HISTORY_MONTH_NAMES.map((name, month) => (
+              <div key={name} className="flex shrink-0 flex-col items-center gap-[8px]">
+                <p className="text-[13px] font-semibold text-gray-500">{name.slice(0, 3)}</p>
+                <div className="flex gap-[2px]">
+                  {monthContributionWeeks(year, month).map((week, weekIndex) => (
+                    <div key={weekIndex} className="flex flex-col gap-[2px]">
+                      {week.map((dayKey, dayIndex) => {
+                        if (!dayKey) return <span key={`empty-${dayIndex}`} className="size-[8px]" />;
+                        const count = counts.get(dayKey) ?? 0;
+                        return (
+                          <span
+                            key={dayKey}
+                            aria-label={`${count} ${count === 1 ? 'game' : 'games'} on ${formatSelectedHistoryDay(dayKey)}`}
+                            className="group relative size-[8px]"
+                          >
+                            <span className={`block size-full rounded-full ${contributionDotClass(count)}`} />
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-[8px] hidden -translate-x-1/2 whitespace-nowrap rounded-[8px] bg-gray-900 px-[8px] py-[8px] text-[13px] font-semibold text-white group-hover:block">
+                              {count} {count === 1 ? 'game' : 'games'}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoryMenu({
+  label,
+  value,
+  options,
+  align = 'left',
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  align?: 'left' | 'right';
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value)?.label ?? value;
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <p className="mb-[8px] text-[13px] font-semibold text-gray-500">{label}</p>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen((current) => !current)}
+        className={`flex items-center gap-[8px] rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[21px] font-semibold leading-none text-gray-900 ${DASHBOARD_SHADOW}`}
+      >
+        <span>{selected}</span>
+        <ChevronDownIcon className={`size-[13px] text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className={`absolute z-20 mt-[8px] max-h-[233px] min-w-full overflow-y-auto rounded-[13px] border border-gray-200 bg-white p-[8px] ${DASHBOARD_SHADOW} ${
+            align === 'right' ? 'right-0' : 'left-0'
+          }`}
+        >
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <li key={option.value}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full whitespace-nowrap rounded-[8px] px-[13px] py-[13px] text-left text-[13px] font-semibold ${
+                    active ? 'bg-gray-900 text-white' : 'text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 function LinkedDoctor({ name, code }: { name: string | null | undefined; code: string | null | undefined }) {
@@ -247,10 +534,12 @@ function DashboardSummary({
   sessions,
   doctorName,
   doctorCode,
+  onSessionsClick,
 }: {
   sessions: StoredGameSessionRecord[];
   doctorName: string | null | undefined;
   doctorCode: string | null | undefined;
+  onSessionsClick: () => void;
 }) {
   const totals = buildGameSessionAnalytics(
     sessions.map((row) => ({
@@ -272,6 +561,7 @@ function DashboardSummary({
   const mean = (value: number | null, suffix = '') => (value != null ? `${value}${suffix}` : '—');
   const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
   const streakFireRef = React.useRef<LottieHandle>(null);
+  const [streakOpen, setStreakOpen] = React.useState(false);
   const cards: { label: string; value: string; hint: string }[] = [
     { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
     { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
@@ -293,7 +583,7 @@ function DashboardSummary({
       <div className={`flex items-center justify-between gap-[21px] rounded-[13px] border border-gray-200 bg-white p-[21px] md:col-span-2 ${DASHBOARD_SHADOW}`}>
         <div className="min-w-0">
           <p className="text-[13px] leading-[21px] text-gray-900">
-            <span className="kpi-draw">Doctor</span>
+            <span className="kpi-draw">Your doctor</span>
           </p>
           <p className="mt-[8px] text-[34px] font-semibold leading-none text-gray-900">{doctorName ? `Dr. ${doctorName}` : '—'}</p>
         </div>
@@ -307,29 +597,65 @@ function DashboardSummary({
           </p>
         </div>
       </div>
-      {cards.map((card, index) => (
-        <div key={card.label} className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-          <div className="min-w-0">
-            <p className="text-[13px] leading-[21px] text-gray-900">
-              <span className="kpi-draw" style={{ '--kpi-delay': `${(index + 2) * 180}ms` } as React.CSSProperties}>{card.label}</span>
-            </p>
-            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{card.hint}</p>
+      {cards.map((card, index) => {
+        const isStreak = card.label === 'Streak';
+        const isSessions = card.label === 'Sessions';
+        const cardClass = `flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] text-left ${DASHBOARD_SHADOW} ${isStreak || isSessions ? 'cursor-pointer' : ''}`;
+        const body = (
+          <>
+            <div className="min-w-0">
+              <p className="text-[13px] leading-[21px] text-gray-900">
+                <span className="kpi-draw" style={{ '--kpi-delay': `${(index + 2) * 180}ms` } as React.CSSProperties}>{card.label}</span>
+              </p>
+              <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{card.hint}</p>
+            </div>
+            <div className={`relative flex h-[34px] shrink-0 items-center ${isStreak ? 'pr-[48px]' : ''}`}>
+              <span className="text-[34px] font-semibold leading-none tabular-nums text-gray-900">{card.value}</span>
+              {isStreak ? (
+                <StreakFire
+                  lottieRef={streakFireRef}
+                  src={streakFire}
+                  loop
+                  autoplay
+                  subscriptions={{ ready: () => streakFireRef.current?.play() }}
+                  className="pointer-events-none absolute right-0 top-1/2 h-[55px] w-[40px] -translate-y-[calc(50%+9px)]"
+                />
+              ) : null}
+            </div>
+          </>
+        );
+        if (isStreak) {
+          return (
+            <button
+              key={card.label}
+              type="button"
+              onClick={() => setStreakOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={streakOpen}
+              className={cardClass}
+            >
+              {body}
+            </button>
+          );
+        }
+        if (isSessions) {
+          return (
+            <button
+              key={card.label}
+              type="button"
+              onClick={onSessionsClick}
+              className={cardClass}
+            >
+              {body}
+            </button>
+          );
+        }
+        return (
+          <div key={card.label} className={cardClass}>
+            {body}
           </div>
-          <div className={`relative flex h-[34px] shrink-0 items-center ${card.label === 'Streak' ? 'pr-[48px]' : ''}`}>
-            <span className="text-[34px] font-semibold leading-none tabular-nums text-gray-900">{card.value}</span>
-            {card.label === 'Streak' ? (
-              <StreakFire
-                lottieRef={streakFireRef}
-                src={streakFire}
-                loop
-                autoplay
-                subscriptions={{ ready: () => streakFireRef.current?.play() }}
-                className="absolute right-0 top-1/2 h-[55px] w-[40px] -translate-y-[calc(50%+9px)]"
-              />
-            ) : null}
-          </div>
-        </div>
-      ))}
+        );
+      })}
       <div className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
         <p className="text-[13px] leading-[21px] text-gray-900">
             <span className="kpi-draw" style={{ '--kpi-delay': `${(cards.length + 2) * 180}ms` } as React.CSSProperties}>Games</span>
@@ -345,6 +671,7 @@ function DashboardSummary({
           </div>
         </div>
       </div>
+      <StreakDotsDialog open={streakOpen} sessions={sessions} onClose={() => setStreakOpen(false)} />
     </div>
   );
 }
@@ -396,8 +723,8 @@ function MainContent() {
   const [sessionsReady, setSessionsReady] = useState(false);
   const [historyGameId, setHistoryGameId] = useState('');
   const [historyLevelId, setHistoryLevelId] = useState('');
-  const [historyFrom, setHistoryFrom] = useState('');
-  const [historyTo, setHistoryTo] = useState('');
+  const [historyMonth, setHistoryMonth] = useState<HistoryMonth>(currentHistoryMonth);
+  const [historyDay, setHistoryDay] = useState(todayHistoryDay);
   const [historySort, setHistorySort] = useState<'desc' | 'asc'>('desc');
 
   const loadSessions = React.useCallback(async () => {
@@ -670,6 +997,13 @@ function MainContent() {
       setView('module');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (view !== 'history') return;
+    const today = todayHistoryDay();
+    setHistoryMonth(monthFromDayKey(today));
+    setHistoryDay(today);
+  }, [view]);
 
   useEffect(() => {
     if (authLoading) {
@@ -1197,19 +1531,20 @@ function MainContent() {
           <div ref={scrollContainerRef} onScroll={handleScroll} className={CHOOSER_SCROLL}>
             {/* FAMILY SELECTION VIEW */}
             {view === 'module' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Vision Therapy Dashboard</h2>
 
                   <DashboardSummary
                     sessions={sessions}
                     doctorName={session.patient?.doctorName}
                     doctorCode={session.patient?.referralCode}
+                    onSessionsClick={() => openWorkspace('history')}
                   />
                 </div>
             )}
 
             {view === 'games' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">My games</h2>
 
                   <div className="mx-auto flex w-full max-w-lg rounded-[13px] bg-gray-200 p-[8px]">
@@ -1334,7 +1669,7 @@ function MainContent() {
               const activeFamDuration = activeFamSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
 
               return (
-                <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                   <div>
                     <h2 className="text-[21px] font-semibold text-gray-900 text-balance">{activeFamily.title}</h2>
                     <p className="mt-[8px] text-[13px] leading-[21px] text-shell-muted font-medium text-pretty">{activeFamily.body}</p>
@@ -1411,17 +1746,13 @@ function MainContent() {
 
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (
-              <main className="flex w-full min-w-0 max-w-[930px] flex-col items-stretch mr-auto px-[13px] py-[21px] pb-[34px] sm:px-[21px]">
-                <h2 className="mb-[34px] text-[21px] font-semibold text-gray-900 text-balance break-words">
-                  {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
-                </h2>
-
-                <SessionAnalyticsPanel patientName={session?.user.name || 'you'} variant="shell" initialRows={sessions} />
+              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+                <SessionAnalyticsPanel heading="Analytics" patientName={session?.user.name || 'you'} variant="shell" initialRows={sessions} />
               </main>
             )}
 
             {view === 'account' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Account</h2>
                 <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
                   <dl className="space-y-[21px]">
@@ -1443,7 +1774,7 @@ function MainContent() {
             )}
 
             {view === 'settings' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <div>
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Settings</h2>
                   <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">Your doctor link.</p>
@@ -1489,27 +1820,32 @@ function MainContent() {
             )}
 
             {view === 'history' && (() => {
+              const prefix = monthPrefix(historyMonth);
+              const playCounts = historyPlayCounts(sessions, historyGameId, historyLevelId);
+              const playedDays = new Set(
+                Array.from(playCounts.entries())
+                  .filter(([day, count]) => count > 0 && day.startsWith(prefix))
+                  .map(([day]) => day),
+              );
               const historyRows = [...sessions]
                 .filter((row) => {
                   if (historyGameId && row.gameId !== historyGameId) return false;
-                  if (historyLevelId && row.levelId !== historyLevelId) return false;
-                  const day = sessionDayKey(row.recordedAt);
-                  if (historyFrom && day < historyFrom) return false;
-                  if (historyTo && day > historyTo) return false;
-                  return true;
+                  if (historyLevelId && (row.levelId ?? '') !== historyLevelId) return false;
+                  return sessionDayKey(row.recordedAt) === historyDay;
                 })
                 .sort((a, b) => (historySort === 'asc' ? 1 : -1) * a.recordedAt.localeCompare(b.recordedAt));
-              const historyGroups: { day: string; rows: StoredGameSessionRecord[] }[] = [];
-              for (const row of historyRows) {
-                const day = sessionDayKey(row.recordedAt);
-                const last = historyGroups[historyGroups.length - 1];
-                if (!last || last.day !== day) historyGroups.push({ day, rows: [row] });
-                else last.rows.push(row);
-              }
               const historyLevels = levelsForTherapyModule(historyGameId);
+              const monthDays = daysInHistoryMonth(historyMonth);
+              const yearOptions = historyYearOptions(sessions, historyMonth.year);
+              const setCursor = (next: HistoryMonth) => {
+                const nextPrefix = monthPrefix(next);
+                const latestInMonth = latestHistoryDay(sessions, historyGameId, historyLevelId, nextPrefix);
+                setHistoryMonth(next);
+                setHistoryDay(latestInMonth || `${nextPrefix}-01`);
+              };
 
               return (
-              <main className="mr-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px]">
+              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
                 <div className="flex flex-wrap items-center justify-between gap-x-[21px] gap-y-[13px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Session history</h2>
                   <div className="flex flex-wrap items-center gap-[13px]">
@@ -1543,26 +1879,6 @@ function MainContent() {
                         ))}
                       </select>
                     </label>
-                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
-                      From
-                      <input
-                        type="date"
-                        value={historyFrom}
-                        max={historyTo || undefined}
-                        onChange={(event) => setHistoryFrom(event.target.value)}
-                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
-                      />
-                    </label>
-                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
-                      To
-                      <input
-                        type="date"
-                        value={historyTo}
-                        min={historyFrom || undefined}
-                        onChange={(event) => setHistoryTo(event.target.value)}
-                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
-                      />
-                    </label>
                     <button
                       type="button"
                       onClick={() => setHistorySort((current) => (current === 'desc' ? 'asc' : 'desc'))}
@@ -1573,46 +1889,88 @@ function MainContent() {
                     </button>
                   </div>
                 </div>
+                <section className="grid grid-cols-[1fr_auto_1fr] items-end gap-[13px]">
+                      <HistoryMenu
+                        label="Year"
+                        value={String(historyMonth.year)}
+                        options={yearOptions.map((year) => ({ value: String(year), label: String(year) }))}
+                        onChange={(next) => setCursor({ year: Number(next), month: historyMonth.month })}
+                      />
+                      <p className="self-center text-[13px] font-semibold text-gray-500">
+                        {historyDay ? `${historyDay.slice(8, 10)} ${HISTORY_MONTH_NAMES[historyMonth.month]} ${historyMonth.year}` : ''}
+                      </p>
+                      <div className="justify-self-end">
+                        <HistoryMenu
+                          label="Month"
+                          value={String(historyMonth.month)}
+                          align="right"
+                          options={HISTORY_MONTH_NAMES.map((name, index) => ({ value: String(index), label: name }))}
+                          onChange={(next) => setCursor({ year: historyMonth.year, month: Number(next) })}
+                        />
+                      </div>
+                </section>
+                <div className="flex gap-[13px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {Array.from({ length: monthDays }, (_, index) => {
+                      const day = index + 1;
+                      const key = historyDayKey(historyMonth, day);
+                      const selected = historyDay === key;
+                      const hasPlays = playedDays.has(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setHistoryDay(key)}
+                          className={`flex w-[55px] shrink-0 flex-col items-center gap-[8px] rounded-[13px] border px-[8px] py-[13px] ${DASHBOARD_SHADOW} ${
+                            hasPlays
+                              ? selected
+                                ? 'border-emerald-600 bg-emerald-600 text-white'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : selected
+                                ? 'border-gray-900 bg-gray-900 text-white'
+                                : 'border-gray-200 bg-white text-gray-300'
+                          }`}
+                        >
+                          <span className={`text-[13px] leading-none ${hasPlays && !selected ? 'text-emerald-600' : selected ? 'text-white' : 'text-gray-400'}`}>
+                            {weekdayLabel(historyMonth, day)}
+                          </span>
+                          <span className="text-[21px] font-semibold leading-none tabular-nums">
+                            {String(day).padStart(2, '0')}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
                 {sessions.length === 0 ? (
-                  <div className={`mt-[34px] rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                  <div className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
                     <p className="text-[13px] text-gray-600 text-pretty">No completed sessions yet.</p>
                   </div>
                 ) : historyRows.length === 0 ? (
-                  <div className={`mt-[34px] rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-                    <p className="text-[13px] text-gray-600 text-pretty">No sessions match these filters.</p>
+                  <div className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                    <p className="text-[13px] text-gray-600 text-pretty">
+                      {historyDay ? `No sessions on ${formatSelectedHistoryDay(historyDay)}.` : 'No sessions match these filters.'}
+                    </p>
                   </div>
                 ) : (
-                  <div className="mt-[34px] space-y-[34px]">
-                    {historyGroups.map((group) => (
-                      <section key={group.day}>
-                        <div className="flex items-center gap-[13px]">
-                          <div className="h-px flex-1 bg-gray-200" />
-                          <p className="text-[13px] font-semibold text-gray-500">{formatHistoryDay(group.day)}</p>
-                          <div className="h-px flex-1 bg-gray-200" />
+                  <ul className="grid grid-cols-1 gap-[13px] sm:grid-cols-2">
+                    {historyRows.map((row) => (
+                      <li key={row.id} className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                        <div className="flex items-start justify-between gap-[21px]">
+                          <p className="text-[13px] font-semibold text-gray-900">{row.gameName}</p>
+                          <div className="text-right">
+                            <p className="text-[21px] font-semibold leading-none tabular-nums text-gray-900">{Math.round(row.accuracy * 10) / 10}%</p>
+                            <p className="mt-[8px] text-[13px] text-gray-500">{formatSessionDuration(row.durationSec)}</p>
+                          </div>
                         </div>
-                        <ul className="mt-[13px] grid grid-cols-1 gap-[13px] sm:grid-cols-2">
-                          {group.rows.map((row) => (
-                            <li key={row.id} className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-                              <div className="flex items-start justify-between gap-[21px]">
-                                <p className="text-[13px] font-semibold text-gray-900">{row.gameName}</p>
-                                <div className="text-right">
-                                  <p className="text-[21px] font-semibold leading-none tabular-nums text-gray-900">{Math.round(row.accuracy * 10) / 10}%</p>
-                                  <p className="mt-[8px] text-[13px] text-gray-500">{formatSessionDuration(row.durationSec)}</p>
-                                </div>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </main>
               );
             })()}
 
             {view === 'subscription' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Subscription</h2>
                 <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
                   <p className="text-[13px] leading-[21px] text-gray-600 text-pretty">There is no subscription on this account yet. Billing is not set up, so this page does not show a trial, a price, or a renewal date.</p>
@@ -1621,7 +1979,7 @@ function MainContent() {
             )}
 
             {view === 'help' && (
-              <div className="mr-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <div>
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Help</h2>
                   <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">How to get support.</p>
