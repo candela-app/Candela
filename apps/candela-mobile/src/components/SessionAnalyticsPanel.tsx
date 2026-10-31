@@ -37,6 +37,14 @@ import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 import { ChevronUpIcon } from './icons';
 
+const cardShadow = {
+  shadowColor: '#0f172a',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.14,
+  shadowRadius: 18,
+  elevation: 4,
+};
+
 function toLocalISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -639,30 +647,31 @@ function HowToReadGuide({
         backgroundColor: colors.white,
         borderWidth: 1,
         borderColor: colors.border,
-        borderRadius: s(16),
-        padding: s(14),
-        gap: s(14),
+        borderRadius: s(13),
+        padding: s(21),
+        gap: s(21),
+        ...cardShadow,
       }}
     >
-      <Text style={{ fontSize: fs(16), fontWeight: '800', color: colors.text }}>How to read this</Text>
-      <View style={{ gap: s(4) }}>
-        <Text style={{ fontSize: fs(13), fontWeight: '800', color: colors.text }}>{ANALYTICS_DOTS_GUIDE.title}</Text>
-        <Text style={{ fontSize: fs(12), color: colors.muted, lineHeight: fs(18) }}>{ANALYTICS_DOTS_GUIDE.body}</Text>
+      <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>How to read this</Text>
+      <View style={{ gap: s(8) }}>
+        <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{ANALYTICS_DOTS_GUIDE.title}</Text>
+        <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_DOTS_GUIDE.body}</Text>
       </View>
-      <View style={{ gap: s(4) }}>
-        <Text style={{ fontSize: fs(13), fontWeight: '800', color: colors.text }}>{ANALYTICS_SESSION_GUIDE.title}</Text>
-        <Text style={{ fontSize: fs(12), color: colors.muted, lineHeight: fs(18) }}>{ANALYTICS_SESSION_GUIDE.body}</Text>
+      <View style={{ gap: s(8) }}>
+        <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{ANALYTICS_SESSION_GUIDE.title}</Text>
+        <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_SESSION_GUIDE.body}</Text>
       </View>
       {ANALYTICS_GRAPH_GUIDES.map((guide) => (
         <View key={guide.id} style={{ gap: s(8) }}>
-          <Text style={{ fontSize: fs(13), fontWeight: '800', color: ANALYTICS_METRICS.find((m) => m.id === guide.id)?.color ?? colors.text }}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>
             {guide.title}
           </Text>
-          <Text style={{ fontSize: fs(12), color: colors.muted, lineHeight: fs(18) }}>{guide.meaning}</Text>
-          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(12), overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', paddingHorizontal: s(10), paddingVertical: s(8) }}>
-              <Text style={{ flex: 1, fontSize: fs(11), fontWeight: '700', color: colors.muted }}>Pattern</Text>
-              <Text style={{ flex: 1, fontSize: fs(11), fontWeight: '700', color: colors.muted }}>Reading</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{guide.meaning}</Text>
+          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(13), overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', paddingHorizontal: s(13), paddingVertical: s(8) }}>
+              <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600', color: colors.muted }}>Pattern</Text>
+              <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600', color: colors.muted }}>Reading</Text>
             </View>
             {guide.trends.map((row) => (
               <View
@@ -671,20 +680,20 @@ function HowToReadGuide({
                   flexDirection: 'row',
                   borderTopWidth: 1,
                   borderTopColor: colors.border,
-                  paddingHorizontal: s(10),
+                  paddingHorizontal: s(13),
                   paddingVertical: s(8),
                   gap: s(8),
                 }}
               >
-                <Text style={{ flex: 1, fontSize: fs(11), fontWeight: '700', color: colors.text }}>{row.pattern}</Text>
-                <Text style={{ flex: 1, fontSize: fs(11), color: colors.muted }}>{row.reading}</Text>
+                <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{row.pattern}</Text>
+                <Text style={{ flex: 1, fontSize: fs(13), color: colors.muted }}>{row.reading}</Text>
               </View>
             ))}
           </View>
         </View>
       ))}
-      <Text style={{ fontSize: fs(11), color: '#9CA3AF', lineHeight: fs(16) }}>{ANALYTICS_RATES_NOTE}</Text>
-      <Text style={{ fontSize: fs(11), color: '#9CA3AF' }}>
+      <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_RATES_NOTE}</Text>
+      <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>
         {gameId
           ? `Filter: ${GAME_CATALOG[gameId as TherapyModuleId]?.name}${
               levelId
@@ -699,11 +708,13 @@ function HowToReadGuide({
 
 export function SessionAnalyticsPanel({
   patientId,
+  heading,
 }: {
   patientId?: string;
   patientName: string;
+  heading?: string;
 }) {
-  const { fs, s, width, pad, isTablet } = useLayout();
+  const { fs, s, width, pad } = useLayout();
   const chartWidth = Math.max(280, width - pad * 2 - s(32));
   const [gameId, setGameId] = useState('');
   const [levelId, setLevelId] = useState('');
@@ -761,72 +772,126 @@ export function SessionAnalyticsPanel({
   }
 
   return (
-    <View style={{ gap: s(12) }}>
-      <View
-        style={{
-          backgroundColor: colors.white,
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: s(16),
-          padding: s(14),
-          gap: s(12),
-        }}
-      >
-        <DropdownField
-          label="Module"
-          value={gameId}
-          onChange={(next) => {
-            setGameId(next);
-            setLevelId('');
-          }}
-          fs={fs}
-          s={s}
-          options={[
-            { value: '', label: 'All modules' },
-            ...ALL_MODULE_IDS.map((id) => ({ value: id, label: GAME_CATALOG[id].name })),
-          ]}
-        />
-        <DropdownField
-          label="Level"
-          value={levelId}
-          onChange={setLevelId}
-          disabled={!gameId}
-          fs={fs}
-          s={s}
-          options={[
-            { value: '', label: gameId ? 'All levels' : 'Pick a module first' },
-            ...levelsForTherapyModule(gameId).map((level) => ({ value: level.id, label: level.name })),
-          ]}
-        />
-        <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: s(12) }}>
-          <DateField
-            label="From"
-            value={from}
-            onChange={setFrom}
-            maximumDate={to ? parseLocalISODate(to) : undefined}
+    <View style={{ gap: s(34) }}>
+      <View style={{ gap: s(13) }}>
+        {heading ? <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>{heading}</Text> : null}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: s(13) }}>
+          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+            <DropdownField
+              label="Module"
+              value={gameId}
+              onChange={(next) => {
+                setGameId(next);
+                setLevelId('');
+              }}
+              fs={fs}
+              s={s}
+              shadowed
+              options={[
+                { value: '', label: 'All modules' },
+                ...ALL_MODULE_IDS.map((id) => ({ value: id, label: GAME_CATALOG[id].name })),
+              ]}
+            />
+          </View>
+          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+            <DropdownField
+              label="Level"
+              value={levelId}
+              onChange={setLevelId}
+              disabled={!gameId}
+              fs={fs}
+              s={s}
+              shadowed
+              options={[
+                { value: '', label: gameId ? 'All levels' : 'Pick a module first' },
+                ...levelsForTherapyModule(gameId).map((level) => ({ value: level.id, label: level.name })),
+              ]}
+            />
+          </View>
+          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+            <DateField
+              label="From"
+              value={from}
+              onChange={setFrom}
+              maximumDate={to ? parseLocalISODate(to) : undefined}
+              fs={fs}
+              s={s}
+            />
+          </View>
+          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+            <DateField
+              label="To"
+              value={to}
+              onChange={setTo}
+              minimumDate={from ? parseLocalISODate(from) : undefined}
+              fs={fs}
+              s={s}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: s(13) }}>
+        <View style={{ flexGrow: 1, minWidth: s(144) }}>
+          <DropdownField
+            label="Daily dot"
+            value={agg}
+            onChange={(next) => setAgg(next as DailyAggMode)}
             fs={fs}
             s={s}
-          />
-          <DateField
-            label="To"
-            value={to}
-            onChange={setTo}
-            minimumDate={from ? parseLocalISODate(from) : undefined}
-            fs={fs}
-            s={s}
+            shadowed
+            options={[
+              { value: 'pooled', label: 'Pooled average (default)' },
+              { value: 'best', label: 'Best of day' },
+            ]}
           />
         </View>
-        <DropdownField
-          label="Daily dot"
-          value={agg}
-          onChange={(next) => setAgg(next as DailyAggMode)}
-          fs={fs}
-          s={s}
-          options={[
-            { value: 'pooled', label: 'Pooled average (default)' },
-            { value: 'best', label: 'Best of day' },
-          ]}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.muted }}>Time scale</Text>
+          <Pressable
+            onPress={() => setScale((prev) => zoomInScale(prev))}
+            disabled={scale === 'week'}
+            accessibilityRole="button"
+            accessibilityLabel="Previous time scale"
+            style={{
+              width: s(34),
+              height: s(34),
+              borderRadius: s(13),
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.white,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: scale === 'week' ? 0.4 : 1,
+              ...cardShadow,
+            }}
+          >
+            <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>−</Text>
+          </Pressable>
+          <Text style={{ minWidth: s(55), textAlign: 'center', fontSize: fs(13), fontWeight: '600', color: colors.ink }}>
+            {ANALYTICS_SCALE_LABEL[scale]}
+          </Text>
+          <Pressable
+            onPress={() => setScale((prev) => zoomOutScale(prev))}
+            disabled={scale === 'year'}
+            accessibilityRole="button"
+            accessibilityLabel="Next time scale"
+            style={{
+              width: s(34),
+              height: s(34),
+              borderRadius: s(13),
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.white,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: scale === 'year' ? 0.4 : 1,
+              ...cardShadow,
+            }}
+          >
+            <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>+</Text>
+          </Pressable>
+        </View>
       </View>
 
       {error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null}
@@ -836,75 +901,20 @@ export function SessionAnalyticsPanel({
           style={{
             backgroundColor: colors.white,
             borderWidth: 1,
-            borderStyle: 'dashed',
             borderColor: colors.border,
-            borderRadius: s(16),
-            padding: s(28),
+            borderRadius: s(13),
+            padding: s(21),
             alignItems: 'center',
+            ...cardShadow,
           }}
         >
-          <Text style={{ fontSize: fs(14), fontWeight: '800', color: colors.text }}>No graphs yet</Text>
-          <Text style={{ fontSize: fs(12), color: colors.muted, marginTop: s(6), textAlign: 'center' }}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>No graphs yet</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center', lineHeight: fs(21) }}>
             Finish a play to see a weekly plot. Use − / + to zoom to month or year.
           </Text>
         </View>
       ) : (
-        <>
-          <View
-            style={{
-              backgroundColor: colors.white,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: s(16),
-              padding: s(12),
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.muted }}>Time scale</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-              <Pressable
-                onPress={() => setScale((prev) => zoomInScale(prev))}
-                disabled={scale === 'week'}
-                accessibilityRole="button"
-                accessibilityLabel="Previous time scale"
-                style={{
-                  width: s(32),
-                  height: s(32),
-                  borderRadius: s(8),
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: scale === 'week' ? 0.4 : 1,
-                }}
-              >
-                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>−</Text>
-              </Pressable>
-              <Text style={{ minWidth: s(64), textAlign: 'center', fontSize: fs(14), fontWeight: '800', color: colors.text }}>
-                {ANALYTICS_SCALE_LABEL[scale]}
-              </Text>
-              <Pressable
-                onPress={() => setScale((prev) => zoomOutScale(prev))}
-                disabled={scale === 'year'}
-                accessibilityRole="button"
-                accessibilityLabel="Next time scale"
-                style={{
-                  width: s(32),
-                  height: s(32),
-                  borderRadius: s(8),
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: scale === 'year' ? 0.4 : 1,
-                }}
-              >
-                <Text style={{ fontSize: fs(18), fontWeight: '800', color: colors.text }}>+</Text>
-              </Pressable>
-            </View>
-          </View>
+        <View style={{ gap: s(13) }}>
         {ANALYTICS_METRICS.map((item) => (
           <View
             key={item.id}
@@ -912,17 +922,18 @@ export function SessionAnalyticsPanel({
               backgroundColor: colors.white,
               borderWidth: 1,
               borderColor: colors.border,
-              borderRadius: s(16),
-              padding: s(14),
+              borderRadius: s(13),
+              padding: s(21),
+              ...cardShadow,
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: s(8) }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: s(13) }}>
               <View style={{ flex: 1, marginRight: s(8) }}>
-                <Text style={{ fontSize: fs(14), fontWeight: '800', color: item.color }}>{item.label}</Text>
-                <Text style={{ fontSize: fs(11), color: colors.muted, marginTop: s(2) }}>{item.direction}</Text>
+                <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{item.label}</Text>
+                <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), lineHeight: fs(21) }}>{item.direction}</Text>
               </View>
               {analytics.preliminary ? (
-                <Text style={{ fontSize: fs(10), color: colors.muted }}>Preliminary</Text>
+                <Text style={{ fontSize: fs(13), color: colors.muted }}>Preliminary</Text>
               ) : null}
             </View>
             <LineChart
@@ -938,7 +949,7 @@ export function SessionAnalyticsPanel({
             />
           </View>
         ))}
-        </>
+        </View>
       )}
 
       <HowToReadGuide gameId={gameId} levelId={levelId} fs={fs} s={s} />

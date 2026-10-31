@@ -22,11 +22,11 @@ import {
   consistencyStreak,
   type GeoboardBoardId,
 } from '@candela/shared/rn';
-import { AnalyticsIcon, ArrowRightIcon, CreditCardIcon, EyeIcon, GearIcon, HistoryIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon, SideDockIcon, SortOrderIcon, UserIcon } from '../src/components/icons';
+import { AnalyticsIcon, ArrowRightIcon, CloseIcon, CreditCardIcon, EyeIcon, GearIcon, HistoryIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon, SideDockIcon, SortOrderIcon, UserIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { CopyDocId } from '../src/components/CopyDocId';
 import { DocIdRequestCard } from '../src/components/DocIdRequestCard';
-import { DateField, DropdownField, SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
+import { DropdownField, SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import { EditPatientNameModal } from '../src/components/EditPatientNameModal';
 import { useAuth } from '../src/lib/auth-context';
@@ -277,14 +277,216 @@ function sessionDayKey(dateStr: string): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function formatHistoryDay(dayKey: string): string {
-  if (dayKey === 'unknown') return 'Unknown date';
+type HistoryMonth = { year: number; month: number };
+
+function currentHistoryMonth(): HistoryMonth {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
+function todayHistoryDay(): string {
+  return historyDayKey(currentHistoryMonth(), new Date().getDate());
+}
+
+function monthPrefix(cursor: HistoryMonth): string {
+  return `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`;
+}
+
+function daysInHistoryMonth(cursor: HistoryMonth): number {
+  return new Date(cursor.year, cursor.month + 1, 0).getDate();
+}
+
+function historyDayKey(cursor: HistoryMonth, day: number): string {
+  return `${monthPrefix(cursor)}-${String(day).padStart(2, '0')}`;
+}
+
+const HISTORY_MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+function historyYearOptions(rows: StoredGameSessionRecord[], selectedYear?: number): number[] {
+  const years = new Set<number>([new Date().getFullYear()]);
+  if (selectedYear) years.add(selectedYear);
+  for (const row of rows) {
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    years.add(Number(day.slice(0, 4)));
+  }
+  return Array.from(years).sort((a, b) => a - b);
+}
+
+function weekdayLabel(cursor: HistoryMonth, day: number): string {
+  return new Date(cursor.year, cursor.month, day).toLocaleDateString('en-GB', { weekday: 'short' });
+}
+
+function latestHistoryDay(
+  rows: StoredGameSessionRecord[],
+  gameId: string,
+  levelId: string,
+  prefix?: string,
+): string {
+  let latest = '';
+  for (const row of rows) {
+    if (gameId && row.gameId !== gameId) continue;
+    if (levelId && (row.levelId ?? '') !== levelId) continue;
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    if (prefix && !day.startsWith(prefix)) continue;
+    if (day > latest) latest = day;
+  }
+  return latest;
+}
+
+function monthFromDayKey(dayKey: string): HistoryMonth {
+  const [year, month] = dayKey.split('-').map(Number);
+  return { year, month: (month || 1) - 1 };
+}
+
+function formatSelectedHistoryDay(dayKey: string): string {
+  if (!dayKey || dayKey === 'unknown') return '';
   const [year, month, day] = dayKey.split('-').map(Number);
   return new Date(year, (month || 1) - 1, day || 1).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
-    year: 'numeric',
   });
+}
+
+function historyPlayCounts(
+  rows: StoredGameSessionRecord[],
+  gameId: string,
+  levelId: string,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (gameId && row.gameId !== gameId) continue;
+    if (levelId && (row.levelId ?? '') !== levelId) continue;
+    const day = sessionDayKey(row.recordedAt);
+    if (day === 'unknown') continue;
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function monthContributionWeeks(year: number, month: number): (string | null)[][] {
+  const weeks: (string | null)[][] = [];
+  let week: (string | null)[] = Array.from({ length: new Date(year, month, 1).getDay() }, () => null);
+  const days = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= days; day += 1) {
+    week.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+function contributionDotColor(count: number): string {
+  if (count >= 4) return '#059669';
+  if (count >= 2) return '#34D399';
+  if (count >= 1) return '#A7F3D0';
+  return '#E5E7EB';
+}
+
+function StreakDotsDialog({
+  open,
+  sessions,
+  onClose,
+  s,
+  fs,
+}: {
+  open: boolean;
+  sessions: StoredGameSessionRecord[];
+  onClose: () => void;
+  s: (n: number) => number;
+  fs: (n: number) => number;
+}) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [tip, setTip] = useState('');
+  const counts = historyPlayCounts(sessions, '', '');
+  const yearOptions = historyYearOptions(sessions, year);
+  const size = s(8);
+  const gap = s(2);
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'center', padding: s(21) }}>
+        <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(17,24,39,0.4)' }} />
+        <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: s(13), marginBottom: s(21) }}>
+            <View style={{ flex: 1 }}>
+              <DropdownField
+                label="Year"
+                value={String(year)}
+                onChange={(next) => setYear(Number(next))}
+                fs={fs}
+                s={s}
+                options={yearOptions.map((option) => ({ value: String(option), label: String(option) }))}
+              />
+            </View>
+            <Text style={{ flexShrink: 0, paddingBottom: s(13), fontSize: fs(13), fontWeight: '600', color: colors.muted }}>Played days</Text>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={{ width: s(34), height: s(34), borderRadius: s(13), borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', ...cardShadow }}
+            >
+              <CloseIcon size={s(13)} color={colors.ink} />
+            </Pressable>
+          </View>
+          <Text style={{ minHeight: fs(21), marginBottom: s(8), fontSize: fs(13), fontWeight: '600', color: colors.muted, textAlign: 'center' }}>
+            {tip}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: s(8), paddingTop: s(13) }}>
+            {HISTORY_MONTH_NAMES.map((name, month) => (
+              <View key={name} style={{ alignItems: 'center', gap: s(8) }}>
+                <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.muted }}>{name.slice(0, 3)}</Text>
+                <View style={{ flexDirection: 'row', gap }}>
+                  {monthContributionWeeks(year, month).map((week, weekIndex) => (
+                    <View key={weekIndex} style={{ gap }}>
+                      {week.map((dayKey, dayIndex) => {
+                        if (!dayKey) return <View key={`empty-${dayIndex}`} style={{ width: size, height: size }} />;
+                        const count = counts.get(dayKey) ?? 0;
+                        return (
+                          <Pressable
+                            key={dayKey}
+                            onPressIn={() => setTip(`${count} ${count === 1 ? 'game' : 'games'}`)}
+                            onPressOut={() => setTip('')}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${count} ${count === 1 ? 'game' : 'games'} on ${formatSelectedHistoryDay(dayKey)}`}
+                            style={{
+                              width: size,
+                              height: size,
+                              borderRadius: size,
+                              backgroundColor: contributionDotColor(count),
+                            }}
+                          />
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 function formatHistoryDuration(seconds: number): string {
@@ -310,12 +512,14 @@ function PracticeSummary({
   doctorCode,
   fs,
   s,
+  onSessionsPress,
 }: {
   sessions: StoredGameSessionRecord[];
   doctorName: string | null | undefined;
   doctorCode: string | null | undefined;
   fs: (size: number) => number;
   s: (size: number) => number;
+  onSessionsPress: () => void;
 }) {
   const totals = buildGameSessionAnalytics(
     sessions.map((row) => ({
@@ -336,6 +540,7 @@ function PracticeSummary({
     }
   }
   const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
+  const [streakOpen, setStreakOpen] = useState(false);
   const cards: { label: string; value: string; hint: string }[] = [
     { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
     { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
@@ -355,7 +560,7 @@ function PracticeSummary({
     <View style={{ gap: s(13), marginBottom: s(34) }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(21), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>Doctor</Text>
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>Your doctor</Text>
           <Text style={{ marginTop: s(8), fontSize: fs(34), fontWeight: '600', color: colors.ink }}>{doctorName ? `Dr. ${doctorName}` : '—'}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
@@ -366,26 +571,55 @@ function PracticeSummary({
           </View>
         </View>
       </View>
-      {cards.map((card) => (
-        <View key={card.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(13), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>{card.label}</Text>
-            <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{card.hint}</Text>
+      {cards.map((card) => {
+        const isStreak = card.label === 'Streak';
+        const isSessions = card.label === 'Sessions';
+        const body = (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>{card.label}</Text>
+              <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{card.hint}</Text>
+            </View>
+            <View style={{ height: fs(34), justifyContent: 'center', paddingRight: isStreak ? s(48) : 0 }}>
+              <Text style={{ fontSize: fs(34), fontWeight: '600', lineHeight: fs(34), color: colors.ink }}>{card.value}</Text>
+              {isStreak ? (
+                <View
+                  pointerEvents="none"
+                  style={{ position: 'absolute', right: 0, top: (fs(34) - fs(55)) / 2 - s(9), width: fs(40), height: fs(55) }}
+                >
+                  <LottieView
+                    source={require('@candela/shared/assets/lottie/streak-fire.json')}
+                    autoPlay
+                    loop
+                    resizeMode="contain"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </View>
+              ) : null}
+            </View>
+          </>
+        );
+        const cardStyle = { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: s(13), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow };
+        if (isStreak) {
+          return (
+            <Pressable key={card.label} onPress={() => setStreakOpen(true)} accessibilityRole="button" accessibilityLabel="Open streak graph" style={cardStyle}>
+              {body}
+            </Pressable>
+          );
+        }
+        if (isSessions) {
+          return (
+            <Pressable key={card.label} onPress={onSessionsPress} accessibilityRole="button" accessibilityLabel="Open session history" style={cardStyle}>
+              {body}
+            </Pressable>
+          );
+        }
+        return (
+          <View key={card.label} style={cardStyle}>
+            {body}
           </View>
-          <View style={{ height: fs(34), justifyContent: 'center', paddingRight: card.label === 'Streak' ? s(48) : 0 }}>
-            <Text style={{ fontSize: fs(34), fontWeight: '600', lineHeight: fs(34), color: colors.ink }}>{card.value}</Text>
-            {card.label === 'Streak' ? (
-              <LottieView
-                source={require('@candela/shared/assets/lottie/streak-fire.json')}
-                autoPlay
-                loop
-                resizeMode="contain"
-                style={{ position: 'absolute', right: 0, top: (fs(34) - fs(55)) / 2 - s(9), width: fs(40), height: fs(55) }}
-              />
-            ) : null}
-          </View>
-        </View>
-      ))}
+        );
+      })}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(13), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
         <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>Games</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(21) }}>
@@ -399,6 +633,7 @@ function PracticeSummary({
           </View>
         </View>
       </View>
+      <StreakDotsDialog open={streakOpen} sessions={sessions} onClose={() => setStreakOpen(false)} s={s} fs={fs} />
     </View>
   );
 }
@@ -423,8 +658,8 @@ export default function DashboardScreen() {
   const [history, setHistory] = useState<StoredGameSessionRecord[] | null>(null);
   const [historyGameId, setHistoryGameId] = useState('');
   const [historyLevelId, setHistoryLevelId] = useState('');
-  const [historyFrom, setHistoryFrom] = useState('');
-  const [historyTo, setHistoryTo] = useState('');
+  const [historyMonth, setHistoryMonth] = useState<HistoryMonth>(currentHistoryMonth);
+  const [historyDay, setHistoryDay] = useState(todayHistoryDay);
   const [historySort, setHistorySort] = useState<'desc' | 'asc'>('desc');
   const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [practiceSessions, setPracticeSessions] = useState<StoredGameSessionRecord[]>([]);
@@ -464,6 +699,13 @@ export default function DashboardScreen() {
       cancelled = true;
     };
   }, [panel, session?.user.role]);
+
+  useEffect(() => {
+    if (panel !== 'history') return;
+    const today = todayHistoryDay();
+    setHistoryMonth(monthFromDayKey(today));
+    setHistoryDay(today);
+  }, [panel]);
 
   const { fs, s, pad, columns, width, isTablet } = useLayout();
   const allowedModuleIds = new Set(resolveAllowedModuleIds(session));
@@ -790,25 +1032,31 @@ export default function DashboardScreen() {
 
   const renderContent = () => {
     if (panel === 'history') {
+      const prefix = monthPrefix(historyMonth);
+      const source = history ?? [];
+      const playCounts = historyPlayCounts(source, historyGameId, historyLevelId);
+      const playedDays = new Set(
+        Array.from(playCounts.entries())
+          .filter(([day, count]) => count > 0 && day.startsWith(prefix))
+          .map(([day]) => day),
+      );
       const historyRows = history
         ? [...history]
             .filter((row) => {
               if (historyGameId && row.gameId !== historyGameId) return false;
-              if (historyLevelId && row.levelId !== historyLevelId) return false;
-              const day = sessionDayKey(row.recordedAt);
-              if (historyFrom && day < historyFrom) return false;
-              if (historyTo && day > historyTo) return false;
-              return true;
+              if (historyLevelId && (row.levelId ?? '') !== historyLevelId) return false;
+              return sessionDayKey(row.recordedAt) === historyDay;
             })
             .sort((a, b) => (historySort === 'asc' ? 1 : -1) * a.recordedAt.localeCompare(b.recordedAt))
         : null;
-      const historyGroups: { day: string; rows: StoredGameSessionRecord[] }[] = [];
-      for (const row of historyRows ?? []) {
-        const day = sessionDayKey(row.recordedAt);
-        const last = historyGroups[historyGroups.length - 1];
-        if (!last || last.day !== day) historyGroups.push({ day, rows: [row] });
-        else last.rows.push(row);
-      }
+      const monthDays = daysInHistoryMonth(historyMonth);
+      const yearOptions = historyYearOptions(source, historyMonth.year);
+      const setCursor = (next: HistoryMonth) => {
+        const nextPrefix = monthPrefix(next);
+        const latestInMonth = latestHistoryDay(source, historyGameId, historyLevelId, nextPrefix);
+        setHistoryMonth(next);
+        setHistoryDay(latestInMonth || `${nextPrefix}-01`);
+      };
       return (
         <View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: s(13), marginBottom: s(34) }}>
@@ -842,8 +1090,6 @@ export default function DashboardScreen() {
                 ...levelsForTherapyModule(historyGameId).map((level) => ({ value: level.id, label: level.name })),
               ]}
             />
-            <DateField label="From" value={historyFrom} onChange={setHistoryFrom} maximumDate={historyTo ? new Date(`${historyTo}T12:00:00`) : undefined} fs={fs} s={s} shadowed />
-            <DateField label="To" value={historyTo} onChange={setHistoryTo} minimumDate={historyFrom ? new Date(`${historyFrom}T12:00:00`) : undefined} fs={fs} s={s} shadowed />
             <Pressable
               onPress={() => setHistorySort((current) => (current === 'desc' ? 'asc' : 'desc'))}
               accessibilityRole="button"
@@ -854,37 +1100,99 @@ export default function DashboardScreen() {
             </Pressable>
             </View>
           </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: s(13), marginBottom: s(34) }}>
+                <View style={{ flex: 1 }}>
+                  <DropdownField
+                    label="Year"
+                    value={String(historyMonth.year)}
+                    onChange={(next) => setCursor({ year: Number(next), month: historyMonth.month })}
+                    fs={fs}
+                    s={s}
+                    options={yearOptions.map((year) => ({ value: String(year), label: String(year) }))}
+                  />
+                </View>
+                <Text style={{ flexShrink: 0, alignSelf: 'center', fontSize: fs(13), fontWeight: '600', color: colors.muted }}>
+                  {historyDay ? `${historyDay.slice(8, 10)} ${HISTORY_MONTH_NAMES[historyMonth.month]} ${historyMonth.year}` : ''}
+                </Text>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <DropdownField
+                    label="Month"
+                    value={String(historyMonth.month)}
+                    onChange={(next) => setCursor({ year: historyMonth.year, month: Number(next) })}
+                    fs={fs}
+                    s={s}
+                    options={HISTORY_MONTH_NAMES.map((name, index) => ({ value: String(index), label: name }))}
+                  />
+                </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: s(34) }} contentContainerStyle={{ gap: s(13) }}>
+              {Array.from({ length: monthDays }, (_, index) => {
+                const day = index + 1;
+                const key = historyDayKey(historyMonth, day);
+                const selected = historyDay === key;
+                const hasPlays = playedDays.has(key);
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setHistoryDay(key)}
+                    style={{
+                      width: s(55),
+                      alignItems: 'center',
+                      gap: s(8),
+                      borderRadius: s(13),
+                      borderWidth: 1,
+                      paddingHorizontal: s(8),
+                      paddingVertical: s(13),
+                      backgroundColor: hasPlays ? (selected ? '#059669' : '#ECFDF5') : selected ? '#111827' : colors.white,
+                      borderColor: hasPlays ? (selected ? '#059669' : '#A7F3D0') : selected ? '#111827' : colors.border,
+                      ...cardShadow,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: fs(13),
+                        color: hasPlays && !selected ? '#059669' : selected ? colors.white : '#9CA3AF',
+                      }}
+                    >
+                      {weekdayLabel(historyMonth, day)}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: fs(21),
+                        fontWeight: '600',
+                        color: hasPlays && !selected ? '#047857' : selected ? colors.white : '#D1D5DB',
+                      }}
+                    >
+                      {String(day).padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+          </ScrollView>
           {historyRows === null ? null : (history?.length ?? 0) === 0 ? (
             <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
               <Text style={{ fontSize: fs(13), color: colors.ink }}>No completed sessions yet.</Text>
             </View>
           ) : historyRows.length === 0 ? (
             <View style={{ backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
-              <Text style={{ fontSize: fs(13), color: colors.ink }}>No sessions match these filters.</Text>
+              <Text style={{ fontSize: fs(13), color: colors.ink }}>
+                {historyDay ? `No sessions on ${formatSelectedHistoryDay(historyDay)}.` : 'No sessions match these filters.'}
+              </Text>
             </View>
           ) : (
-            historyGroups.map((group) => (
-              <View key={group.day} style={{ marginBottom: s(34) }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(13), marginBottom: s(13) }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
-                  <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.muted }}>{formatHistoryDay(group.day)}</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
-                </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
-                {group.rows.map((row) => (
-                  <View key={row.id} style={{ width: isTablet ? '48%' : '100%', backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: s(21) }}>
-                      <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600' }}>{row.gameName}</Text>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: fs(21), fontWeight: '600' }}>{Math.round(row.accuracy * 10) / 10}%</Text>
-                        <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{formatHistoryDuration(row.durationSec)}</Text>
-                      </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
+              {historyRows.map((row) => (
+                <View key={row.id} style={{ width: isTablet ? '48%' : '100%', backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: s(21) }}>
+                    <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600' }}>{row.gameName}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: fs(21), fontWeight: '600' }}>{Math.round(row.accuracy * 10) / 10}%</Text>
+                      <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{formatHistoryDuration(row.durationSec)}</Text>
                     </View>
                   </View>
-                ))}
                 </View>
-              </View>
-            ))
+              ))}
+            </View>
           )}
         </View>
       );
@@ -978,10 +1286,7 @@ export default function DashboardScreen() {
     if (pageParam === 'analytics') {
       return (
         <>
-          <Text style={{ fontSize: fs(20), fontWeight: '600', marginBottom: s(16) }}>
-            {session?.user.name ? `${session.user.name}'s Session Analytics` : 'Session Analytics'}
-          </Text>
-          <SessionAnalyticsPanel patientName={session?.user.name || 'you'} />
+          <SessionAnalyticsPanel heading="Analytics" patientName={session?.user.name || 'you'} />
           <Pressable
             onPress={() => router.replace('/dashboard')}
             style={{
@@ -1246,6 +1551,7 @@ export default function DashboardScreen() {
           doctorCode={session.patient?.referralCode}
           fs={fs}
           s={s}
+          onSessionsPress={() => setPanel('history')}
         />
       </>
     );
