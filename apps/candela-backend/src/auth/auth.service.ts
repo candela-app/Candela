@@ -15,6 +15,7 @@ import bcrypt from 'bcrypt';
 import { Response } from 'express';
 import { IsNull, Repository } from 'typeorm';
 import { seedAdminUsers } from '../common/admin-seed';
+import { PATIENT_ADVISORY_LOCK_NS, PATIENT_ADVISORY_LOCK_SQL } from '../common/patient-lock';
 import { ALL_MODULE_IDS } from '../common/catalog';
 import { ACCESS_MAX_AGE_SEC, clearAuthCookies, REFRESH_COOKIE, REFRESH_MAX_AGE_SEC, setAuthCookies } from '../common/cookies';
 import { generateReferralCode } from '../common/referral-code';
@@ -23,6 +24,9 @@ import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
+import { PrescriptionRevision } from '../entities/prescription-revision.entity';
+import { commitPrescriptionRevision, type LivePrescriptionChange, type PrescriptionRevisionStore } from '../prescriptions/commit-prescription-revision';
+import { revisionRecord } from '../prescriptions/revision-record';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
 import { Organization } from '../entities/organization.entity';
@@ -380,32 +384,70 @@ export class AuthService implements OnModuleInit {
   }
 
   async addPrescription(doctorUserId: string, patientId: string, moduleId: string, levels: string[] = []) {
-    const patient = await this.patients.findOne({
-      where: { userId: patientId, doctorId: doctorUserId },
-    });
-    if (!patient) {
-      return null;
-    }
-    const existing = await this.prescriptions.findOne({
-      where: { patientId, moduleId },
-    });
-    if (!existing) {
-      await this.prescriptions.save(this.prescriptions.create({ patientId, moduleId, levels }));
-    } else {
-      existing.levels = levels;
-      await this.prescriptions.save(existing);
-    }
-    return this.getOwnedPatient(doctorUserId, patientId);
+    return this.changePrescription(doctorUserId, patientId, { moduleId, levels: levels.slice() });
   }
 
   async removePrescription(doctorUserId: string, patientId: string, moduleId: string) {
-    const patient = await this.patients.findOne({
-      where: { userId: patientId, doctorId: doctorUserId },
-    });
-    if (!patient) {
-      return null;
+    return this.changePrescription(doctorUserId, patientId, { moduleId, remove: true });
+  }
+
+  private async changePrescription(doctorUserId: string, patientId: string, change: LivePrescriptionChange) {
+    const at = new Date().toISOString();
+    let committed: true | null;
+    try {
+      committed = await this.prescriptions.manager.transaction(async (trx) => {
+        const store: PrescriptionRevisionStore = {
+          lock: async (id) => {
+            await trx.query(PATIENT_ADVISORY_LOCK_SQL, [PATIENT_ADVISORY_LOCK_NS, id]);
+          },
+          owns: async (id, doctorId) => {
+            const patient = await trx.findOne(PatientProfile, { where: { userId: id, doctorId } });
+            return Boolean(patient);
+          },
+          listLive: async (id) => {
+            const rows = await trx.find(Prescription, { where: { patientId: id } });
+            return rows.map((row) => ({ moduleId: row.moduleId, levels: row.levels || [] }));
+          },
+          applyLive: async (id, liveChange) => {
+            if ('remove' in liveChange) {
+              await trx.delete(Prescription, { patientId: id, moduleId: liveChange.moduleId });
+              return;
+            }
+            const existing = await trx.findOne(Prescription, { where: { patientId: id, moduleId: liveChange.moduleId } });
+            if (!existing) {
+              await trx.save(Prescription, { patientId: id, moduleId: liveChange.moduleId, levels: liveChange.levels });
+            } else {
+              existing.levels = liveChange.levels;
+              await trx.save(Prescription, existing);
+            }
+          },
+          listRevisions: async (id) => {
+            const rows = await trx.find(PrescriptionRevision, { where: { patientId: id }, order: { effectiveFrom: 'ASC' } });
+            return rows.map((row) => revisionRecord(row));
+          },
+          closeRevision: async (id, effectiveTo) => {
+            await trx.update(PrescriptionRevision, { id }, { effectiveTo: new Date(effectiveTo) });
+          },
+          insertRevision: async (revision) => {
+            await trx.save(PrescriptionRevision, {
+              id: revision.id,
+              patientId: revision.patientId,
+              actorDoctorId: revision.actorDoctorId,
+              effectiveFrom: new Date(revision.effectiveFrom),
+              effectiveTo: null,
+              assignments: revision.assignments,
+            });
+          },
+        };
+        return commitPrescriptionRevision(store, { doctorId: doctorUserId, patientId, at, change });
+      });
+    } catch (err) {
+      if (err instanceof Error && (err.message === 'invalid_period' || err.message === 'overlapping_open_revisions')) {
+        throw new BadRequestException('Could not record this prescription change');
+      }
+      throw err;
     }
-    await this.prescriptions.delete({ patientId, moduleId });
+    if (!committed) return null;
     return this.getOwnedPatient(doctorUserId, patientId);
   }
 

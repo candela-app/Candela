@@ -9,7 +9,10 @@ import {
   PEDIATRIC_GAME_FAMILIES,
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
+  singleGameChartPerformance,
+  TRUNCATED_HISTORY_NOTE,
   type PatientSummary,
+  type StoredGameSession,
   type TherapyModuleId,
 } from '@candela/shared';
 import type { StoredGameSessionRecord } from '@/lib/api';
@@ -42,15 +45,25 @@ function formatSessionDate(dateStr: string): string {
 type Props = {
   patient: PatientSummary;
   sessions?: StoredGameSessionRecord[];
+  historyTruncated?: boolean;
   onToggleModule: (moduleId: TherapyModuleId, enabled: boolean) => void;
   onToggleLevel: (moduleId: TherapyModuleId, levelId: string, enabled: boolean) => void;
 };
+
+function asStored(rows: StoredGameSessionRecord[]): StoredGameSession[] {
+  return rows.map((row) => ({
+    ...row,
+    gameId: row.gameId as TherapyModuleId,
+    levelId: row.levelId ?? null,
+    deviceTier: row.deviceTier ?? null,
+  }));
+}
 
 function moduleCount(families: { moduleIds: string[] }[]) {
   return families.reduce((sum, family) => sum + family.moduleIds.length, 0);
 }
 
-export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule, onToggleLevel }: Props) {
+export function DoctorPatientPrescribe({ patient, sessions = [], historyTruncated = false, onToggleModule, onToggleLevel }: Props) {
   const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
   const [openModuleId, setOpenModuleId] = useState<TherapyModuleId | null>(null);
@@ -65,6 +78,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
   return (
     <div>
       <p className="mb-[13px] text-[13px] font-semibold text-gray-700">Prescribed modules</p>
+      {historyTruncated ? <p className="mb-[13px] text-[13px] leading-[21px] text-gray-900">{TRUNCATED_HISTORY_NOTE}</p> : null}
       <div className="mx-auto mb-[21px] flex w-full max-w-[576px] rounded-[13px] bg-gray-200 p-[8px]">
         <button
           type="button"
@@ -113,9 +127,6 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
             family.moduleIds.includes(s.gameId as TherapyModuleId),
           );
           const famCount = famSessions.length;
-          const famAcc = famCount
-            ? Math.round((famSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / famCount) * 10) / 10
-            : null;
           const famLast = famCount
             ? formatSessionDate(
                 [...famSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[famCount - 1]
@@ -153,14 +164,10 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
 
               {familyOpen && (
                 <div className="space-y-[13px] border-t border-gray-100 bg-gray-50/60 px-[13px] pb-[13px] pt-[13px]">
-                  <div className="grid grid-cols-2 gap-[13px] sm:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-3">
                     <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
                       <p className="text-[13px] font-bold uppercase tracking-wider text-blue-600">Sessions</p>
                       <p className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{famCount}</p>
-                    </div>
-                    <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
-                      <p className="text-[13px] font-bold uppercase tracking-wider text-emerald-600">Accuracy</p>
-                      <p className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{famAcc != null ? `${famAcc}%` : '—'}</p>
                     </div>
                     <div className="rounded-[13px] border border-gray-200/70 bg-white p-[13px]">
                       <p className="text-[13px] font-bold uppercase tracking-wider text-amber-600">Last played</p>
@@ -188,9 +195,8 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                           : patient.prescribedLevels?.[mod.id] || [];
                       const modSessions = sessions.filter((s) => s.gameId === mod.id);
                       const modCount = modSessions.length;
-                      const modAcc = modCount
-                        ? Math.round((modSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / modCount) * 10) / 10
-                        : null;
+                      const modPerformance = singleGameChartPerformance(asStored(modSessions));
+                      const modLabel = modPerformance.label ?? (mod.id === 'bee_tracing' ? 'Path adherence' : 'Accuracy');
                       const modLast = modCount
                         ? formatSessionDate(
                             [...modSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[modCount - 1]
@@ -232,7 +238,7 @@ export function DoctorPatientPrescribe({ patient, sessions = [], onToggleModule,
                                     Sessions {modCount}
                                   </span>
                                   <span className="rounded-[8px] bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-600">
-                                    Accuracy {modAcc != null ? `${modAcc}%` : '—'}
+                                    {modLabel} {modPerformance.value != null ? `${modPerformance.value}%` : '—'}
                                   </span>
                                   <span className="rounded-[8px] bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-600">
                                     Last played {modLast}

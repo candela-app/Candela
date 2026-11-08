@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  Allow,
   IsArray,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -95,6 +97,11 @@ export class CreateGameSessionDto {
   @IsInt()
   @Min(1)
   metricsVersion?: number;
+
+  /** Untrusted game-specific document. The service stores the sanitized form, or none. */
+  @IsOptional()
+  @Allow()
+  detail?: unknown;
 }
 
 export class GameSessionQueryDto {
@@ -126,4 +133,9 @@ export class GameSessionQueryDto {
   @Type(() => Number)
   @IsInt()
   maxDates?: number;
+
+  /** Newest-capped overview. Omitted queries keep the oldest-first session array. */
+  @IsOptional()
+  @IsIn(['newest'])
+  coverage?: 'newest';
 }

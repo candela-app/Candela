@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -18,19 +18,41 @@ import {
   familyForModuleId,
   getGameFamily,
   isTherapyFamilyId,
-  buildGameSessionAnalytics,
+  buildLevelAnalytics,
+  levelCardLines,
+  formatPatientSummary,
+  formatSessionReport,
+  mixedLevelNotice,
+  calendarDayKey,
   consistencyStreak,
+  streakCoverageNote,
+  singleGameChartPerformance,
+  TRUNCATED_HISTORY_NOTE,
+  resolvedTimeZone,
+  type SavedPracticeSummary,
+  type StoredGameSession,
+  type TherapyModuleId,
   type GeoboardBoardId,
 } from '@candela/shared/rn';
 import { AnalyticsIcon, ArrowRightIcon, CloseIcon, CreditCardIcon, EyeIcon, GearIcon, HistoryIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon, SideDockIcon, SortOrderIcon, UserIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { CopyDocId } from '../src/components/CopyDocId';
 import { DocIdRequestCard } from '../src/components/DocIdRequestCard';
+import { PracticeOverview } from '../src/components/PracticeOverview';
+import { PrescriptionPractice } from '../src/components/PrescriptionPractice';
 import { DropdownField, SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import { EditPatientNameModal } from '../src/components/EditPatientNameModal';
 import { useAuth } from '../src/lib/auth-context';
-import { listMyGameSessions, type StoredGameSessionRecord } from '../src/lib/api';
+import { getMyPracticeSummary, listMyGameSessionOverview, type StoredGameSessionRecord } from '../src/lib/api';
+import {
+  acceptOverviewResult,
+  adoptOverview,
+  historyOverviewAction,
+  visibleOverview,
+  type OverviewLoadStatus,
+  type PracticeOverviewSnapshot,
+} from '../src/lib/history-overview';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
 
@@ -270,11 +292,11 @@ const MODULE_CARDS: ModuleCard[] = [
 ];
 
 function sessionDayKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return 'unknown';
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
+  try {
+    return calendarDayKey(dateStr, resolvedTimeZone());
+  } catch {
+    return 'unknown';
+  }
 }
 
 type HistoryMonth = { year: number; month: number };
@@ -506,8 +528,42 @@ const cardShadow = {
   elevation: 4,
 };
 
+function asStored(rows: StoredGameSessionRecord[]): StoredGameSession[] {
+  return rows.map((row) => ({
+    ...row,
+    gameId: row.gameId as TherapyModuleId,
+    levelId: row.levelId ?? null,
+    deviceTier: row.deviceTier ?? null,
+  }));
+}
+
+function loadedGameCounts(sessions: StoredGameSessionRecord[]) {
+  const pediatricIds = new Set<string>(PEDIATRIC_GAME_FAMILIES.flatMap((family) => family.moduleIds));
+  const normal = new Set<string>();
+  const pediatric = new Set<string>();
+  for (const row of sessions) {
+    if (pediatricIds.has(row.gameId)) pediatric.add(row.gameId);
+    else normal.add(row.gameId);
+  }
+  return { normal: normal.size, pediatric: pediatric.size };
+}
+
+function savedDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+}
+
+function savedSessionHint(summary: SavedPracticeSummary | null): string {
+  const last = summary?.last;
+  if (!last) return 'No session saved';
+  return last.levelId ? `${last.gameName} · ${last.levelName}` : last.gameName;
+}
+
 function PracticeSummary({
   sessions,
+  summary,
   doctorName,
   doctorCode,
   fs,
@@ -515,46 +571,30 @@ function PracticeSummary({
   onSessionsPress,
 }: {
   sessions: StoredGameSessionRecord[];
+  summary: SavedPracticeSummary | null;
   doctorName: string | null | undefined;
   doctorCode: string | null | undefined;
   fs: (size: number) => number;
   s: (size: number) => number;
   onSessionsPress: () => void;
 }) {
-  const totals = buildGameSessionAnalytics(
-    sessions.map((row) => ({
-      ...row,
-      gameId: row.gameId as never,
-      levelId: row.levelId ?? null,
-      deviceTier: row.deviceTier ?? null,
-    })),
-  ).totals;
-  const mean = (value: number | null, suffix = '') => (value != null ? `${value}${suffix}` : '—');
-  let lastPlayed = '—';
-  let lastPlayedHint = totals.sessionCount ? 'Most recent session' : 'Not played yet';
-  if (totals.lastPlayedAt) {
-    const parsed = new Date(totals.lastPlayedAt);
-    if (!Number.isNaN(parsed.getTime())) {
-      lastPlayed = parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-      lastPlayedHint = `Most recent session in ${parsed.getFullYear()}`;
-    }
-  }
+  const sessionCount = summary?.sessionCount ?? 0;
   const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
+  const games = loadedGameCounts(sessions);
+  const gamesIncomplete = summary != null && summary.sessionCount > sessions.length;
   const [streakOpen, setStreakOpen] = useState(false);
   const cards: { label: string; value: string; hint: string }[] = [
-    { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
-    { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
+    {
+      label: 'Sessions',
+      value: String(sessionCount),
+      hint: sessionCount === 0 ? 'No session saved' : 'Saved sessions',
+    },
+    { label: 'Last played', value: savedDate(summary?.last?.recordedAt), hint: savedSessionHint(summary) },
     {
       label: 'Streak',
       value: String(streak),
-      hint: totals.sessionCount === 0 ? 'Not played yet' : streak > 0 ? 'Consecutive days' : 'No current streak',
+      hint: streakCoverageNote({ sessionCount, loadedCount: sessions.length, streak }),
     },
-    { label: 'Accuracy', value: mean(totals.avgAccuracy, '%'), hint: 'Mean' },
-    { label: 'Avg reaction time', value: mean(totals.avgReactionSec, 's'), hint: 'Mean' },
-    { label: 'Efficiency', value: mean(totals.efficiency), hint: 'Mean' },
-    { label: 'Wrong-tap rate', value: mean(totals.wrongTapRate, '%'), hint: 'Mean' },
-    { label: 'Miss rate', value: mean(totals.missRate, '%'), hint: 'Mean' },
-    { label: 'Time to finish', value: mean(totals.avgDurationSec, 's'), hint: 'Mean' },
   ];
   return (
     <View style={{ gap: s(13), marginBottom: s(34) }}>
@@ -621,15 +661,20 @@ function PracticeSummary({
         );
       })}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(13), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
-        <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>Games</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), fontWeight: '600', color: colors.ink }}>Games</Text>
+          {gamesIncomplete ? (
+            <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>From the newest 2,000 loaded sessions</Text>
+          ) : null}
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(21) }}>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>Standard</Text>
-            <Text style={{ marginTop: s(8), fontSize: fs(34), fontWeight: '600', color: colors.ink }}>{totals.normalGameCount}</Text>
+            <Text style={{ marginTop: s(8), fontSize: fs(34), fontWeight: '600', color: colors.ink }}>{games.normal}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>Pediatric</Text>
-            <Text style={{ marginTop: s(8), fontSize: fs(34), fontWeight: '600', color: colors.ink }}>{totals.pediatricGameCount}</Text>
+            <Text style={{ marginTop: s(8), fontSize: fs(34), fontWeight: '600', color: colors.ink }}>{games.pediatric}</Text>
           </View>
         </View>
       </View>
@@ -645,8 +690,9 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ module?: string; page?: string; family?: string; welcome?: string }>();
+  const params = useLocalSearchParams<{ module?: string; page?: string; family?: string; welcome?: string; progress?: string }>();
   const moduleParam = firstParam(params.module);
+  const progressParam = firstParam(params.progress);
   const familyParam = firstParam(params.family);
   const pageParam = firstParam(params.page);
   const welcomeParam = firstParam(params.welcome);
@@ -655,14 +701,60 @@ export default function DashboardScreen() {
   const [navOpen, setNavOpen] = useState(false);
   const [docIdRequestOpen, setDocIdRequestOpen] = useState(false);
   const [panel, setPanel] = useState<'account' | 'settings' | 'history' | 'subscription' | 'help' | null>(null);
-  const [history, setHistory] = useState<StoredGameSessionRecord[] | null>(null);
   const [historyGameId, setHistoryGameId] = useState('');
   const [historyLevelId, setHistoryLevelId] = useState('');
   const [historyMonth, setHistoryMonth] = useState<HistoryMonth>(currentHistoryMonth);
   const [historyDay, setHistoryDay] = useState(todayHistoryDay);
   const [historySort, setHistorySort] = useState<'desc' | 'asc'>('desc');
   const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
-  const [practiceSessions, setPracticeSessions] = useState<StoredGameSessionRecord[]>([]);
+  const [practiceOverview, setPracticeOverview] = useState<PracticeOverviewSnapshot<StoredGameSessionRecord> | null>(null);
+  const [overviewStatus, setOverviewStatus] = useState<OverviewLoadStatus>('idle');
+  const [practiceSummary, setPracticeSummary] = useState<SavedPracticeSummary | null>(null);
+  const patientId = session?.user.role === 'patient' ? session.user.id : null;
+  const requestId = useRef(0);
+  const patientIdRef = useRef<string | null>(patientId);
+  const overviewRef = useRef<PracticeOverviewSnapshot<StoredGameSessionRecord> | null>(null);
+  const historyLoadAttempt = useRef(false);
+  patientIdRef.current = patientId;
+
+  const loadPracticeOverview = useCallback((userId: string) => {
+    const token = ++requestId.current;
+    setOverviewStatus('loading');
+    return Promise.all([listMyGameSessionOverview(), getMyPracticeSummary()])
+      .then(([overview, summary]) => {
+        if (!acceptOverviewResult({
+          requestId: token,
+          activeRequestId: requestId.current,
+          patientId: userId,
+          activePatientId: patientIdRef.current,
+        })) {
+          return;
+        }
+        const next = adoptOverview({ patientId: userId, response: overview });
+        overviewRef.current = next;
+        setPracticeOverview(next);
+        setPracticeSummary(summary);
+        setOverviewStatus('ready');
+      })
+      .catch(() => {
+        if (!acceptOverviewResult({
+          requestId: token,
+          activeRequestId: requestId.current,
+          patientId: userId,
+          activePatientId: patientIdRef.current,
+        })) {
+          return;
+        }
+        if (overviewRef.current?.patientId === userId) {
+          setOverviewStatus('ready');
+          return;
+        }
+        overviewRef.current = null;
+        setPracticeOverview(null);
+        setPracticeSummary(null);
+        setOverviewStatus('failed');
+      });
+  }, []);
 
   useEffect(() => {
     if ((welcomeParam === '1' || session?.isNewUser) && session?.user.role === 'patient') {
@@ -671,34 +763,42 @@ export default function DashboardScreen() {
   }, [welcomeParam, session?.isNewUser, session?.user.role]);
 
   useEffect(() => {
-    if (session?.user.role !== 'patient') return;
-    let cancelled = false;
-    listMyGameSessions()
-      .then((data) => {
-        if (!cancelled) setPracticeSessions(data);
-      })
-      .catch(() => {
-        if (!cancelled) setPracticeSessions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user.role]);
+    historyLoadAttempt.current = false;
+    if (!patientId) {
+      requestId.current += 1;
+      overviewRef.current = null;
+      setPracticeOverview(null);
+      setPracticeSummary(null);
+      setOverviewStatus('idle');
+      return;
+    }
+    if (overviewRef.current?.patientId !== patientId) {
+      overviewRef.current = null;
+      setPracticeOverview(null);
+      setPracticeSummary(null);
+    }
+    void loadPracticeOverview(patientId);
+  }, [patientId, loadPracticeOverview]);
 
   useEffect(() => {
-    if (panel !== 'history' || session?.user.role !== 'patient') return;
-    let cancelled = false;
-    listMyGameSessions()
-      .then((data) => {
-        if (!cancelled) setHistory(data);
-      })
-      .catch(() => {
-        if (!cancelled) setHistory([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [panel, session?.user.role]);
+    const action = historyOverviewAction({
+      open: panel === 'history',
+      patientId,
+      status: overviewStatus,
+      overviewPatientId: practiceOverview?.patientId ?? null,
+      historyAttempted: historyLoadAttempt.current,
+    });
+    if (action === 'load' && patientId) {
+      historyLoadAttempt.current = true;
+      void loadPracticeOverview(patientId);
+    }
+  }, [panel, patientId, overviewStatus, practiceOverview, loadPracticeOverview]);
+
+  const practiceView = visibleOverview({ patientId, overview: practiceOverview });
+  const practiceSessions = practiceView?.sessions ?? [];
+  const practiceTruncated = practiceView?.truncated ?? false;
+  const history = practiceView?.sessions ?? null;
+  const historyTruncated = practiceView?.truncated ?? false;
 
   useEffect(() => {
     if (panel !== 'history') return;
@@ -841,18 +941,13 @@ export default function DashboardScreen() {
     const catalogId = UI_MODULE_TO_CATALOG[uiId];
     return practiceSessions.filter((row) => row.gameId === catalogId);
   };
-  const accuracyForLevel = (uiId: string, levelId: string | number) => {
-    const rows = sessionsForModule(uiId).filter((row) => row.levelId === String(levelId));
-    if (!rows.length) return '—';
-    const value = Math.round((rows.reduce((sum, row) => sum + (row.accuracy || 0), 0) / rows.length) * 10) / 10;
-    return `${value}%`;
-  };
   const gameSummary = (uiId: string) => {
     const rows = sessionsForModule(uiId);
     const count = rows.length;
-    const accuracy = count
-      ? `${Math.round((rows.reduce((sum, row) => sum + (row.accuracy || 0), 0) / count) * 10) / 10}%`
-      : '—';
+    const catalogId = UI_MODULE_TO_CATALOG[uiId] || '';
+    const performance = singleGameChartPerformance(asStored(rows));
+    const performanceLabel = performance.label ?? (catalogId === 'bee_tracing' ? 'Path adherence' : 'Accuracy');
+    const accuracy = performance.value != null ? `${performance.value}%` : '—';
     const last = count
       ? new Date([...rows].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[count - 1].recordedAt).toLocaleDateString('en-GB', {
           day: '2-digit',
@@ -863,12 +958,15 @@ export default function DashboardScreen() {
     const duration = rows.reduce((sum, row) => sum + (row.durationSec || 0), 0);
     const cards = [
       { label: 'Sessions', value: String(count), hint: count === 1 ? '1 finished play' : `${count} finished plays` },
-      { label: 'Accuracy', value: accuracy, hint: count ? 'Mean score' : 'No plays yet' },
+      { label: performanceLabel, value: accuracy, hint: performance.value != null ? 'Saved sessions' : 'No plays yet' },
       { label: 'Last played', value: last, hint: count ? 'Most recent session' : 'Not played yet' },
       { label: 'Time spent', value: formatHistoryDuration(duration), hint: duration > 0 ? 'Total training time' : '0 minutes recorded' },
     ];
     return (
       <View style={{ gap: s(13), marginBottom: s(16) }}>
+        {practiceTruncated ? (
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{TRUNCATED_HISTORY_NOTE}</Text>
+        ) : null}
         {cards.map((card) => (
           <View key={card.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(13), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
             <View style={{ flex: 1 }}>
@@ -882,30 +980,57 @@ export default function DashboardScreen() {
     );
   };
 
-  const variantCard = (label: string, onPress: () => void, levelId?: string | number) => (
-    <Pressable
-      key={label}
-      onPress={onPress}
-      style={{
-        width: cardWidth,
-        minHeight: s(140),
-        borderRadius: s(16),
-        backgroundColor: colors.white,
-        borderWidth: 2,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: s(16),
-        marginBottom: s(12),
-        ...cardShadow,
-      }}
-    >
-      <Text style={{ fontSize: fs(18), fontWeight: '600', color: colors.ink, textAlign: 'center' }}>{label}</Text>
-      <Text style={{ marginTop: s(8), fontSize: fs(13), fontWeight: '600', color: colors.ink, textAlign: 'center' }}>
-        {moduleParam && levelId != null ? accuracyForLevel(moduleParam, levelId) : '—'}
-      </Text>
-    </Pressable>
-  );
+  const variantCard = (label: string, onPress: () => void, levelId?: string | number) => {
+    const catalogId = moduleParam ? UI_MODULE_TO_CATALOG[moduleParam] || '' : '';
+    const facts =
+      catalogId && levelId != null
+        ? levelCardLines(
+            buildLevelAnalytics({
+              gameId: catalogId,
+              levelId: String(levelId),
+              timeZone: resolvedTimeZone(),
+              rows: sessionsForModule(moduleParam || '').filter((row) => row.levelId === String(levelId)),
+            }),
+          )
+        : { primary: 'No completed sessions', secondary: null };
+    return (
+      <View
+        key={label}
+        style={{
+          width: cardWidth,
+          minHeight: s(140),
+          borderRadius: s(16),
+          backgroundColor: colors.white,
+          borderWidth: 2,
+          borderColor: colors.border,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: s(16),
+          marginBottom: s(12),
+          ...cardShadow,
+        }}
+      >
+        <Pressable onPress={onPress} style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: fs(18), fontWeight: '600', color: colors.ink, textAlign: 'center' }}>{label}</Text>
+          <Text style={{ marginTop: s(8), fontSize: fs(13), fontWeight: '600', color: colors.ink, textAlign: 'center' }}>{facts.primary}</Text>
+          {facts.secondary ? (
+            <Text style={{ marginTop: s(4), fontSize: fs(12), color: colors.muted, textAlign: 'center' }}>{facts.secondary}</Text>
+          ) : null}
+        </Pressable>
+        {moduleParam && levelId != null ? (
+          <Pressable
+            onPress={() => {
+              const family = familyParam ? `&family=${encodeURIComponent(familyParam)}` : '';
+              router.push(`/dashboard?module=${moduleParam}${family}&progress=${encodeURIComponent(String(levelId))}` as never);
+            }}
+            style={{ marginTop: s(8) }}
+          >
+            <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.blue }}>Progress</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  };
 
   const noLevelsCard = (title: string) => (
     <View style={{ width: '100%', backgroundColor: colors.white, borderRadius: s(24), padding: s(28), alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
@@ -1022,6 +1147,11 @@ export default function DashboardScreen() {
   let headerBackAction: (() => void) | undefined = undefined;
   if (panel) {
     headerBackAction = () => setPanel(null);
+  } else if (progressParam && moduleParam) {
+    headerBackAction = () => {
+      const family = familyParam ? `&family=${encodeURIComponent(familyParam)}` : '';
+      router.replace(`/dashboard?module=${moduleParam}${family}` as never);
+    };
   } else if (moduleParam && canPlayUiModule(moduleParam)) {
     headerBackAction = backToFamily;
   } else if (pageParam === 'games' || pageParam === 'analytics') {
@@ -1060,7 +1190,24 @@ export default function DashboardScreen() {
       return (
         <View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: s(13), marginBottom: s(34) }}>
-            <Text style={{ fontSize: fs(21), fontWeight: '600' }}>Session history</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(13) }}>
+              <Text style={{ fontSize: fs(21), fontWeight: '600' }}>Session history</Text>
+              <Pressable
+                onPress={() => {
+                  if (patientId) void loadPracticeOverview(patientId);
+                }}
+                disabled={!patientId || overviewStatus === 'loading'}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh session history"
+              >
+                <Text style={{ fontSize: fs(13), fontWeight: '600', color: overviewStatus === 'loading' ? colors.muted : colors.blue }}>
+                  {overviewStatus === 'loading' ? 'Refreshing' : 'Refresh'}
+                </Text>
+              </Pressable>
+            </View>
+            {historyTruncated ? (
+              <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{TRUNCATED_HISTORY_NOTE}</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: s(13), flexGrow: 1, justifyContent: 'flex-end' }}>
             <DropdownField
               label="Module"
@@ -1180,18 +1327,26 @@ export default function DashboardScreen() {
               </Text>
             </View>
           ) : (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
-              {historyRows.map((row) => (
-                <View key={row.id} style={{ width: isTablet ? '48%' : '100%', backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: s(21) }}>
-                    <Text style={{ flex: 1, fontSize: fs(13), fontWeight: '600' }}>{row.gameName}</Text>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: fs(21), fontWeight: '600' }}>{Math.round(row.accuracy * 10) / 10}%</Text>
-                      <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{formatHistoryDuration(row.durationSec)}</Text>
+            <View style={{ gap: s(13) }}>
+              {mixedLevelNotice(historyRows.map((row) => formatSessionReport(row).levelName)) ? (
+                <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+                  {mixedLevelNotice(historyRows.map((row) => formatSessionReport(row).levelName))}
+                </Text>
+              ) : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13) }}>
+                {historyRows.map((row) => {
+                  const summary = formatPatientSummary(formatSessionReport(row));
+                  return (
+                    <View key={row.id} style={{ width: isTablet ? '48%' : '100%', backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(21), ...cardShadow }}>
+                      <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{summary.moduleName}</Text>
+                      <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{summary.levelName}</Text>
+                      {summary.scoreText ? <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink, marginTop: s(13) }}>{summary.scoreText}</Text> : null}
+                      {summary.timeText ? <Text style={{ fontSize: fs(13), color: colors.ink, marginTop: s(8) }}>{summary.timeText}</Text> : null}
+                      {summary.durationText ? <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8) }}>{summary.durationText}</Text> : null}
                     </View>
-                  </View>
-                </View>
-              ))}
+                  );
+                })}
+              </View>
             </View>
           )}
         </View>
@@ -1286,6 +1441,15 @@ export default function DashboardScreen() {
     if (pageParam === 'analytics') {
       return (
         <>
+          <PrescriptionPractice audience="patient" />
+          <PracticeOverview
+            audience="patient"
+            onOpenLevel={(gameId, levelId) => {
+              const ui = CATALOG_TO_UI_MODULE[gameId];
+              if (!ui) return;
+              router.push(`/dashboard?module=${ui}&progress=${encodeURIComponent(levelId)}` as never);
+            }}
+          />
           <SessionAnalyticsPanel heading="Analytics" patientName={session?.user.name || 'you'} />
           <Pressable
             onPress={() => router.replace('/dashboard')}
@@ -1305,6 +1469,18 @@ export default function DashboardScreen() {
             <Text style={{ color: colors.white, fontWeight: '700' }}>Start a Therapy Session</Text>
           </Pressable>
         </>
+      );
+    }
+
+    if (progressParam && moduleParam && canPlayUiModule(moduleParam)) {
+      const catalogId = UI_MODULE_TO_CATALOG[moduleParam] || '';
+      const levelName = levelsForTherapyModule(catalogId).find((level) => level.id === progressParam)?.name || progressParam;
+      return (
+        <SessionAnalyticsPanel
+          lockedLevel={{ gameId: catalogId, levelId: progressParam }}
+          patientName={session?.user.name || 'you'}
+          heading={levelName}
+        />
       );
     }
 
@@ -1547,12 +1723,16 @@ export default function DashboardScreen() {
         <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(34) }}>Vision Therapy Dashboard</Text>
         <PracticeSummary
           sessions={practiceSessions}
+          summary={practiceSummary}
           doctorName={session.patient?.doctorName}
           doctorCode={session.patient?.referralCode}
           fs={fs}
           s={s}
           onSessionsPress={() => setPanel('history')}
         />
+        {practiceTruncated ? (
+          <Text style={{ marginTop: s(13), fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{TRUNCATED_HISTORY_NOTE}</Text>
+        ) : null}
       </>
     );
   };
@@ -1560,7 +1740,10 @@ export default function DashboardScreen() {
   function renderGames() {
     return (
     <>
-      <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(34) }}>My games</Text>
+      <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: practiceTruncated ? s(13) : s(34) }}>My games</Text>
+      {practiceTruncated ? (
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink, marginBottom: s(34) }}>{TRUNCATED_HISTORY_NOTE}</Text>
+      ) : null}
       <View style={{ flexDirection: 'row', backgroundColor: '#E5E7EB', borderRadius: s(13), padding: s(8), marginBottom: s(34) }}>
           {(
             [

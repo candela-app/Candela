@@ -20,6 +20,7 @@ import {
   useHowToPlayGate,
   usePauseShiftedClock,
   buildSessionMetrics,
+  copyCompletedPursuitTrials,
   clinicalColorSessionFields,
   MODULE_CTA,
 } from '@candela/shared/rn';
@@ -100,22 +101,22 @@ export function PursuitGame({
   const activeDecoyCount = Math.max(0, Math.min(3, settings.decoyCount));
 
   const completeSession = useCallback(() => {
-    const allTrials = trialMetricsRef.current;
-    const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
+    const completedTrials = copyCompletedPursuitTrials(trialMetricsRef.current);
+    const correctCount = completedTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = wrongTapCountRef.current;
-    const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const timeouts = completedTrials.filter((t) => t.outcome === 'timeout').length;
     const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
       misses,
       timeouts,
-      reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
+      reactionMs: completedTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
     const avgTrackingErrorPx =
-      allTrials.length > 0 ? Math.round(allTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / allTrials.length) : 0;
+      completedTrials.length > 0 ? Math.round(completedTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / completedTrials.length) : 0;
     const avgAnticipation =
-      allTrials.length > 0 ? allTrials.reduce((a, t) => a + t.anticipationRatio, 0) / allTrials.length : 0;
+      completedTrials.length > 0 ? completedTrials.reduce((a, t) => a + t.anticipationRatio, 0) / completedTrials.length : 0;
     const anticipationVsLagScore =
       avgAnticipation > 0.1
         ? `Optimal Anticipation (${Math.round((avgAnticipation + 1) * 50)}% Leading)`
@@ -127,10 +128,10 @@ export function PursuitGame({
       sessionId: Date.now(),
       date: new Date().toISOString(),
       gameName: `Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
-      stimuliCount: allTrials.length,
+      stimuliCount: completedTrials.length,
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
-      durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
+      durationSec: Math.round(completedTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
       clicksTotal: correctCount + wrongTaps + misses,
       correct: correctCount,
       ...metrics,
@@ -139,6 +140,8 @@ export function PursuitGame({
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
       avgTrackingErrorPx,
+      meanAnticipationRatio: avgAnticipation,
+      completedTrials,
       anticipationVsLagScore,
       blockMetrics: [],
       starRating: Math.max(1, Math.min(5, Math.ceil((metrics.accuracy / 100) * 5))),

@@ -6,13 +6,6 @@ import { ArrowRightIcon, CheckCircleIcon, LogOutIcon, UserIcon } from '@/compone
 import { GAME_FAMILIES } from '@candela/shared';
 import styles from './HomePageContentV2.module.css';
 
-const TRUST_ITEMS = [
-  { title: 'Configurable exercises', detail: 'Session controls that adapt to the activity.' },
-  { title: 'Session analytics', detail: 'Accuracy, timing and error measures.' },
-  { title: 'Connected workflows', detail: 'Purpose-built patient and clinician views.' },
-  { title: 'Responsive access', detail: 'Designed for web, tablet, and mobile devices.' },
-];
-
 const CAPABILITIES = [
   {
     title: 'Clinical session controls',
@@ -454,7 +447,7 @@ export function HomePageContent({
 
       <main className="relative z-10">
         <div className="lg:flex lg:h-dvh lg:flex-col">
-        <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-28 pt-32 text-white sm:px-8 lg:min-h-0 lg:flex-1">
+        <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-16 pt-32 text-white sm:px-8 lg:min-h-0 lg:flex-1">
           <div aria-hidden className="absolute inset-0">
             <video
               autoPlay
@@ -548,22 +541,6 @@ export function HomePageContent({
                 <span>Therapy-support software. Not a diagnostic tool or a substitute for professional medical advice.</span>
               </p>
             </div>
-          </div>
-        </section>
-
-        <section className={`${styles.overviewBridge} relative z-20 shrink-0 px-5 sm:px-8`}>
-          <div className={`${styles.reveal} ${styles.overviewGlass} mx-auto grid max-w-7xl overflow-hidden rounded-3xl border border-white/65 sm:grid-cols-2 lg:grid-cols-4`}>
-            {TRUST_ITEMS.map(({ title, detail }, index) => (
-              <div
-                key={title}
-                className={`flex gap-3 p-5 sm:p-6 ${index > 0 ? 'border-t border-slate-200/70 sm:border-l sm:border-t-0' : ''} ${index === 2 ? 'sm:border-l-0 lg:border-l' : ''}`}
-              >
-                <div>
-                  <h2 className="text-sm font-extrabold text-slate-900">{title}</h2>
-                  <p className="mt-1 text-xs font-medium leading-5 text-slate-800">{detail}</p>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
         </div>

@@ -344,6 +344,16 @@ export interface PursuitSessionResultData extends SessionResultData {
   decoyCount: number;
   speedPxPerSec: number;
   avgTrackingErrorPx: number;
+  /** Numeric lead or lag from the full trial list. The display sentence stays separate. */
+  meanAnticipationRatio?: number;
+  /** Plain copy of finished trials, taken before the live list is cleared. */
+  completedTrials?: Array<{
+    trialIndex: number;
+    outcome: 'correct' | 'incorrect' | 'timeout';
+    reactionTimeMs: number;
+    trackingErrorPx: number;
+    anticipationRatio: number;
+  }>;
   anticipationVsLagScore: string; // e.g. "Optimal Leading (65% Anticipation)" or "Trailing Lag"
   blockMetrics: PursuitBlockMetric[];
   starRating: number; // 1 to 5 stars for child card

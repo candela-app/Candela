@@ -317,15 +317,18 @@ export function resolveBubbleAppearance(
   return DEFAULT_BUBBLE_APPEARANCE;
 }
 
+/** Finite samples at or above 0 ms. Negatives, NaN, and infinities are dropped. */
+export function validReactionSamples(reactionMs: number[]): number[] {
+  return reactionMs.filter((ms) => Number.isFinite(ms) && ms >= 0).map((ms) => Math.round(ms));
+}
+
 /** Average / median reaction time from millisecond samples (correct responses only). */
 export function reactionStatsFromMs(reactionMs: number[]): {
   avgSec: number;
   medianSec: number;
   count: number;
 } {
-  const samples = reactionMs
-    .filter((ms) => Number.isFinite(ms) && ms >= 0)
-    .map((ms) => Math.round(ms));
+  const samples = validReactionSamples(reactionMs);
   if (samples.length === 0) return { avgSec: 0, medianSec: 0, count: 0 };
   const avgMs = samples.reduce((a, b) => a + b, 0) / samples.length;
   const sorted = [...samples].sort((a, b) => a - b);

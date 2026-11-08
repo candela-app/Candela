@@ -6,14 +6,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
+import { GameSession } from '../entities/game-session.entity';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
+import { PrescriptionRevision } from '../entities/prescription-revision.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
 import { Organization } from '../entities/organization.entity';
 import { DocIdModule } from '../docid/docid.module';
 import { MailModule } from '../mail/mail.module';
+import { PrescriptionAnalyticsService } from '../prescriptions/prescription-analytics.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleAuthService } from './google-auth.service';
@@ -27,6 +30,8 @@ import { AdminController, DoctorController, MeController } from './role.controll
       DoctorProfile,
       PatientProfile,
       Prescription,
+      PrescriptionRevision,
+      GameSession,
       RefreshToken,
       PasswordResetToken,
     ]),
@@ -43,6 +48,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   controllers: [AuthController, AdminController, DoctorController, MeController],
   providers: [
     AuthService,
+    PrescriptionAnalyticsService,
     GoogleAuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
