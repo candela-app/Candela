@@ -19,6 +19,11 @@ export class PatientGameSessionsController {
   list(@CurrentUser() user: User, @Query() query: GameSessionQueryDto) {
     return this.sessions.listForPatient(user.id, query);
   }
+
+  @Get('summary')
+  summary(@CurrentUser() user: User) {
+    return this.sessions.summaryForPatient(user.id);
+  }
 }
 
 @Controller('api/doctors/me/patients/:patientId/game-sessions')
@@ -33,5 +38,10 @@ export class DoctorGameSessionsController {
     @Query() query: GameSessionQueryDto,
   ) {
     return this.sessions.listForDoctor(user.id, patientId, query);
+  }
+
+  @Get('summary')
+  summary(@CurrentUser() user: User, @Param('patientId') patientId: string) {
+    return this.sessions.summaryForDoctor(user.id, patientId);
   }
 }

@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, GAME_FAMILIES, PEDIATRIC_GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type TherapyModuleId } from '@candela/shared/rn';
+import { GAME_CATALOG, GAME_FAMILIES, PEDIATRIC_GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type SavedPracticeSummary, type TherapyModuleId } from '@candela/shared/rn';
 import { AnalyticsIcon, BellIcon, CheckIcon, ChevronUpIcon, LogOutIcon, MonitorIcon, SearchIcon, SideDockIcon, SlidersIcon, UserIcon, UsersIcon, XIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { CopyDocId } from '../src/components/CopyDocId';
 import { AppToastHost, pushAppToast, type AppToastItem } from '../src/components/AppToast';
 import { ScreenLoader } from '../src/components/ScreenLoader';
+import { PracticeOverview } from '../src/components/PracticeOverview';
+import { PrescriptionPractice } from '../src/components/PrescriptionPractice';
 import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
 import {
   FloatingLabelInput,
   FloatingLabelPasswordInput,
 } from '../src/components/FloatingLabelInput';
-import { ApiError, api, listPatientGameSessions, type StoredGameSessionRecord } from '../src/lib/api';
+import { ApiError, api, getPatientPracticeSummary } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -63,6 +65,21 @@ function PrescriptionTick({ checked, size }: { checked: boolean; size: number })
       </View>
     </View>
   );
+}
+
+function lastSavedCard(summary: SavedPracticeSummary | null, failed: boolean) {
+  if (failed) return { value: '—', hint: 'Summary unavailable' };
+  const last = summary?.availability === 'recorded' ? summary.last : null;
+  if (!summary) return { value: '—', hint: 'Last saved session' };
+  if (!last) return { value: '—', hint: 'No session saved' };
+  const parsed = new Date(last.recordedAt);
+  const valid = !Number.isNaN(parsed.getTime());
+  const time = valid ? parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  const level = last.levelId ? last.levelName : '';
+  return {
+    value: valid ? parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—',
+    hint: [last.gameName, level, time].filter(Boolean).join(' · '),
+  };
 }
 
 function SummaryCard({
@@ -130,7 +147,8 @@ export default function DoctorScreen() {
   const [analyticsOrigin, setAnalyticsOrigin] = useState<{ section: PhoneSection; patientId: string | null } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [toasts, setToasts] = useState<AppToastItem[]>([]);
-  const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
+  const [practice, setPractice] = useState<SavedPracticeSummary | null>(null);
+  const [practiceFailed, setPracticeFailed] = useState(false);
   const inFlightRef = useRef(new Set<string>());
 
   const filteredPatients = useMemo(() => {
@@ -155,32 +173,26 @@ export default function DoctorScreen() {
 
   useEffect(() => {
     if (!selectedId) {
-      setSessions([]);
+      setPractice(null);
+      setPracticeFailed(false);
       return;
     }
     let cancelled = false;
-    setSessions([]);
-    listPatientGameSessions(selectedId)
-      .then((rows) => {
-        if (!cancelled) setSessions(rows);
+    setPractice(null);
+    setPracticeFailed(false);
+    getPatientPracticeSummary(selectedId)
+      .then((row) => {
+        if (!cancelled) setPractice(row);
       })
       .catch(() => {
-        if (!cancelled) setSessions([]);
+        if (!cancelled) setPracticeFailed(true);
       });
     return () => {
       cancelled = true;
     };
   }, [selectedId]);
 
-  const lastPlayed = sessions.length
-    ? new Date(
-        [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[sessions.length - 1].recordedAt,
-      ).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    : '—';
-  const avgAccuracy =
-    sessions.length === 0
-      ? null
-      : Math.round((sessions.reduce((sum, row) => sum + row.accuracy, 0) / sessions.length) * 10) / 10;
+  const saved = lastSavedCard(practice, practiceFailed);
 
   const load = useCallback(async () => {
     try {
@@ -401,6 +413,8 @@ export default function DoctorScreen() {
               <Text style={{ fontWeight: '600', fontSize: fs(13), color: colors.text }}>Other device games</Text>
             </Pressable>
           </View>
+          <PrescriptionPractice audience="doctor" patientId={selected.id} />
+          <PracticeOverview audience="doctor" patientId={selected.id} />
           <SessionAnalyticsPanel patientId={selected.id} patientName={selected.name} />
         </ScrollView>
         <AppToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((item) => item.id !== id))} />
@@ -841,23 +855,16 @@ export default function DoctorScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13), marginBottom: s(21) }}>
                   <SummaryCard
-                    label="Sessions"
-                    value={String(sessions.length)}
-                    hint={sessions.length === 1 ? '1 finished play' : `${sessions.length} finished plays`}
+                    label="Saved sessions"
+                    value={practiceFailed || !practice ? '—' : String(practice.sessionCount)}
+                    hint={practiceFailed ? 'Summary unavailable' : practice?.availability === 'recorded' ? 'Saved sessions' : practice ? 'No session saved' : 'Saved sessions'}
                     fs={fs}
                     s={s}
                   />
                   <SummaryCard
-                    label="Last played"
-                    value={lastPlayed}
-                    hint={sessions.length ? 'Most recent session' : 'Not played yet'}
-                    fs={fs}
-                    s={s}
-                  />
-                  <SummaryCard
-                    label="Accuracy"
-                    value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
-                    hint={avgAccuracy != null ? 'Mean score' : 'No plays yet'}
+                    label="Last saved"
+                    value={saved.value}
+                    hint={saved.hint}
                     fs={fs}
                     s={s}
                   />

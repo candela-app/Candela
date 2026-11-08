@@ -9,8 +9,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
+import { PrescriptionAnalyticsService, PrescriptionPeriodQueryDto } from '../prescriptions/prescription-analytics.service';
 import { CreateAccountDto, AddPrescriptionDto, UpdateDoctorDto } from '../auth/dto';
 import { isTherapyModuleId } from '../common/catalog';
 import { CurrentUser } from '../common/current-user.decorator';
@@ -52,7 +54,10 @@ export class AdminController {
 @Controller('api/doctors/me')
 @Roles('doctor')
 export class DoctorController {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(PrescriptionAnalyticsService) private readonly prescriptionAnalytics: PrescriptionAnalyticsService,
+  ) {}
 
   @Post('patients')
   createPatient(@CurrentUser() user: User, @Body() dto: CreateAccountDto) {
@@ -62,6 +67,19 @@ export class DoctorController {
   @Get('patients')
   listPatients(@CurrentUser() user: User) {
     return this.auth.listDoctorPatients(user.id);
+  }
+
+  @Get('patients/:patientId/prescription-analytics')
+  async readPrescriptionAnalytics(
+    @CurrentUser() user: User,
+    @Param('patientId') patientId: string,
+    @Query() query: PrescriptionPeriodQueryDto,
+  ) {
+    const analytics = await this.prescriptionAnalytics.forDoctor(user.id, patientId, query);
+    if (!analytics) {
+      throw new NotFoundException('Patient not found');
+    }
+    return analytics;
   }
 
   @Get('patients/:id')
@@ -105,11 +123,19 @@ export class DoctorController {
 
 @Controller('api/me')
 export class MeController {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(PrescriptionAnalyticsService) private readonly prescriptionAnalytics: PrescriptionAnalyticsService,
+  ) {}
 
   @Get()
   me(@CurrentUser() user: User) {
     return this.auth.getSession(user);
+  }
+
+  @Get('prescription-practice')
+  prescriptionPractice(@CurrentUser() user: User, @Query() query: PrescriptionPeriodQueryDto) {
+    return this.prescriptionAnalytics.forPatient(user, query);
   }
 
   @Get('modules')

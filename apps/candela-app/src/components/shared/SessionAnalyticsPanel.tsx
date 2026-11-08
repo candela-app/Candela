@@ -5,34 +5,51 @@ import { createPortal } from 'react-dom';
 import {
   ALL_MODULE_IDS,
   ANALYTICS_DOTS_GUIDE,
-  ANALYTICS_GRAPH_GUIDES,
-  ANALYTICS_METRICS,
   ANALYTICS_RATES_NOTE,
+  ANALYTICS_SELECT_GAME,
   ANALYTICS_SESSION_GUIDE,
   ANALYTICS_SCALE_LABEL,
   GAME_CATALOG,
   MODULE_LEVELS,
+  analyticsQueryRange,
   analyticsVisibleSlots,
+  availableAnalyticsMetrics,
   buildGameSessionAnalytics,
-  dailyHasPlay,
+  buildLevelAnalytics,
   dailyLinePath,
+  dailyMetricPlotted,
   formatPlotAxisName,
   formatPlotTick,
   formatPlotTooltip,
   levelsForTherapyModule,
+  resolvedTimeZone,
   shouldDrawPlotTick,
   plotPointsForScale,
+  formatDoctorDetail,
+  formatPatientSummary,
+  formatReportSeconds,
+  formatSessionReport,
+  levelContextMatchText,
+  levelEmptyMessage,
+  GAZE_HOLD_UNSUPPORTED_MESSAGE,
+  mixedLevelNotice,
+  TRUNCATED_HISTORY_NOTE,
+  sessionChartsAllowed,
+  showGazeHoldUnsupported,
   zoomInScale,
   zoomOutScale,
   yValueForDaily,
+  type AnalyticsMetricDef,
   type AnalyticsMetricId,
   type AnalyticsTimeScale,
   type DailyAggMode,
   type DailyPlotPoint,
+  type LevelAnalyticsOk,
+  type LevelDailyPoint,
   type StoredGameSession,
   type TherapyModuleId,
 } from '@candela/shared';
-import { listMyGameSessions, listPatientGameSessions, type StoredGameSessionRecord } from '@/lib/api';
+import { listMyGameSessionOverview, listPatientGameSessionOverview, type StoredGameSessionRecord } from '@/lib/api';
 
 function toStored(row: StoredGameSessionRecord): StoredGameSession {
   return {
@@ -69,6 +86,8 @@ function LineChart({
   agg,
   color,
   scale,
+  unit,
+  yAxis,
   showGameName = false,
 }: {
   points: DailyPlotPoint[];
@@ -76,6 +95,8 @@ function LineChart({
   agg: DailyAggMode;
   color: string;
   scale: AnalyticsTimeScale;
+  unit: string;
+  yAxis: string;
   showGameName?: boolean;
 }) {
   const height = 236;
@@ -87,7 +108,7 @@ function LineChart({
   const slot = viewportInner / (visibleSlots - 1);
   const innerW = slot * Math.max(visibleSlots - 1, Math.max(1, points.length - 1));
   const plotW = plotPadL + innerW + pad.r;
-  const played = points.filter(dailyHasPlay);
+  const played = points.filter((point) => dailyMetricPlotted(point, metric, agg));
   const values = played.map((p) => yValueForDaily(p, metric, agg));
   const max = Math.max(...values, metric === 'accuracy' || metric.includes('Rate') ? 100 : 0.01);
   const min = 0;
@@ -103,10 +124,7 @@ function LineChart({
   const svgRef = useRef<SVGSVGElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const touchOpenRef = useRef(false);
-  const tip = hover != null && dailyHasPlay(points[hover]) ? points[hover] : null;
-  const metricMeta = ANALYTICS_METRICS.find((m) => m.id === metric);
-  const unit = metricMeta?.unit ?? '';
-  const yAxis = metricMeta?.yAxis ?? metricMeta?.label ?? '';
+  const tip = hover != null && dailyMetricPlotted(points[hover], metric, agg) ? points[hover] : null;
   const valueLabel =
     tip != null
       ? `${yValueForDaily(tip, metric, agg).toFixed(metric === 'reaction' ? 2 : 1)}${unit}`
@@ -133,7 +151,7 @@ function LineChart({
   }, [hover]);
 
   useLayoutEffect(() => {
-    if (hover == null || !svgRef.current || !dailyHasPlay(points[hover])) {
+    if (hover == null || !svgRef.current || !dailyMetricPlotted(points[hover], metric, agg)) {
       setTipBox(null);
       return;
     }
@@ -174,7 +192,7 @@ function LineChart({
   const yMid = pad.t + innerH / 2;
 
   const openDot = (i: number, event: { stopPropagation: () => void; pointerType?: string }) => {
-    if (!dailyHasPlay(points[i])) return;
+    if (!dailyMetricPlotted(points[i], metric, agg)) return;
     event.stopPropagation();
     touchOpenRef.current = event.pointerType === 'touch';
     setHover(i);
@@ -236,7 +254,7 @@ function LineChart({
             <path d={path} fill="none" stroke={color} strokeWidth="2.5" />
           ) : null}
           {points.map((p, i) => {
-            if (!dailyHasPlay(p)) return null;
+            if (!dailyMetricPlotted(p, metric, agg)) return null;
             const value = yValueForDaily(p, metric, agg);
             const px = x(i);
             const py = y(value);
@@ -354,7 +372,96 @@ function LineChart({
   );
 }
 
-function HowToReadCard({ gameId, levelId }: { gameId: string; levelId: string }) {
+function formatReportDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Date not recorded';
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function DoctorSessionList({ rows }: { rows: StoredGameSession[] }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const reports = rows.map((row) => formatSessionReport(row));
+  const notice = mixedLevelNotice(reports.map((report) => report.levelName));
+  return (
+    <section className="space-y-[13px]">
+      <h3 className="text-[13px] font-semibold text-gray-900">Sessions</h3>
+      {notice ? <p className="text-[13px] leading-[21px] text-gray-500">{notice}</p> : null}
+      <ul className="space-y-[8px]">
+        {reports.map((report, index) => {
+          const open = openId === report.id;
+          const detailLines = formatDoctorDetail(rows[index]?.detail);
+          return (
+            <li key={report.id} className={CARD}>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setOpenId(open ? null : report.id)}
+                className="flex w-full items-start justify-between gap-[13px] text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-gray-900">{report.moduleName}</span>
+                  <span className="mt-[4px] block text-[13px] text-gray-500">{report.levelName}</span>
+                  <span className="mt-[4px] block text-[13px] text-gray-500">{formatReportDate(report.recordedAt)}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-[13px] font-semibold text-gray-900">
+                    {report.score.value == null ? 'Not stored' : `${report.score.value}%`}
+                  </span>
+                  <span className="mt-[4px] block text-[13px] text-gray-500">{report.score.label}</span>
+                  <span className="mt-[4px] block text-[13px] text-gray-500">
+                    {report.time.meanSec == null ? 'Time not stored' : formatReportSeconds(report.time.meanSec)}
+                  </span>
+                </span>
+              </button>
+              {open ? (
+                <div className="mt-[13px] space-y-[8px] border-t border-gray-200 pt-[13px] text-[13px] leading-[21px] text-gray-600">
+                  {report.counts.map((line) => (
+                    <p key={line.label}>
+                      {line.label}: {line.count}
+                      {line.rate == null ? '' : ` (${line.rate}%)`}
+                    </p>
+                  ))}
+                  <p>
+                    {report.time.label}:{' '}
+                    {report.time.meanSec == null
+                      ? 'Not stored'
+                      : `${formatReportSeconds(report.time.meanSec)}${report.time.medianSec == null ? '' : `, median ${formatReportSeconds(report.time.medianSec)}`}`}
+                  </p>
+                  {report.duration.seconds == null ? null : (
+                    <p>
+                      {report.duration.label}: {report.duration.seconds}s
+                    </p>
+                  )}
+                  {report.efficiency == null ? null : <p>Efficiency: {report.efficiency}</p>}
+                  {report.deviceTier ? <p>Device: {report.deviceTier}</p> : null}
+                  {report.contrastPercent == null ? null : <p>Contrast: {report.contrastPercent}%</p>}
+                  {report.notices.map((noticeText) => (
+                    <p key={noticeText}>{noticeText}</p>
+                  ))}
+                  {detailLines.map((line, lineIndex) => (
+                    <p key={`${line.label}-${lineIndex}`}>
+                      {line.label}: {line.value}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function HowToReadCard({
+  gameId,
+  levelId,
+  metrics,
+}: {
+  gameId: string;
+  levelId: string;
+  metrics: AnalyticsMetricDef[];
+}) {
   return (
     <div className={`${CARD} space-y-[21px] text-[13px] leading-[21px] text-gray-600 min-w-0 overflow-hidden`}>
       <p className="text-[21px] font-semibold text-gray-900">How to read this</p>
@@ -366,9 +473,9 @@ function HowToReadCard({ gameId, levelId }: { gameId: string; levelId: string })
         <p className="font-semibold text-gray-900">{ANALYTICS_SESSION_GUIDE.title}</p>
         <p>{ANALYTICS_SESSION_GUIDE.body}</p>
       </section>
-      {ANALYTICS_GRAPH_GUIDES.map((guide) => (
+      {metrics.map((guide) => (
         <section key={guide.id} className="space-y-[8px]">
-          <p className="font-semibold text-gray-900">{guide.title}</p>
+          <p className="font-semibold text-gray-900">{guide.label}</p>
           <p>{guide.meaning}</p>
           <div className="overflow-x-auto rounded-[13px] border border-gray-200">
             <table className="w-full text-left text-[13px]">
@@ -390,11 +497,13 @@ function HowToReadCard({ gameId, levelId }: { gameId: string; levelId: string })
           </div>
         </section>
       ))}
-      <p className="text-gray-500">{ANALYTICS_RATES_NOTE}</p>
+      {metrics.some((metric) => metric.id === 'wrongTapRate' || metric.id === 'missRate') ? (
+        <p className="text-gray-500">{ANALYTICS_RATES_NOTE}</p>
+      ) : null}
       {gameId ? (
         <p className="text-gray-500">
           Filter: {GAME_CATALOG[gameId as TherapyModuleId]?.name}
-          {levelId ? ` · ${MODULE_LEVELS[gameId as TherapyModuleId]?.find((l) => l.id === levelId)?.name ?? levelId}` : ' · all levels'}.
+          {levelId ? ` · ${MODULE_LEVELS[gameId as TherapyModuleId]?.find((l) => l.id === levelId)?.name ?? levelId}` : ' · All levels (mixed)'}.
           Compare the same module; do not mix devices without noting device tier.
         </p>
       ) : (
@@ -404,113 +513,283 @@ function HowToReadCard({ gameId, levelId }: { gameId: string; levelId: string })
   );
 }
 
+function LevelTrend({ points }: { points: LevelDailyPoint[] }) {
+  if (points.length === 0) return null;
+  const width = 640;
+  const height = 180;
+  const pad = { l: 36, r: 12, t: 16, b: 28 };
+  const innerW = width - pad.l - pad.r;
+  const innerH = height - pad.t - pad.b;
+  const x = (index: number) => pad.l + (points.length <= 1 ? innerW / 2 : (index / (points.length - 1)) * innerW);
+  const y = (value: number) => pad.t + innerH - (value / 100) * innerH;
+  const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.performance)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Level performance trend">
+      {[0, 50, 100].map((tick) => (
+        <text key={tick} x={pad.l - 6} y={y(tick) + 4} textAnchor="end" fontSize="10" fill="#9CA3AF">
+          {tick}
+        </text>
+      ))}
+      <path d={path} fill="none" stroke="#2563eb" strokeWidth="2.5" />
+      {points.map((point, index) => (
+        <g key={point.date}>
+          <circle cx={x(index)} cy={y(point.performance)} r="4" fill="#2563eb" />
+          <text x={x(index)} y={height - 8} textAnchor="middle" fontSize="10" fill="#6B7280">
+            {point.date.slice(5)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function LevelAnalyticsBody({
+  result,
+  rows,
+  showPatientHistory,
+  showContext,
+}: {
+  result: LevelAnalyticsOk;
+  rows: StoredGameSession[];
+  showPatientHistory: boolean;
+  showContext: boolean;
+}) {
+  const gazeEmpty = result.gameId === 'computer_vision' && result.sessionCount === 0;
+  const performance =
+    result.sessionCount === 0 || result.performanceValue == null || result.performanceLabel == null
+      ? null
+      : `${result.performanceLabel} ${result.performanceValue}%`;
+  const history = rows.slice().sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+  return (
+    <div className="space-y-[13px]">
+      <div className={CARD}>
+        <p className="text-[13px] font-semibold text-gray-900">{result.levelName}</p>
+        {gazeEmpty ? (
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">{GAZE_HOLD_UNSUPPORTED_MESSAGE}</p>
+        ) : result.sessionCount === 0 ? (
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">{levelEmptyMessage(result.levelName)}</p>
+        ) : (
+          <div className="mt-[13px] grid gap-[13px] sm:grid-cols-3">
+            <p className="text-[13px] leading-[21px] text-gray-600">
+              {performance ?? 'Performance not available'}
+            </p>
+            <p className="text-[13px] leading-[21px] text-gray-600">{result.sessionCount} completed</p>
+            <p className="text-[13px] leading-[21px] text-gray-600">
+              {result.lastCompletedAt ? formatReportDate(result.lastCompletedAt) : 'Date not recorded'}
+            </p>
+          </div>
+        )}
+      </div>
+      {result.sessionCount > 0 ? (
+        <div className={`${CARD} min-w-0`}>
+          <p className="text-[13px] font-semibold text-gray-900">{result.performanceLabel ?? 'Performance'}</p>
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">
+            This line uses only {result.levelName}. A day is omitted when its sessions have no valid measurement. Those sessions stay in the count and the list.
+          </p>
+          {result.daily.length > 0 ? <LevelTrend points={result.daily} /> : (
+            <p className="mt-[13px] text-[13px] leading-[21px] text-gray-600">No performance points for this level.</p>
+          )}
+          {result.daily.length > 0 ? (
+            <ul className="mt-[13px] space-y-[8px]">
+              {result.daily.map((point) => (
+                <li key={point.date} className="text-[13px] leading-[21px] text-gray-600">
+                  {point.date}: {point.performance}% · {point.sessionCount} completed
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {result.sessionCount > 0 ? (
+        <div className={CARD}>
+          <p className="text-[13px] font-semibold text-gray-900">{result.reactionLabel}</p>
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
+            {result.reactionMeanSec == null ? 'Not stored' : formatReportSeconds(result.reactionMeanSec)}
+          </p>
+        </div>
+      ) : null}
+      {showContext
+        ? result.contextMatches.map((match) => (
+            <p key={match.measurement} className="text-[13px] leading-[21px] text-gray-500">
+              {levelContextMatchText(match)}
+            </p>
+          ))
+        : null}
+      {showPatientHistory && history.length > 0 ? (
+        <section className="space-y-[13px]">
+          <h3 className="text-[13px] font-semibold text-gray-900">Sessions</h3>
+          <ul className="space-y-[8px]">
+            {history.map((row) => {
+              const summary = formatPatientSummary(formatSessionReport(row));
+              return (
+                <li key={row.id} className={CARD}>
+                  <p className="text-[13px] font-semibold text-gray-900">{summary.levelName}</p>
+                  <p className="mt-[4px] text-[13px] text-gray-500">{formatReportDate(row.recordedAt)}</p>
+                  <p className="mt-[4px] text-[13px] text-gray-600">{summary.scoreText ?? 'Performance not available'}</p>
+                  {summary.timeText ? <p className="mt-[4px] text-[13px] text-gray-600">{summary.timeText}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 export function SessionAnalyticsPanel({
   patientId,
   heading,
   initialRows,
+  lockedLevel,
 }: {
   patientId?: string;
   patientName: string;
   heading?: string;
   variant?: 'light' | 'shell';
   initialRows?: StoredGameSessionRecord[];
+  lockedLevel?: { gameId: string; levelId: string };
 }) {
-  const [gameId, setGameId] = useState<string>('');
-  const [levelId, setLevelId] = useState('');
+  const [gameId, setGameId] = useState<string>(lockedLevel?.gameId ?? '');
+  const [levelId, setLevelId] = useState(lockedLevel?.levelId ?? '');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [agg, setAgg] = useState<DailyAggMode>('pooled');
   const [scale, setScale] = useState<AnalyticsTimeScale>('week');
   const [rows, setRows] = useState<StoredGameSessionRecord[]>(initialRows ?? []);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState('');
-  const [settled, setSettled] = useState(initialRows !== undefined);
+  const [loadedKey, setLoadedKey] = useState('');
+  const timeZone = resolvedTimeZone();
+  const activeGameId = lockedLevel?.gameId || gameId;
+  const activeLevelId = lockedLevel?.levelId || levelId;
+  const levelMode = Boolean(activeLevelId);
+  const requestKey = JSON.stringify({ patientId: patientId || '', gameId: activeGameId, levelId: activeLevelId, from, to, timeZone });
 
   useEffect(() => {
+    if (!activeGameId) {
+      setTruncated(false);
+      return;
+    }
     let cancelled = false;
+    setTruncated(false);
+    const range = analyticsQueryRange(from, to, timeZone);
     const params = {
-      gameId: gameId || undefined,
-      levelId: gameId && levelId ? levelId : undefined,
-      from: from || undefined,
-      to: to || undefined,
+      gameId: activeGameId,
+      levelId: activeLevelId || undefined,
+      from: range.from,
+      to: range.to,
     };
     const req = patientId
-      ? listPatientGameSessions(patientId, params)
-      : listMyGameSessions(params);
+      ? listPatientGameSessionOverview(patientId, params)
+      : listMyGameSessionOverview(params);
     req
-      .then((list) => {
+      .then((overview) => {
         if (!cancelled) {
-          setRows(list);
+          setRows(overview.sessions);
+          setTruncated(overview.truncated);
           setError('');
+          setLoadedKey(requestKey);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setRows([]);
+          setTruncated(false);
           setError('Could not load sessions');
+          setLoadedKey(requestKey);
         }
       })
-      .finally(() => {
-        if (!cancelled) setSettled(true);
-      });
     return () => {
       cancelled = true;
     };
-  }, [patientId, gameId, levelId, from, to]);
+  }, [patientId, activeGameId, activeLevelId, from, to, requestKey, timeZone]);
 
-  const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
-  const hasPlays = analytics.totals.sessionCount > 0;
+  const stored = useMemo(() => (activeGameId ? rows.map(toStored) : []), [rows, activeGameId]);
+  const analytics = useMemo(
+    () => buildGameSessionAnalytics(stored, { timeZone }),
+    [stored, timeZone],
+  );
+  const loaded = loadedKey === requestKey;
+  const levelResult = useMemo(() => {
+    if (!levelMode || !loaded || !activeGameId) return null;
+    return buildLevelAnalytics({
+      gameId: activeGameId,
+      levelId: activeLevelId,
+      timeZone,
+      rows: stored,
+    });
+  }, [levelMode, loaded, activeGameId, activeLevelId, timeZone, stored]);
+  const identityError = levelResult?.status === 'invalid';
+  const hasPlays = Boolean(activeGameId) && loaded && !levelMode && analytics.totals.sessionCount > 0;
+  const chartsAllowed = Boolean(activeGameId) && sessionChartsAllowed(activeGameId, stored);
+  const gazeUnsupported = Boolean(activeGameId) && loaded && !levelMode && showGazeHoldUnsupported(activeGameId, stored);
+  const showCharts = hasPlays && chartsAllowed;
+  const metrics = useMemo(
+    () => (showCharts ? availableAnalyticsMetrics(gameId, stored) : []),
+    [showCharts, gameId, stored],
+  );
   const plotPoints = useMemo(
     () =>
-      plotPointsForScale(rows.map(toStored), analytics.daily, scale, {
+      plotPointsForScale(stored, analytics.daily, scale, {
         from: from || undefined,
         to: to || undefined,
+        timeZone,
       }),
-    [rows, analytics.daily, scale, from, to],
+    [stored, analytics.daily, scale, from, to, timeZone],
   );
-
-  if (!settled) {
-    return error ? <p className="text-[13px] text-red-600">{error}</p> : null;
-  }
 
   return (
     <div className="space-y-[34px] w-full min-w-0">
       <div className="space-y-[13px]">
         {heading ? <h2 className="text-[21px] font-semibold text-gray-900 text-balance">{heading}</h2> : null}
-        <div className="grid grid-cols-4 gap-[13px]">
-          <label className={STACK}>
-            Module
-            <select
-              value={gameId}
-              onChange={(e) => {
-                setGameId(e.target.value);
-                setLevelId('');
-              }}
-              className={FIELD}
-            >
-              <option value="">All modules</option>
-              {ALL_MODULE_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {GAME_CATALOG[id].name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={STACK}>
-            Level
-            <select
-              value={levelId}
-              onChange={(e) => setLevelId(e.target.value)}
-              disabled={!gameId}
-              className={`${FIELD} disabled:bg-gray-50 disabled:text-gray-400`}
-            >
-              <option value="">{gameId ? 'All levels' : 'Pick a module first'}</option>
-              {levelsForTherapyModule(gameId).map((level) => (
-                <option key={level.id} value={level.id}>
-                  {level.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        {activeGameId && !levelMode ? (
+          <p className="text-[13px] leading-[21px] text-gray-500">
+            All levels (mixed). This view combines every level of this module.
+          </p>
+        ) : null}
+        {activeGameId && truncated ? (
+          <p className="text-[13px] leading-[21px] text-gray-900">{TRUNCATED_HISTORY_NOTE}</p>
+        ) : null}
+        <div className={lockedLevel ? 'grid grid-cols-2 gap-[13px]' : 'grid grid-cols-4 gap-[13px]'}>
+          {lockedLevel ? null : (
+            <label className={STACK}>
+              Module
+              <select
+                value={gameId}
+                onChange={(e) => {
+                  setGameId(e.target.value);
+                  setLevelId('');
+                }}
+                className={FIELD}
+              >
+                <option value="">{ANALYTICS_SELECT_GAME.title}</option>
+                {ALL_MODULE_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {GAME_CATALOG[id].name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {lockedLevel ? null : (
+            <label className={STACK}>
+              Level
+              <select
+                value={levelId}
+                onChange={(e) => setLevelId(e.target.value)}
+                disabled={!gameId}
+                className={`${FIELD} disabled:bg-gray-50 disabled:text-gray-400`}
+              >
+                <option value="">{gameId ? 'All levels (mixed)' : 'Pick a module first'}</option>
+                {levelsForTherapyModule(gameId).map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className={STACK}>
             From
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={FIELD} />
@@ -522,7 +801,7 @@ export function SessionAnalyticsPanel({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-[13px]">
+      {levelMode ? null : <div className="flex flex-wrap items-center justify-between gap-[13px]">
         <label className={LABEL}>
           Daily dot
           <select
@@ -558,18 +837,59 @@ export function SessionAnalyticsPanel({
             +
           </button>
         </div>
-      </div>
+      </div>}
 
       {error ? <p className="text-[13px] text-red-600">{error}</p> : null}
+      {identityError ? (
+        <p className="text-[13px] text-red-600">These sessions are not limited to the selected level, so this level was not summarized.</p>
+      ) : null}
 
-      {!hasPlays ? (
+      {patientId && loaded && stored.length > 0 && !identityError ? <DoctorSessionList rows={stored} /> : null}
+
+      {!activeGameId ? (
         <div className={`${CARD} text-center`}>
-          <p className="text-[13px] font-semibold text-gray-900">No graphs yet</p>
-          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">Finish a play to see a weekly plot. Use − / + to zoom to month or year.</p>
+          <p className="text-[13px] font-semibold text-gray-900">{ANALYTICS_SELECT_GAME.title}</p>
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{ANALYTICS_SELECT_GAME.body}</p>
         </div>
+      ) : !loaded ? (
+        <div className={`${CARD} text-center`}>
+          <p className="text-[13px] font-semibold text-gray-900">Loading sessions</p>
+          <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">Loading this module’s finished plays.</p>
+        </div>
+      ) : levelMode ? (
+        levelResult?.status === 'ok' ? (
+          <LevelAnalyticsBody
+            result={levelResult}
+            rows={stored}
+            showPatientHistory={!patientId}
+            showContext={Boolean(patientId)}
+          />
+        ) : null
       ) : (
+        <>
+          {gazeUnsupported ? (
+            <div className={CARD}>
+              <p className="text-[13px] leading-[21px] text-gray-600">{GAZE_HOLD_UNSUPPORTED_MESSAGE}</p>
+            </div>
+          ) : null}
+          {hasPlays && !chartsAllowed && !gazeUnsupported ? (
+            <div className={CARD}>
+              <p className="text-[13px] leading-[21px] text-gray-600">
+                These sessions are listed separately. They are not plotted together because they are not all Gaze Hold.
+              </p>
+            </div>
+          ) : null}
+          {!showCharts && !gazeUnsupported && !hasPlays ? (
+            <div className={`${CARD} text-center`}>
+              <p className="text-[13px] font-semibold text-gray-900">No graphs yet</p>
+              <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">
+                Finish a play of this module to see a weekly plot. Use − / + to zoom to month or year.
+              </p>
+            </div>
+          ) : null}
+          {showCharts ? (
         <div className="space-y-[13px]">
-          {ANALYTICS_METRICS.map((item) => (
+          {metrics.map((item) => (
             <div key={item.id} className={`${CARD} min-w-0 overflow-visible`}>
               <div className="mb-[13px] flex items-start justify-between gap-[13px] min-w-0">
                 <div className="min-w-0">
@@ -586,14 +906,17 @@ export function SessionAnalyticsPanel({
                 agg={agg}
                 color={item.color}
                 scale={scale}
-                showGameName={!gameId}
+                unit={item.unit}
+                yAxis={item.yAxis}
               />
             </div>
           ))}
         </div>
+          ) : null}
+        </>
       )}
 
-      <HowToReadCard gameId={gameId} levelId={levelId} />
+      {showCharts ? <HowToReadCard gameId={gameId} levelId={levelId} metrics={metrics} /> : null}
     </div>
   );
 }

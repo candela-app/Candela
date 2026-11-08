@@ -23,6 +23,7 @@ import {
   resolvePursuitPattern,
   pursuitPatternName,
   buildSessionMetrics,
+  copyCompletedPursuitTrials,
   useHowToPlayGate,
   usePauseShiftedClock,
   clinicalColorSessionFields,
@@ -368,25 +369,25 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
   };
 
   const completeSession = () => {
-    const allTrials = trialMetricsRef.current;
-    const correctCount = allTrials.filter((t) => t.outcome === 'correct').length;
+    const completedTrials = copyCompletedPursuitTrials(trialMetricsRef.current);
+    const correctCount = completedTrials.filter((t) => t.outcome === 'correct').length;
     const wrongTaps = wrongTapCountRef.current;
-    const timeouts = allTrials.filter((t) => t.outcome === 'timeout').length;
+    const timeouts = completedTrials.filter((t) => t.outcome === 'timeout').length;
     const misses = missCountRef.current;
     const metrics = buildSessionMetrics({
       correct: correctCount,
       wrongTaps,
       misses,
       timeouts,
-      reactionMs: allTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
+      reactionMs: completedTrials.filter((t) => t.outcome === 'correct').map((t) => t.reactionTimeMs),
     });
 
     const avgTrackingErrorPx =
-      allTrials.length > 0
-        ? Math.round(allTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / allTrials.length)
+      completedTrials.length > 0
+        ? Math.round(completedTrials.reduce((sum, t) => sum + t.trackingErrorPx, 0) / completedTrials.length)
         : 0;
 
-    const anticipationRatios = allTrials.map((t) => t.anticipationRatio);
+    const anticipationRatios = completedTrials.map((t) => t.anticipationRatio);
     const avgAnticipation =
       anticipationRatios.length > 0
         ? anticipationRatios.reduce((a, b) => a + b, 0) / anticipationRatios.length
@@ -406,10 +407,10 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       sessionId: Date.now(),
       date: new Date().toISOString(),
       gameName: `Pursuit — ${pursuitPatternName(settings.movementPattern)}`,
-      stimuliCount: allTrials.length,
+      stimuliCount: completedTrials.length,
       letterSize: 1.5,
       speed: `${settings.speedPxPerSec} px/s`,
-      durationSec: Math.round(allTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
+      durationSec: Math.round(completedTrials.reduce((sum, t) => sum + t.reactionTimeMs, 0) / 1000),
       clicksTotal: correctCount + wrongTaps + misses,
       correct: correctCount,
       ...metrics,
@@ -418,6 +419,8 @@ export const PursuitGame: React.FC<PursuitGameProps> = ({ onExit, initialMovemen
       decoyCount: settings.decoyCount,
       speedPxPerSec: settings.speedPxPerSec,
       avgTrackingErrorPx,
+      meanAnticipationRatio: avgAnticipation,
+      completedTrials,
       anticipationVsLagScore,
       blockMetrics: [],
       starRating,

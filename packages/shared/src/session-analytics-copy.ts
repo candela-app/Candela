@@ -1,3 +1,5 @@
+import { validReactionSamples } from './game-logic';
+
 export type AnalyticsMetricId = 'accuracy' | 'reaction' | 'efficiency' | 'wrongTapRate' | 'missRate' | 'duration';
 
 export const ANALYTICS_X_AXIS = 'Date';
@@ -34,7 +36,7 @@ export const ANALYTICS_DOTS_GUIDE = {
 
 export const ANALYTICS_SESSION_GUIDE = {
   title: 'Session #',
-  body: 'Sequential for this patient and does not reset if they change doctor. Pick one module so the line compares like with like. Optionally pick a level; leave Level on All levels for the whole module. Mixing games or devices on one line is noisy.',
+  body: 'Sequential for this patient and does not reset if they change doctor. One module per chart. A level filter compares that level only. All levels stays inside the selected module.',
 };
 
 export const ANALYTICS_RATES_NOTE =
@@ -70,9 +72,9 @@ export const ANALYTICS_GRAPH_GUIDES: AnalyticsGraphGuide[] = [
   },
   {
     id: 'efficiency',
-    title: 'Efficiency (Index of Performance)',
+    title: 'Efficiency',
     meaning:
-      'Accuracy (%) ÷ mean reaction time (seconds). Higher means both faster and more accurate. Use this when Accuracy and RT move in opposite directions.',
+      'This module’s accuracy or path adherence, divided by this module’s mean time in seconds. It is not a score you can compare with another module.',
     trends: [
       { pattern: 'Efficiency ↑', reading: 'Better speed–accuracy together' },
       { pattern: 'Accuracy ↑ but Efficiency flat/↓', reading: 'They got more careful, not faster' },
@@ -116,3 +118,218 @@ export const ANALYTICS_GRAPH_GUIDES: AnalyticsGraphGuide[] = [
     ],
   },
 ];
+
+export type AnalyticsMetricDef = {
+  id: AnalyticsMetricId;
+  label: string;
+  unit: string;
+  direction: string;
+  color: string;
+  yAxis: string;
+  meaning: string;
+  trends: AnalyticsTrendRow[];
+};
+
+export const ANALYTICS_SELECT_GAME = {
+  title: 'Choose a module',
+  body: 'Charts stay blank until one module is selected. Each module keeps its own scores. Games are not averaged together.',
+};
+
+const METRIC_COLOR: Record<AnalyticsMetricId, string> = {
+  accuracy: '#1F6F64',
+  reaction: '#3E5C76',
+  efficiency: '#1E4D7B',
+  wrongTapRate: '#8C5A4F',
+  missRate: '#5C5470',
+  duration: '#6B4C9A',
+};
+
+const GAMES_WITHOUT_MISS = new Set(['bee_tracing', 'location_memory', 'direction_sense', 'familiar_faces']);
+
+function metricDef(
+  id: AnalyticsMetricId,
+  label: string,
+  unit: string,
+  direction: string,
+  yAxis: string,
+  meaning: string,
+  trends: AnalyticsTrendRow[],
+): AnalyticsMetricDef {
+  return { id, label, unit, direction, color: METRIC_COLOR[id], yAxis, meaning, trends };
+}
+
+function accuracyCopy(gameId: string): { label: string; yAxis: string; meaning: string } {
+  if (gameId === 'bee_tracing') {
+    return {
+      label: 'Path adherence',
+      yAxis: 'Path adherence (%)',
+      meaning: 'Stored percent of the trace inside the corridor. It is not rounds divided by deviation events.',
+    };
+  }
+  if (gameId === 'geoboard') {
+    return {
+      label: 'Pattern accuracy',
+      yAxis: 'Pattern accuracy (%)',
+      meaning: 'Correct patterns divided by correct patterns, wrong patterns, incomplete patterns, and timeouts.',
+    };
+  }
+  if (gameId === 'rotatory') {
+    return {
+      label: 'Accuracy',
+      yAxis: 'Accuracy (%)',
+      meaning:
+        'Correct targets divided by targets plus every wrong tap and wheel tap. A letter that was found after extra taps is not 100%.',
+    };
+  }
+  if (gameId === 'pattern_match' || gameId === 'number_search') {
+    return {
+      label: 'Accuracy',
+      yAxis: 'Accuracy (%)',
+      meaning:
+        'Correct hits divided by correct hits, wrong taps, empty taps, and timeouts. Each unfinished item when the timer ends counts as one timeout.',
+    };
+  }
+  return {
+    label: 'Accuracy',
+    yAxis: 'Accuracy (%)',
+    meaning: 'Correct responses divided by correct responses, wrong taps, misses, and timeouts stored for this module.',
+  };
+}
+
+function reactionCopy(gameId: string): { label: string; yAxis: string; meaning: string } {
+  if (gameId === 'bee_tracing') {
+    return {
+      label: 'Time to first grab',
+      yAxis: 'Time to first grab (s)',
+      meaning: 'Mean stored time from the round being ready until the first grab. Samples that are not a finite time at or above zero are ignored.',
+    };
+  }
+  if (gameId === 'geoboard') {
+    return {
+      label: 'Time to finish a correct pattern',
+      yAxis: 'Pattern time (s)',
+      meaning: 'Mean stored time to complete a correct pattern. This is not an onset-to-tap reaction time.',
+    };
+  }
+  if (gameId === 'rotatory' || gameId === 'sorting' || gameId === 'pursuit' || gameId === 'mobile_target') {
+    return {
+      label: 'Time to the correct hit',
+      yAxis: 'Time to the correct hit (s)',
+      meaning: 'Mean stored time until the correct hit, including hits that followed an earlier wrong tap. Non-finite and negative samples are ignored.',
+    };
+  }
+  return {
+    label: 'Time to the correct response',
+    yAxis: 'Time to the correct response (s)',
+    meaning: 'Mean stored time from the target appearing to the correct response. Non-finite and negative samples are ignored.',
+  };
+}
+
+function efficiencyCopy(gameId: string): string {
+  const score = gameId === 'bee_tracing' ? 'Path adherence' : 'Accuracy';
+  return `${score} (%) divided by this module’s mean time in seconds. It describes only this module. It is not a score you can compare with another game.`;
+}
+
+/** Metric catalog for one module. An empty game id returns nothing. */
+export function analyticsMetricsForGame(gameId: string): AnalyticsMetricDef[] {
+  if (!gameId) return [];
+  const accuracy = accuracyCopy(gameId);
+  const reaction = reactionCopy(gameId);
+  const metrics: AnalyticsMetricDef[] = [
+    metricDef('accuracy', accuracy.label, '%', 'Should be higher', accuracy.yAxis, accuracy.meaning, [
+      { pattern: 'The line rises', reading: 'More of this module’s scored attempts were successful' },
+      { pattern: 'The line falls after a new level', reading: 'Compare that level on its own before calling it a setback' },
+    ]),
+    metricDef('reaction', reaction.label, 's', 'Should be less', reaction.yAxis, reaction.meaning, [
+      { pattern: 'Time falls and accuracy holds', reading: 'Faster on this module without giving up the score above' },
+      { pattern: 'Time falls and accuracy falls', reading: 'Rushing on this module' },
+    ]),
+    metricDef(
+      'efficiency',
+      'Efficiency',
+      '',
+      'Should be higher',
+      'Efficiency',
+      efficiencyCopy(gameId),
+      [
+        { pattern: 'Efficiency rises', reading: 'This module’s score and its own mean time improved together' },
+        { pattern: 'Accuracy rises and efficiency does not', reading: 'More careful on this module, not faster' },
+      ],
+    ),
+  ];
+  if (gameId !== 'bee_tracing') {
+    metrics.push(
+      metricDef(
+        'wrongTapRate',
+        gameId === 'geoboard' ? 'Wrong-pattern rate' : 'Wrong-tap rate',
+        '%',
+        'Should be less',
+        gameId === 'geoboard' ? 'Wrong-pattern rate (%)' : 'Wrong-tap rate (%)',
+        gameId === 'geoboard'
+          ? 'Share of stored attempts that were a wrong dot or a wrong shape.'
+          : 'Share of stored attempts that hit a stimulus that was not the target.',
+        [{ pattern: 'The rate falls and accuracy rises', reading: 'Better discrimination on this module' }],
+      ),
+    );
+  }
+  if (!GAMES_WITHOUT_MISS.has(gameId)) {
+    metrics.push(
+      metricDef(
+        'missRate',
+        gameId === 'geoboard' ? 'Incomplete-pattern rate' : 'Miss rate',
+        '%',
+        'Should be less',
+        gameId === 'geoboard' ? 'Incomplete-pattern rate (%)' : 'Miss rate (%)',
+        gameId === 'geoboard'
+          ? 'Share of stored attempts that were an incomplete pattern and not a timeout.'
+          : 'Share of stored attempts that were an empty-space or background tap.',
+        [{ pattern: 'The rate falls and wrong taps stay flat', reading: 'Better aim on this module' }],
+      ),
+    );
+  }
+  metrics.push(
+    metricDef(
+      'duration',
+      'Time to finish',
+      's',
+      'Should be less',
+      'Time to finish (s)',
+      'Mean stored sitting length. It is not the time-to-respond series. A sitting that hit a time cap stays long.',
+      [
+        { pattern: 'Sitting time falls and accuracy holds', reading: 'A shorter sitting on this module' },
+        { pattern: 'Sitting time stays at the time limit', reading: 'The clock ran out' },
+      ],
+    ),
+  );
+  return metrics;
+}
+
+export function reactionTimeAvailable(row: { reactionMs?: number[] | null; avgReactionSec?: number }): boolean {
+  const samples = row.reactionMs;
+  if (Array.isArray(samples) && samples.length > 0) return validReactionSamples(samples).length > 0;
+  return Number.isFinite(row.avgReactionSec) && (row.avgReactionSec ?? 0) > 0;
+}
+
+export function positiveReactionTime(row: { reactionMs?: number[] | null; avgReactionSec?: number }): boolean {
+  const samples = row.reactionMs;
+  if (Array.isArray(samples) && samples.length > 0) {
+    const valid = validReactionSamples(samples);
+    if (valid.length === 0) return false;
+    return valid.reduce((sum, ms) => sum + ms, 0) / valid.length > 0;
+  }
+  return Number.isFinite(row.avgReactionSec) && (row.avgReactionSec ?? 0) > 0;
+}
+
+/** Drops a chart when the persisted row does not contain the value it would plot. */
+export function availableAnalyticsMetrics(
+  gameId: string,
+  rows: Array<{ reactionMs?: number[]; avgReactionSec?: number; durationSec?: number }>,
+): AnalyticsMetricDef[] {
+  if (!gameId || rows.length === 0) return [];
+  return analyticsMetricsForGame(gameId).filter((metric) => {
+    if (metric.id === 'reaction') return rows.some(reactionTimeAvailable);
+    if (metric.id === 'efficiency') return rows.some(positiveReactionTime);
+    if (metric.id === 'duration') return rows.some((row) => (row.durationSec ?? 0) > 0);
+    return true;
+  });
+}

@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { getContrastAdjustedColor } from './clinical-color';
 import {
+  analyticsQueryRange,
   buildGameSessionAnalytics,
+  singleGameChartPerformance,
+  calendarDayKey,
+  chartAccuracy,
+  dailyLinePath,
+  dailyMetricPlotted,
   inferTherapyModuleId,
+  localInclusiveRangeToUtc,
+  normalizeNewSessionMetrics,
   padDailyCalendar,
   emptyDailyPlotPoint,
   formatPlotAxisName,
   formatPlotTick,
   formatPlotTooltip,
   plotPointsForScale,
+  prepareGameSessionInsert,
   yValueForDaily,
   payloadFromSessionResult,
   poolSessionsByDate,
@@ -20,6 +29,7 @@ import {
   type StoredGameSession,
 } from './game-session';
 import { reactionStatsFromMs } from './game-logic';
+import { analyticsMetricsForGame, availableAnalyticsMetrics, positiveReactionTime, reactionTimeAvailable } from './session-analytics-copy';
 import {
   buildSessionMetrics,
   efficiencyIndex,
@@ -154,6 +164,75 @@ describe('daily pooling', () => {
     expect(points[0].sessions.map((s) => s.sessionNumber)).toEqual([1, 2]);
     expect(yValueForDaily(points[0], 'duration', 'pooled')).toBe(30);
     expect(yValueForDaily(points[0], 'duration', 'best')).toBe(20);
+  });
+
+  it('does not give mixed games one accuracy', () => {
+    const mixed = singleGameChartPerformance([
+      session({ sessionNumber: 1, recordedAt: '2026-08-20T10:00:00.000Z', gameId: 'bee_tracing', accuracy: 80, stimuliCount: 2, correct: 2 }),
+      session({ sessionNumber: 2, recordedAt: '2026-08-21T10:00:00.000Z', gameId: 'geoboard', accuracy: 40, correct: 1, wrongTaps: 1 }),
+    ]);
+    expect(mixed).toEqual({ label: null, value: null });
+  });
+
+  it('uses Bee round-weighted path adherence for one game', () => {
+    const rows = [
+      session({
+        sessionNumber: 1,
+        recordedAt: '2026-08-20T10:00:00.000Z',
+        gameId: 'bee_tracing',
+        accuracy: 100,
+        stimuliCount: 2,
+        correct: 2,
+        wrongTaps: 0,
+        misses: 0,
+        timeouts: 0,
+      }),
+      session({
+        sessionNumber: 2,
+        recordedAt: '2026-08-21T10:00:00.000Z',
+        gameId: 'bee_tracing',
+        accuracy: 50,
+        stimuliCount: 1,
+        correct: 1,
+        wrongTaps: 0,
+        misses: 0,
+        timeouts: 0,
+      }),
+    ];
+    expect(singleGameChartPerformance(rows)).toEqual({
+      label: 'Path adherence',
+      value: buildGameSessionAnalytics(rows).totals.avgAccuracy,
+    });
+    expect(singleGameChartPerformance(rows).value).toBe(83.3);
+  });
+
+  it('uses pooled count accuracy for one non-Bee game', () => {
+    const rows = [
+      session({
+        sessionNumber: 1,
+        recordedAt: '2026-08-20T10:00:00.000Z',
+        gameId: 'rotatory',
+        correct: 1,
+        wrongTaps: 0,
+        misses: 0,
+        timeouts: 0,
+        accuracy: 100,
+      }),
+      session({
+        sessionNumber: 2,
+        recordedAt: '2026-08-21T10:00:00.000Z',
+        gameId: 'rotatory',
+        correct: 0,
+        wrongTaps: 9,
+        misses: 0,
+        timeouts: 0,
+        accuracy: 0,
+      }),
+    ];
+    const performance = singleGameChartPerformance(rows);
+    expect(performance.label).toBe('Accuracy');
+    expect(performance.value).toBe(buildGameSessionAnalytics(rows).totals.avgAccuracy);
+    expect(performance.value).toBe(10);
   });
 
   it('marks fewer than 5 dates as preliminary', () => {
@@ -304,5 +383,301 @@ describe('persist gate', () => {
     expect(payloadFromSessionResult({ ...finished, gameName: 'Color Discriminant Bubble Chase' })?.levelId).toBe(
       'colors',
     );
+  });
+});
+
+describe('phase 1 chart accuracy', () => {
+  it('does not blend different games into one dot', () => {
+    const points = poolSessionsByDate([
+      session({ sessionNumber: 1, recordedAt: '2026-08-22T10:00:00.000Z', gameId: 'rotatory' }),
+      session({ sessionNumber: 2, recordedAt: '2026-08-22T12:00:00.000Z', gameId: 'sorting' }),
+    ]);
+    expect(points).toEqual([]);
+    expect(
+      buildGameSessionAnalytics([
+        session({ sessionNumber: 1, recordedAt: '2026-08-22T10:00:00.000Z', gameId: 'rotatory' }),
+        session({ sessionNumber: 2, recordedAt: '2026-08-22T12:00:00.000Z', gameId: 'sorting' }),
+      ]).daily,
+    ).toEqual([]);
+  });
+
+  it('still pools two levels of one game', () => {
+    const points = poolSessionsByDate([
+      session({ sessionNumber: 1, recordedAt: '2026-08-22T10:00:00.000Z', levelId: 'uppercase', correct: 9, wrongTaps: 1, misses: 0, timeouts: 0 }),
+      session({ sessionNumber: 2, recordedAt: '2026-08-22T12:00:00.000Z', levelId: 'numbers', correct: 1, wrongTaps: 1, misses: 0, timeouts: 0 }),
+    ]);
+    expect(points).toHaveLength(1);
+    expect(points[0].pooledAccuracy).toBe(83.3);
+  });
+
+  it('uses count-derived accuracy for non-Bee best and pooled dots', () => {
+    const row = session({
+      sessionNumber: 1,
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 10,
+    });
+    expect(chartAccuracy(row)).toBe(80);
+    const points = poolSessionsByDate([row]);
+    expect(points[0].pooledAccuracy).toBe(80);
+    expect(points[0].bestAccuracy).toBe(80);
+    expect(yValueForDaily(points[0], 'accuracy', 'best')).toBe(80);
+  });
+
+  it('keeps Bee path adherence and weights rounds only when the counts agree', () => {
+    const agreed = session({
+      sessionNumber: 1,
+      gameId: 'bee_tracing',
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      correct: 3,
+      stimuliCount: 3,
+      misses: 12,
+      wrongTaps: 0,
+      timeouts: 0,
+      accuracy: 85,
+      reactionMs: [400, 400, 400],
+    });
+    const mismatched = session({
+      sessionNumber: 2,
+      gameId: 'bee_tracing',
+      recordedAt: '2026-08-22T15:00:00.000Z',
+      correct: 3,
+      stimuliCount: 10,
+      misses: 12,
+      wrongTaps: 0,
+      timeouts: 0,
+      accuracy: 95,
+      reactionMs: [400],
+    });
+    expect(poolSessionsByDate([agreed])[0].pooledAccuracy).toBe(85);
+    expect(poolSessionsByDate([agreed])[0].bestAccuracy).toBe(85);
+    const mixed = poolSessionsByDate([agreed, mismatched]);
+    expect(mixed[0].pooledAccuracy).toBe(87.5);
+    expect(mixed[0].bestAccuracy).toBe(95);
+  });
+
+  it('drops invalid reaction samples and omits a zero efficiency score', () => {
+    const stats = reactionStatsFromMs([100, Number.NaN, Number.POSITIVE_INFINITY, -5, 300]);
+    expect(stats.count).toBe(2);
+    expect(stats.avgSec).toBe(0.2);
+    const row = session({
+      sessionNumber: 1,
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      reactionMs: [],
+      avgReactionSec: 0,
+      correct: 1,
+      wrongTaps: 0,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 100,
+    });
+    expect(poolSessionsByDate([row])[0].pooledEfficiency).toBe(0);
+    const shown = availableAnalyticsMetrics('rotatory', [row]).map((metric) => metric.id);
+    expect(shown).not.toContain('reaction');
+    expect(shown).not.toContain('efficiency');
+  });
+
+  it('uses the persisted mean when the sample list is missing or empty', () => {
+    const row = session({
+      sessionNumber: 1,
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      reactionMs: [],
+      avgReactionSec: 0.4,
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 10,
+    });
+    const point = poolSessionsByDate([row])[0];
+    expect(point.pooledAvgReactionSec).toBe(0.4);
+    expect(point.bestAvgReactionSec).toBe(0.4);
+    expect(point.pooledEfficiency).toBe(200);
+    expect(point.bestEfficiency).toBe(200);
+    expect(reactionTimeAvailable(row)).toBe(true);
+    expect(positiveReactionTime(row)).toBe(true);
+    expect(buildGameSessionAnalytics([row]).totals.avgReactionSec).toBe(0.4);
+    expect(buildGameSessionAnalytics([row]).totals.efficiency).toBe(200);
+  });
+
+  it('does not derive time or efficiency from a stored mean when every sample is invalid', () => {
+    const row = session({
+      sessionNumber: 1,
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      reactionMs: [Number.NaN, Number.POSITIVE_INFINITY, -5],
+      avgReactionSec: 0.4,
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 10,
+    });
+    const point = poolSessionsByDate([row])[0];
+    expect(point.pooledAvgReactionSec).toBe(0);
+    expect(point.bestAvgReactionSec).toBe(0);
+    expect(point.pooledEfficiency).toBe(0);
+    expect(point.bestEfficiency).toBe(0);
+    expect(point.sessions[0].avgReactionSec).toBe(0);
+    expect(point.sessions[0].efficiencyIndex).toBe(0);
+    expect(reactionTimeAvailable(row)).toBe(false);
+    expect(positiveReactionTime(row)).toBe(false);
+    const shown = availableAnalyticsMetrics('rotatory', [row]).map((metric) => metric.id);
+    expect(shown).not.toContain('reaction');
+    expect(shown).not.toContain('efficiency');
+    expect(buildGameSessionAnalytics([row]).totals.avgReactionSec).toBeNull();
+    expect(buildGameSessionAnalytics([row]).totals.efficiency).toBeNull();
+  });
+
+  it('keeps an invalid sitting from changing a valid sitting on the same day', () => {
+    const valid = session({
+      sessionNumber: 1,
+      recordedAt: '2026-08-22T10:00:00.000Z',
+      reactionMs: [400],
+      avgReactionSec: 0.4,
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 10,
+    });
+    const invalid = session({
+      sessionNumber: 2,
+      recordedAt: '2026-08-22T12:00:00.000Z',
+      reactionMs: [Number.NaN, -5],
+      avgReactionSec: 0.1,
+      correct: 0,
+      wrongTaps: 0,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 99,
+    });
+    const alone = poolSessionsByDate([valid])[0];
+    const mixed = poolSessionsByDate([valid, invalid])[0];
+    expect(mixed.pooledAvgReactionSec).toBe(alone.pooledAvgReactionSec);
+    expect(mixed.bestAvgReactionSec).toBe(alone.bestAvgReactionSec);
+    expect(mixed.pooledEfficiency).toBe(alone.pooledEfficiency);
+    expect(mixed.bestEfficiency).toBe(alone.bestEfficiency);
+    expect(mixed.bestAvgReactionSec).toBe(0.4);
+    expect(mixed.sessions.find((item) => item.sessionNumber === 2)?.avgReactionSec).toBe(0);
+    expect(mixed.sessions.find((item) => item.sessionNumber === 2)?.efficiencyIndex).toBe(0);
+    const totals = buildGameSessionAnalytics([valid, invalid]).totals;
+    const aloneTotals = buildGameSessionAnalytics([valid]).totals;
+    expect(totals.avgReactionSec).toBe(aloneTotals.avgReactionSec);
+    expect(totals.efficiency).toBe(aloneTotals.efficiency);
+
+    const rejectedDay = session({
+      sessionNumber: 3,
+      recordedAt: '2026-08-23T10:00:00.000Z',
+      reactionMs: [Number.NaN],
+      avgReactionSec: 0.2,
+      correct: 1,
+      wrongTaps: 0,
+      misses: 0,
+      timeouts: 0,
+    });
+    const points = poolSessionsByDate([valid, rejectedDay]);
+    expect(points[1].pooledEfficiency).toBe(0);
+    expect(dailyMetricPlotted(points[0], 'efficiency', 'pooled')).toBe(true);
+    expect(dailyMetricPlotted(points[1], 'efficiency', 'pooled')).toBe(false);
+    expect(dailyMetricPlotted(points[1], 'efficiency', 'best')).toBe(false);
+    const path = dailyLinePath(points, (index) => index, (value) => value, 'efficiency', 'pooled');
+    expect(path).toBe('M 0.0 200.0');
+    expect(availableAnalyticsMetrics('rotatory', [valid, rejectedDay]).map((metric) => metric.id)).toContain('efficiency');
+  });
+});
+
+describe('phase 1 calendar', () => {
+  it('buckets an instant with an IANA zone', () => {
+    expect(calendarDayKey('2026-09-06T19:30:00.000Z', 'Asia/Kolkata')).toBe('2026-09-07');
+    expect(calendarDayKey('2026-09-06T19:30:00.000Z', 'UTC')).toBe('2026-09-06');
+    expect(() => calendarDayKey('2026-09-06T19:30:00.000Z', 'Not/AZone')).toThrow(/IANA/);
+  });
+
+  it('converts an inclusive local day to a half-open UTC interval', () => {
+    expect(localInclusiveRangeToUtc('2026-09-06', '2026-09-06', 'Asia/Kolkata')).toEqual({
+      start: '2026-09-05T18:30:00.000Z',
+      endExclusive: '2026-09-06T18:30:00.000Z',
+    });
+    expect(analyticsQueryRange('2026-09-06', '2026-09-06', 'UTC')).toEqual({
+      from: '2026-09-06T00:00:00.000Z',
+      to: '2026-09-07T00:00:00.000Z',
+    });
+  });
+});
+
+describe('phase 1 metric catalog', () => {
+  it('gives Bee only the scores stored on the session row', () => {
+    const ids = analyticsMetricsForGame('bee_tracing').map((metric) => metric.id);
+    expect(ids).toEqual(['accuracy', 'reaction', 'efficiency', 'duration']);
+    const text = analyticsMetricsForGame('bee_tracing').map((metric) => `${metric.label} ${metric.meaning}`).join(' ');
+    expect(text).toContain('Path adherence');
+    expect(text).toContain('Time to first grab');
+    expect(text.toLowerCase()).not.toContain('index of performance');
+    expect(analyticsMetricsForGame('')).toEqual([]);
+  });
+});
+
+describe('phase 1 insert normalization', () => {
+  it('recomputes non-Bee accuracy and keeps Bee path adherence', () => {
+    const nonBee = normalizeNewSessionMetrics({
+      gameId: 'rotatory',
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 10,
+      reactionMs: [400, Number.NaN, -20],
+    });
+    expect(nonBee.ok).toBe(true);
+    if (!nonBee.ok) return;
+    expect(nonBee.metrics.accuracy).toBe(80);
+    expect(nonBee.metrics.reactionMs).toEqual([400]);
+    expect(nonBee.metrics.efficiencyIndex).toBe(200);
+
+    const bee = normalizeNewSessionMetrics({
+      gameId: 'bee_tracing',
+      correct: 3,
+      wrongTaps: 0,
+      misses: 12,
+      timeouts: 0,
+      accuracy: 85,
+      reactionMs: [500],
+    });
+    expect(bee.ok).toBe(true);
+    if (!bee.ok) return;
+    expect(bee.metrics.accuracy).toBe(85);
+    expect(bee.metrics.efficiencyIndex).toBe(170);
+
+    const rejected = normalizeNewSessionMetrics({
+      gameId: 'bee_tracing',
+      correct: 3,
+      wrongTaps: 0,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 140,
+      reactionMs: [],
+    });
+    expect(rejected.ok).toBe(false);
+  });
+
+  it('returns the original stored row on retry without recomputing metrics', () => {
+    const stored = { id: 'row-1', accuracy: 10, efficiencyIndex: 4, avgReactionSec: 9 };
+    const plan = prepareGameSessionInsert(stored, {
+      gameId: 'rotatory',
+      correct: 8,
+      wrongTaps: 2,
+      misses: 0,
+      timeouts: 0,
+      accuracy: 99,
+      reactionMs: [400],
+    });
+    expect(plan.kind).toBe('existing');
+    if (plan.kind !== 'existing') return;
+    expect(plan.record).toBe(stored);
+    expect(plan.record.accuracy).toBe(10);
+    expect(plan.record.efficiencyIndex).toBe(4);
   });
 });

@@ -1,7 +1,8 @@
-import { reactionStatsFromMs } from './game-logic';
+import { reactionStatsFromMs, validReactionSamples } from './game-logic';
 import { GAME_CATALOG, MODULE_LEVELS, PEDIATRIC_GAME_FAMILIES, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
 import type { AnalyticsMetricId } from './session-analytics-copy';
+import { extractSessionDetail, persistedDetailVersion, type SessionDetail } from './session-detail';
 import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
 
 export const GAME_SESSION_METRICS_VERSION = 1;
@@ -30,6 +31,9 @@ export interface CreateGameSessionPayload {
   stimulusColor?: string;
   contrastPercent?: number;
   metricsVersion: number;
+  /** Sanitized game-specific document. Absent on sessions saved before detail existed. */
+  detail?: SessionDetail | null;
+  detailVersion?: number | null;
 }
 
 export interface StoredGameSession {
@@ -55,6 +59,8 @@ export interface StoredGameSession {
   stimulusColor?: string | null;
   contrastPercent?: number | null;
   metricsVersion: number;
+  detail?: SessionDetail | null;
+  detailVersion?: number | null;
 }
 
 export interface DailyPlotSessionTip {
@@ -213,12 +219,127 @@ export function utcDateKey(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function localDayKey(iso: string): string {
+/** Throws when `timeZone` is not an IANA name. */
+export function assertIanaTimeZone(timeZone: string): string {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone });
+  } catch {
+    throw new Error(`Invalid IANA time zone: ${timeZone}`);
+  }
+  return timeZone;
+}
+
+export function resolvedTimeZone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) return assertIanaTimeZone(tz);
+  } catch {
+    /* use UTC when the runtime zone cannot be resolved */
+  }
+  return 'UTC';
+}
+
+function zonedParts(instant: Date, timeZone: string): { year: string; month: string; day: string; hour: string; minute: string; second: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+  const map: Record<string, string> = {};
+  for (const part of parts) map[part.type] = part.value;
+  let hour = map.hour || '00';
+  if (hour === '24') hour = '00';
+  return {
+    year: map.year || '1970',
+    month: map.month || '01',
+    day: map.day || '01',
+    hour,
+    minute: map.minute || '00',
+    second: map.second || '00',
+  };
+}
+
+/** Calendar date YYYY-MM-DD of an instant in an IANA time zone. */
+export function calendarDayKey(iso: string, timeZone: string): string {
+  assertIanaTimeZone(timeZone);
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'unknown';
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
+  const parts = zonedParts(d, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function calendarMonthKey(iso: string, timeZone: string): string {
+  return calendarDayKey(iso, timeZone).slice(0, 7);
+}
+
+function zoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = zonedParts(instant, timeZone);
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return asUtc - instant.getTime();
+}
+
+/** Local midnight of a YYYY-MM-DD calendar date, as a UTC instant. */
+export function localMidnightUtc(dateKey: string, timeZone: string): Date {
+  assertIanaTimeZone(timeZone);
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) throw new Error(`Invalid calendar date: ${dateKey}`);
+  let utc = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - zoneOffsetMs(new Date(utc), timeZone);
+    if (next === utc) break;
+    utc = next;
+  }
+  return new Date(utc);
+}
+
+/**
+ * Inclusive local dates become a half-open UTC interval [start, endExclusive).
+ * `to` is the first instant of the day after the end date in that zone.
+ */
+export function localInclusiveRangeToUtc(
+  fromDate: string,
+  toDate: string,
+  timeZone: string,
+): { start: string; endExclusive: string } {
+  const startKey = fromDate <= toDate ? fromDate : toDate;
+  const endKey = fromDate <= toDate ? toDate : fromDate;
+  const start = localMidnightUtc(startKey, timeZone);
+  const endExclusive = localMidnightUtc(shiftUtcDateKey(endKey, 1), timeZone);
+  if (endExclusive.getTime() <= start.getTime()) {
+    throw new Error('Invalid local date range');
+  }
+  return { start: start.toISOString(), endExclusive: endExclusive.toISOString() };
+}
+
+/** API `from` / `to` instants. `to` is exclusive. Date-only strings are not sent. */
+export function analyticsQueryRange(
+  from: string,
+  to: string,
+  timeZone: string,
+): { from?: string; to?: string } {
+  assertIanaTimeZone(timeZone);
+  const query: { from?: string; to?: string } = {};
+  if (from && to) {
+    const range = localInclusiveRangeToUtc(from, to, timeZone);
+    query.from = range.start;
+    query.to = range.endExclusive;
+    return query;
+  }
+  if (from) query.from = localMidnightUtc(from, timeZone).toISOString();
+  if (to) query.to = localMidnightUtc(shiftUtcDateKey(to, 1), timeZone).toISOString();
+  return query;
 }
 
 function shiftLocalDayKey(dayKey: string, deltaDays: number): string {
@@ -230,10 +351,10 @@ function shiftLocalDayKey(dayKey: string, deltaDays: number): string {
 }
 
 /** Consecutive local days with a finished play, still open if the latest day is today or yesterday. */
-export function consistencyStreak(recordedAts: string[], now = new Date()): number {
+export function consistencyStreak(recordedAts: string[], now = new Date(), timeZone = resolvedTimeZone()): number {
   const days = new Set<string>();
   for (const iso of recordedAts) {
-    const key = localDayKey(iso);
+    const key = calendarDayKey(iso, timeZone);
     if (key !== 'unknown') days.add(key);
   }
   if (days.size === 0) return 0;
@@ -241,7 +362,7 @@ export function consistencyStreak(recordedAts: string[], now = new Date()): numb
   days.forEach((day) => {
     if (day > latest) latest = day;
   });
-  const today = localDayKey(now.toISOString());
+  const today = calendarDayKey(now.toISOString(), timeZone);
   if (latest !== today && latest !== shiftLocalDayKey(today, -1)) return 0;
   let streak = 0;
   let cursor = latest;
@@ -269,6 +390,12 @@ export function payloadFromSessionResult(
   if (!gameId || !isTherapyModuleId(gameId)) return null;
   const clientEventId = data.clientEventId || `${data.recordedAt || data.date}-${data.durationSec}-${data.correct}`;
   const levelId = extra?.levelId || inferTherapyLevelId(gameId, data);
+  const deviceTier =
+    extra?.deviceTier ??
+    (typeof (data as { deviceTier?: unknown }).deviceTier === 'string'
+      ? (data as { deviceTier?: string }).deviceTier
+      : null);
+  const detail = extractSessionDetail(gameId, data, { levelId: levelId || null, deviceTier }, true);
   return {
     clientEventId,
     gameId,
@@ -291,6 +418,8 @@ export function payloadFromSessionResult(
     stimulusColor: data.stimulusColor,
     contrastPercent: data.contrastPercent,
     metricsVersion: GAME_SESSION_METRICS_VERSION,
+    detail,
+    detailVersion: persistedDetailVersion(detail),
   };
 }
 
@@ -298,16 +427,85 @@ function attemptsOf(row: StoredGameSession): number {
   return row.correct + row.wrongTaps + row.misses + row.timeouts;
 }
 
-export function poolSessionsByDate(sessions: StoredGameSession[]): DailyPlotPoint[] {
-  return poolSessionsByKey(sessions, (row) => utcDateKey(row.recordedAt));
+function mixedGameIds(sessions: StoredGameSession[]): boolean {
+  return new Set(sessions.map((row) => row.gameId)).size > 1;
+}
+
+/**
+ * Non-Bee charts use count-derived accuracy.
+ * Bee charts use the stored path-adherence percent. Rows are not rewritten.
+ */
+export function chartAccuracy(
+  row: Pick<StoredGameSession, 'gameId' | 'correct' | 'wrongTaps' | 'misses' | 'timeouts' | 'accuracy'>,
+): number {
+  if (row.gameId === 'bee_tracing') return round1(Number.isFinite(row.accuracy) ? row.accuracy : 0);
+  return sessionAccuracy(row.correct, row.wrongTaps + row.misses + row.timeouts);
+}
+
+/** Completed rounds only when stimuliCount and correct agree. Otherwise one sitting, one vote. */
+function beeRoundWeight(row: Pick<StoredGameSession, 'stimuliCount' | 'correct'>): number {
+  if (row.stimuliCount > 0 && row.correct > 0 && row.stimuliCount === row.correct) return row.stimuliCount;
+  return 1;
+}
+
+/** Stored mean applies only when no sample list was saved. A rejected list yields 0. */
+function cleanedAvgSec(row: Pick<StoredGameSession, 'reactionMs' | 'avgReactionSec'>): number {
+  const samples = row.reactionMs;
+  if (Array.isArray(samples) && samples.length > 0) {
+    const stats = reactionStatsFromMs(samples);
+    return stats.count > 0 ? stats.avgSec : 0;
+  }
+  return Number.isFinite(row.avgReactionSec) && row.avgReactionSec > 0 ? row.avgReactionSec : 0;
+}
+
+function sessionChartEfficiency(row: StoredGameSession): number {
+  return efficiencyIndex(chartAccuracy(row), cleanedAvgSec(row));
+}
+
+function pooledChartAccuracy(rows: StoredGameSession[]): number {
+  if (rows.length === 0) return 0;
+  if (rows[0].gameId === 'bee_tracing') {
+    const weights = rows.map(beeRoundWeight);
+    const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+    if (weightSum <= 0) return 0;
+    return round1(rows.reduce((sum, row, index) => sum + chartAccuracy(row) * weights[index], 0) / weightSum);
+  }
+  let correct = 0;
+  let errors = 0;
+  for (const row of rows) {
+    correct += row.correct;
+    errors += row.wrongTaps + row.misses + row.timeouts;
+  }
+  return sessionAccuracy(correct, errors);
+}
+
+export type SessionCalendarOptions = { timeZone?: string };
+
+function bucketKey(iso: string, timeZone: string | undefined, month: boolean): string {
+  if (!timeZone) return month ? utcMonthKey(iso) : utcDateKey(iso);
+  return month ? calendarMonthKey(iso, timeZone) : calendarDayKey(iso, timeZone);
+}
+
+export function poolSessionsByDate(
+  sessions: StoredGameSession[],
+  options?: SessionCalendarOptions,
+): DailyPlotPoint[] {
+  if (mixedGameIds(sessions)) return [];
+  if (options?.timeZone) assertIanaTimeZone(options.timeZone);
+  return poolSessionsByKey(sessions, (row) => bucketKey(row.recordedAt, options?.timeZone, false));
 }
 
 export function utcMonthKey(iso: string): string {
   return utcDateKey(iso).slice(0, 7);
 }
 
-export function poolSessionsByMonth(sessions: StoredGameSession[]): DailyPlotPoint[] {
-  return poolSessionsByKey(sessions, (row) => utcMonthKey(row.recordedAt));
+export function poolSessionsByMonth(
+  sessions: StoredGameSession[],
+  options?: SessionCalendarOptions,
+): DailyPlotPoint[] {
+  if (mixedGameIds(sessions)) return [];
+  if (options?.timeZone) assertIanaTimeZone(options.timeZone);
+  return poolSessionsByKey(sessions, (row) => bucketKey(row.recordedAt, options?.timeZone, true));
 }
 
 function poolSessionsByKey(
@@ -337,14 +535,25 @@ function poolSessionsByKey(
       allRt.push(...(row.reactionMs || []));
     }
     const errorCount = wrongTaps + misses + timeouts;
-    const pooledAccuracy = sessionAccuracy(correct, errorCount);
+    const pooledAccuracy = pooledChartAccuracy(rows);
     const reaction = reactionStatsFromMs(allRt);
-    const pooledEfficiency = efficiencyIndex(pooledAccuracy, reaction.avgSec);
+    const storedMeans = rows
+      .filter((row) => !Array.isArray(row.reactionMs) || row.reactionMs.length === 0)
+      .map((row) => row.avgReactionSec)
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const pooledAvgReactionSec =
+      reaction.count > 0
+        ? reaction.avgSec
+        : storedMeans.length
+          ? round1(storedMeans.reduce((sum, value) => sum + value, 0) / storedMeans.length)
+          : 0;
+    const pooledEfficiency = efficiencyIndex(pooledAccuracy, pooledAvgReactionSec);
     const attemptTotal = correct + errorCount;
-    const bestAccuracy = rows.reduce((m, r) => Math.max(m, r.accuracy), 0);
-    const rts = rows.map((r) => r.avgReactionSec).filter((v) => v > 0);
+    const bestAccuracy = rows.reduce((max, row) => Math.max(max, chartAccuracy(row)), 0);
+    const rts = rows.map(cleanedAvgSec).filter((value) => value > 0);
     const bestAvgReactionSec = rts.length ? Math.min(...rts) : 0;
-    const bestEfficiency = rows.reduce((m, r) => Math.max(m, r.efficiencyIndex), 0);
+    const efficiencies = rows.map(sessionChartEfficiency).filter((value) => value > 0);
+    const bestEfficiency = efficiencies.length ? Math.max(...efficiencies) : 0;
     const durations = rows.map((r) => r.durationSec).filter((v) => v > 0);
     const pooledDurationSec = durations.length
       ? round1(durations.reduce((sum, v) => sum + v, 0) / durations.length)
@@ -353,7 +562,7 @@ function poolSessionsByKey(
     return {
       date,
       pooledAccuracy,
-      pooledAvgReactionSec: reaction.avgSec,
+      pooledAvgReactionSec,
       pooledMedianReactionSec: reaction.medianSec,
       pooledEfficiency,
       wrongTapRate: sessionErrorRate(wrongTaps, attemptTotal),
@@ -371,10 +580,10 @@ function poolSessionsByKey(
         .map((row) => ({
           sessionNumber: row.sessionNumber,
           recordedAt: row.recordedAt,
-          accuracy: row.accuracy,
-          avgReactionSec: row.avgReactionSec,
+          accuracy: chartAccuracy(row),
+          avgReactionSec: cleanedAvgSec(row),
           durationSec: row.durationSec,
-          efficiencyIndex: row.efficiencyIndex,
+          efficiencyIndex: sessionChartEfficiency(row),
           wrongTaps: row.wrongTaps,
           misses: row.misses,
           timeouts: row.timeouts,
@@ -448,10 +657,11 @@ export function emptyDailyPlotPoint(date: string): DailyPlotPoint {
 /** Fill calendar days so a week viewport can scroll across history. Days with no play stay empty. */
 export function padDailyCalendar(
   daily: DailyPlotPoint[],
-  options?: { from?: string; to?: string; visibleDays?: number; nowIso?: string },
+  options?: { from?: string; to?: string; visibleDays?: number; nowIso?: string; timeZone?: string },
 ): DailyPlotPoint[] {
   const visible = Math.max(2, options?.visibleDays ?? ANALYTICS_VISIBLE_DAYS);
-  const today = utcDateKey(options?.nowIso ?? new Date().toISOString());
+  const nowIso = options?.nowIso ?? new Date().toISOString();
+  const today = options?.timeZone ? calendarDayKey(nowIso, options.timeZone) : utcDateKey(nowIso);
   const played = daily.map((p) => p.date).filter(Boolean).sort();
   const defaultStart = shiftUtcDateKey(today, -(visible - 1));
   let start = options?.from || (played[0] && played[0] < defaultStart ? played[0] : defaultStart);
@@ -479,16 +689,23 @@ export function shiftUtcMonthKey(monthKey: string, months: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function monthKeyFromOption(value: string, timeZone?: string): string {
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 7);
+  return timeZone ? calendarMonthKey(value, timeZone) : utcMonthKey(value);
+}
+
 export function padMonthlyCalendar(
   monthly: DailyPlotPoint[],
-  options?: { from?: string; to?: string; visibleMonths?: number; nowIso?: string },
+  options?: { from?: string; to?: string; visibleMonths?: number; nowIso?: string; timeZone?: string },
 ): DailyPlotPoint[] {
   const visible = Math.max(2, options?.visibleMonths ?? ANALYTICS_VISIBLE_MONTHS);
-  const todayMonth = utcMonthKey(options?.nowIso ?? new Date().toISOString());
+  const nowIso = options?.nowIso ?? new Date().toISOString();
+  const todayMonth = options?.timeZone ? calendarMonthKey(nowIso, options.timeZone) : utcMonthKey(nowIso);
   const played = monthly.map((p) => p.date.slice(0, 7)).filter(Boolean).sort();
   const defaultStart = shiftUtcMonthKey(todayMonth, -(visible - 1));
-  const fromMonth = options?.from ? utcMonthKey(options.from) : '';
-  const toMonth = options?.to ? utcMonthKey(options.to) : '';
+  const fromMonth = options?.from ? monthKeyFromOption(options.from, options.timeZone) : '';
+  const toMonth = options?.to ? monthKeyFromOption(options.to, options.timeZone) : '';
   let start = fromMonth || (played[0] && played[0] < defaultStart ? played[0] : defaultStart);
   let end = toMonth || todayMonth;
   if (end < start) {
@@ -512,19 +729,21 @@ export function plotPointsForScale(
   sessions: StoredGameSession[],
   daily: DailyPlotPoint[],
   scale: AnalyticsTimeScale,
-  options?: { from?: string; to?: string; nowIso?: string },
+  options?: { from?: string; to?: string; nowIso?: string; timeZone?: string },
 ): DailyPlotPoint[] {
   if (scale === 'year') {
-    return padMonthlyCalendar(poolSessionsByMonth(sessions), {
+    return padMonthlyCalendar(poolSessionsByMonth(sessions, { timeZone: options?.timeZone }), {
       from: options?.from,
       to: options?.to,
       nowIso: options?.nowIso,
+      timeZone: options?.timeZone,
     });
   }
   return padDailyCalendar(daily, {
     from: options?.from,
     to: options?.to,
     nowIso: options?.nowIso,
+    timeZone: options?.timeZone,
     visibleDays: analyticsVisibleSlots(scale),
   });
 }
@@ -603,6 +822,17 @@ export function dailyHasPlay(point: DailyPlotPoint): boolean {
   return point.sessionCount > 0;
 }
 
+/** Efficiency values that are not strictly positive are gaps, not plotted points. */
+export function dailyMetricPlotted(
+  point: DailyPlotPoint,
+  metric: AnalyticsMetricId,
+  agg: DailyAggMode,
+): boolean {
+  if (!dailyHasPlay(point)) return false;
+  if (metric === 'efficiency') return yValueForDaily(point, metric, agg) > 0;
+  return true;
+}
+
 export function dailyLinePath(
   points: DailyPlotPoint[],
   x: (index: number) => number,
@@ -613,7 +843,7 @@ export function dailyLinePath(
   const parts: string[] = [];
   let drawing = false;
   points.forEach((point, index) => {
-    if (!dailyHasPlay(point)) {
+    if (!dailyMetricPlotted(point, metric, agg)) {
       drawing = false;
       return;
     }
@@ -639,7 +869,7 @@ export function dailyPolylineSegments(
     current = [];
   };
   points.forEach((point, index) => {
-    if (!dailyHasPlay(point)) {
+    if (!dailyMetricPlotted(point, metric, agg)) {
       flush();
       return;
     }
@@ -662,21 +892,36 @@ export function yValueForDaily(
   return point.missRate;
 }
 
+function emptyAnalytics(): GameSessionAnalytics {
+  return {
+    sessions: [],
+    daily: [],
+    totals: {
+      sessionCount: 0,
+      lastPlayedAt: null,
+      avgAccuracy: null,
+      avgReactionSec: null,
+      efficiency: null,
+      wrongTapRate: null,
+      missRate: null,
+      avgDurationSec: null,
+      normalGameCount: 0,
+      pediatricGameCount: 0,
+    },
+    preliminary: false,
+  };
+}
+
 export function buildGameSessionAnalytics(
   sessions: StoredGameSession[],
-  options?: { maxDates?: number },
+  options?: { maxDates?: number; timeZone?: string },
 ): GameSessionAnalytics {
   const sorted = sessions.slice().sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
-  const dailyAll = poolSessionsByDate(sorted);
+  if (mixedGameIds(sorted)) return emptyAnalytics();
+  const dailyAll = poolSessionsByDate(sorted, { timeZone: options?.timeZone });
   const daily = selectDailyWindow(dailyAll, options?.maxDates);
   const playedDates = daily.filter((point) => point.sessionCount > 0).length;
-  const attemptWeighted =
-    sorted.length === 0
-      ? null
-      : round1(
-          sorted.reduce((sum, row) => sum + row.accuracy * Math.max(1, attemptsOf(row)), 0) /
-            Math.max(1, sorted.reduce((sum, row) => sum + Math.max(1, attemptsOf(row)), 0)),
-        );
+  const attemptWeighted = sorted.length === 0 ? null : pooledChartAccuracy(sorted);
   const pediatricIds = new Set<string>(PEDIATRIC_GAME_FAMILIES.flatMap((family) => family.moduleIds));
   const normalGames = new Set<string>();
   const pediatricGames = new Set<string>();
@@ -692,8 +937,12 @@ export function buildGameSessionAnalytics(
     wrongTaps += row.wrongTaps;
     misses += row.misses;
     timeouts += row.timeouts;
-    reactionMs.push(...(row.reactionMs || []));
-    if (row.avgReactionSec > 0) sessionReaction.push(row.avgReactionSec);
+    const samples = row.reactionMs;
+    if (Array.isArray(samples) && samples.length > 0) {
+      reactionMs.push(...samples);
+    } else if (Number.isFinite(row.avgReactionSec) && row.avgReactionSec > 0) {
+      sessionReaction.push(row.avgReactionSec);
+    }
     if (row.durationSec > 0) durations.push(row.durationSec);
     if (pediatricIds.has(row.gameId)) pediatricGames.add(row.gameId);
     else normalGames.add(row.gameId);
@@ -731,4 +980,95 @@ export function buildGameSessionAnalytics(
     },
     preliminary: playedDates > 0 && playedDates < 5,
   };
+}
+
+export interface SingleGameChartPerformance {
+  label: 'Path adherence' | 'Accuracy' | null;
+  value: number | null;
+}
+
+/** One game uses the chart total. More than one game has no combined score. */
+export function singleGameChartPerformance(rows: StoredGameSession[]): SingleGameChartPerformance {
+  if (new Set(rows.map((row) => row.gameId)).size > 1) return { label: null, value: null };
+  const totals = buildGameSessionAnalytics(rows).totals;
+  const gameId = rows[0]?.gameId;
+  if (!gameId || totals.sessionCount === 0 || totals.avgAccuracy == null) return { label: null, value: null };
+  return {
+    label: gameId === 'bee_tracing' ? 'Path adherence' : 'Accuracy',
+    value: totals.avgAccuracy,
+  };
+}
+
+export interface NewSessionMetricInput {
+  gameId: string;
+  correct: number;
+  wrongTaps: number;
+  misses: number;
+  timeouts: number;
+  accuracy: number;
+  reactionMs: number[];
+}
+
+export interface NormalizedSessionMetrics {
+  accuracy: number;
+  avgReactionSec: number;
+  medianReactionSec: number;
+  efficiencyIndex: number;
+  reactionMs: number[];
+}
+
+/**
+ * Metrics for a new insert only. Bee keeps stored path adherence.
+ * Other games recompute accuracy from counts. Invalid reaction samples are dropped.
+ * Does not read or write an existing row.
+ */
+export function normalizeNewSessionMetrics(
+  input: NewSessionMetricInput,
+): { ok: true; metrics: NormalizedSessionMetrics } | { ok: false; reason: string } {
+  const reactionMs = validReactionSamples(input.reactionMs || []).slice(0, 5000);
+  const reaction = reactionStatsFromMs(reactionMs);
+  if (input.gameId === 'bee_tracing') {
+    if (!Number.isFinite(input.accuracy) || input.accuracy < 0 || input.accuracy > 100) {
+      return { ok: false, reason: 'Bee path adherence must be from 0 to 100' };
+    }
+    const accuracy = round1(input.accuracy);
+    return {
+      ok: true,
+      metrics: {
+        accuracy,
+        avgReactionSec: reaction.avgSec,
+        medianReactionSec: reaction.medianSec,
+        efficiencyIndex: efficiencyIndex(accuracy, reaction.avgSec),
+        reactionMs,
+      },
+    };
+  }
+  const accuracy = sessionAccuracy(input.correct, input.wrongTaps + input.misses + input.timeouts);
+  return {
+    ok: true,
+    metrics: {
+      accuracy,
+      avgReactionSec: reaction.avgSec,
+      medianReactionSec: reaction.medianSec,
+      efficiencyIndex: efficiencyIndex(accuracy, reaction.avgSec),
+      reactionMs,
+    },
+  };
+}
+
+/**
+ * A retry returns the stored row before normalization.
+ * The caller must not save or recompute when kind is `existing`.
+ */
+export function prepareGameSessionInsert<T>(
+  existing: T | null,
+  input: NewSessionMetricInput,
+):
+  | { kind: 'existing'; record: T }
+  | { kind: 'insert'; metrics: NormalizedSessionMetrics }
+  | { kind: 'reject'; reason: string } {
+  if (existing) return { kind: 'existing', record: existing };
+  const normalized = normalizeNewSessionMetrics(input);
+  if (!normalized.ok) return { kind: 'reject', reason: normalized.reason };
+  return { kind: 'insert', metrics: normalized.metrics };
 }
