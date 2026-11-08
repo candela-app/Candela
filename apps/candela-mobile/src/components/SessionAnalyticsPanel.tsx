@@ -5,34 +5,52 @@ import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-sv
 import {
   ALL_MODULE_IDS,
   ANALYTICS_DOTS_GUIDE,
-  ANALYTICS_GRAPH_GUIDES,
-  ANALYTICS_METRICS,
   ANALYTICS_RATES_NOTE,
+  ANALYTICS_SELECT_GAME,
   ANALYTICS_SESSION_GUIDE,
   ANALYTICS_SCALE_LABEL,
   GAME_CATALOG,
   MODULE_LEVELS,
+  analyticsQueryRange,
   analyticsVisibleSlots,
+  availableAnalyticsMetrics,
   buildGameSessionAnalytics,
-  dailyHasPlay,
+  buildLevelAnalytics,
+  dailyMetricPlotted,
   dailyPolylineSegments,
   formatPlotAxisName,
   formatPlotTick,
   formatPlotTooltip,
   levelsForTherapyModule,
+  resolvedTimeZone,
   shouldDrawPlotTick,
   plotPointsForScale,
+  formatDoctorDetail,
+  formatPatientSummary,
+  formatReportSeconds,
+  formatSessionReport,
+  levelContextMatchText,
+  levelEmptyMessage,
+  GAZE_HOLD_UNSUPPORTED_MESSAGE,
+  mixedLevelNotice,
+  TRUNCATED_HISTORY_NOTE,
+  sessionChartsAllowed,
+  showGazeHoldUnsupported,
   zoomInScale,
   zoomOutScale,
   yValueForDaily,
+  type AnalyticsMetricDef,
   type AnalyticsMetricId,
   type AnalyticsTimeScale,
   type DailyAggMode,
   type DailyPlotPoint,
+  type LevelAnalyticsOk,
+  type LevelDailyPoint,
+  type SessionReport,
   type StoredGameSession,
   type TherapyModuleId,
 } from '@candela/shared/rn';
-import { listMyGameSessions, listPatientGameSessions, type StoredGameSessionRecord } from '../lib/api';
+import { listMyGameSessionOverview, listPatientGameSessionOverview, type StoredGameSessionRecord } from '../lib/api';
 import { useLayout } from '../lib/layout';
 import { colors } from '../lib/theme';
 import { ChevronUpIcon } from './icons';
@@ -83,6 +101,8 @@ function LineChart({
   fs,
   color,
   scale,
+  unit,
+  yAxis,
   showGameName = false,
 }: {
   points: DailyPlotPoint[];
@@ -93,6 +113,8 @@ function LineChart({
   fs: (n: number) => number;
   color: string;
   scale: AnalyticsTimeScale;
+  unit: string;
+  yAxis: string;
   showGameName?: boolean;
 }) {
   const scrollRef = useRef<ScrollView>(null);
@@ -104,7 +126,7 @@ function LineChart({
   const slot = viewportInner / (visibleSlots - 1);
   const innerW = slot * Math.max(visibleSlots - 1, Math.max(1, points.length - 1));
   const plotW = plotPadL + innerW + pad.r;
-  const played = points.filter(dailyHasPlay);
+  const played = points.filter((point) => dailyMetricPlotted(point, metric, agg));
   const values = played.map((p) => yValueForDaily(p, metric, agg));
   const max = Math.max(...values, metric === 'accuracy' || metric.includes('Rate') ? 100 : 0.01);
   const min = 0;
@@ -112,10 +134,7 @@ function LineChart({
   const x = (i: number) => plotPadL + (points.length <= 1 ? innerW / 2 : i * slot);
   const y = (v: number) => pad.t + innerH - ((v - min) / (max - min || 1)) * innerH;
   const segments = dailyPolylineSegments(points, x, y, metric, agg);
-  const tip = selected != null && dailyHasPlay(points[selected]) ? points[selected] : null;
-  const metricMeta = ANALYTICS_METRICS.find((m) => m.id === metric);
-  const unit = metricMeta?.unit ?? '';
-  const yAxis = metricMeta?.yAxis ?? metricMeta?.label ?? '';
+  const tip = selected != null && dailyMetricPlotted(points[selected], metric, agg) ? points[selected] : null;
 
   const seriesKey = points.map((p) => p.date).join('|');
   useEffect(() => {
@@ -202,7 +221,7 @@ function LineChart({
             <Polyline key={i} points={poly} fill="none" stroke={stroke} strokeWidth={2.5} />
           ))}
           {points.map((p, i) => {
-            if (!dailyHasPlay(p)) return null;
+            if (!dailyMetricPlotted(p, metric, agg)) return null;
             const value = yValueForDaily(p, metric, agg);
             const px = x(i);
             const py = y(value);
@@ -633,11 +652,13 @@ export function DateField({
 function HowToReadGuide({
   gameId,
   levelId,
+  metrics,
   fs,
   s,
 }: {
   gameId: string;
   levelId: string;
+  metrics: AnalyticsMetricDef[];
   fs: (n: number) => number;
   s: (n: number) => number;
 }) {
@@ -662,10 +683,10 @@ function HowToReadGuide({
         <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{ANALYTICS_SESSION_GUIDE.title}</Text>
         <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_SESSION_GUIDE.body}</Text>
       </View>
-      {ANALYTICS_GRAPH_GUIDES.map((guide) => (
+      {metrics.map((guide) => (
         <View key={guide.id} style={{ gap: s(8) }}>
           <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>
-            {guide.title}
+            {guide.label}
           </Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{guide.meaning}</Text>
           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(13), overflow: 'hidden' }}>
@@ -692,13 +713,15 @@ function HowToReadGuide({
           </View>
         </View>
       ))}
-      <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_RATES_NOTE}</Text>
+      {metrics.some((metric) => metric.id === 'wrongTapRate' || metric.id === 'missRate') ? (
+        <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>{ANALYTICS_RATES_NOTE}</Text>
+      ) : null}
       <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(21) }}>
         {gameId
           ? `Filter: ${GAME_CATALOG[gameId as TherapyModuleId]?.name}${
               levelId
                 ? ` · ${MODULE_LEVELS[gameId as TherapyModuleId]?.find((l) => l.id === levelId)?.name ?? levelId}`
-                : ' · all levels'
+                : ' · All levels (mixed)'
             }. Compare the same module.`
           : 'Pick a module to compare like-with-like. Mixing games on one line is noisy.'}
       </Text>
@@ -706,77 +729,352 @@ function HowToReadGuide({
   );
 }
 
+function formatReportDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Date not recorded';
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function DoctorSessionList({
+  rows,
+  fs,
+  s,
+}: {
+  rows: StoredGameSession[];
+  fs: (n: number) => number;
+  s: (n: number) => number;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const reports = rows.map((row) => formatSessionReport(row));
+  const notice = mixedLevelNotice(reports.map((report) => report.levelName));
+  return (
+    <View style={{ gap: s(13) }}>
+      <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>Sessions</Text>
+      {notice ? <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{notice}</Text> : null}
+      {reports.map((report, index) => {
+        const open = openId === report.id;
+        const detailLines = formatDoctorDetail(rows[index]?.detail);
+        return (
+          <View
+            key={report.id}
+            style={{
+              backgroundColor: colors.white,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: s(13),
+              padding: s(21),
+              ...cardShadow,
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
+              onPress={() => setOpenId(open ? null : report.id)}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: s(13) }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{report.moduleName}</Text>
+                  <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4) }}>{report.levelName}</Text>
+                  <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4) }}>{formatReportDate(report.recordedAt)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>
+                    {report.score.value == null ? 'Not stored' : `${report.score.value}%`}
+                  </Text>
+                  <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4) }}>{report.score.label}</Text>
+                  <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(4) }}>
+                    {report.time.meanSec == null ? 'Time not stored' : formatReportSeconds(report.time.meanSec)}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+            {open ? <SessionReportDetail report={report} detailLines={detailLines} fs={fs} s={s} /> : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SessionReportDetail({
+  report,
+  detailLines,
+  fs,
+  s,
+}: {
+  report: SessionReport;
+  detailLines: { label: string; value: string }[];
+  fs: (n: number) => number;
+  s: (n: number) => number;
+}) {
+  return (
+    <View style={{ marginTop: s(13), paddingTop: s(13), borderTopWidth: 1, borderTopColor: colors.border, gap: s(8) }}>
+      {report.counts.map((line) => (
+        <Text key={line.label} style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+          {line.label}: {line.count}
+          {line.rate == null ? '' : ` (${line.rate}%)`}
+        </Text>
+      ))}
+      <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+        {report.time.label}:{' '}
+        {report.time.meanSec == null
+          ? 'Not stored'
+          : `${formatReportSeconds(report.time.meanSec)}${report.time.medianSec == null ? '' : `, median ${formatReportSeconds(report.time.medianSec)}`}`}
+      </Text>
+      {report.duration.seconds == null ? null : (
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+          {report.duration.label}: {report.duration.seconds}s
+        </Text>
+      )}
+      {report.efficiency == null ? null : (
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>Efficiency: {report.efficiency}</Text>
+      )}
+      {report.deviceTier ? (
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>Device: {report.deviceTier}</Text>
+      ) : null}
+      {report.contrastPercent == null ? null : (
+        <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>Contrast: {report.contrastPercent}%</Text>
+      )}
+      {report.notices.map((notice) => (
+        <Text key={notice} style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+          {notice}
+        </Text>
+      ))}
+      {detailLines.map((line, lineIndex) => (
+        <Text key={`${line.label}-${lineIndex}`} style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+          {line.label}: {line.value}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function LevelTrend({ points, width }: { points: LevelDailyPoint[]; width: number }) {
+  if (points.length === 0) return null;
+  const height = 160;
+  const pad = { l: 28, r: 8, t: 12, b: 24 };
+  const innerW = Math.max(1, width - pad.l - pad.r);
+  const innerH = height - pad.t - pad.b;
+  const x = (index: number) => pad.l + (points.length <= 1 ? innerW / 2 : (index / (points.length - 1)) * innerW);
+  const y = (value: number) => pad.t + innerH - (value / 100) * innerH;
+  const poly = points.map((point, index) => `${x(index)},${y(point.performance)}`).join(' ');
+  return (
+    <Svg width={width} height={height}>
+      <Polyline points={poly} fill="none" stroke="#2563eb" strokeWidth={2.5} />
+      {points.map((point, index) => (
+        <Circle key={point.date} cx={x(index)} cy={y(point.performance)} r={4} fill="#2563eb" />
+      ))}
+    </Svg>
+  );
+}
+
+function LevelAnalyticsBody({
+  result,
+  rows,
+  showPatientHistory,
+  showContext,
+  chartWidth,
+}: {
+  result: LevelAnalyticsOk;
+  rows: StoredGameSession[];
+  showPatientHistory: boolean;
+  showContext: boolean;
+  chartWidth: number;
+}) {
+  const { fs, s } = useLayout();
+  const gazeEmpty = result.gameId === 'computer_vision' && result.sessionCount === 0;
+  const performance =
+    result.sessionCount === 0 || result.performanceValue == null || result.performanceLabel == null
+      ? null
+      : `${result.performanceLabel} ${result.performanceValue}%`;
+  const history = rows.slice().sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+  const card = {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: s(13),
+    padding: s(21),
+    ...cardShadow,
+  };
+  return (
+    <View style={{ gap: s(13) }}>
+      <View style={card}>
+        <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{result.levelName}</Text>
+        {gazeEmpty ? (
+          <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{GAZE_HOLD_UNSUPPORTED_MESSAGE}</Text>
+        ) : result.sessionCount === 0 ? (
+          <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>{levelEmptyMessage(result.levelName)}</Text>
+        ) : (
+          <View style={{ marginTop: s(13), gap: s(8) }}>
+            <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{performance ?? 'Performance not available'}</Text>
+            <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{result.sessionCount} completed</Text>
+            <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+              {result.lastCompletedAt ? formatReportDate(result.lastCompletedAt) : 'Date not recorded'}
+            </Text>
+          </View>
+        )}
+      </View>
+      {result.sessionCount > 0 ? (
+        <View style={card}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{result.performanceLabel ?? 'Performance'}</Text>
+          <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+            This line uses only {result.levelName}. A day is omitted when its sessions have no valid measurement. Those sessions stay in the count and the list.
+          </Text>
+          {result.daily.length > 0 ? <LevelTrend points={result.daily} width={chartWidth} /> : (
+            <Text style={{ marginTop: s(13), fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>No performance points for this level.</Text>
+          )}
+          {result.daily.map((point) => (
+            <Text key={point.date} style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+              {point.date}: {point.performance}% · {point.sessionCount} completed
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {result.sessionCount > 0 ? (
+        <View style={card}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{result.reactionLabel}</Text>
+          <Text style={{ marginTop: s(8), fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+            {result.reactionMeanSec == null ? 'Not stored' : formatReportSeconds(result.reactionMeanSec)}
+          </Text>
+        </View>
+      ) : null}
+      {showContext
+        ? result.contextMatches.map((match) => (
+            <Text key={match.measurement} style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+              {levelContextMatchText(match)}
+            </Text>
+          ))
+        : null}
+      {showPatientHistory && history.length > 0 ? (
+        <View style={{ gap: s(8) }}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>Sessions</Text>
+          {history.map((row) => {
+            const summary = formatPatientSummary(formatSessionReport(row));
+            return (
+              <View key={row.id} style={card}>
+                <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{summary.levelName}</Text>
+                <Text style={{ marginTop: s(4), fontSize: fs(13), color: colors.muted }}>{formatReportDate(row.recordedAt)}</Text>
+                <Text style={{ marginTop: s(4), fontSize: fs(13), color: colors.ink }}>{summary.scoreText ?? 'Performance not available'}</Text>
+                {summary.timeText ? <Text style={{ marginTop: s(4), fontSize: fs(13), color: colors.ink }}>{summary.timeText}</Text> : null}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function SessionAnalyticsPanel({
   patientId,
   heading,
+  lockedLevel,
 }: {
   patientId?: string;
   patientName: string;
   heading?: string;
+  lockedLevel?: { gameId: string; levelId: string };
 }) {
   const { fs, s, width, pad } = useLayout();
   const chartWidth = Math.max(280, width - pad * 2 - s(32));
-  const [gameId, setGameId] = useState('');
-  const [levelId, setLevelId] = useState('');
+  const [gameId, setGameId] = useState(lockedLevel?.gameId ?? '');
+  const [levelId, setLevelId] = useState(lockedLevel?.levelId ?? '');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [agg, setAgg] = useState<DailyAggMode>('pooled');
   const [scale, setScale] = useState<AnalyticsTimeScale>('week');
   const [rows, setRows] = useState<StoredGameSessionRecord[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState('');
-  const [settled, setSettled] = useState(false);
+  const [loadedKey, setLoadedKey] = useState('');
+  const timeZone = resolvedTimeZone();
+  const activeGameId = lockedLevel?.gameId || gameId;
+  const activeLevelId = lockedLevel?.levelId || levelId;
+  const levelMode = Boolean(activeLevelId);
+  const requestKey = JSON.stringify({ patientId: patientId || '', gameId: activeGameId, levelId: activeLevelId, from, to, timeZone });
 
   useEffect(() => {
+    if (!activeGameId) {
+      setTruncated(false);
+      return;
+    }
     let cancelled = false;
+    setTruncated(false);
+    const range = analyticsQueryRange(from, to, timeZone);
     const params = {
-      gameId: gameId || undefined,
-      levelId: gameId && levelId ? levelId : undefined,
-      from: from || undefined,
-      to: to || undefined,
+      gameId: activeGameId,
+      levelId: activeLevelId || undefined,
+      from: range.from,
+      to: range.to,
     };
-    const req = patientId ? listPatientGameSessions(patientId, params) : listMyGameSessions(params);
+    const req = patientId ? listPatientGameSessionOverview(patientId, params) : listMyGameSessionOverview(params);
     req
-      .then((list) => {
+      .then((overview) => {
         if (!cancelled) {
-          setRows(list);
+          setRows(overview.sessions);
+          setTruncated(overview.truncated);
           setError('');
+          setLoadedKey(requestKey);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setRows([]);
+          setTruncated(false);
           setError('Could not load sessions');
+          setLoadedKey(requestKey);
         }
       })
-      .finally(() => {
-        if (!cancelled) setSettled(true);
-      });
     return () => {
       cancelled = true;
     };
-  }, [patientId, gameId, levelId, from, to]);
+  }, [patientId, activeGameId, activeLevelId, from, to, requestKey, timeZone]);
 
-  const analytics = useMemo(() => buildGameSessionAnalytics(rows.map(toStored)), [rows]);
-  const hasPlays = analytics.totals.sessionCount > 0;
+  const stored = useMemo(() => (activeGameId ? rows.map(toStored) : []), [rows, activeGameId]);
+  const analytics = useMemo(() => buildGameSessionAnalytics(stored, { timeZone }), [stored, timeZone]);
+  const loaded = loadedKey === requestKey;
+  const levelResult = useMemo(() => {
+    if (!levelMode || !loaded || !activeGameId) return null;
+    return buildLevelAnalytics({
+      gameId: activeGameId,
+      levelId: activeLevelId,
+      timeZone,
+      rows: stored,
+    });
+  }, [levelMode, loaded, activeGameId, activeLevelId, timeZone, stored]);
+  const identityError = levelResult?.status === 'invalid';
+  const hasPlays = Boolean(activeGameId) && loaded && !levelMode && analytics.totals.sessionCount > 0;
+  const chartsAllowed = Boolean(activeGameId) && sessionChartsAllowed(activeGameId, stored);
+  const gazeUnsupported = Boolean(activeGameId) && loaded && !levelMode && showGazeHoldUnsupported(activeGameId, stored);
+  const showCharts = hasPlays && chartsAllowed;
+  const metrics = useMemo(
+    () => (showCharts ? availableAnalyticsMetrics(gameId, stored) : []),
+    [showCharts, gameId, stored],
+  );
   const plotPoints = useMemo(
     () =>
-      plotPointsForScale(rows.map(toStored), analytics.daily, scale, {
+      plotPointsForScale(stored, analytics.daily, scale, {
         from: from || undefined,
         to: to || undefined,
+        timeZone,
       }),
-    [rows, analytics.daily, scale, from, to],
+    [stored, analytics.daily, scale, from, to, timeZone],
   );
-
-  if (!settled) {
-    return error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null;
-  }
 
   return (
     <View style={{ gap: s(34) }}>
       <View style={{ gap: s(13) }}>
         {heading ? <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>{heading}</Text> : null}
+        {activeGameId && !levelMode ? (
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.muted }}>
+            All levels (mixed). This view combines every level of this module.
+          </Text>
+        ) : null}
+        {activeGameId && truncated ? (
+          <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{TRUNCATED_HISTORY_NOTE}</Text>
+        ) : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: s(13) }}>
-          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+          {lockedLevel ? null : <View style={{ flexGrow: 1, minWidth: s(144) }}>
             <DropdownField
               label="Module"
               value={gameId}
@@ -788,12 +1086,12 @@ export function SessionAnalyticsPanel({
               s={s}
               shadowed
               options={[
-                { value: '', label: 'All modules' },
+                { value: '', label: ANALYTICS_SELECT_GAME.title },
                 ...ALL_MODULE_IDS.map((id) => ({ value: id, label: GAME_CATALOG[id].name })),
               ]}
             />
-          </View>
-          <View style={{ flexGrow: 1, minWidth: s(144) }}>
+          </View>}
+          {lockedLevel ? null : <View style={{ flexGrow: 1, minWidth: s(144) }}>
             <DropdownField
               label="Level"
               value={levelId}
@@ -803,11 +1101,11 @@ export function SessionAnalyticsPanel({
               s={s}
               shadowed
               options={[
-                { value: '', label: gameId ? 'All levels' : 'Pick a module first' },
+                { value: '', label: gameId ? 'All levels (mixed)' : 'Pick a module first' },
                 ...levelsForTherapyModule(gameId).map((level) => ({ value: level.id, label: level.name })),
               ]}
             />
-          </View>
+          </View>}
           <View style={{ flexGrow: 1, minWidth: s(144) }}>
             <DateField
               label="From"
@@ -831,7 +1129,7 @@ export function SessionAnalyticsPanel({
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: s(13) }}>
+      {levelMode ? null : <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: s(13) }}>
         <View style={{ flexGrow: 1, minWidth: s(144) }}>
           <DropdownField
             label="Daily dot"
@@ -892,11 +1190,18 @@ export function SessionAnalyticsPanel({
             <Text style={{ fontSize: fs(21), fontWeight: '600', color: colors.ink }}>+</Text>
           </Pressable>
         </View>
-      </View>
+      </View>}
 
       {error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null}
+      {identityError ? (
+        <Text style={{ color: colors.red, fontSize: fs(13) }}>
+          These sessions are not limited to the selected level, so this level was not summarized.
+        </Text>
+      ) : null}
 
-      {!hasPlays ? (
+      {patientId && loaded && stored.length > 0 && !identityError ? <DoctorSessionList rows={stored} fs={fs} s={s} /> : null}
+
+      {!activeGameId ? (
         <View
           style={{
             backgroundColor: colors.white,
@@ -908,14 +1213,63 @@ export function SessionAnalyticsPanel({
             ...cardShadow,
           }}
         >
-          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>No graphs yet</Text>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>{ANALYTICS_SELECT_GAME.title}</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center', lineHeight: fs(21) }}>
-            Finish a play to see a weekly plot. Use − / + to zoom to month or year.
+            {ANALYTICS_SELECT_GAME.body}
           </Text>
         </View>
+      ) : !loaded ? (
+        <View
+          style={{
+            backgroundColor: colors.white,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: s(13),
+            padding: s(21),
+            alignItems: 'center',
+            ...cardShadow,
+          }}
+        >
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>Loading sessions</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center', lineHeight: fs(21) }}>
+            Loading this module’s finished plays.
+          </Text>
+        </View>
+      ) : levelMode ? (
+        levelResult?.status === 'ok' ? (
+          <LevelAnalyticsBody
+            result={levelResult}
+            rows={stored}
+            showPatientHistory={!patientId}
+            showContext={Boolean(patientId)}
+            chartWidth={chartWidth}
+          />
+        ) : null
       ) : (
         <View style={{ gap: s(13) }}>
-        {ANALYTICS_METRICS.map((item) => (
+          {gazeUnsupported ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(21), ...cardShadow }}>
+              <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>{GAZE_HOLD_UNSUPPORTED_MESSAGE}</Text>
+            </View>
+          ) : null}
+          {hasPlays && !chartsAllowed && !gazeUnsupported ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(21), ...cardShadow }}>
+              <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>
+                These sessions are listed separately. They are not plotted together because they are not all Gaze Hold.
+              </Text>
+            </View>
+          ) : null}
+          {!showCharts && !gazeUnsupported && !hasPlays ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(21), alignItems: 'center', ...cardShadow }}>
+              <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.ink }}>No graphs yet</Text>
+              <Text style={{ fontSize: fs(13), color: colors.muted, marginTop: s(8), textAlign: 'center', lineHeight: fs(21) }}>
+                Finish a play of this module to see a weekly plot. Use − / + to zoom to month or year.
+              </Text>
+            </View>
+          ) : null}
+          {showCharts ? (
+        <View style={{ gap: s(13) }}>
+        {metrics.map((item) => (
           <View
             key={item.id}
             style={{
@@ -945,14 +1299,17 @@ export function SessionAnalyticsPanel({
               fs={fs}
               color={item.color}
               scale={scale}
-              showGameName={!gameId}
+              unit={item.unit}
+              yAxis={item.yAxis}
             />
           </View>
         ))}
         </View>
+          ) : null}
+        </View>
       )}
 
-      <HowToReadGuide gameId={gameId} levelId={levelId} fs={fs} s={s} />
+      {showCharts ? <HowToReadGuide gameId={gameId} levelId={levelId} metrics={metrics} fs={fs} s={s} /> : null}
     </View>
   );
 }

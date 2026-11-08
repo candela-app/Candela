@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { SessionUser } from '@candela/shared/rn';
+import type { SavedPracticeSummary, SessionUser } from '@candela/shared/rn';
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from './tokens';
 
 export class ApiError extends Error {
@@ -244,6 +244,8 @@ export type StoredGameSessionRecord = {
   stimulusColor?: string | null;
   contrastPercent?: number | null;
   metricsVersion: number;
+  detail?: import('@candela/shared/rn').SessionDetail | null;
+  detailVersion?: number | null;
 };
 
 export type GameSessionListQuery = {
@@ -280,4 +282,67 @@ export function listPatientGameSessions(patientId: string, params: GameSessionLi
   return api<StoredGameSessionRecord[]>(
     `/api/doctors/me/patients/${patientId}/game-sessions${sessionQuery(params)}`,
   );
+}
+
+export function getMyPracticeSummary() {
+  return api<SavedPracticeSummary>('/api/game-sessions/summary');
+}
+
+export function getPatientPracticeSummary(patientId: string) {
+  return api<SavedPracticeSummary>(`/api/doctors/me/patients/${patientId}/game-sessions/summary`);
+}
+
+export type SessionOverviewResponse = {
+  sessions: StoredGameSessionRecord[];
+  truncated: boolean;
+  omitted: 'older' | null;
+  cap: number;
+};
+
+function overviewQuery(params: GameSessionListQuery): string {
+  const q = new URLSearchParams();
+  q.set('coverage', 'newest');
+  if (params.gameId) q.set('gameId', params.gameId);
+  if (params.levelId) q.set('levelId', params.levelId);
+  if (params.deviceTier) q.set('deviceTier', params.deviceTier);
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  return `?${q.toString()}`;
+}
+
+export function listMyGameSessionOverview(params: GameSessionListQuery = {}) {
+  return api<SessionOverviewResponse>(`/api/game-sessions${overviewQuery(params)}`);
+}
+
+export function listPatientGameSessionOverview(patientId: string, params: GameSessionListQuery = {}) {
+  return api<SessionOverviewResponse>(
+    `/api/doctors/me/patients/${patientId}/game-sessions${overviewQuery(params)}`,
+  );
+}
+
+export type PrescriptionRangeQuery = { from?: string; to?: string; timeZone?: string };
+
+function prescriptionQuery(params?: PrescriptionRangeQuery): string {
+  if (!params?.from || !params?.to || !params?.timeZone) return '';
+  const q = new URLSearchParams();
+  q.set('from', params.from);
+  q.set('to', params.to);
+  q.set('timeZone', params.timeZone);
+  return `?${q.toString()}`;
+}
+
+export function getMyPrescriptionPractice(params?: PrescriptionRangeQuery) {
+  return api<
+    import('@candela/shared/rn').PatientPrescriptionPractice & {
+      period?: import('@candela/shared/rn').PatientPrescriptionPeriod;
+    }
+  >(`/api/me/prescription-practice${prescriptionQuery(params)}`);
+}
+
+export function getPatientPrescriptionAnalytics(patientId: string, params?: PrescriptionRangeQuery) {
+  return api<
+    import('@candela/shared/rn').DoctorPrescriptionAnalytics & {
+      period?: import('@candela/shared/rn').PrescriptionPeriod;
+    }
+  >(`/api/doctors/me/patients/${patientId}/prescription-analytics${prescriptionQuery(params)}`);
 }

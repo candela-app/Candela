@@ -91,6 +91,18 @@ export class GameSession {
   @Column({ name: 'metrics_version', type: 'int', default: 1 })
   metricsVersion: number;
 
+  /** Versioned game-specific document. Null on rows saved before this column existed. */
+  @Column({ type: 'jsonb', nullable: true })
+  detail: Record<string, unknown> | null;
+
+  /** 1 when the document is a version this server stored. Null for an unsupported version. */
+  @Column({ name: 'detail_version', type: 'int', nullable: true })
+  detailVersion: number | null;
+
+  /** Set only for a new insert when the recorded time matches one assignment. Existing rows stay null. */
+  @Column({ name: 'prescription_revision_id', type: 'uuid', nullable: true })
+  prescriptionRevisionId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

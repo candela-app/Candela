@@ -2,11 +2,12 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api, listPatientGameSessions, type StoredGameSessionRecord } from '@/lib/api';
+import { ApiError, api, getPatientPracticeSummary, listPatientGameSessionOverview, type StoredGameSessionRecord } from '@/lib/api';
 import {
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
   type PatientSummary,
+  type SavedPracticeSummary,
   type TherapyModuleId,
 } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -16,7 +17,21 @@ import { DoctorPatientAnalytics } from '@/components/doctor/DoctorPatientAnalyti
 import { AnalyticsIcon } from '@/components/icons/VectorIcons';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+
+function lastSavedCard(summary: SavedPracticeSummary | null, failed: boolean) {
+  if (failed) return { value: '—', hint: 'Summary unavailable' };
+  const last = summary?.availability === 'recorded' ? summary.last : null;
+  if (!last) return { value: '—', hint: 'No session saved' };
+  const parsed = new Date(last.recordedAt);
+  const valid = !Number.isNaN(parsed.getTime());
+  const time = valid ? parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  const level = last.levelId ? last.levelName : '';
+  return {
+    value: valid ? parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—',
+    hint: [last.gameName, level, time].filter(Boolean).join(' · '),
+  };
+}
 
 function SummaryCard({
   label,
@@ -96,6 +111,10 @@ function DoctorPatientProfile() {
   const [error, setError] = useState('');
   const [dataLoading, setDataLoading] = useState(true);
   const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
+  const [sessionsTruncated, setSessionsTruncated] = useState(false);
+  const loadToken = useRef(0);
+  const [practice, setPractice] = useState<SavedPracticeSummary | null>(null);
+  const [practiceFailed, setPracticeFailed] = useState(false);
 
   const isAnalytics = searchParams.get('view') === 'analytics';
 
@@ -103,13 +122,21 @@ function DoctorPatientProfile() {
     if (!patientId) {
       throw new ApiError(404, 'Patient not found');
     }
+    const token = ++loadToken.current;
     const next = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}`);
+    if (loadToken.current !== token) return;
     setPatient(next);
-    try {
-      setSessions(await listPatientGameSessions(patientId));
-    } catch {
-      setSessions([]);
-    }
+    const [overview, summary] = await Promise.all([
+      listPatientGameSessionOverview(patientId).catch(() => null),
+      getPatientPracticeSummary(patientId)
+        .then((value) => ({ value, failed: false }))
+        .catch(() => ({ value: null, failed: true })),
+    ]);
+    if (loadToken.current !== token) return;
+    setSessions(overview?.sessions ?? []);
+    setSessionsTruncated(overview?.truncated ?? false);
+    setPractice(summary.value);
+    setPracticeFailed(summary.failed);
   }, [patientId]);
 
   useEffect(() => {
@@ -120,28 +147,24 @@ function DoctorPatientProfile() {
       router.replace('/');
       return;
     }
+    let cancelled = false;
     setDataLoading(true);
     load()
       .catch((err) => {
+        if (cancelled) return;
         setPatient(null);
         setError(err instanceof ApiError ? err.message : 'Failed to load patient');
       })
-      .finally(() => setDataLoading(false));
+      .finally(() => {
+        if (!cancelled) setDataLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [loading, session, router, load]);
 
-  const lastPlayed = sessions.length
-    ? new Date(
-        [...sessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[sessions.length - 1].recordedAt,
-      ).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-      })
-    : '—';
-  const avgAccuracy =
-    sessions.length === 0
-      ? null
-      : Math.round((sessions.reduce((sum, row) => sum + row.accuracy, 0) / sessions.length) * 10) / 10;
   const prescribedCount = patient?.prescribedModuleIds.length ?? 0;
+  const saved = lastSavedCard(practice, practiceFailed);
 
   const assignedLevelCount = useMemo(() => {
     if (!patient) return 0;
@@ -296,22 +319,16 @@ function DoctorPatientProfile() {
               <>
                 <div className="grid grid-cols-1 items-stretch gap-[13px] md:grid-cols-2">
                   <SummaryCard
-                    label="Sessions"
-                    value={String(sessions.length)}
-                    hint={sessions.length === 1 ? '1 finished play' : `${sessions.length} finished plays`}
+                    label="Saved sessions"
+                    value={practiceFailed ? '—' : String(practice?.sessionCount ?? 0)}
+                    hint={practiceFailed ? 'Summary unavailable' : practice?.availability === 'recorded' ? 'Saved sessions' : 'No session saved'}
                     index={0}
                   />
                   <SummaryCard
-                    label="Last played"
-                    value={lastPlayed}
-                    hint={sessions.length ? 'Most recent session' : 'Not played yet'}
+                    label="Last saved"
+                    value={saved.value}
+                    hint={saved.hint}
                     index={1}
-                  />
-                  <SummaryCard
-                    label="Accuracy"
-                    value={avgAccuracy != null ? `${avgAccuracy}%` : '—'}
-                    hint={avgAccuracy != null ? 'Mean score' : 'No plays yet'}
-                    index={2}
                   />
                   <SummaryCard
                     label="Prescribed"
@@ -329,6 +346,7 @@ function DoctorPatientProfile() {
                   <DoctorPatientPrescribe
                     patient={patient}
                     sessions={sessions}
+                    historyTruncated={sessionsTruncated}
                     onToggleModule={(moduleId, enabled) => void toggleModule(moduleId, enabled)}
                     onToggleLevel={(moduleId, levelId, enabled) => void toggleLevel(moduleId, levelId, enabled)}
                   />

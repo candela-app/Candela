@@ -58,16 +58,29 @@ import {
   resolvePeripheralField,
   directionSensePrescribedAllows,
   normalizeDirectionSenseLevelId,
-  buildGameSessionAnalytics,
+  buildLevelAnalytics,
+  levelCardLines,
+  formatPatientSummary,
+  formatSessionReport,
+  mixedLevelNotice,
+  calendarDayKey,
   consistencyStreak,
+  streakCoverageNote,
+  singleGameChartPerformance,
+  TRUNCATED_HISTORY_NOTE,
+  resolvedTimeZone,
   type PursuitMovementPattern,
   type PeripheralField,
   type TherapyModuleId,
+  type SavedPracticeSummary,
+  type StoredGameSession,
 } from '@candela/shared';
-import { listMyGameSessions, type StoredGameSessionRecord } from '@/lib/api';
+import { getMyPracticeSummary, listMyGameSessionOverview, type StoredGameSessionRecord } from '@/lib/api';
 import streakFire from '@candela/shared/assets/lottie/streak-fire.json';
 import { useAuth } from '@/lib/auth-context';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { PracticeOverview } from '@/components/shared/PracticeOverview';
+import { PrescriptionPractice } from '@/components/shared/PrescriptionPractice';
 import { SessionAnalyticsPanel } from '@/components/shared/SessionAnalyticsPanel';
 import { EditPatientNameModal } from '@/components/common/EditPatientNameModal';
 import { CopyButton } from '@/components/ui/CopyButton';
@@ -213,11 +226,11 @@ function formatSessionDate(dateStr: string): string {
 }
 
 function sessionDayKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return 'unknown';
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
+  try {
+    return calendarDayKey(dateStr, resolvedTimeZone());
+  } catch {
+    return 'unknown';
+  }
 }
 
 type HistoryMonth = { year: number; month: number };
@@ -530,52 +543,75 @@ function LinkedDoctor({ name, code }: { name: string | null | undefined; code: s
   );
 }
 
+function asStored(rows: StoredGameSessionRecord[]): StoredGameSession[] {
+  return rows.map((row) => ({
+    ...row,
+    gameId: row.gameId as TherapyModuleId,
+    levelId: row.levelId ?? null,
+    deviceTier: row.deviceTier ?? null,
+  }));
+}
+
+function RecentWindowNote({ show }: { show: boolean }) {
+  if (!show) return null;
+  return <p className="text-[13px] leading-[21px] text-gray-900">{TRUNCATED_HISTORY_NOTE}</p>;
+}
+
+function loadedGameCounts(sessions: StoredGameSessionRecord[]) {
+  const pediatricIds = new Set<string>(PEDIATRIC_GAME_FAMILIES.flatMap((family) => family.moduleIds));
+  const normal = new Set<string>();
+  const pediatric = new Set<string>();
+  for (const row of sessions) {
+    if (pediatricIds.has(row.gameId)) pediatric.add(row.gameId);
+    else normal.add(row.gameId);
+  }
+  return { normal: normal.size, pediatric: pediatric.size };
+}
+
+function savedDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+}
+
+function savedSessionHint(summary: SavedPracticeSummary | null): string {
+  const last = summary?.last;
+  if (!last) return 'No session saved';
+  return last.levelId ? `${last.gameName} · ${last.levelName}` : last.gameName;
+}
+
 function DashboardSummary({
   sessions,
+  summary,
   doctorName,
   doctorCode,
   onSessionsClick,
 }: {
   sessions: StoredGameSessionRecord[];
+  summary: SavedPracticeSummary | null;
   doctorName: string | null | undefined;
   doctorCode: string | null | undefined;
   onSessionsClick: () => void;
 }) {
-  const totals = buildGameSessionAnalytics(
-    sessions.map((row) => ({
-      ...row,
-      gameId: row.gameId as TherapyModuleId,
-      levelId: row.levelId ?? null,
-      deviceTier: row.deviceTier ?? null,
-    })),
-  ).totals;
-  let lastPlayed = '—';
-  let lastPlayedHint = totals.sessionCount ? 'Most recent session' : 'Not played yet';
-  if (totals.lastPlayedAt) {
-    const parsed = new Date(totals.lastPlayedAt);
-    if (!Number.isNaN(parsed.getTime())) {
-      lastPlayed = parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-      lastPlayedHint = `Most recent session in ${parsed.getFullYear()}`;
-    }
-  }
-  const mean = (value: number | null, suffix = '') => (value != null ? `${value}${suffix}` : '—');
+  const sessionCount = summary?.sessionCount ?? 0;
   const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
+  const games = loadedGameCounts(sessions);
+  const gamesIncomplete = summary != null && summary.sessionCount > sessions.length;
   const streakFireRef = React.useRef<LottieHandle>(null);
   const [streakOpen, setStreakOpen] = React.useState(false);
   const cards: { label: string; value: string; hint: string }[] = [
-    { label: 'Sessions', value: String(totals.sessionCount), hint: totals.sessionCount === 1 ? '1 finished play' : `${totals.sessionCount} finished plays` },
-    { label: 'Last played', value: lastPlayed, hint: lastPlayedHint },
+    {
+      label: 'Sessions',
+      value: String(sessionCount),
+      hint: sessionCount === 0 ? 'No session saved' : 'Saved sessions',
+    },
+    { label: 'Last played', value: savedDate(summary?.last?.recordedAt), hint: savedSessionHint(summary) },
     {
       label: 'Streak',
       value: String(streak),
-      hint: totals.sessionCount === 0 ? 'Not played yet' : streak > 0 ? 'Consecutive days' : 'No current streak',
+      hint: streakCoverageNote({ sessionCount, loadedCount: sessions.length, streak }),
     },
-    { label: 'Accuracy', value: mean(totals.avgAccuracy, '%'), hint: 'Mean' },
-    { label: 'Avg reaction time', value: mean(totals.avgReactionSec, 's'), hint: 'Mean' },
-    { label: 'Efficiency', value: mean(totals.efficiency), hint: 'Mean' },
-    { label: 'Wrong-tap rate', value: mean(totals.wrongTapRate, '%'), hint: 'Mean' },
-    { label: 'Miss rate', value: mean(totals.missRate, '%'), hint: 'Mean' },
-    { label: 'Time to finish', value: mean(totals.avgDurationSec, 's'), hint: 'Mean' },
   ];
 
   return (
@@ -657,17 +693,20 @@ function DashboardSummary({
         );
       })}
       <div className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-        <p className="text-[13px] leading-[21px] text-gray-900">
+        <div className="min-w-0">
+          <p className="text-[13px] leading-[21px] text-gray-900">
             <span className="kpi-draw" style={{ '--kpi-delay': `${(cards.length + 2) * 180}ms` } as React.CSSProperties}>Games</span>
-        </p>
+          </p>
+          {gamesIncomplete ? <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">From the newest 2,000 loaded sessions</p> : null}
+        </div>
         <div className="flex shrink-0 items-center gap-[21px]">
           <div className="text-right">
             <p className="text-[13px] leading-[21px] text-gray-500">Standard</p>
-            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{totals.normalGameCount}</p>
+            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{games.normal}</p>
           </div>
           <div className="text-right">
             <p className="text-[13px] leading-[21px] text-gray-500">Pediatric</p>
-            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{totals.pediatricGameCount}</p>
+            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{games.pediatric}</p>
           </div>
         </div>
       </div>
@@ -678,25 +717,30 @@ function DashboardSummary({
 
 function DashboardKpiCards({
   sessionCount,
-  avgAccuracy,
+  performance,
   lastPlayed,
   durationSec,
 }: {
   sessionCount: number;
-  avgAccuracy: number | null;
+  performance?: { label: string; value: number | null } | null;
   lastPlayed: string;
   durationSec: number;
 }) {
+  const cards = [
+    { label: 'Sessions', value: String(sessionCount), hint: sessionCount === 1 ? '1 finished play' : `${sessionCount} finished plays` },
+    ...(performance
+      ? [{
+          label: performance.label,
+          value: performance.value != null ? `${performance.value}%` : '—',
+          hint: performance.value != null ? 'Saved sessions' : 'No plays yet',
+        }]
+      : []),
+    { label: 'Last played', value: lastPlayed, hint: sessionCount ? 'Most recent session' : 'Not played yet' },
+    { label: 'Time spent', value: formatSessionDuration(durationSec), hint: durationSec > 0 ? 'Total training time' : '0 minutes recorded' },
+  ];
   return (
     <div className="grid grid-cols-1 gap-[13px] md:grid-cols-2">
-      {(
-        [
-          { label: 'Sessions', value: String(sessionCount), hint: sessionCount === 1 ? '1 finished play' : `${sessionCount} finished plays` },
-          { label: 'Accuracy', value: avgAccuracy != null ? `${avgAccuracy}%` : '—', hint: avgAccuracy != null ? 'Mean score' : 'No plays yet' },
-          { label: 'Last played', value: lastPlayed, hint: sessionCount ? 'Most recent session' : 'Not played yet' },
-          { label: 'Time spent', value: formatSessionDuration(durationSec), hint: durationSec > 0 ? 'Total training time' : '0 minutes recorded' },
-        ]
-      ).map((card, index) => (
+      {cards.map((card, index) => (
         <div key={card.label} className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
           <div className="min-w-0">
             <p className="text-[13px] leading-[21px] text-gray-900">
@@ -720,6 +764,9 @@ function MainContent() {
   const [docIdRequestOpen, setDocIdRequestOpen] = useState(false);
   const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
+  const [sessionsTruncated, setSessionsTruncated] = useState(false);
+  const [practiceSummary, setPracticeSummary] = useState<SavedPracticeSummary | null>(null);
+  const loadToken = React.useRef(0);
   const [sessionsReady, setSessionsReady] = useState(false);
   const [historyGameId, setHistoryGameId] = useState('');
   const [historyLevelId, setHistoryLevelId] = useState('');
@@ -729,13 +776,20 @@ function MainContent() {
 
   const loadSessions = React.useCallback(async () => {
     if (session?.user?.role !== 'patient') return;
+    const token = ++loadToken.current;
     try {
-      const data = await listMyGameSessions();
-      setSessions(data);
+      const [overview, summary] = await Promise.all([listMyGameSessionOverview(), getMyPracticeSummary()]);
+      if (loadToken.current !== token) return;
+      setSessions(overview.sessions);
+      setSessionsTruncated(overview.truncated);
+      setPracticeSummary(summary);
     } catch {
+      if (loadToken.current !== token) return;
       setSessions([]);
+      setSessionsTruncated(false);
+      setPracticeSummary(null);
     } finally {
-      setSessionsReady(true);
+      if (loadToken.current === token) setSessionsReady(true);
     }
   }, [session?.user?.role]);
 
@@ -1024,6 +1078,7 @@ function MainContent() {
 
   const updateQueryParams = (params: Record<string, string | null>) => {
     const newParams = new URLSearchParams(searchParams.toString());
+    if (!Object.prototype.hasOwnProperty.call(params, 'progress')) newParams.delete('progress');
     Object.entries(params).forEach(([key, value]) => {
       if (value === null) {
         newParams.delete(key);
@@ -1404,21 +1459,57 @@ function MainContent() {
   const selectedCatalogId = selectedModule ? UI_MODULE_TO_CATALOG[selectedModule] ?? '' : '';
   const selectedGameSessions = sessions.filter((row) => row.gameId === selectedCatalogId);
   const selectedGameCount = selectedGameSessions.length;
-  const selectedGameAccuracy = selectedGameCount
-    ? Math.round((selectedGameSessions.reduce((sum, row) => sum + (row.accuracy || 0), 0) / selectedGameCount) * 10) / 10
-    : null;
+  const selectedPerformance = singleGameChartPerformance(asStored(selectedGameSessions));
+  const selectedPerformanceLabel = selectedCatalogId === 'bee_tracing' ? 'Path adherence' : 'Accuracy';
   const selectedGameLast = selectedGameCount
     ? formatSessionDate(
         [...selectedGameSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[selectedGameCount - 1].recordedAt,
       )
     : '—';
   const selectedGameDuration = selectedGameSessions.reduce((sum, row) => sum + (row.durationSec || 0), 0);
-  const levelAccuracy = (levelId: string | number) => {
-    const rows = selectedGameSessions.filter((row) => row.levelId === String(levelId));
-    if (!rows.length) return '—';
-    const value = Math.round((rows.reduce((sum, row) => sum + (row.accuracy || 0), 0) / rows.length) * 10) / 10;
-    return `${value}%`;
+  const openLevelProgress = (levelId: string) => {
+    if (!selectedModule) return;
+    updateQueryParams({
+      page: null,
+      therapy: 'vision',
+      family: familyQueryFor(selectedModule),
+      module: selectedModule,
+      game: null,
+      mode: null,
+      variant: null,
+      board: null,
+      progress: levelId,
+    });
   };
+  const levelFacts = (levelId: string | number) => {
+    const id = String(levelId);
+    if (!selectedCatalogId) return { primary: 'No completed sessions', secondary: null };
+    const matching = selectedGameSessions.filter((row) => row.levelId === id);
+    return levelCardLines(
+      buildLevelAnalytics({
+        gameId: selectedCatalogId,
+        levelId: id,
+        timeZone: resolvedTimeZone(),
+        rows: matching,
+      }),
+    );
+  };
+  const renderLevelTile = (title: string, levelId: string | number, onLaunch: () => void) => {
+    const facts = levelFacts(levelId);
+    return (
+      <div key={`${selectedModule}-${levelId}`} className={VARIANT_TILE}>
+        <button type="button" onClick={onLaunch} className="w-full bg-transparent text-center">
+          <p className="m-0 text-lg font-semibold text-shell-ink">{title}</p>
+          <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{facts.primary}</p>
+          {facts.secondary ? <p className="m-0 mt-1 text-[12px] font-medium text-gray-500">{facts.secondary}</p> : null}
+        </button>
+        <button type="button" onClick={() => openLevelProgress(String(levelId))} className="text-[13px] font-semibold text-blue-600">
+          Progress
+        </button>
+      </div>
+    );
+  };
+  const progressLevelId = searchParams.get('progress');
 
   if (authLoading || !session || session.user.role !== 'patient' || !sessionsReady) {
     return <div className="h-dvh bg-page" />;
@@ -1461,7 +1552,9 @@ function MainContent() {
           }
           onBack={
             view === 'game'
-              ? handleBackToFamily
+              ? progressLevelId
+                ? () => updateQueryParams({ progress: null })
+                : handleBackToFamily
               : view === 'family'
                 ? handleBackToModules
                 : view === 'games' || view === 'analytics' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help'
@@ -1536,16 +1629,19 @@ function MainContent() {
 
                   <DashboardSummary
                     sessions={sessions}
+                    summary={practiceSummary}
                     doctorName={session.patient?.doctorName}
                     doctorCode={session.patient?.referralCode}
                     onSessionsClick={() => openWorkspace('history')}
                   />
+                  <RecentWindowNote show={sessionsTruncated} />
                 </div>
             )}
 
             {view === 'games' && (
               <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">My games</h2>
+                  <RecentWindowNote show={sessionsTruncated} />
 
                   <div className="mx-auto flex w-full max-w-lg rounded-[13px] bg-gray-200 p-[8px]">
                     {(
@@ -1657,9 +1753,6 @@ function MainContent() {
                 activeFamily.moduleIds.includes(s.gameId as TherapyModuleId),
               );
               const activeFamCount = activeFamSessions.length;
-              const activeFamAcc = activeFamCount
-                ? Math.round((activeFamSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / activeFamCount) * 10) / 10
-                : null;
               const activeFamLast = activeFamCount
                 ? formatSessionDate(
                     [...activeFamSessions].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[activeFamCount - 1]
@@ -1675,10 +1768,9 @@ function MainContent() {
                     <p className="mt-[8px] text-[13px] leading-[21px] text-shell-muted font-medium text-pretty">{activeFamily.body}</p>
                   </div>
 
-                  {/* FAMILY LEVEL KPI SUMMARY CARDS */}
+                  <RecentWindowNote show={sessionsTruncated} />
                   <DashboardKpiCards
                     sessionCount={activeFamCount}
-                    avgAccuracy={activeFamAcc}
                     lastPlayed={activeFamLast}
                     durationSec={activeFamDuration}
                   />
@@ -1747,6 +1839,25 @@ function MainContent() {
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (
               <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+                <PrescriptionPractice audience="patient" />
+                <PracticeOverview
+                  audience="patient"
+                  onOpenLevel={(gameId, levelId) => {
+                    const ui = CATALOG_TO_UI_MODULE[gameId];
+                    if (!ui) return;
+                    updateQueryParams({
+                      page: null,
+                      therapy: 'vision',
+                      family: familyForModuleId(gameId)?.id ?? null,
+                      module: ui,
+                      game: null,
+                      mode: null,
+                      variant: null,
+                      board: null,
+                      progress: levelId,
+                    });
+                  }}
+                />
                 <SessionAnalyticsPanel heading="Analytics" patientName={session?.user.name || 'you'} variant="shell" initialRows={sessions} />
               </main>
             )}
@@ -1889,6 +2000,7 @@ function MainContent() {
                     </button>
                   </div>
                 </div>
+                <RecentWindowNote show={sessionsTruncated} />
                 <section className="grid grid-cols-[1fr_auto_1fr] items-end gap-[13px]">
                       <HistoryMenu
                         label="Year"
@@ -1951,19 +2063,27 @@ function MainContent() {
                     </p>
                   </div>
                 ) : (
-                  <ul className="grid grid-cols-1 gap-[13px] sm:grid-cols-2">
-                    {historyRows.map((row) => (
-                      <li key={row.id} className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-                        <div className="flex items-start justify-between gap-[21px]">
-                          <p className="text-[13px] font-semibold text-gray-900">{row.gameName}</p>
-                          <div className="text-right">
-                            <p className="text-[21px] font-semibold leading-none tabular-nums text-gray-900">{Math.round(row.accuracy * 10) / 10}%</p>
-                            <p className="mt-[8px] text-[13px] text-gray-500">{formatSessionDuration(row.durationSec)}</p>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-[13px]">
+                    {mixedLevelNotice(historyRows.map((row) => formatSessionReport(row).levelName)) ? (
+                      <p className="text-[13px] leading-[21px] text-gray-500">
+                        {mixedLevelNotice(historyRows.map((row) => formatSessionReport(row).levelName))}
+                      </p>
+                    ) : null}
+                    <ul className="grid grid-cols-1 gap-[13px] sm:grid-cols-2">
+                      {historyRows.map((row) => {
+                        const summary = formatPatientSummary(formatSessionReport(row));
+                        return (
+                          <li key={row.id} className={`rounded-[13px] border border-shell-border bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
+                            <p className="text-[13px] font-semibold text-gray-900">{summary.moduleName}</p>
+                            <p className="mt-[8px] text-[13px] text-gray-500">{summary.levelName}</p>
+                            {summary.scoreText ? <p className="mt-[13px] text-[21px] font-semibold text-gray-900">{summary.scoreText}</p> : null}
+                            {summary.timeText ? <p className="mt-[8px] text-[13px] text-gray-600">{summary.timeText}</p> : null}
+                            {summary.durationText ? <p className="mt-[8px] text-[13px] text-gray-500">{summary.durationText}</p> : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
               </main>
               );
@@ -2036,10 +2156,21 @@ function MainContent() {
             </p>
           </div>
 
+          {progressLevelId && selectedCatalogId ? (
+            <main className="mx-auto w-full max-w-[930px] px-4 py-4 sm:px-8">
+              <SessionAnalyticsPanel
+                lockedLevel={{ gameId: selectedCatalogId, levelId: progressLevelId }}
+                patientName={session.user.name || 'you'}
+                heading={levelsForTherapyModule(selectedCatalogId).find((level) => level.id === progressLevelId)?.name || progressLevelId}
+              />
+            </main>
+          ) : (
+          <>
           <div className="max-w-6xl mx-auto w-full px-4 sm:px-8 pt-4">
+            <RecentWindowNote show={sessionsTruncated} />
             <DashboardKpiCards
               sessionCount={selectedGameCount}
-              avgAccuracy={selectedGameAccuracy}
+              performance={{ label: selectedPerformance.label ?? selectedPerformanceLabel, value: selectedPerformance.value }}
               lastPlayed={selectedGameLast}
               durationSec={selectedGameDuration}
             />
@@ -2047,30 +2178,10 @@ function MainContent() {
 
           {selectedModule === 'wheel' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-              {isLevelAllowed('wheel', 'uppercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Rotatory</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('wheel', 'lowercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('alphabets', 'lowercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Rotatory</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('wheel', 'numbers') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('numbers', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Rotatory</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
-                </button>
-              )}
-              {isLevelAllowed('wheel', 'colors') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchRotatory('colors', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('colors')}</p>
-                </button>
-              )}
+              {isLevelAllowed('wheel', 'uppercase') && renderLevelTile('Uppercase Rotatory', 'uppercase', () => handleLaunchRotatory('alphabets', 'uppercase'))}
+              {isLevelAllowed('wheel', 'lowercase') && renderLevelTile('Lowercase Rotatory', 'lowercase', () => handleLaunchRotatory('alphabets', 'lowercase'))}
+              {isLevelAllowed('wheel', 'numbers') && renderLevelTile('Numeric Rotatory', 'numbers', () => handleLaunchRotatory('numbers', 'uppercase'))}
+              {isLevelAllowed('wheel', 'colors') && renderLevelTile('Color Discriminant', 'colors', () => handleLaunchRotatory('colors', 'uppercase'))}
               {!isLevelAllowed('wheel', 'uppercase') &&
                 !isLevelAllowed('wheel', 'lowercase') &&
                 !isLevelAllowed('wheel', 'numbers') &&
@@ -2087,24 +2198,9 @@ function MainContent() {
 
           {selectedModule === 'sorting' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-              {isLevelAllowed('sorting', 'uppercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Alphabet Sorting</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('sorting', 'lowercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('lowercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Alphabet Sorting</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('sorting', 'numbers') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchSorting('numbers')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Sorting</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
-                </button>
-              )}
+              {isLevelAllowed('sorting', 'uppercase') && renderLevelTile('Uppercase Alphabet Sorting', 'uppercase', () => handleLaunchSorting('uppercase'))}
+              {isLevelAllowed('sorting', 'lowercase') && renderLevelTile('Lowercase Alphabet Sorting', 'lowercase', () => handleLaunchSorting('lowercase'))}
+              {isLevelAllowed('sorting', 'numbers') && renderLevelTile('Numeric Sorting', 'numbers', () => handleLaunchSorting('numbers'))}
               {!isLevelAllowed('sorting', 'uppercase') &&
                 !isLevelAllowed('sorting', 'lowercase') &&
                 !isLevelAllowed('sorting', 'numbers') && (
@@ -2121,12 +2217,7 @@ function MainContent() {
           {selectedModule === 'tracing' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.bee_tracing.map((level) =>
-                isLevelAllowed('tracing', level.id) ? (
-                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchBee(level.id)}>
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('tracing', level.id) ? renderLevelTile(level.name, level.id, () => handleLaunchBee(level.id)) : null,
               )}
               {MODULE_LEVELS.bee_tracing.every((level) => !isLevelAllowed('tracing', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2142,12 +2233,7 @@ function MainContent() {
           {selectedModule === 'pursuit' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.pursuit.map((level) =>
-                isLevelAllowed('pursuit', level.id) ? (
-                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchPursuit(level.id)}>
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('pursuit', level.id) ? renderLevelTile(level.name, level.id, () => handleLaunchPursuit(level.id)) : null,
               )}
               {MODULE_LEVELS.pursuit.every((level) => !isLevelAllowed('pursuit', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2162,30 +2248,10 @@ function MainContent() {
 
           {selectedModule === 'mobile_target' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
-              {isLevelAllowed('mobile_target', 'uppercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Uppercase Bubble Chase</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('uppercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('mobile_target', 'lowercase') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('alphabets', 'lowercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Lowercase Bubble Chase</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('lowercase')}</p>
-                </button>
-              )}
-              {isLevelAllowed('mobile_target', 'numbers') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('numbers', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Numeric Bubble Chase</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('numbers')}</p>
-                </button>
-              )}
-              {isLevelAllowed('mobile_target', 'colors') && (
-                <button type="button" className={VARIANT_TILE} onClick={() => handleLaunchMobileTarget('colors', 'uppercase')}>
-                  <p className="m-0 text-lg font-semibold text-shell-ink">Color Discriminant Bubble Chase</p>
-                  <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy('colors')}</p>
-                </button>
-              )}
+              {isLevelAllowed('mobile_target', 'uppercase') && renderLevelTile('Uppercase Bubble Chase', 'uppercase', () => handleLaunchMobileTarget('alphabets', 'uppercase'))}
+              {isLevelAllowed('mobile_target', 'lowercase') && renderLevelTile('Lowercase Bubble Chase', 'lowercase', () => handleLaunchMobileTarget('alphabets', 'lowercase'))}
+              {isLevelAllowed('mobile_target', 'numbers') && renderLevelTile('Numeric Bubble Chase', 'numbers', () => handleLaunchMobileTarget('numbers', 'uppercase'))}
+              {isLevelAllowed('mobile_target', 'colors') && renderLevelTile('Color Discriminant Bubble Chase', 'colors', () => handleLaunchMobileTarget('colors', 'uppercase'))}
               {!isLevelAllowed('mobile_target', 'uppercase') &&
                 !isLevelAllowed('mobile_target', 'lowercase') &&
                 !isLevelAllowed('mobile_target', 'numbers') &&
@@ -2210,12 +2276,9 @@ function MainContent() {
                   </p>
                 </div>
               ) : (
-                GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) => (
-                  <button type="button" key={id} className={VARIANT_TILE} onClick={() => handleLaunchGeoboard(id)}>
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{GEOBOARD_BOARDS[id].shortLabel}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(id)}</p>
-                  </button>
-                ))
+                GEOBOARD_BOARD_IDS.filter((id) => isLevelAllowed('geoboard', id)).map((id) =>
+                  renderLevelTile(GEOBOARD_BOARDS[id].shortLabel, id, () => handleLaunchGeoboard(id)),
+                )
               )}
             </main>
           )}
@@ -2223,17 +2286,9 @@ function MainContent() {
           {selectedModule === 'peripheral' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.peripheral_view.map((level) =>
-                isLevelAllowed('peripheral', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={() => handleLaunchPeripheral(level.id as PeripheralField)}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('peripheral', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchPeripheral(level.id as PeripheralField))
+                  : null,
               )}
               {MODULE_LEVELS.peripheral_view.every((level) => !isLevelAllowed('peripheral', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2249,17 +2304,9 @@ function MainContent() {
           {selectedModule === 'number_search' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.number_search.map((level) =>
-                isLevelAllowed('number_search', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={handleLaunchNumberSearch}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('number_search', level.id)
+                  ? renderLevelTile(level.name, level.id, handleLaunchNumberSearch)
+                  : null,
               )}
               {MODULE_LEVELS.number_search.every((level) => !isLevelAllowed('number_search', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2275,17 +2322,9 @@ function MainContent() {
           {selectedModule === 'pattern_match' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.pattern_match.map((level) =>
-                isLevelAllowed('pattern_match', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={() => handleLaunchPatternMatch(level.id)}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('pattern_match', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchPatternMatch(level.id))
+                  : null,
               )}
               {MODULE_LEVELS.pattern_match.every((level) => !isLevelAllowed('pattern_match', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2301,17 +2340,9 @@ function MainContent() {
           {selectedModule === 'location_memory' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.location_memory.map((level) =>
-                isLevelAllowed('location_memory', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={() => handleLaunchLocationMemory(level.id)}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('location_memory', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchLocationMemory(level.id))
+                  : null,
               )}
               {MODULE_LEVELS.location_memory.every((level) => !isLevelAllowed('location_memory', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2327,17 +2358,9 @@ function MainContent() {
           {selectedModule === 'direction_sense' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.direction_sense.map((level) =>
-                isLevelAllowed('direction_sense', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={() => handleLaunchDirectionSense(level.id)}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('direction_sense', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchDirectionSense(level.id))
+                  : null,
               )}
               {MODULE_LEVELS.direction_sense.every((level) => !isLevelAllowed('direction_sense', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2353,12 +2376,9 @@ function MainContent() {
           {selectedModule === 'computer_vision' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.computer_vision.map((level) =>
-                isLevelAllowed('computer_vision', level.id) ? (
-                  <button type="button" key={level.id} className={VARIANT_TILE} onClick={() => handleLaunchComputerVision(level.id)}>
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('computer_vision', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchComputerVision(level.id))
+                  : null,
               )}
               {MODULE_LEVELS.computer_vision.every((level) => !isLevelAllowed('computer_vision', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2374,17 +2394,9 @@ function MainContent() {
           {selectedModule === 'familiar_faces' && (
             <main className="grid content-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 px-4 sm:px-8 py-4 max-w-6xl mx-auto w-full">
               {MODULE_LEVELS.familiar_faces.map((level) =>
-                isLevelAllowed('familiar_faces', level.id) ? (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={VARIANT_TILE}
-                    onClick={() => handleLaunchFamiliarFaces(level.id)}
-                  >
-                    <p className="m-0 text-lg font-semibold text-shell-ink">{level.name}</p>
-                    <p className="m-0 mt-2 text-[13px] font-semibold tabular-nums text-gray-900">{levelAccuracy(level.id)}</p>
-                  </button>
-                ) : null,
+                isLevelAllowed('familiar_faces', level.id)
+                  ? renderLevelTile(level.name, level.id, () => handleLaunchFamiliarFaces(level.id))
+                  : null,
               )}
               {MODULE_LEVELS.familiar_faces.every((level) => !isLevelAllowed('familiar_faces', level.id)) && (
                 <div className={EMPTY_LEVELS}>
@@ -2395,6 +2407,8 @@ function MainContent() {
                 </div>
               )}
             </main>
+          )}
+          </>
           )}
         </>
       )}

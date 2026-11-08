@@ -5,6 +5,7 @@ import { DocIdRequest } from './entities/docid-request.entity';
 import { DoctorProfile } from './entities/doctor-profile.entity';
 import { PatientProfile } from './entities/patient-profile.entity';
 import { Prescription } from './entities/prescription.entity';
+import { PrescriptionRevision } from './entities/prescription-revision.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { Organization } from './entities/organization.entity';
@@ -22,6 +23,8 @@ import { AddGameSessions1790000000000 } from './migrations/1790000000000-AddGame
 import { AddPasswordResetTokens1791000000000 } from './migrations/1791000000000-AddPasswordResetTokens';
 import { AddOrganizationsAndSuperAdmin1792000000000 } from './migrations/1792000000000-AddOrganizationsAndSuperAdmin';
 import { AddAnnouncements1793000000000 } from './migrations/1793000000000-AddAnnouncements';
+import { AddGameSessionDetail1794000000000 } from './migrations/1794000000000-AddGameSessionDetail';
+import { AddPrescriptionRevisions1795000000000 } from './migrations/1795000000000-AddPrescriptionRevisions';
 import { loadBackendEnv } from './common/load-env';
 import { postgresConnectionUrl } from './common/postgres-url';
 
@@ -38,6 +41,7 @@ export const AppDataSource = new DataSource({
     DoctorProfile,
     PatientProfile,
     Prescription,
+    PrescriptionRevision,
     RefreshToken,
     PasswordResetToken,
     DocIdRequest,
@@ -57,6 +61,8 @@ export const AppDataSource = new DataSource({
     AddPasswordResetTokens1791000000000,
     AddOrganizationsAndSuperAdmin1792000000000,
     AddAnnouncements1793000000000,
+    AddGameSessionDetail1794000000000,
+    AddPrescriptionRevisions1795000000000,
   ],
 });
 
