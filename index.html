@@ -9,6 +9,7 @@
     <meta
         content="Candela high-level business architecture told as a connected patient and care-team journey, with business diagrams and open decisions."
         name="description" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
     <style>
         :root {
             --bg: #fbf9f4;
@@ -406,6 +407,120 @@
             color: var(--mut)
         }
 
+        .view-switch {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin: 0 0 12px
+        }
+
+        .view-switch button {
+            font: inherit;
+            font-size: .84rem;
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--mut);
+            background: transparent;
+            border: 1px solid var(--bd);
+            border-radius: 8px;
+            padding: 7px 8px;
+            cursor: pointer
+        }
+
+        .view-switch button:hover,
+        .view-switch button[aria-selected="true"] {
+            color: var(--ac);
+            background: var(--proc)
+        }
+
+        .view-switch button[aria-selected="true"] {
+            border-color: var(--sitb)
+        }
+
+        [hidden] {
+            display: none !important
+        }
+
+        #view-catalogue>.part:first-child {
+            margin-top: 0
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: .92em
+        }
+
+        .game-meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0
+        }
+
+        .game-meta>div {
+            background: var(--proc);
+            border: 1px solid var(--bd);
+            border-radius: 8px;
+            padding: 10px 12px
+        }
+
+        .game-meta b {
+            display: block;
+            font-size: .78rem;
+            color: var(--mut);
+            text-transform: uppercase;
+            letter-spacing: .04em
+        }
+
+        .formula {
+            background: var(--proc);
+            padding: 4px 14px 8px;
+            border-radius: 8px;
+            margin: 10px 0;
+            overflow-x: auto
+        }
+
+        .formula .katex-display {
+            margin: 0.45em 0
+        }
+
+        .formula p {
+            margin: 2px 0 8px;
+            color: var(--mut);
+            font-size: .92rem
+        }
+
+        .rule-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 8px 0 4px
+        }
+
+        .game-card .box h4 {
+            margin-top: 0
+        }
+
+        @media(max-width:700px) {
+            .rule-grid {
+                grid-template-columns: minmax(0, 1fr)
+            }
+        }
+
+        .game-card {
+            scroll-margin-top: 76px
+        }
+
+        .game-card h4 {
+            margin-top: 14px
+        }
+
+        @media(max-width:700px) {
+            .game-meta {
+                grid-template-columns: minmax(0, 1fr)
+            }
+        }
+
         footer {
             border-top: 1px solid var(--bd);
             padding: 20px 0;
@@ -473,7 +588,13 @@
         <aside aria-label="Contents" class="toc" id="toc">
             <div class="toc-head"><b>Contents</b><button aria-label="Close contents" class="toc-close"
                     id="toc-close">×</button></div>
-            <nav>
+            <div class="view-switch" role="tablist" aria-label="Document">
+                <button type="button" role="tab" id="tab-platform" data-switch="platform"
+                    aria-controls="view-platform" aria-selected="true">Platform</button>
+                <button type="button" role="tab" id="tab-catalogue" data-switch="catalogue"
+                    aria-controls="view-catalogue" aria-selected="false">Catalogue</button>
+            </div>
+            <nav id="toc-platform" data-view="platform">
                 <ul>
                     <li><a href="#chapter-1">Part 1 — Meet Candela</a>
                         <ul>
@@ -535,9 +656,37 @@
                     <li><a href="#open-decisions">Open business decisions</a></li>
                 </ul>
             </nav>
+            <nav id="toc-catalogue" data-view="catalogue" hidden>
+                <ul>
+                    <li><a href="#games-family-navigation">Families</a>
+                        <ul>
+                            <li><a href="#games-normal-family">Standard Games</a>
+                                <ul>
+                                    <li><a href="#game-rotatory">Visual tracking — Rotatory Wheel</a></li>
+                                    <li><a href="#game-bee">Visual tracking — Bee Path</a></li>
+                                    <li><a href="#game-pursuit">Visual tracking — Pursuit</a></li>
+                                    <li><a href="#game-peripheral">Visual tracking — Peripheral View</a></li>
+                                    <li><a href="#game-crowded">Visual search — Crowded Search</a></li>
+                                    <li><a href="#game-bubble">Visual search — Bubble Chase</a></li>
+                                    <li><a href="#game-geoboard">Spatial — Geoboard</a></li>
+                                    <li><a href="#game-direction">Spatial — Direction Sense</a></li>
+                                    <li><a href="#game-hold">Memory — Hold the Code</a></li>
+                                    <li><a href="#game-location">Memory — Location Memory</a></li>
+                                    <li><a href="#game-familiar">Memory — Familiar Faces</a></li>
+                                    <li><a href="#game-gaze">Visual tracking — Gaze Hold</a></li>
+                                </ul>
+                            </li>
+                            <li><a href="#games-pediatric-family">Pediatric Games</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#games-analytics-rules">Equations and analytics rules</a></li>
+                    <li><a href="#games-qa">QA master plan</a></li>
+                </ul>
+            </nav>
         </aside>
         <main>
             <div class="w">
+                <div id="view-platform" data-view="platform">
                 <div class="panel" id="overview">
                     <h2>Follow one story through Candela</h2>
                     <p>A patient arrives at Candela, meets a doctor or starts independently, practises games, and builds
@@ -1627,14 +1776,1005 @@
                     <p class="note">These are high-level business diagrams. Detailed data models and solution/technology
                         architecture should follow after the business requirements are validated.</p>
                 </div>
+                </div>
+                <div id="view-catalogue" data-view="catalogue" hidden>
+                <section class="part" id="chapter-games">
+                    <h2>Games — catalogue, families, specifications and QA</h2>
+                    <p class="muted">Use this section as the game reference for developers, QA engineers, clinicians and
+                        new team members. Open a family to see its games; select a game to read its mechanics, saved
+                        data, equations and test expectations. These documentation families organize the reference and
+                        do not create new catalogue IDs or change prescription behavior.</p>
+                    <div class="panel" id="games-family-navigation">
+                        <h3>Games navigation</h3>
+                        <div class="box proc">
+                            <b>Games → Standard Games → Family → Game → Specification and QA</b>
+                            <p>Choose Standard Games to browse the currently documented catalogue. Open a family to
+                                reveal its game links. Each game page includes behavior, metrics, literal equations,
+                                examples and QA checks.</p>
+                        </div>
+                        <div class="dashboard-grid">
+                            <div class="card" id="games-normal-family">
+                                <h3>Standard Games</h3>
+                                <p>Standard Games contains the current game catalogue. The families below are
+                                    documentation groupings for navigation; each game keeps its existing shared
+                                    catalogue identity.</p>
+                                <details open>
+                                    <summary>Visual tracking and target selection</summary>
+                                    <ul>
+                                        <li><a href="#game-rotatory">Rotatory Wheel</a></li>
+                                        <li><a href="#game-bee">Bee Path</a></li>
+                                        <li><a href="#game-pursuit">Pursuit</a></li>
+                                        <li><a href="#game-peripheral">Peripheral View</a></li>
+                                        <li><a href="#game-gaze">Gaze Hold</a></li>
+                                    </ul>
+                                </details>
+                                <details>
+                                    <summary>Visual search and attention</summary>
+                                    <ul>
+                                        <li><a href="#game-crowded">Crowded Search</a></li>
+                                        <li><a href="#game-bubble">Bubble Chase</a></li>
+                                    </ul>
+                                </details>
+                                <details>
+                                    <summary>Spatial reasoning and orientation</summary>
+                                    <ul>
+                                        <li><a href="#game-geoboard">Geoboard</a></li>
+                                        <li><a href="#game-direction">Direction Sense</a></li>
+                                    </ul>
+                                </details>
+                                <details>
+                                    <summary>Memory and recognition</summary>
+                                    <ul>
+                                        <li><a href="#game-hold">Hold the Code</a></li>
+                                        <li><a href="#game-location">Location Memory</a></li>
+                                        <li><a href="#game-familiar">Familiar Faces</a></li>
+                                    </ul>
+                                </details>
+                            </div>
+                            <div class="card" id="games-pediatric-family">
+                                <h3>Pediatric Games</h3>
+                                <p>The Pediatric Games area is reserved for age-appropriate visual and cognitive practice
+                                    activities designed for pediatric users. It will provide a separate catalogue view,
+                                    game instructions, level and configuration information, child-friendly interaction
+                                    guidance and game-specific reporting once pediatric games are introduced.</p>
+                                <p><strong>Current catalogue state:</strong> no pediatric games are listed in this
+                                    documentation. Do not display Standard Games as Pediatric Games, duplicate game
+                                    records across categories, or create placeholder game IDs. When pediatric games are
+                                    added, each requires its own mechanics, accessibility considerations, metrics,
+                                    equations, persistence rules and QA acceptance criteria.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel" id="games-analytics-rules">
+                        <h3>Shared analytics equations and rules</h3>
+                        <p>All percentages must use the denominator defined for that game and analytics scope. A session
+                            card, level trend and prescription-period report can intentionally use different scopes. The
+                            label must make the scope clear.</p>
+                        <div class="formula">
+                            \[
+                            \text{Accuracy (\%)} = \frac{\text{Correct}}{\text{Eligible attempts}} \times 100
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Eligible attempts} = \text{event counters included by that game's helper for the requested scope}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Weighted Bee path adherence (\%)} = \frac{\sum_i (\text{Path adherence}_i \times \text{Weight}_i)}{\sum_i \text{Weight}_i}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Reaction time (s)} = \frac{\sum \text{correct-response reaction times}}{\text{Number of correct responses with a recorded reaction time}}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Speed-and-accuracy} = \frac{\text{Accuracy (\%)}}{\text{Average reaction time (s)}}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Recorded duration} = \sum \text{completed trial durations}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Daily activity} = \text{count of saved sessions grouped by the patient's local calendar date}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Sessions per week} = \text{count of saved sessions in each Monday--Sunday local week}
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Level identity} = (\mathrm{gameId},\ \mathrm{levelId})
+                            \]
+                        </div>
+                        <div class="formula">
+                            \[
+                            \text{Aggregate accuracy (\%)} = \frac{\sum \text{correct counts}}{\sum \text{eligible attempt counts}} \times 100
+                            \]
+                        </div>
+                        <p><strong>Null handling:</strong> if there are no valid observations or the denominator is zero,
+                            the metric is unavailable (null), not 0%. Do not convert missing data into a zero-performance
+                            result.</p>
+                        <p><strong>Mixed games:</strong> do not combine different games' accuracy, Bee path adherence,
+                            reaction time or duration into a single score. Mixed-game session analytics returns no
+                            combined totals.</p>
+                        <p><strong>Rounding:</strong> calculate from unrounded counts and values, then apply the display
+                            precision used by the relevant shared helper or UI. Do not round each session before
+                            longitudinal aggregation.</p>
+                        <p><strong>Time:</strong> daily and weekly groupings use the requested IANA timezone; weeks begin
+                            Monday. Date-range boundaries are interpreted in that timezone. The selected period must not
+                            silently include sessions outside the local date range.</p>
+                        <p><strong>Prescription attribution:</strong> session attribution uses the client completion
+                            timestamp with an explicit timezone offset or Z. It must be finite and no more than five
+                            minutes in the future at insertion. A session links only when exactly one prescription
+                            revision window matches the game, level and timestamp. Invalid stored links are not silently
+                            reassigned during reads.</p>
+                        <p><strong>Practice snapshot:</strong> lifetime saved-session count plus the newest saved session
+                            are used for the compact summary; the summary does not calculate a cross-game score.</p>
+                    </div>
+                    <div class="panel" id="games-qa">
+                        <h3>QA master plan — game and analytics acceptance</h3>
+                        <p>Run automated tests, builds and typechecks during implementation. Perform the consolidated
+                            manual QA pass after all planned implementation work is complete. The following cases are
+                            acceptance tests, not a claim that manual QA has already passed.</p>
+                        <h4>A. Game execution and result correctness</h4>
+                        <ul>
+                            <li>For every game, complete a normal successful run and compare the result screen with the saved session payload and shared report output.</li>
+                            <li>Exercise every response class the game supports: correct, wrong, miss, timeout, skipped, cancelled, incomplete and retried. Confirm unsupported classes are not fabricated.</li>
+                            <li>Verify level selection, level identity, configuration changes, start, instruction and cancel flow, completion transition and result presentation.</li>
+                            <li>Verify abandoning before completion does not create a completed-session row.</li>
+                            <li>Verify one completed play creates exactly one saved session, including under double-submit and network retry.</li>
+                            <li>Verify optional game detail is versioned, sanitized and bounded; malformed optional detail must not prevent saving the core completed session.</li>
+                        </ul>
+                        <h4>B. Literal metric equation tests</h4>
+                        <ul>
+                            <li>For each game and each scope (session card, level analytics, longitudinal trend and prescription period), write down the exact numerator and denominator from the shared helper.</li>
+                            <li>Test numerator 0 with a positive denominator; numerator equal to denominator; numerator greater than zero with denominator 0; all timeouts; all misses; all wrong responses; and mixed response classes.</li>
+                            <li>Assert the exact raw result before display rounding, then assert the displayed percentage and decimal precision.</li>
+                            <li>Test aggregation across unequal session sizes to prove counts are summed before division, rather than averaging percentages.</li>
+                            <li>Test null and no-valid-attempt behavior separately from a genuine 0% score.</li>
+                            <li>Test Bee weighted rounds and the mismatched-round fallback; ensure no tap-count accuracy is substituted.</li>
+                            <li>Test reaction time uses correct-response samples only; test an empty sample list with and without a saved average; verify seconds as the unit.</li>
+                            <li>Test trial-duration games by summing trial durations and ensure the UI does not describe this as continuous app time.</li>
+                        </ul>
+                        <h4>C. Persistence, attribution and privacy</h4>
+                        <ul>
+                            <li>Save every supported game's detail and verify JSON version, required fields, sanitization and retrieval.</li>
+                            <li>Send malformed optional detail and verify the core session still persists.</li>
+                            <li>Retry with the same client event ID and verify the original row and prescription link are returned without duplicate insertion or re-attribution.</li>
+                            <li>Test completion timestamps with explicit offsets, Z, a missing offset, an invalid date, non-finite values, and timestamps more than five minutes in the future.</li>
+                            <li>Test a timestamp exactly at each prescription revision boundary, overlapping or missing revision windows, an empty assignment snapshot, and a game or level mismatch.</li>
+                            <li>Verify patients receive only patient-safe assignment analytics; revision IDs, actor IDs, doctor IDs and internal reason codes are not exposed.</li>
+                            <li>Verify doctor endpoints enforce current patient ownership and that changing doctors does not transfer historical access implicitly.</li>
+                        </ul>
+                        <h4>D. Longitudinal analytics and date filters</h4>
+                        <ul>
+                            <li>Verify grouping by (gameId, levelId); never merge two levels or two games.</li>
+                            <li>Test IANA timezone day boundaries, daylight-saving transitions, Monday week start and sessions around midnight.</li>
+                            <li>Test an empty date range, a one-day range, a reversed range, partial query parameters and an invalid timezone; invalid requests return 400 where specified.</li>
+                            <li>Verify that no query parameters preserve the legacy response shape.</li>
+                            <li>Test the 2,000 and 2,001 session boundaries; retain the newest 2,000 where capped, return truncation metadata and label incomplete totals.</li>
+                            <li>Test that active days count saved rows only; missing days are not failures. Verify duration semantics for each game.</li>
+                            <li>Verify an assignment period shows current activities with no sessions, historical activities assigned during the selected period, and no activity for an empty level assignment.</li>
+                            <li>Verify the Direction Sense <code>mixed</code> / <code>straighten</code> alias consistently across display, assignment, attribution and period coverage.</li>
+                        </ul>
+                        <h4>E. UI, access and role-specific checks</h4>
+                        <ul>
+                            <li>The patient home summary shows the lifetime saved-session count and the newest game, level and date, not mixed-game accuracy, mean reaction, efficiency or other unsupported combined scores.</li>
+                            <li>The doctor patient summary shows the saved-session count, last saved session and prescribed modules; no cross-game mean accuracy.</li>
+                            <li>Switch rapidly between patients and verify old assignment data disappears immediately; delayed responses from the previous patient must not overwrite the new patient.</li>
+                            <li>Verify loading and error states do not retain another patient's assignment data.</li>
+                            <li>Verify patient and doctor date controls operate independently and both default to the documented 30-day range.</li>
+                            <li>Verify trial and subscription gating, prescription permissions and doctor-patient ownership separately; one permission must not bypass another.</li>
+                            <li>Verify mobile and web render the same metric labels, units, null states, truncation notices and date semantics.</li>
+                        </ul>
+                        <h4>F. Final manual QA evidence</h4>
+                        <ul>
+                            <li>Record device and browser, build or commit, test account role, game, level, test input, expected equation, actual result, saved payload reference and pass or fail.</li>
+                            <li>Capture screenshots or video for each game result, patient summary, doctor summary, level trend, prescription period and empty, error and truncated states.</li>
+                            <li>Run the PostgreSQL migration up and down and verify schema and index state; test prescription revision concurrency and patient-level locking against a real PostgreSQL instance.</li>
+                            <li>Verify the full workflow from account login, through a game and completed session, to patient history, doctor analytics, prescription revision and date-filtered coverage.</li>
+                            <li>Keep defects and deferred cases visible; do not mark manual QA complete until evidence is recorded.</li>
+                        </ul>
+                    </div>
+                    <article class="card game-card" id="game-rotatory">
+                        <h3><span class="num">01</span><span>Rotatory Wheel</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual tracking and target selection</div>
+                            <div><b>Session behavior</b>Saved detail is stored with the completed session.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Saved detail is stored with the completed session. Target response classification: correct target hit, wrong visible target hit, miss on empty space, background or wheel, or timeout when the target expires without a correct response.</p>
+                        <h4>How to play</h4>
+                        <p>Bubbles ride around a spinning wheel. The task is to find the mark that matches the prompt and tap only that bubble.</p>
+                        <ol>
+                            <li><b>Watch the wheel.</b> Keep your eyes on the bubbles as they turn. A letter, number, or color is shown, and it may also be spoken.</li>
+                            <li><b>Learn the motion first.</b> The first three targets are practice. They are not scored. After the third tap, the bubbles rearrange into the layout used for the scored round.</li>
+                            <li><b>Find the match.</b> Each scored letter or number appears once. Tap the bubble that matches the prompt.</li>
+                            <li><b>Finish the round.</b> A finished round opens the results card. Clap along when that card opens. Leaving before the end does not save a session.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Keep watching the wheel while it turns.</li>
+                                    <li>Tap only the bubble that matches the shown or spoken target.</li>
+                                    <li>Finish the scored round so the result can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a different bubble. That is a wrong tap.</li>
+                                    <li>Tap empty space, the background, or the wheel itself. That is a miss.</li>
+                                    <li>Count the first three practice taps in the score.</li>
+                                    <li>Leave before the round finishes.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Session card accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{Wrong} + \text{Miss} + \text{Timeout}} \times 100
+                            \]
+                            \[
+                            \text{Level accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{Wrong} + \text{Miss}} \times 100
+                            \]
+                            <p>Level analytics excludes timeouts.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> The share of counted responses that hit the right target. On the session card the count includes wrong taps, misses, and timeouts. On the level page timeouts are left out. A letter found only after extra taps is not 100%. Higher is better.</li>
+                            <li><b>Time to the correct hit.</b> The average seconds until the correct bubble is tapped, including a correct tap that came after a wrong one. Wrong taps, misses, and timeouts are not in this average. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time in seconds. Use it when accuracy and speed disagree. It describes only Rotatory Wheel. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit a bubble that was not the target. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space, the background, or the wheel. Lower is better.</li>
+                            <li><b>Time to finish.</b> How long the sitting lasted, in seconds. This is not the time to the correct hit. A sitting that runs into the time cap stays long. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>Example: 20 correct, 10 wrong, 0 misses, 0 timeouts → card = 20 ÷ 30 × 100 = 66.7%. Level example: 1 correct and 9 timeouts → 1 ÷ 1 × 100 = 100%.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Test target identity changes</li>
+                            <li>Correct versus wrong visible target</li>
+                            <li>Background or wheel miss</li>
+                            <li>Timeout</li>
+                            <li>Card-versus-level denominator</li>
+                            <li>Zero valid level attempts</li>
+                            <li>Repeated sessions aggregation</li>
+                            <li>Detail persistence</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-bee">
+                        <h3><span class="num">02</span><span>Bee Path</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual tracking and target following</div>
+                            <div><b>Session behavior</b>The stored path-adherence value is the metric.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>The stored path-adherence value is the metric. It is not calculated from correct, wrong, miss or timeout tap counts.</p>
+                        <h4>How to play</h4>
+                        <p>A bee flies along a line. The player traces that line with a finger and stays inside the path until the route ends.</p>
+                        <ol>
+                            <li><b>Find the path.</b> The bee shows the route. The line may be straight, curved, zigzag, a wave, a spiral, branching, dotted, or a generated path, depending on the level.</li>
+                            <li><b>Stay on the line.</b> Trace with a finger. The score is how much of the trace stays inside the corridor, not a count of taps.</li>
+                            <li><b>Finish the route.</b> Reach the end of the path to complete the round. The results card then opens. Clap along when it does.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Follow the bee and keep the finger on the drawn path.</li>
+                                    <li>Finish the route so the stored path-adherence value can be saved.</li>
+                                    <li>Read the result as path adherence.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Drift off the path. That lowers path adherence.</li>
+                                    <li>Treat the result as tap accuracy, or label it Accuracy.</li>
+                                    <li>Leave before the route is finished.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Weighted path adherence (\%)} = \frac{\sum_i (\text{Path adherence}_i \times \text{Weight}_i)}{\sum_i \text{Weight}_i}
+                            \]
+                            \[
+                            \text{Weight}_i =
+                            \begin{cases}
+                            \text{completed rounds} &amp; \text{when the saved count matches completed rounds} \\
+                            1 &amp; \text{otherwise}
+                            \end{cases}
+                            \]
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Path adherence.</b> The stored percent of the trace that stayed inside the corridor. It is not rounds divided by taps. Higher is better.</li>
+                            <li><b>Time to first grab.</b> The average seconds from the round being ready until the first grab. Samples that are not a real time at or above zero are ignored. Lower is better.</li>
+                            <li><b>Efficiency.</b> Path adherence (%) divided by this game's mean time in seconds. It describes only Bee Path. Higher is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to the first grab. Lower is better when path adherence holds.</li>
+                        </ul>
+                        <p>Bee Path does not show a wrong-tap rate or a miss rate. Those tap counts are not the score.</p>
+                        <h4>Worked example</h4>
+                        <p>Example: 100% over 2 rounds and 50% over 1 round → (100×2 + 50×1) ÷ 3 = 83.3%.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Verify the stored score is used</li>
+                            <li>Valid round weighting</li>
+                            <li>Mismatched round-count fallback</li>
+                            <li>Missing score</li>
+                            <li>Zero completed rounds</li>
+                            <li>Percent bounds</li>
+                            <li>The label says Path adherence</li>
+                            <li>Do not label it Accuracy</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-pursuit">
+                        <h3><span class="num">03</span><span>Pursuit</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual tracking and target following</div>
+                            <div><b>Session behavior</b>Completed-trial metrics are persisted in optional versioned detail.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Completed-trial metrics are persisted in optional versioned detail. Raw position streams are not persisted.</p>
+                        <h4>How to play</h4>
+                        <p>One bubble is the target and it keeps moving. Other bubbles are decoys. The player tracks the target and taps it.</p>
+                        <ol>
+                            <li><b>Watch the target.</b> Follow the glowing bubble as it moves. The path can bounce, orbit, trace a figure eight, wander, or freeze and drift.</li>
+                            <li><b>Ignore decoys.</b> Other bubbles are there to distract. Do not tap those.</li>
+                            <li><b>Tap the target.</b> Keep tracking, then tap the real target. One session is 20 bubbles in a row.</li>
+                            <li><b>Finish the row.</b> A finished session opens the results card. Clap along when it opens. The raw path of the bubble is not stored.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Keep your eyes on the moving target.</li>
+                                    <li>Tap that target when you can reach it.</li>
+                                    <li>Complete the row of bubbles so the trial metrics can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a decoy. That is a wrong tap.</li>
+                                    <li>Tap empty space. That is a miss.</li>
+                                    <li>Stop in the middle of the 20-bubble row if you want a saved session.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Duration contribution} = \sum_i \text{completed trial duration}_i
+                            \]
+                            <p>Do not reconstruct trajectories from raw positions, because those positions are not stored. The accuracy denominator must follow the Pursuit-specific shared helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct responses divided by the correct responses, wrong taps, misses, and timeouts stored for Pursuit. The exact denominator comes from the Pursuit helper. Higher is better.</li>
+                            <li><b>Time to the correct hit.</b> The average seconds until the correct target is tapped, including a hit that followed an earlier wrong tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> Pursuit accuracy (%) divided by that mean time in seconds. It is not a score to compare with another game. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit a decoy or another stimulus that was not the target. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space or the background. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean sitting length, in seconds. It is the sum of completed trial times, not a reconstructed path, and not the time to the correct hit. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>No numerical accuracy example should be published until the exact Pursuit event denominator is read from the shared implementation.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Completed versus incomplete trial</li>
+                            <li>Trial duration sum</li>
+                            <li>Absent raw positions</li>
+                            <li>Missing or malformed optional detail</li>
+                            <li>The session still saves if optional detail is invalid</li>
+                            <li>Retry idempotency</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-peripheral">
+                        <h3><span class="num">04</span><span>Peripheral View</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual tracking and peripheral attention</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted with the completed session.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted with the completed session.</p>
+                        <h4>How to play</h4>
+                        <p>The player keeps looking at the center and notices letters that appear out to the side.</p>
+                        <ol>
+                            <li><b>Hold the center.</b> Tap the triangle to start, then keep looking at the center mark. Do not turn to look at the sides. The field can be the left side, the right side, or both.</li>
+                            <li><b>Notice the letters.</b> Letters pop in the wide field around the center.</li>
+                            <li><b>Tap what you notice.</b> Tap the letter you see or hear, while your eyes stay in the middle.</li>
+                            <li><b>Finish the sitting.</b> A finished sitting opens the results card. Clap along when it opens.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Keep your eyes on the center for the whole sitting.</li>
+                                    <li>Tap the letter that appeared in the side field.</li>
+                                    <li>Finish the sitting so the result can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Look away from the center to hunt for the letter.</li>
+                                    <li>Tap a different letter. That is a wrong tap.</li>
+                                    <li>Tap empty space. That is a miss.</li>
+                                    <li>Leave before the sitting finishes.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Accuracy (\%)} = \frac{\text{Correct}}{\text{Game-specific eligible attempts}} \times 100
+                            \]
+                            <p>The eligible-attempt set must be taken from the Peripheral View shared metric helper. Do not substitute another game's denominator.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct responses divided by the eligible attempts defined for Peripheral View. Do not borrow another game's denominator. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the letter appearing to the correct tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Peripheral View. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit a letter that was not the one shown. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space or the background. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to the correct response. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the exact event mapping and denominator are taken from the shared helper and tests.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Central and peripheral positions</li>
+                            <li>Boundary positions</li>
+                            <li>Correct, wrong, miss and timeout mapping</li>
+                            <li>Level and session denominators</li>
+                            <li>No valid attempts</li>
+                            <li>Detail persistence</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-crowded">
+                        <h3><span class="num">05</span><span>Crowded Search</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual search and attention</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted with the completed session.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted with the completed session.</p>
+                        <h4>How to play</h4>
+                        <p>Digits hide in a crowd of mixed letters. The player scans the field and taps the digits.</p>
+                        <ol>
+                            <li><b>Scan the crowd.</b> Look across the whole field. The digits are mixed in with letters.</li>
+                            <li><b>Take the next number.</b> Search in the order the level asks. The next digit is the one to tap.</li>
+                            <li><b>Tap each find.</b> A correct digit leaves the field. A letter is a wrong tap. Empty space is a miss.</li>
+                            <li><b>Finish the search.</b> Keep going until the search is done. The results card then opens. Clap along when it does.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Look through the whole crowd before tapping.</li>
+                                    <li>Tap the digit the level is asking for.</li>
+                                    <li>Finish the search so the session can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a letter. That is a wrong tap.</li>
+                                    <li>Tap empty space. That is a miss.</li>
+                                    <li>Skip ahead to a later digit when the level wants the next one.</li>
+                                    <li>Leave before the search ends.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Accuracy (\%)} = \frac{\text{Correct}}{\text{Game-specific eligible attempts}} \times 100
+                            \]
+                            <p>Eligible attempts are defined by the Crowded Search shared metric helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct hits divided by correct hits, wrong taps, empty taps, and timeouts. Each item still unfinished when the timer ends counts as one timeout. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the field being ready to the correct tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Crowded Search. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit a letter or another stimulus that was not the digit. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean sitting length, in seconds. It is not the time to the correct tap. A sitting that hits the time cap stays long. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the event mapping and denominator are verified in the helper and tests.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Target versus distractor</li>
+                            <li>Duplicate taps</li>
+                            <li>Missed target</li>
+                            <li>Timeout</li>
+                            <li>Multiple targets if supported</li>
+                            <li>Session and level parity</li>
+                            <li>Date-range aggregation</li>
+                            <li>Empty attempts</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-bubble">
+                        <h3><span class="num">06</span><span>Bubble Chase</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual search and attention</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted. Duration reporting uses the sum of trial times, not necessarily continuous wall-clock time.</p>
+                        <h4>How to play</h4>
+                        <p>Two bubbles bounce on a dark field. One is the match. The player taps that one and leaves the other alone until the timed set ends.</p>
+                        <ol>
+                            <li><b>Watch both bubbles.</b> They bounce around the field. One is the called letter, number, or color.</li>
+                            <li><b>Tap the match.</b> Tap the bubble that matches the call. Leave the decoy alone.</li>
+                            <li><b>Finish the set.</b> Each set is timed. Keep going until the set ends. The results card then opens. Clap along when it does.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Follow the bubble that matches the called letter, number, or color.</li>
+                                    <li>Tap that bubble.</li>
+                                    <li>Stay until the timed set ends so the session can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap the decoy. That is a wrong tap.</li>
+                                    <li>Tap empty space. That is a miss.</li>
+                                    <li>Read the duration as continuous time in the app. It is the sum of the trial times.</li>
+                                    <li>Leave before the set ends.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Level accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{other eligible non-timeout responses}} \times 100
+                            \]
+                            \[
+                            \text{Duration} = \sum_i \text{trial duration}_i
+                            \]
+                            <p>The level-accuracy denominator excludes timeouts. Exact inclusion of wrong taps and misses must follow the Bubble Chase helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct taps divided by the attempts Bubble Chase counts. The level page leaves timeouts out of that count. The session card can count them. Higher is better.</li>
+                            <li><b>Time to the correct hit.</b> The average seconds until the matching bubble is tapped, including a hit that followed a wrong tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Bubble Chase. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit the decoy. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space. Lower is better.</li>
+                            <li><b>Time to finish.</b> The sum of the trial times, in seconds. It is not continuous time spent in the app, and it is not the time to the correct hit. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>Example of timeout exclusion only: 1 correct and 9 timeouts → timeout-excluded level denominator = 1, so 1 ÷ 1 × 100 = 100%. This example does not define card accuracy.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Completed and incomplete trials</li>
+                            <li>Timeout exclusion</li>
+                            <li>Wrong and miss inclusion</li>
+                            <li>Trial-time summation</li>
+                            <li>Zero valid attempts</li>
+                            <li>Malformed detail</li>
+                            <li>Duplicate retry</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-geoboard">
+                        <h3><span class="num">07</span><span>Geoboard</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Spatial reasoning and visual construction</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted with the completed session.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted with the completed session.</p>
+                        <h4>How to play</h4>
+                        <p>A pattern is shown on a board of dots. The player studies it, then draws the same figure by connecting the dots.</p>
+                        <ol>
+                            <li><b>Study the figure.</b> Look at the lines. Levels include simple lines, letters, geometric shapes, numbers, and compound figures.</li>
+                            <li><b>Draw it back.</b> Connect the dots on your own board to rebuild the same figure.</li>
+                            <li><b>Match the shape.</b> Match the model as closely as you can before time is up. A correct pattern, a wrong shape, an incomplete pattern, and a timeout are different results.</li>
+                            <li><b>Finish the sitting.</b> A finished sitting opens the results card. Clap along when it opens.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Look at the whole figure before you start drawing.</li>
+                                    <li>Connect the dots that rebuild that figure.</li>
+                                    <li>Finish before the time runs out so the pattern result can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Connect the wrong dots or draw a different shape. That is a wrong pattern.</li>
+                                    <li>Stop halfway. An unfinished figure is an incomplete pattern, not a correct one.</li>
+                                    <li>Leave before the sitting finishes.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Accuracy (\%)} = \frac{\text{Correct}}{\text{Game-specific eligible attempts}} \times 100
+                            \]
+                            <p>Use Geoboard's own event mapping and helper. Do not infer the formula from other games.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Pattern accuracy.</b> Correct patterns divided by correct patterns, wrong patterns, incomplete patterns, and timeouts. Higher is better.</li>
+                            <li><b>Time to finish a correct pattern.</b> The average seconds to complete a correct pattern. This is not the time from a target appearing to a tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> Pattern accuracy (%) divided by that mean time in seconds. It describes only Geoboard. Higher is better.</li>
+                            <li><b>Wrong-pattern rate.</b> The share of attempts that were a wrong dot or a wrong shape. Lower is better.</li>
+                            <li><b>Incomplete-pattern rate.</b> The share of attempts that were an unfinished pattern and not a timeout. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to finish one correct pattern. A sitting that hits the time cap stays long.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the exact attempt counters and denominator are read from the shared helper and tests.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Correct and incorrect construction</li>
+                            <li>Partial completion</li>
+                            <li>Reset and retry</li>
+                            <li>Level identity</li>
+                            <li>Empty attempt set</li>
+                            <li>Saved detail</li>
+                            <li>The report matches the game result</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-direction">
+                        <h3><span class="num">08</span><span>Direction Sense</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Spatial reasoning and orientation</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted. The level ID <code>mixed</code> is displayed as Straighten; <code>mixed</code> and <code>straighten</code> are accepted as the same documented alias for attribution.</p>
+                        <h4>How to play</h4>
+                        <p>A letter is shown with a turn arrow. The player imagines that letter rotated 90 degrees and taps the option that matches.</p>
+                        <ol>
+                            <li><b>See the letter and the arrow.</b> The arrow is the turn to imagine. The level called Straighten is the same activity as the stored level id <code>mixed</code>.</li>
+                            <li><b>Turn it in your head.</b> Imagine the letter rotating 90 degrees the way the arrow points.</li>
+                            <li><b>Pick the match.</b> Tap the option that shows the turned letter.</li>
+                            <li><b>Finish the sitting.</b> A finished sitting opens the results card. Clap along when it opens.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Read the arrow before you choose.</li>
+                                    <li>Tap the letter that matches the imagined turn.</li>
+                                    <li>Finish the sitting so the result can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a letter turned the other way, or not turned at all. That is a wrong tap.</li>
+                                    <li>Treat Straighten and <code>mixed</code> as two different levels.</li>
+                                    <li>Leave before the sitting finishes.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Level accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{other eligible non-miss responses}} \times 100
+                            \]
+                            <p>Level accuracy excludes misses. The game-card denominator, and the treatment of timeouts and wrong responses, must follow the Direction Sense helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct choices divided by the attempts Direction Sense counts. The level page leaves misses out. The session card follows the Direction Sense helper for timeouts and wrong responses. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the letter and arrow appearing to the correct choice. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Direction Sense. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that picked a letter that was not the turned match. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to the correct choice. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <p>Direction Sense does not show a miss rate on its charts.</p>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the precise event counters and session denominator are verified. Alias example: <code>mixed</code> and <code>straighten</code> resolve to the same level identity.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Alias resolution in the UI and in prescription attribution</li>
+                            <li>Miss exclusion</li>
+                            <li>Timeout and wrong treatment</li>
+                            <li>Unknown level fallback</li>
+                            <li>No valid attempts</li>
+                            <li>Assignment coverage</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-hold">
+                        <h3><span class="num">09</span><span>Hold the Code</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Memory and recall</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted with the completed session.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted with the completed session.</p>
+                        <h4>How to play</h4>
+                        <p>A code flashes, then hides. The player holds it in mind and taps every exact copy in a field of near-misses.</p>
+                        <ol>
+                            <li><b>See the code.</b> It flashes briefly. Hold the exact code, not a rough impression of it.</li>
+                            <li><b>Scan the field.</b> Many similar codes appear. Most are near-misses.</li>
+                            <li><b>Tap exact matches.</b> Tap every code that matches exactly. Skip the look-alikes. A look-alike is a wrong tap. Empty space is a miss.</li>
+                            <li><b>Finish the field.</b> A finished field opens the results card. Clap along when it opens.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Wait until you can hold the flashed code before you tap.</li>
+                                    <li>Tap every code that matches it exactly.</li>
+                                    <li>Finish the field so the session can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a code that is only similar. That is a wrong tap.</li>
+                                    <li>Tap empty space. That is a miss.</li>
+                                    <li>Leave an exact match untapped, or leave before the field is finished.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Accuracy (\%)} = \frac{\text{Correct}}{\text{Game-specific eligible attempts}} \times 100
+                            \]
+                            <p>Correctness events, the attempt denominator, and reaction-time semantics are game-specific and must be read from the Hold the Code shared helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct hits divided by correct hits, wrong taps, empty taps, and timeouts. Each item still unfinished when the timer ends counts as one timeout. The exact counters come from the Hold the Code helper. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the choices appearing to a correct tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Hold the Code. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that hit a near-miss instead of an exact match. Lower is better.</li>
+                            <li><b>Miss rate.</b> The share of attempts that tapped empty space. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean sitting length, in seconds. It is not the time to the correct tap. A sitting that hits the time cap stays long.</li>
+                        </ul>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the shared metric helper defines the exact event counters and denominator.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Recall success and failure</li>
+                            <li>Partial answer</li>
+                            <li>Retry</li>
+                            <li>Response timing</li>
+                            <li>Level identity</li>
+                            <li>No valid attempts</li>
+                            <li>Persisted detail</li>
+                            <li>UI and report consistency</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-location">
+                        <h3><span class="num">10</span><span>Location Memory</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Memory and recall</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted. Level analytics excludes misses from the denominator.</p>
+                        <h4>How to play</h4>
+                        <p>Numbers hide in a grid. The level decides whether the player explores and then recalls, or matches pairs.</p>
+                        <ol>
+                            <li><b>Full Grid and Practice.</b> Open one cell at a time and remember where each number sits. When the grid hides, tap the cells back in the right order.</li>
+                            <li><b>Match Pairs.</b> Tap a box to reveal it, then tap another. Matching numbers stay open. Clear the whole board.</li>
+                            <li><b>Finish the rounds.</b> A finished sitting opens the results card. Clap along when it opens. A tap on the wrong cell is a wrong response.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Open cells one at a time and keep a picture of where each number was.</li>
+                                    <li>On Match Pairs, leave a pair open only when the two numbers match.</li>
+                                    <li>Finish the rounds so the session can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a cell that does not hold the number you are recalling. That is a wrong tap.</li>
+                                    <li>Rush the explore step and then guess.</li>
+                                    <li>Leave before the board is cleared or the recall is finished.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Level accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{other eligible non-miss responses}} \times 100
+                            \]
+                            <p>The session-card denominator, and timeout or wrong handling, must follow the Location Memory helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct locations divided by the attempts Location Memory counts. The level page leaves misses out. The session card follows the Location Memory helper. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the recall being ready to the correct tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Location Memory. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that opened the wrong cell. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to one correct tap. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <p>Location Memory does not show a miss rate on its charts.</p>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the exact event mapping and session denominator are verified.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Correct and incorrect location</li>
+                            <li>Miss exclusion at level scope</li>
+                            <li>Timeout handling</li>
+                            <li>No valid attempts</li>
+                            <li>Level grouping</li>
+                            <li>Date range</li>
+                            <li>Saved detail</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-familiar">
+                        <h3><span class="num">11</span><span>Familiar Faces</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Memory and recognition</div>
+                            <div><b>Session behavior</b>Game-specific detail is persisted.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Game-specific detail is persisted. Level analytics excludes misses from the denominator.</p>
+                        <h4>How to play</h4>
+                        <p>The people in the photos are added first. The level then asks the player to name a face, find a person, or hold a flashed face and pick it back.</p>
+                        <ol>
+                            <li><b>Add the people.</b> A parent or clinician uploads photos and types who each person is, such as Mother or Nani. The game needs enough photos before it can start.</li>
+                            <li><b>Name It.</b> Look at the photo, then tap who it is.</li>
+                            <li><b>Find Them.</b> Hear or read a relation, then tap that person.</li>
+                            <li><b>Hold the Face.</b> A face appears, then hides. Tap the same face from the choices.</li>
+                            <li><b>Finish the photos.</b> After the photos in the sitting, the results card opens. Clap along when it does.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Use photos of people the player actually knows, with the names the family uses.</li>
+                                    <li>Tap the relation or the photo that matches the prompt.</li>
+                                    <li>Finish the sitting so the result can be saved.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Tap a different person. That is a wrong response.</li>
+                                    <li>Start a sitting before enough photos have been added.</li>
+                                    <li>Leave before the results card opens.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <div class="formula">
+                            \[
+                            \text{Level accuracy (\%)} = \frac{\text{Correct}}{\text{Correct} + \text{other eligible non-miss responses}} \times 100
+                            \]
+                            <p>The session-card denominator, and timeout or wrong handling, must follow the Familiar Faces helper.</p>
+                        </div>
+                        <h4>What the numbers mean</h4>
+                        <ul>
+                            <li><b>Accuracy.</b> Correct faces divided by the attempts Familiar Faces counts. The level page leaves misses out. The session card follows the Familiar Faces helper. Higher is better.</li>
+                            <li><b>Time to the correct response.</b> The average seconds from the choices appearing to the correct tap. Lower is better.</li>
+                            <li><b>Efficiency.</b> This game's accuracy percent divided by that average time. It describes only Familiar Faces. Higher is better.</li>
+                            <li><b>Wrong-tap rate.</b> The share of attempts that selected a different person. Lower is better.</li>
+                            <li><b>Time to finish.</b> The mean length of the sitting, in seconds. It is not the time to the correct face. Lower is better when accuracy holds.</li>
+                        </ul>
+                        <p>Familiar Faces does not show a miss rate on its charts.</p>
+                        <h4>Worked example</h4>
+                        <p>No numeric worked example until the exact event mapping and session denominator are verified.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Correct and incorrect face selection</li>
+                            <li>Miss exclusion</li>
+                            <li>Timeout handling</li>
+                            <li>Repeated faces if supported</li>
+                            <li>No valid attempts</li>
+                            <li>Date-range aggregation</li>
+                            <li>Saved detail</li>
+                        </ul>
+                    </article>
+                    <article class="card game-card" id="game-gaze">
+                        <h3><span class="num">12</span><span>Gaze Hold</span></h3>
+                        <div class="game-meta">
+                            <div><b>Documentation family</b>Visual fixation and gaze stability</div>
+                            <div><b>Session behavior</b>Gaze Hold is not included in saved completed-session history in the current session-persistence behavior described for this project.</div>
+                        </div>
+                        <h4>Game behavior and stored result</h4>
+                        <p>Gaze Hold is not included in saved completed-session history in the current session-persistence behavior described for this project.</p>
+                        <h4>How to play</h4>
+                        <p>The player looks at one still bubble until it pops. The camera has to see the face. Nothing from this activity is written into saved session history.</p>
+                        <ol>
+                            <li><b>Face the camera.</b> Keep your face in view. The activity pauses if the camera loses you.</li>
+                            <li><b>Hold your look.</b> One still bubble sits in the center. Look at it until it pops. It comes back so you can pop it again.</li>
+                            <li><b>Quit when done.</b> Open the menu and tap Quit. That leaves the activity and turns the camera off. Quitting does not create a saved session.</li>
+                        </ol>
+                        <h4>Do and don't</h4>
+                        <div class="rule-grid">
+                            <div class="box proc">
+                                <h4>Do</h4>
+                                <ul>
+                                    <li>Sit where the camera can see your face.</li>
+                                    <li>Hold your gaze on the center bubble until it pops.</li>
+                                    <li>Use Quit when you want to stop and turn the camera off.</li>
+                                </ul>
+                            </div>
+                            <div class="box sit">
+                                <h4>Don't</h4>
+                                <ul>
+                                    <li>Look away and expect the bubble to pop.</li>
+                                    <li>Cover the camera or leave the frame. The activity pauses.</li>
+                                    <li>Expect this activity to appear in history, charts, or a prescription score.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h4>Metric equations</h4>
+                        <p>No saved-session accuracy equation is defined here. Do not include Gaze Hold in saved-session counts, longitudinal charts, prescription coverage or session reports unless persistence behavior changes.</p>
+                        <h4>What the numbers mean</h4>
+                        <p>Gaze Hold does not show accuracy, reaction time, efficiency, wrong-tap rate, miss rate, or time to finish. Those numbers are saved only for a finished game that is stored. A popped bubble here does not add a session, does not change a streak, and does not enter a doctor's chart.</p>
+                        <h4>Worked example</h4>
+                        <p>No saved-session worked example: this activity is excluded from saved session history.</p>
+                        <h4>QA test focus</h4>
+                        <ul>
+                            <li>Verify it does not create a saved session</li>
+                            <li>Patient and doctor session counts do not increment</li>
+                            <li>Charts and prescription coverage exclude it</li>
+                            <li>User-facing completion behavior is verified separately</li>
+                        </ul>
+                    </article>
+                </section>
+                </div>
             </div>
         </main>
     </div>
     <footer>
-        <div class="w">Candela — High-Level Business Architecture. Diagrams use Mermaid and need an internet connection
+        <div class="w">Candela — High-Level Business Architecture. Diagrams use Mermaid and formulas use KaTeX. Both need an internet connection
             to render on first load.</div>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+    <script>
+        (function () {
+            if (typeof renderMathInElement !== 'function') return;
+            renderMathInElement(document.body, {
+                delimiters: [
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false
+            });
+        })();
+    </script>
     <script>
         (function () {
             if (typeof mermaid === 'undefined') { document.querySelectorAll('.hint').forEach(function (h) { h.textContent = 'The diagram library could not load. Check your internet connection and refresh.' }); return }
@@ -1646,12 +2786,77 @@
     </script>
     <script>
         (function () {
-            var toc = document.getElementById('toc'), lay = document.getElementById('layout'), bd = document.getElementById('backdrop'); function mob() { return window.innerWidth <= 1000 } function openM(o) { toc.classList.toggle('open', o); bd.classList.toggle('on', o) }
+            var toc = document.getElementById('toc'), lay = document.getElementById('layout'), bd = document.getElementById('backdrop');
+            function mob() { return window.innerWidth <= 1000 }
+            function openM(o) { toc.classList.toggle('open', o); bd.classList.toggle('on', o) }
             document.getElementById('menu-btn').addEventListener('click', function () { if (mob()) { openM(!toc.classList.contains('open')) } else { lay.classList.toggle('collapsed') } });
-            document.getElementById('toc-close').addEventListener('click', function () { openM(false) }); bd.addEventListener('click', function () { openM(false) }); toc.addEventListener('click', function (e) { if (e.target.closest('a') && mob()) openM(false) });
-            var links = {}; toc.querySelectorAll('a[href^="#"]').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a }); var cur = null;
-            function setActive(id) { if (!links[id] || cur === id) return; if (cur && links[cur]) links[cur].classList.remove('active'); cur = id; links[id].classList.add('active') }
-            if ('IntersectionObserver' in window) { var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) setActive(e.target.id) }) }, { rootMargin: '-70px 0px -65% 0px' }); Object.keys(links).forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el) }) }
+            document.getElementById('toc-close').addEventListener('click', function () { openM(false) });
+            bd.addEventListener('click', function () { openM(false) });
+            toc.addEventListener('click', function (e) { if (e.target.closest('a') && mob()) openM(false) });
+
+            var links = {};
+            toc.querySelectorAll('a[href^="#"]').forEach(function (a) {
+                var id = a.getAttribute('href').slice(1);
+                if (!links[id]) links[id] = [];
+                links[id].push(a);
+            });
+            var cur = null;
+            function clearActive() {
+                if (cur && links[cur]) links[cur].forEach(function (a) { a.classList.remove('active') });
+                cur = null;
+            }
+            function setActive(id) {
+                if (!links[id] || cur === id) return;
+                var visible = links[id].some(function (a) { return !a.closest('[hidden]') });
+                if (!visible) return;
+                clearActive();
+                cur = id;
+                links[id].forEach(function (a) { if (!a.closest('[hidden]')) a.classList.add('active') });
+            }
+            function viewOf(id) {
+                var el = id && document.getElementById(id);
+                var view = el && el.closest('[data-view]');
+                return view ? view.getAttribute('data-view') : null;
+            }
+            function showView(name) {
+                document.querySelectorAll('[data-view]').forEach(function (el) {
+                    if (el.getAttribute('data-view') === name) el.removeAttribute('hidden');
+                    else el.setAttribute('hidden', '');
+                });
+                document.querySelectorAll('.view-switch button').forEach(function (btn) {
+                    btn.setAttribute('aria-selected', btn.getAttribute('data-switch') === name ? 'true' : 'false');
+                });
+                clearActive();
+            }
+            document.querySelectorAll('.view-switch button').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    showView(btn.getAttribute('data-switch'));
+                    if (history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+                    window.scrollTo(0, 0);
+                    toc.scrollTop = 0;
+                });
+            });
+            var startId = (location.hash || '').replace(/^#/, '');
+            var startView = viewOf(startId) || 'platform';
+            showView(startView);
+            if (startId && viewOf(startId)) {
+                var startEl = document.getElementById(startId);
+                if (startEl) startEl.scrollIntoView();
+            }
+            window.addEventListener('hashchange', function () {
+                var id = (location.hash || '').replace(/^#/, '');
+                var view = viewOf(id);
+                if (view) showView(view);
+            });
+            if ('IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function (es) {
+                    es.forEach(function (e) { if (e.isIntersecting) setActive(e.target.id) });
+                }, { rootMargin: '-70px 0px -65% 0px' });
+                Object.keys(links).forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) io.observe(el);
+                });
+            }
         })();
     </script>
 </body>
