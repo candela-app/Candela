@@ -54,6 +54,27 @@ Let `attempts = correct + wrongTaps + misses + timeouts`.
 
 Store **counts** and plot **rates**. Raw error counts can fall just because the play had fewer trials.
 
+The game card uses every count in the table above. A level page and a session report leave some counts out:
+
+- Rotatory, Sorting, and Bubble Chase leave timeouts out.
+- Location Memory, Direction Sense, and Familiar Faces leave misses and timeouts out.
+
+Bee Path does not use this fraction. It keeps path adherence, weighted by finished rounds when that number matches the correct count, and by 1 otherwise.
+
+### Worked examples
+
+Twenty correct and ten wrong taps, with no misses or timeouts: 20 ÷ 30 = **66.7%**.
+
+Nine correct and one wrong, then one correct and one wrong: add the taps first, (9 + 1) ÷ (10 + 2) = **83.3%**. Averaging 90% and 50% would say 70%, which is not the chart.
+
+One Rotatory correct hit and nine timeouts: the game card is 1 ÷ 10 = **10%**. The Rotatory level page ignores timeouts, so it is 1 ÷ 1 = **100%**.
+
+Bee Path at 100% for two finished rounds and 50% for one finished round: (100 × 2 + 50 × 1) ÷ 3 = **83.3%**.
+
+No taps at all is **0%** on a chart, never 100%. An empty list of reaction times with a saved average of 1.5 seconds stays **1.5 seconds**. Accuracy 80% and a 2.0 second average reaction time give 80 ÷ 2 = **40**.
+
+The same plain examples are in the high-level story: [CANDELA_HIGH_LEVEL_BUSINESS_ARCHITECTURE.html](./CANDELA_HIGH_LEVEL_BUSINESS_ARCHITECTURE.html), sections 13 and 14.
+
 Results card headline: Time to finish, Accuracy, Avg RT, count (Bubbles / Matches / Rounds / …), Efficiency.
 
 ---
