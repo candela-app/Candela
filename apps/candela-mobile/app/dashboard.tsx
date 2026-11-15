@@ -38,6 +38,7 @@ import { AnalyticsIcon, ArrowRightIcon, CloseIcon, CreditCardIcon, EyeIcon, Gear
 import { AppHeader } from '../src/components/AppHeader';
 import { CopyDocId } from '../src/components/CopyDocId';
 import { DocIdRequestCard } from '../src/components/DocIdRequestCard';
+import { ProfileCompletionBanner } from '../src/components/ProfileCompletionBanner';
 import { PracticeOverview } from '../src/components/PracticeOverview';
 import { PrescriptionPractice } from '../src/components/PrescriptionPractice';
 import { DropdownField, SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
@@ -1434,6 +1435,20 @@ export default function DashboardScreen() {
             <Text style={{ fontSize: fs(21), fontWeight: '600', marginTop: s(8), marginBottom: s(21) }}>{session.user.email}</Text>
             <Text style={{ fontSize: fs(13), lineHeight: fs(21), color: colors.ink }}>Phone</Text>
             <Text style={{ fontSize: fs(21), fontWeight: '600', marginTop: s(8) }}>{session.user.phone || '—'}</Text>
+            <Pressable
+              onPress={() => router.push('/profile' as never)}
+              style={{ marginTop: s(21), backgroundColor: colors.blue, borderRadius: s(12), paddingVertical: s(12), alignItems: 'center' }}
+            >
+              <Text style={{ color: colors.white, fontWeight: '700' }}>Edit identity profile</Text>
+            </Pressable>
+            {session.patient?.trial?.startedAt ? (
+              <Text style={{ marginTop: s(12), fontSize: fs(12), color: colors.muted }}>
+                Trial {session.patient.trial.active ? 'active' : 'ended'}
+                {session.patient.trial.endsAt
+                  ? ` · ends ${new Date(session.patient.trial.endsAt).toLocaleDateString()}`
+                  : ''}
+              </Text>
+            ) : null}
           </View>
         </>
       );
@@ -1930,6 +1945,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
+      <ProfileCompletionBanner />
       <AppHeader
         leading={
           isTablet ? null : (

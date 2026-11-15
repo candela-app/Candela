@@ -1,18 +1,28 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { EmergencyAuditService } from '../audit/emergency-audit.service';
 import { CurrentUser } from '../common/current-user.decorator';
 import { Public, Roles } from '../common/decorators';
+import { readEmergencyReason, requireEmergencyReason } from '../common/emergency-access';
 import { User } from '../entities/user.entity';
-import { RequestDocIdDto, TransferDocIdDto } from './docid.dto';
+import {
+  CrossOrganizationTransferDocIdDto,
+  RequestDocIdDto,
+  TransferDocIdDto,
+} from './docid.dto';
 import { DocIdService } from './docid.service';
 
 @Controller('api/docid')
 export class DocIdController {
-  constructor(@Inject(DocIdService) private readonly docid: DocIdService) {}
+  constructor(
+    @Inject(DocIdService) private readonly docid: DocIdService,
+    @Inject(EmergencyAuditService) private readonly emergencyAudit: EmergencyAuditService,
+  ) {}
 
   @Roles('patient')
   @Post('requests')
   requestAttach(@CurrentUser() user: User, @Body() dto: RequestDocIdDto) {
-    return this.docid.requestByPatient(user, dto.referralCode);
+    return this.docid.requestByPatient(user, dto.referralCode, dto.organizationId);
   }
 
   @Roles('patient')
@@ -29,8 +39,54 @@ export class DocIdController {
 
   @Roles('admin')
   @Post('transfers')
-  requestTransfer(@Body() dto: TransferDocIdDto) {
-    return this.docid.requestByAdmin(dto.patientId, dto.referralCode);
+  requestTransfer(@CurrentUser() user: User, @Body() dto: TransferDocIdDto) {
+    return this.docid.requestByAdmin(user, dto.patientId, dto.referralCode);
+  }
+
+  @Roles('super_admin')
+  @Post('cross-organization-transfers')
+  async requestCrossOrganizationTransfer(
+    @CurrentUser() user: User,
+    @Body() dto: CrossOrganizationTransferDocIdDto,
+    @Req() req: Request,
+  ) {
+    const reason = requireEmergencyReason(user, readEmergencyReason(req));
+    try {
+      const result = await this.docid.requestCrossOrganizationTransfer(
+        user,
+        dto.patientId,
+        dto.referralCode,
+        dto.organizationId,
+      );
+      await this.emergencyAudit.record({
+        actor: user,
+        organizationId: dto.organizationId,
+        resourceType: 'patient',
+        resourceId: dto.patientId,
+        action: 'cross_organization_transfer_request',
+        reason,
+        outcome: 'success',
+        after: {
+          referralCode: dto.referralCode,
+          targetReferralCode: result.targetReferralCode,
+          emailSent: result.emailSent,
+        },
+        notifyHospitalAdmins: true,
+      });
+      return result;
+    } catch (err) {
+      await this.emergencyAudit.record({
+        actor: user,
+        organizationId: dto.organizationId,
+        resourceType: 'patient',
+        resourceId: dto.patientId,
+        action: 'cross_organization_transfer_request',
+        reason,
+        outcome: 'failure',
+        errorMessage: err instanceof Error ? err.message : 'failed',
+      });
+      throw err;
+    }
   }
 
   @Roles('doctor')

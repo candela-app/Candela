@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module';
 import { DocIdModule } from './docid/docid.module';
 import { FamiliarFacesModule } from './familiar-faces/familiar-faces.module';
 import { GameSessionsModule } from './game-sessions/game-sessions.module';
+import { MembershipsModule } from './memberships/memberships.module';
+import { ProfilesModule } from './profiles/profiles.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { AppController } from './app.controller';
@@ -33,6 +35,8 @@ loadBackendEnv();
       }),
     }),
     AuthModule,
+    ProfilesModule,
+    MembershipsModule,
     SuperAdminModule,
     AnnouncementsModule,
     DocIdModule,

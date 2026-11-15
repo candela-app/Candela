@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -13,7 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Response } from 'express';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { seedAdminUsers } from '../common/admin-seed';
 import { PATIENT_ADVISORY_LOCK_NS, PATIENT_ADVISORY_LOCK_SQL } from '../common/patient-lock';
 import { ALL_MODULE_IDS } from '../common/catalog';
@@ -22,6 +23,7 @@ import { generateReferralCode } from '../common/referral-code';
 import { DocIdService } from '../docid/docid.service';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
+import { GoogleInvitationChallenge } from '../entities/google-invitation-challenge.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { Prescription } from '../entities/prescription.entity';
 import { PrescriptionRevision } from '../entities/prescription-revision.entity';
@@ -31,21 +33,36 @@ import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
 import { Organization } from '../entities/organization.entity';
 import { MailService } from '../mail/mail.service';
+import { DoctorOrganizationMembership } from '../entities/doctor-organization-membership.entity';
+import { decideDoctorPatientOrgAccess } from '../memberships/patient-organization';
+import { MembershipsService } from '../memberships/memberships.service';
+import { computeTrialEnd, toPatientTrialStatus } from '@candela/shared';
 import { GoogleAuthService } from './google-auth.service';
 import {
+  AcceptGooglePatientInvitationDto,
+  AcceptPatientInvitationDto,
   CreateAccountDto,
+  CreatePatientDto,
   ForgotPasswordDto,
   GoogleAuthDto,
   LoginDto,
   ResetPasswordDto,
   SignupDto,
   UpdateDoctorDto,
-  UpdateProfileDto,
 } from './dto';
 
 const BCRYPT_ROUNDS = 10;
 const DEFAULT_RESET_TTL_HOURS = 1;
+const DEFAULT_INVITATION_TTL_HOURS = 72;
+const DEFAULT_GOOGLE_ACCEPT_TTL_MINUTES = 15;
 const FORGOT_PASSWORD_OK = { ok: true as const };
+/** Opaque password-login failure — do not reveal activation / registration state (L4). */
+const INVALID_CREDENTIALS = 'Invalid email or password';
+
+export type PatientInvitationIssueResult = {
+  emailSent: boolean;
+  expiresAt: string;
+};
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -57,11 +74,15 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(Prescription) private readonly prescriptions: Repository<Prescription>,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken) private readonly passwordResets: Repository<PasswordResetToken>,
+    @InjectRepository(GoogleInvitationChallenge)
+    private readonly googleInviteChallenges: Repository<GoogleInvitationChallenge>,
     @Inject(JwtService) private readonly jwtService: JwtService,
     @Inject(DocIdService) private readonly docid: DocIdService,
     @Inject(GoogleAuthService) private readonly googleAuth: GoogleAuthService,
     @Inject(MailService) private readonly mail: MailService,
     @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
+    @Inject(DataSource) private readonly dataSource: DataSource,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -77,7 +98,9 @@ export class AuthService implements OnModuleInit {
       this.patients.create({
         userId: user.id,
         doctorId: null,
+        organizationId: null,
         origin: 'self_signup',
+        accountActivatedAt: new Date(),
       }),
     );
     return this.issueSession(user, res);
@@ -86,15 +109,13 @@ export class AuthService implements OnModuleInit {
   async login(dto: LoginDto, res: Response) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.users.findOne({ where: { email } });
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-    if (!user.passwordHash) {
-      throw new UnauthorizedException('This account uses Google Sign-In');
+    // L4: identical external response for missing / unactivated / Google-only / wrong password.
+    if (!user?.passwordHash) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
     return this.issueSession(user, res);
   }
@@ -102,11 +123,15 @@ export class AuthService implements OnModuleInit {
   async forgotPassword(dto: ForgotPasswordDto) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.users.findOne({ where: { email } });
+    // Unactivated (null password) and missing accounts: same opaque OK response.
     if (!user?.passwordHash) {
       return FORGOT_PASSWORD_OK;
     }
 
-    await this.passwordResets.update({ userId: user.id, usedAt: IsNull() }, { usedAt: new Date() });
+    await this.passwordResets.update(
+      { userId: user.id, purpose: 'password_reset', usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
 
     const rawToken = randomBytes(32).toString('hex');
     const ttlHours = this.resetTtlHours();
@@ -114,6 +139,7 @@ export class AuthService implements OnModuleInit {
       this.passwordResets.create({
         userId: user.id,
         tokenHash: hashToken(rawToken),
+        purpose: 'password_reset',
         expiresAt: new Date(Date.now() + ttlHours * 60 * 60 * 1000),
         usedAt: null,
       }),
@@ -148,12 +174,18 @@ export class AuthService implements OnModuleInit {
   async resetPassword(dto: ResetPasswordDto) {
     const tokenHash = hashToken(dto.token.trim());
     const row = await this.passwordResets.findOne({ where: { tokenHash } });
-    if (!row || row.usedAt != null || row.expiresAt.getTime() < Date.now()) {
+    if (
+      !row ||
+      row.purpose !== 'password_reset' ||
+      row.usedAt != null ||
+      row.expiresAt.getTime() < Date.now()
+    ) {
       throw new BadRequestException('This reset link is invalid or has expired');
     }
 
     const user = await this.users.findOne({ where: { id: row.userId } });
-    if (!user) {
+    // Invitation tokens / unactivated accounts must not be activated via reset.
+    if (!user?.passwordHash) {
       throw new BadRequestException('This reset link is invalid or has expired');
     }
 
@@ -161,7 +193,10 @@ export class AuthService implements OnModuleInit {
     await this.users.save(user);
     row.usedAt = new Date();
     await this.passwordResets.save(row);
-    await this.passwordResets.update({ userId: user.id, usedAt: IsNull() }, { usedAt: new Date() });
+    await this.passwordResets.update(
+      { userId: user.id, purpose: 'password_reset', usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
     await this.refreshTokens.update({ userId: user.id }, { revokedAt: new Date() });
     return { ok: true };
   }
@@ -175,9 +210,39 @@ export class AuthService implements OnModuleInit {
     } else {
       throw new UnauthorizedException('Missing Google token');
     }
-    let user =
-      (await this.users.findOne({ where: { googleId: profile.googleId } })) ??
-      (await this.users.findOne({ where: { email: profile.email } }));
+
+    const byGoogle = await this.users.findOne({ where: { googleId: profile.googleId } });
+    const byEmail = byGoogle
+      ? null
+      : await this.users.findOne({ where: { email: profile.email } });
+    let user = byGoogle ?? byEmail;
+
+    // Pending doctor-created invitee: Google auth succeeds, but no Candela session yet.
+    if (user && user.role === 'patient') {
+      const patient = await this.patients.findOne({
+        where: { userId: user.id },
+        relations: ['doctor', 'doctor.user', 'organization'],
+      });
+      if (patient && patient.origin === 'doctor_created' && !patient.accountActivatedAt) {
+        if (user.email.trim().toLowerCase() !== profile.email) {
+          throw new UnauthorizedException(
+            "This Google account's email does not match the address your clinic invited. Sign in with the invited Google account.",
+          );
+        }
+        if (user.googleId && user.googleId !== profile.googleId) {
+          throw new ConflictException(
+            'This Kandela account is linked to a different Google account. Use that Google account, or ask your clinic for help.',
+          );
+        }
+        const otherWithSub = await this.users.findOne({ where: { googleId: profile.googleId } });
+        if (otherWithSub && otherWithSub.id !== user.id) {
+          throw new ConflictException(
+            'This Google account is already linked to a different Kandela user. Use another Google account, or contact support.',
+          );
+        }
+        return this.beginGoogleInvitationAcceptance(user, patient, profile);
+      }
+    }
 
     let isNewUser = false;
     if (!user) {
@@ -196,12 +261,24 @@ export class AuthService implements OnModuleInit {
         this.patients.create({
           userId: user.id,
           doctorId: null,
+          organizationId: null,
           origin: 'self_signup',
+          accountActivatedAt: new Date(),
         }),
       );
     } else if (!user.googleId) {
+      const taken = await this.users.findOne({ where: { googleId: profile.googleId } });
+      if (taken && taken.id !== user.id) {
+        throw new ConflictException(
+          'This Google account is already linked to a different Kandela user. Use another Google account, or contact support.',
+        );
+      }
       user.googleId = profile.googleId;
       await this.users.save(user);
+    } else if (user.googleId !== profile.googleId) {
+      throw new ConflictException(
+        'This Kandela account is linked to a different Google account. Use that Google account, or contact support.',
+      );
     }
 
     const session = await this.issueSession(user, res);
@@ -242,19 +319,6 @@ export class AuthService implements OnModuleInit {
     return this.toSession(user);
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const user = await this.users.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    const trimmed = dto.name.trim();
-    if (trimmed.length > 0) {
-      user.name = trimmed;
-      await this.users.save(user);
-    }
-    return this.toSession(user);
-  }
-
   async createDoctor(dto: CreateAccountDto, organizationId: string | null = null) {
     const user = await this.createUser({ ...dto, role: 'doctor', organizationId });
     const referralCode = await this.uniqueReferralCode();
@@ -264,48 +328,431 @@ export class AuthService implements OnModuleInit {
         referralCode,
       }),
     );
+    if (organizationId) {
+      await this.memberships.ensureActiveMembership(user.id, organizationId, { primary: true });
+    }
     return {
       ...this.toPublicUser(user),
       referralCode,
     };
   }
 
-  async createDoctorPatient(doctorUserId: string, dto: CreateAccountDto) {
+  /**
+   * Doctor-created patient: no password. Creates user + ownership + invitation token
+   * in one DB transaction, then emails after commit (M6).
+   * organizationId must be an explicitly validated active membership (X-Organization-Id).
+   */
+  async createDoctorPatient(doctorUserId: string, dto: CreatePatientDto, organizationId: string) {
     const doctor = await this.doctors.findOne({ where: { userId: doctorUserId } });
     if (!doctor) {
       throw new UnauthorizedException('Doctor profile not found');
     }
-    const user = await this.createUser({ ...dto, role: 'patient' });
-    await this.patients.save(
-      this.patients.create({
+    if (!organizationId) {
+      throw new BadRequestException('Organisation context is required to create a patient');
+    }
+    await this.memberships.assertActiveMembership(doctorUserId, organizationId);
+
+    const email = dto.email.trim().toLowerCase();
+    const name = dto.name.trim();
+    const phone = dto.phone.trim();
+    const rawToken = randomBytes(32).toString('hex');
+    const ttlHours = this.invitationTtlHours();
+    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+
+    let userId: string;
+    try {
+      userId = await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const patientRepo = manager.getRepository(PatientProfile);
+        const tokenRepo = manager.getRepository(PasswordResetToken);
+
+        const existing = await userRepo.findOne({ where: { email } });
+        if (existing) {
+          throw new ConflictException('An account with this email already exists');
+        }
+
+        const user = await userRepo.save(
+          userRepo.create({
+            email,
+            passwordHash: null,
+            name,
+            phone,
+            role: 'patient',
+            organizationId: null,
+          }),
+        );
+
+        await patientRepo.save(
+          patientRepo.create({
+            userId: user.id,
+            doctorId: doctor.userId,
+            organizationId,
+            origin: 'doctor_created',
+            accountActivatedAt: null,
+          }),
+        );
+
+        await tokenRepo.update(
+          { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
+          { usedAt: new Date() },
+        );
+        await tokenRepo.save(
+          tokenRepo.create({
+            userId: user.id,
+            tokenHash: hashToken(rawToken),
+            purpose: 'patient_invitation',
+            expiresAt,
+            usedAt: null,
+          }),
+        );
+
+        return user.id;
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException('An account with this email already exists');
+      }
+      throw err;
+    }
+
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    // Email only after commit — never send a token that is not durable.
+    const emailSent = await this.sendPatientInvitationEmail(user, rawToken, ttlHours);
+    const patient = await this.toPatientSummary(user.id);
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+    return {
+      patient,
+      invitation: { emailSent, expiresAt: expiresAt.toISOString() } satisfies PatientInvitationIssueResult,
+    };
+  }
+
+  /**
+   * Resend patient invitation. Invalidates outstanding patient_invitation tokens only.
+   * Doctor: assigned + active membership in patient.organization_id.
+   * Admin: patient.organization_id === admin.organization_id.
+   * Super admin: any unactivated patient.
+   */
+  async resendPatientInvitation(actor: User, patientId: string): Promise<PatientInvitationIssueResult> {
+    const patient = await this.patients.findOne({
+      where: { userId: patientId },
+      relations: ['user'],
+    });
+    if (!patient?.user || patient.user.role !== 'patient') {
+      throw new NotFoundException('Patient not found');
+    }
+    await this.assertCanManagePatientInvitation(actor, patient);
+
+    if (patient.accountActivatedAt) {
+      throw new ConflictException(
+        'This patient has already activated their account. Ask them to sign in instead of resending the invitation.',
+      );
+    }
+
+    return this.issuePatientInvitation(patient.user);
+  }
+
+  /**
+   * Public invitation acceptance — sets password for an unactivated patient account.
+   * Strictly purpose=patient_invitation; never accepts password_reset tokens.
+   */
+  async acceptPatientInvitation(dto: AcceptPatientInvitationDto): Promise<{ ok: true }> {
+    const tokenHash = hashToken(dto.token.trim());
+
+    await this.dataSource.transaction(async (manager) => {
+      const tokenRepo = manager.getRepository(PasswordResetToken);
+      const userRepo = manager.getRepository(User);
+      const patientRepo = manager.getRepository(PatientProfile);
+
+      const row = await tokenRepo.findOne({
+        where: { tokenHash },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !row ||
+        row.purpose !== 'patient_invitation' ||
+        row.usedAt != null ||
+        row.expiresAt.getTime() < Date.now()
+      ) {
+        throw new BadRequestException(
+          'This invitation link is invalid or has expired. Ask your clinic to send a new invitation.',
+        );
+      }
+
+      const user = await userRepo.findOne({
+        where: { id: row.userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!user || user.role !== 'patient') {
+        throw new BadRequestException(
+          'This invitation link is invalid or has expired. Ask your clinic to send a new invitation.',
+        );
+      }
+
+      const patient = await patientRepo.findOne({
+        where: { userId: user.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!patient) {
+        throw new BadRequestException(
+          'This invitation link is invalid or has expired. Ask your clinic to send a new invitation.',
+        );
+      }
+      if (patient.accountActivatedAt) {
+        throw new ConflictException(
+          'This account is already activated. Sign in with your password or Continue with Google.',
+        );
+      }
+
+      user.passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+      await userRepo.save(user);
+
+      patient.accountActivatedAt = new Date();
+      await patientRepo.save(patient);
+
+      row.usedAt = new Date();
+      await tokenRepo.save(row);
+      await tokenRepo.update(
+        { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+      await manager.getRepository(GoogleInvitationChallenge).update(
+        { userId: user.id, usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+    });
+
+    return { ok: true };
+  }
+
+  /**
+   * H2 Option C — after Google identity is validated for a pending invitee,
+   * patient explicitly accepts. Links Google, consumes invitation, activates, then sessions.
+   */
+  async acceptGooglePatientInvitation(
+    dto: AcceptGooglePatientInvitationDto,
+    res: Response,
+  ) {
+    const tokenHash = hashToken(dto.acceptanceToken.trim());
+    let userId: string | null = null;
+
+    await this.dataSource.transaction(async (manager) => {
+      const challengeRepo = manager.getRepository(GoogleInvitationChallenge);
+      const tokenRepo = manager.getRepository(PasswordResetToken);
+      const userRepo = manager.getRepository(User);
+      const patientRepo = manager.getRepository(PatientProfile);
+
+      const challenge = await challengeRepo.findOne({
+        where: { tokenHash },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !challenge ||
+        challenge.usedAt != null ||
+        challenge.expiresAt.getTime() < Date.now()
+      ) {
+        throw new BadRequestException(
+          'Your Google invitation confirmation expired. Sign in with Google again to continue.',
+        );
+      }
+
+      const invitation = await tokenRepo.findOne({
+        where: { id: challenge.invitationTokenId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !invitation ||
+        invitation.purpose !== 'patient_invitation' ||
+        invitation.usedAt != null ||
+        invitation.expiresAt.getTime() < Date.now() ||
+        invitation.userId !== challenge.userId
+      ) {
+        throw new BadRequestException(
+          'This invitation is no longer valid. Ask your clinic to send a new invitation, then try Continue with Google again.',
+        );
+      }
+
+      const user = await userRepo.findOne({
+        where: { id: challenge.userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!user || user.role !== 'patient') {
+        throw new BadRequestException(
+          'Your Google invitation confirmation expired. Sign in with Google again to continue.',
+        );
+      }
+      if (user.email.trim().toLowerCase() !== challenge.googleEmail) {
+        throw new UnauthorizedException(
+          "This confirmation no longer matches your account email. Sign in with Google again.",
+        );
+      }
+
+      const patient = await patientRepo.findOne({
+        where: { userId: user.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!patient || patient.origin !== 'doctor_created') {
+        throw new BadRequestException(
+          'Your Google invitation confirmation expired. Sign in with Google again to continue.',
+        );
+      }
+      if (patient.accountActivatedAt) {
+        throw new ConflictException(
+          'This account is already activated. Sign in with Continue with Google.',
+        );
+      }
+
+      const otherWithSub = await userRepo.findOne({
+        where: { googleId: challenge.googleSub },
+      });
+      if (otherWithSub && otherWithSub.id !== user.id) {
+        throw new ConflictException(
+          'This Google account is already linked to a different Kandela user. Use another Google account, or contact support.',
+        );
+      }
+      if (user.googleId && user.googleId !== challenge.googleSub) {
+        throw new ConflictException(
+          'This Kandela account is linked to a different Google account. Use that Google account, or contact support.',
+        );
+      }
+
+      user.googleId = challenge.googleSub;
+      await userRepo.save(user);
+
+      patient.accountActivatedAt = new Date();
+      await patientRepo.save(patient);
+
+      invitation.usedAt = new Date();
+      await tokenRepo.save(invitation);
+      await tokenRepo.update(
+        { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+
+      challenge.usedAt = new Date();
+      await challengeRepo.save(challenge);
+      await challengeRepo.update(
+        { userId: user.id, usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+
+      userId = user.id;
+    });
+
+    if (!userId) {
+      throw new BadRequestException(
+        'Could not activate your account. Sign in with Google again, or ask your clinic for a new invitation.',
+      );
+    }
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException(
+        'Could not activate your account. Sign in with Google again, or ask your clinic for a new invitation.',
+      );
+    }
+    return this.issueSession(user, res);
+  }
+
+  /**
+   * Issues a restricted Google acceptance challenge — no session, cookies, or googleId link.
+   */
+  private async beginGoogleInvitationAcceptance(
+    user: User,
+    patient: PatientProfile,
+    profile: { googleId: string; email: string; name: string },
+  ) {
+    const invitation = await this.passwordResets.findOne({
+      where: {
         userId: user.id,
-        doctorId: doctor.userId,
-        origin: 'doctor_created',
+        purpose: 'patient_invitation',
+        usedAt: IsNull(),
+      },
+      order: { createdAt: 'DESC' },
+    });
+    if (!invitation || invitation.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException(
+        'Your clinic invitation has expired or is no longer valid. Ask your clinic to resend the invitation, then try Continue with Google again.',
+      );
+    }
+
+    await this.googleInviteChallenges.update(
+      { userId: user.id, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+
+    const rawToken = randomBytes(32).toString('hex');
+    const ttlMinutes = this.googleAcceptTtlMinutes();
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+    await this.googleInviteChallenges.save(
+      this.googleInviteChallenges.create({
+        tokenHash: hashToken(rawToken),
+        userId: user.id,
+        invitationTokenId: invitation.id,
+        googleSub: profile.googleId,
+        googleEmail: profile.email,
+        expiresAt,
+        usedAt: null,
       }),
     );
-    return this.toPatientSummary(user.id);
+
+    return {
+      status: 'invitation_acceptance_required' as const,
+      acceptanceToken: rawToken,
+      invitation: {
+        email: user.email,
+        patientName: user.name,
+        doctorName: patient.doctor?.user?.name ?? null,
+        organizationName: patient.organization?.name ?? null,
+        invitationExpiresAt: invitation.expiresAt.toISOString(),
+      },
+      message:
+        'Your clinic invited you to Kandela. Confirm below to finish activating your account with Google.',
+    };
+  }
+
+  private googleAcceptTtlMinutes(): number {
+    const raw = Number(this.config.get<string>('GOOGLE_INVITATION_ACCEPT_TTL_MINUTES'));
+    if (Number.isFinite(raw) && raw > 0 && raw <= 120) {
+      return Math.floor(raw);
+    }
+    return DEFAULT_GOOGLE_ACCEPT_TTL_MINUTES;
   }
 
   async listDoctors(organizationId: string | null = null) {
     const doctors = await this.doctors.find({
-      relations: ['user', 'user.organization'],
+      relations: ['user', 'user.organization', 'organizationMemberships', 'organizationMemberships.organization'],
       order: { referralCode: 'ASC' },
     });
     const filtered = organizationId
-      ? doctors.filter((d) => d.user?.organizationId === organizationId)
+      ? doctors.filter((d) =>
+          (d.organizationMemberships ?? []).some(
+            (m) => m.organizationId === organizationId && m.membershipStatus === 'active',
+          ),
+        )
       : doctors;
-    return filtered.map((d) => ({
-      ...this.toPublicUser(d.user),
-      referralCode: d.referralCode,
-      organizationName: d.user?.organization?.name ?? null,
-    }));
+    return filtered.map((d) => {
+      const primary =
+        (d.organizationMemberships ?? []).find((m) => m.isPrimary && m.membershipStatus === 'active') ??
+        (d.organizationMemberships ?? []).find((m) => m.membershipStatus === 'active');
+      return {
+        ...this.toPublicUser(d.user),
+        referralCode: d.referralCode,
+        organizationName: primary?.organization?.name ?? d.user?.organization?.name ?? null,
+      };
+    });
   }
 
-  async updateDoctor(doctorUserId: string, dto: UpdateDoctorDto) {
+  async updateDoctor(actor: User, doctorUserId: string, dto: UpdateDoctorDto) {
     const user = await this.users.findOne({ where: { id: doctorUserId } });
     if (!user || user.role !== 'doctor') {
       throw new NotFoundException('Doctor not found');
     }
+    await this.memberships.assertAdminManagesDoctor(actor, doctorUserId);
     const doctorProfile = await this.doctors.findOne({ where: { userId: doctorUserId } });
     if (!doctorProfile) {
       throw new NotFoundException('Doctor profile not found');
@@ -338,13 +785,15 @@ export class AuthService implements OnModuleInit {
     };
   }
 
-  async deleteDoctor(doctorUserId: string) {
+  async deleteDoctor(actor: User, doctorUserId: string) {
     const user = await this.users.findOne({ where: { id: doctorUserId } });
     if (!user || user.role !== 'doctor') {
       throw new NotFoundException('Doctor not found');
     }
+    await this.memberships.assertAdminManagesDoctor(actor, doctorUserId);
     await this.docid.cancelPendingForDoctor(doctorUserId);
     await this.refreshTokens.delete({ userId: doctorUserId });
+    // Unlink patients only; do not delete patient accounts, prescriptions, or sessions.
     await this.patients.update({ doctorId: doctorUserId }, { doctorId: null });
     await this.doctors.delete({ userId: doctorUserId });
     await this.users.delete({ id: doctorUserId });
@@ -354,11 +803,18 @@ export class AuthService implements OnModuleInit {
 
   async listAllPatients(organizationId: string | null = null) {
     const patients = await this.patients.find({
-      relations: ['user', 'user.organization', 'doctor', 'doctor.user', 'doctor.user.organization', 'prescriptions'],
+      relations: [
+        'user',
+        'organization',
+        'doctor',
+        'doctor.user',
+        'prescriptions',
+      ],
       order: { origin: 'ASC' },
     });
+    // Org scoping uses authoritative patients.organization_id — not the doctor's memberships.
     const filtered = organizationId
-      ? patients.filter((p) => p.doctor?.user?.organizationId === organizationId)
+      ? patients.filter((p) => p.organizationId === organizationId)
       : patients;
     return this.attachDocIdMeta(filtered.map((p) => this.patientToSummary(p)));
   }
@@ -366,15 +822,25 @@ export class AuthService implements OnModuleInit {
   async listDoctorPatients(doctorUserId: string) {
     const patients = await this.patients.find({
       where: { doctorId: doctorUserId },
-      relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
+      relations: ['user', 'organization', 'doctor', 'doctor.user', 'prescriptions'],
     });
-    return this.attachDocIdMeta(patients.map((p) => this.patientToSummary(p)));
+    const accessible: typeof patients = [];
+    for (const patient of patients) {
+      if (await this.memberships.doctorCanAccessPatient(doctorUserId, patient.userId)) {
+        accessible.push(patient);
+      }
+    }
+    return this.attachDocIdMeta(accessible.map((p) => this.patientToSummary(p)));
   }
 
   async getOwnedPatient(doctorUserId: string, patientId: string) {
+    const allowed = await this.memberships.doctorCanAccessPatient(doctorUserId, patientId);
+    if (!allowed) {
+      return null;
+    }
     const patient = await this.patients.findOne({
       where: { userId: patientId, doctorId: doctorUserId },
-      relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
+      relations: ['user', 'organization', 'doctor', 'doctor.user', 'prescriptions'],
     });
     if (!patient) {
       return null;
@@ -392,6 +858,10 @@ export class AuthService implements OnModuleInit {
   }
 
   private async changePrescription(doctorUserId: string, patientId: string, change: LivePrescriptionChange) {
+    const allowed = await this.memberships.doctorCanAccessPatient(doctorUserId, patientId);
+    if (!allowed) {
+      return null;
+    }
     const at = new Date().toISOString();
     let committed: true | null;
     try {
@@ -401,8 +871,25 @@ export class AuthService implements OnModuleInit {
             await trx.query(PATIENT_ADVISORY_LOCK_SQL, [PATIENT_ADVISORY_LOCK_NS, id]);
           },
           owns: async (id, doctorId) => {
-            const patient = await trx.findOne(PatientProfile, { where: { userId: id, doctorId } });
-            return Boolean(patient);
+            const patient = await trx.findOne(PatientProfile, { where: { userId: id } });
+            if (!patient) return false;
+            const membership = patient.organizationId
+              ? await trx.findOne(DoctorOrganizationMembership, {
+                  where: {
+                    doctorId,
+                    organizationId: patient.organizationId,
+                    membershipStatus: 'active',
+                  },
+                })
+              : null;
+            return (
+              decideDoctorPatientOrgAccess({
+                patientDoctorId: patient.doctorId,
+                patientOrganizationId: patient.organizationId,
+                callerDoctorId: doctorId,
+                callerHasActiveMembershipInPatientOrg: Boolean(membership),
+              }).ok === true
+            );
           },
           listLive: async (id) => {
             const rows = await trx.find(Prescription, { where: { patientId: id } });
@@ -455,7 +942,7 @@ export class AuthService implements OnModuleInit {
     name: string;
     phone: string;
     email: string;
-    password: string;
+    password: string | null;
     role: User['role'];
     organizationId?: string | null;
   }): Promise<User> {
@@ -464,7 +951,8 @@ export class AuthService implements OnModuleInit {
     if (existing) {
       throw new ConflictException('An account with this email already exists');
     }
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const passwordHash =
+      input.password == null ? null : await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     return this.users.save(
       this.users.create({
         email,
@@ -477,10 +965,115 @@ export class AuthService implements OnModuleInit {
     );
   }
 
+  private async assertCanManagePatientInvitation(actor: User, patient: PatientProfile): Promise<void> {
+    if (actor.role === 'super_admin') return;
+
+    if (actor.role === 'admin') {
+      if (!actor.organizationId || patient.organizationId !== actor.organizationId) {
+        throw new ForbiddenException(
+          'You can only resend invitations for patients in your organisation',
+        );
+      }
+      return;
+    }
+
+    if (actor.role === 'doctor') {
+      const allowed = await this.memberships.doctorCanAccessPatient(actor.id, patient.userId);
+      if (!allowed) {
+        throw new ForbiddenException('You cannot manage invitations for this patient');
+      }
+      return;
+    }
+
+    throw new ForbiddenException('Not authorised to manage patient invitations');
+  }
+
+  /**
+   * Issues a new patient_invitation token, invalidating prior unused invitation tokens only.
+   * Does not invalidate password_reset tokens. Never returns the raw token.
+   */
+  private async issuePatientInvitation(user: User): Promise<PatientInvitationIssueResult> {
+    await this.passwordResets.update(
+      { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+
+    const rawToken = randomBytes(32).toString('hex');
+    const ttlHours = this.invitationTtlHours();
+    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+    await this.passwordResets.save(
+      this.passwordResets.create({
+        userId: user.id,
+        tokenHash: hashToken(rawToken),
+        purpose: 'patient_invitation',
+        expiresAt,
+        usedAt: null,
+      }),
+    );
+
+    const emailSent = await this.sendPatientInvitationEmail(user, rawToken, ttlHours);
+    return { emailSent, expiresAt: expiresAt.toISOString() };
+  }
+
+  private async sendPatientInvitationEmail(
+    user: User,
+    rawToken: string,
+    ttlHours: number,
+  ): Promise<boolean> {
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000').replace(
+      /\/$/,
+      '',
+    );
+    const inviteUrl = `${frontendUrl}/accept-invitation?token=${rawToken}`;
+    const hourLabel = ttlHours === 1 ? '1 hour' : `${ttlHours} hours`;
+    let emailSent = false;
+    try {
+      emailSent = await this.mail.send({
+        to: user.email,
+        subject: 'Activate your Kandela account',
+        text: [
+          `Hello ${user.name},`,
+          '',
+          'Your clinician has created a Kandela account for you.',
+          `Use this secure link to set your password and activate your account (expires in ${hourLabel}):`,
+          inviteUrl,
+          '',
+          'If you were not expecting this invitation, contact your clinic and ignore this email.',
+          'Never share this link. Kandela will never email you a password.',
+        ].join('\n'),
+        html: [
+          `<p>Hello ${escapeHtml(user.name)},</p>`,
+          `<p>Your clinician has created a <strong>Kandela</strong> account for you.</p>`,
+          `<p>Use this secure link to set your password and activate your account (expires in ${hourLabel}):</p>`,
+          `<p><a href="${inviteUrl}">Activate your account</a></p>`,
+          `<p>If you were not expecting this invitation, contact your clinic and ignore this email.</p>`,
+          `<p>Never share this link. Kandela will never email you a password.</p>`,
+        ].join(''),
+      });
+    } catch {
+      emailSent = false;
+    }
+
+    if (!emailSent && (this.config.get<string>('MAIL_TRANSPORT') || 'log').trim().toLowerCase() === 'log') {
+      console.log('[mail] Patient invitation link (MAIL_TRANSPORT=log) — token omitted from logs');
+      console.log(`${frontendUrl}/accept-invitation?token=<redacted>`);
+    }
+
+    return emailSent;
+  }
+
   private resetTtlHours(): number {
     const raw = Number(this.config.get<string>('PASSWORD_RESET_TTL_HOURS'));
     if (!Number.isFinite(raw) || raw <= 0) {
       return DEFAULT_RESET_TTL_HOURS;
+    }
+    return raw;
+  }
+
+  private invitationTtlHours(): number {
+    const raw = Number(this.config.get<string>('PATIENT_INVITATION_TTL_HOURS'));
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return DEFAULT_INVITATION_TTL_HOURS;
     }
     return raw;
   }
@@ -554,15 +1147,19 @@ export class AuthService implements OnModuleInit {
       };
     }
     if (target.role === 'patient') {
-      const patient = await this.patients.findOne({
+      let patient = await this.patients.findOne({
         where: { userId: target.id },
         relations: ['doctor', 'doctor.user', 'prescriptions'],
       });
-      const prescribed = patient?.prescriptions.map((p) => p.moduleId) ?? [];
-      const prescribedLevels = patient?.prescriptions.reduce((acc, p) => {
-        acc[p.moduleId] = p.levels || [];
-        return acc;
-      }, {} as Record<string, string[]>) ?? {};
+      if (patient) {
+        patient = await this.ensurePatientTrialStarted(patient);
+      }
+      const prescribed = patient?.prescriptions?.map((p) => p.moduleId) ?? [];
+      const prescribedLevels =
+        patient?.prescriptions?.reduce((acc, p) => {
+          acc[p.moduleId] = p.levels || [];
+          return acc;
+        }, {} as Record<string, string[]>) ?? {};
       const allowedModuleIds = !patient?.doctorId ? [...ALL_MODULE_IDS] : prescribed;
       const pendingDocIdRequest = patient
         ? await this.docid.getPendingForPatient(patient.userId)
@@ -584,6 +1181,7 @@ export class AuthService implements OnModuleInit {
               prescribedLevels,
               pendingDocIdRequest,
               previousReferralCodes,
+              trial: toPatientTrialStatus(patient.trialStartedAt, patient.trialEndsAt),
             }
           : null,
         allowedModuleIds,
@@ -596,6 +1194,44 @@ export class AuthService implements OnModuleInit {
       patient: null,
       allowedModuleIds: [] as string[],
     };
+  }
+
+  /**
+   * Starts the one-time 7-day trial on first successful session build (login).
+   * Atomic conditional UPDATE — concurrent first logins share one window; never resets.
+   */
+  async ensurePatientTrialStarted(patient: PatientProfile): Promise<PatientProfile> {
+    if (patient.trialStartedAt && patient.trialEndsAt) {
+      return patient;
+    }
+    if (typeof this.dataSource?.query !== 'function') {
+      return patient;
+    }
+    const startedAt = new Date();
+    const endsAt = computeTrialEnd(startedAt);
+    // Only the first writer wins; later writers read the established window.
+    const rows: Array<{ trial_started_at: Date; trial_ends_at: Date }> = await this.dataSource.query(
+      `
+        UPDATE patients
+        SET trial_started_at = $1, trial_ends_at = $2
+        WHERE user_id = $3
+          AND trial_started_at IS NULL
+          AND trial_ends_at IS NULL
+        RETURNING trial_started_at, trial_ends_at
+      `,
+      [startedAt.toISOString(), endsAt.toISOString(), patient.userId],
+    );
+    if (rows.length > 0) {
+      patient.trialStartedAt = new Date(rows[0].trial_started_at);
+      patient.trialEndsAt = new Date(rows[0].trial_ends_at);
+      return patient;
+    }
+    const existing = await this.patients.findOne({ where: { userId: patient.userId } });
+    if (existing?.trialStartedAt && existing?.trialEndsAt) {
+      patient.trialStartedAt = existing.trialStartedAt;
+      patient.trialEndsAt = existing.trialEndsAt;
+    }
+    return patient;
   }
 
   private toPublicUser(user: User) {
@@ -612,7 +1248,7 @@ export class AuthService implements OnModuleInit {
   private async toPatientSummary(patientId: string) {
     const patient = await this.patients.findOne({
       where: { userId: patientId },
-      relations: ['user', 'doctor', 'doctor.user', 'prescriptions'],
+      relations: ['user', 'organization', 'doctor', 'doctor.user', 'prescriptions'],
     });
     if (!patient) {
       return null;
@@ -629,6 +1265,9 @@ export class AuthService implements OnModuleInit {
 
     return {
       ...this.toPublicUser(patient.user),
+      // PublicUser.organizationId is the user's legacy field; surface patient owning org explicitly.
+      organizationId: patient.organizationId ?? null,
+      organizationName: patient.organization?.name ?? null,
       origin: patient.origin,
       doctorId: patient.doctorId,
       doctorName: patient.doctor?.user?.name ?? null,
@@ -652,6 +1291,22 @@ export class AuthService implements OnModuleInit {
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const code = (err as { code?: string }).code;
+  if (code === '23505') return true;
+  const driver = (err as { driverError?: { code?: string } }).driverError;
+  return driver?.code === '23505';
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export function readRefreshCookie(cookies: Record<string, string | undefined> | undefined): string | undefined {

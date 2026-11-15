@@ -3,11 +3,17 @@ export { User } from './user.entity';
 export { DoctorProfile } from './doctor-profile.entity';
 export { PatientProfile } from './patient-profile.entity';
 export { Prescription } from './prescription.entity';
+export { PrescriptionRevision } from './prescription-revision.entity';
 export { RefreshToken } from './refresh-token.entity';
+export { PasswordResetToken } from './password-reset-token.entity';
+export { GoogleInvitationChallenge } from './google-invitation-challenge.entity';
 export { DocIdRequest } from './docid-request.entity';
 export { DocIdHistory } from './docid-history.entity';
 export { FamiliarFace } from './familiar-face.entity';
 export { GameSession } from './game-session.entity';
 export { Announcement } from './announcement.entity';
 export { UserAnnouncementRead } from './user-announcement-read.entity';
+export { DoctorOrganizationMembership } from './doctor-organization-membership.entity';
+export { DoctorOrganizationInvitation } from './doctor-organization-invitation.entity';
+export { EmergencyAuditLog } from './emergency-audit-log.entity';
 

@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, withEmergencyReason } from '@/lib/api';
 import type {
   OrganizationSummary,
   SelfUserSummary,
@@ -104,17 +104,19 @@ function SuperAdminDashboard() {
     names: string[];
   } | null>(null);
 
+  const [selfUsersReason, setSelfUsersReason] = useState('');
+  const [selfUsersBusy, setSelfUsersBusy] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const [nextMetrics, nextOrgs, nextSelfUsers, nextAnnouncements] = await Promise.all([
+      // Platform ops only — self-users identity listing requires an emergency reason.
+      const [nextMetrics, nextOrgs, nextAnnouncements] = await Promise.all([
         api<SuperAdminMetrics>('/api/super-admin/metrics'),
         api<OrganizationSummary[]>('/api/super-admin/organizations'),
-        api<SelfUserSummary[]>('/api/super-admin/self-users'),
         api<AnnouncementItem[]>('/api/super-admin/announcements'),
       ]);
       setMetrics(nextMetrics);
       setOrgs(nextOrgs);
-      setSelfUsers(nextSelfUsers);
       setAnnouncements(nextAnnouncements);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load platform data');
@@ -122,6 +124,26 @@ function SuperAdminDashboard() {
       setDataLoading(false);
     }
   }, []);
+
+  const loadSelfUsers = useCallback(async () => {
+    const reason = selfUsersReason.trim();
+    if (reason.length < 3) {
+      toast.error('Enter an emergency reason to list self-users');
+      return;
+    }
+    setSelfUsersBusy(true);
+    try {
+      const nextSelfUsers = await api<SelfUserSummary[]>(
+        '/api/super-admin/self-users',
+        withEmergencyReason(reason),
+      );
+      setSelfUsers(nextSelfUsers);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to load self-users');
+    } finally {
+      setSelfUsersBusy(false);
+    }
+  }, [selfUsersReason, toast]);
 
   useEffect(() => {
     if (loading) return;
@@ -566,6 +588,27 @@ function SuperAdminDashboard() {
 
         {/* Tab 2: Direct Self Users */}
         {tab === 'self_users' && (
+          <>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4 space-y-3">
+              <p className="text-sm text-amber-950">
+                Listing self-user identity is an emergency-sensitive Super Admin action and is audited.
+              </p>
+              <textarea
+                value={selfUsersReason}
+                onChange={(e) => setSelfUsersReason(e.target.value)}
+                rows={2}
+                className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm"
+                placeholder="Emergency reason"
+              />
+              <button
+                type="button"
+                disabled={selfUsersBusy}
+                onClick={() => void loadSelfUsers()}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+              >
+                {selfUsersBusy ? 'Loading…' : 'Load self-users with reason'}
+              </button>
+            </div>
           <section className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <SearchInput
@@ -623,6 +666,7 @@ function SuperAdminDashboard() {
               )}
             </div>
           </section>
+          </>
         )}
 
         {/* Tab 3: Announcements */}

@@ -250,6 +250,20 @@ export default function AdminScreen() {
         </View>
 
         <View style={{ backgroundColor: colors.white, borderRadius: s(20), padding: s(16), borderWidth: 1, borderColor: colors.border, marginBottom: s(16) }}>
+          <Pressable
+            onPress={() => router.push('/organization-profile' as never)}
+            style={{
+              marginBottom: s(12),
+              backgroundColor: colors.white,
+              borderRadius: s(12),
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: s(12),
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontWeight: '700', color: colors.text }}>Organisation profile</Text>
+          </Pressable>
           <Text style={{ fontSize: fs(17), fontWeight: '700', marginBottom: s(4) }}>Internal DocID transfer</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(12) }}>
             Sends a confirmation email to the patient. The current DocID is kept in history after they confirm.

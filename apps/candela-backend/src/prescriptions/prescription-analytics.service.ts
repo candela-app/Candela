@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, type FindOptionsSelect } from 'typeorm';
@@ -20,6 +20,7 @@ import { GameSession } from '../entities/game-session.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { PrescriptionRevision } from '../entities/prescription-revision.entity';
 import { User } from '../entities/user.entity';
+import { MembershipsService } from '../memberships/memberships.service';
 import { revisionRecord } from './revision-record';
 
 export class PrescriptionPeriodQueryDto {
@@ -107,11 +108,12 @@ export class PrescriptionAnalyticsService {
     @InjectRepository(PrescriptionRevision) private readonly revisions: Repository<PrescriptionRevision>,
     @InjectRepository(GameSession) private readonly sessions: Repository<GameSession>,
     @InjectRepository(DoctorProfile) private readonly doctors: Repository<DoctorProfile>,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
   ) {}
 
   async forDoctor(doctorId: string, patientId: string, query?: PrescriptionPeriodQuery) {
-    const patient = await this.patients.findOne({ where: { userId: patientId, doctorId } });
-    if (!patient) return null;
+    const allowed = await this.memberships.doctorCanAccessPatient(doctorId, patientId);
+    if (!allowed) return null;
     return this.compose(patientId, readPrescriptionPeriodQuery(query));
   }
 

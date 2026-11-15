@@ -1,4 +1,5 @@
 import { ALL_MODULE_IDS } from './game-registry';
+import type { PatientTrialStatus } from './profile-types';
 
 export type UserRole = 'super_admin' | 'admin' | 'doctor' | 'patient';
 export type PatientOrigin = 'doctor_created' | 'self_signup';
@@ -60,7 +61,20 @@ export interface PatientSummary extends PublicUser {
   prescribedModuleIds: string[];
   prescribedLevels: Record<string, string[]>;
   previousReferralCodes: string[];
+  /** Owning organisation (patients.organization_id), not the user's legacy field alone. */
+  organizationId?: string | null;
   organizationName?: string | null;
+}
+
+/** Wave 3/4 — doctor create-patient response (no password; invitation email). */
+export interface PatientInvitationDelivery {
+  emailSent: boolean;
+  expiresAt: string;
+}
+
+export interface CreateDoctorPatientResponse {
+  patient: PatientSummary;
+  invitation: PatientInvitationDelivery;
 }
 
 export interface OrganizationSummary {
@@ -198,11 +212,42 @@ export interface SessionUser {
     prescribedLevels: Record<string, string[]>;
     pendingDocIdRequest: PendingDocIdRequest | null;
     previousReferralCodes: string[];
+    trial: PatientTrialStatus;
   } | null;
   allowedModuleIds: string[];
   accessToken?: string;
   refreshToken?: string;
   isNewUser?: boolean;
+}
+
+/** H2 Option C — Google authenticated but invitation not yet accepted (no Candela session). */
+export type GoogleAuthInvitationRequiredStatus = 'invitation_acceptance_required';
+
+export interface GoogleInvitationAcceptancePreview {
+  email: string;
+  patientName: string;
+  doctorName: string | null;
+  organizationName: string | null;
+  invitationExpiresAt: string;
+}
+
+export interface GoogleAuthInvitationRequiredResponse {
+  status: GoogleAuthInvitationRequiredStatus;
+  /** Short-lived single-use acceptance challenge (not a session token). */
+  acceptanceToken: string;
+  invitation: GoogleInvitationAcceptancePreview;
+  message: string;
+}
+
+export function isGoogleAuthInvitationRequired(
+  body: unknown,
+): body is GoogleAuthInvitationRequiredResponse {
+  return (
+    !!body &&
+    typeof body === 'object' &&
+    (body as { status?: string }).status === 'invitation_acceptance_required' &&
+    typeof (body as { acceptanceToken?: string }).acceptanceToken === 'string'
+  );
 }
 
 /** UI picker ids in candela-app mapped to catalog module ids. */

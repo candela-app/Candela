@@ -1,4 +1,5 @@
 import type { SavedPracticeSummary, SessionUser } from '@candela/shared';
+import { EMERGENCY_REASON_HEADER, ORGANIZATION_SCOPE_HEADER } from '@candela/shared';
 
 export class ApiError extends Error {
   status: number;
@@ -43,7 +44,23 @@ const AUTH_PUBLIC_PATHS = new Set([
   '/api/auth/google',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/invitations/accept',
+  '/api/auth/invitations/accept-google',
 ]);
+
+/** Attach validated organisation scope for doctor-scoped writes. */
+export function withOrganizationId(organizationId: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(ORGANIZATION_SCOPE_HEADER, organizationId);
+  return { ...init, headers };
+}
+
+/** Attach Super Admin emergency justification (server-enforced). */
+export function withEmergencyReason(reason: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(EMERGENCY_REASON_HEADER, reason.trim());
+  return { ...init, headers };
+}
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -146,6 +163,26 @@ export function uploadFamiliarFace(file: File, relationLabel: string) {
   form.append('file', file);
   form.append('relationLabel', relationLabel);
   return apiForm<FamiliarFaceRecord>('/api/familiar-faces', form);
+}
+
+export function uploadProfilePhoto(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return apiForm<{ path: string; url: string }>('/api/me/profile/photo', form);
+}
+
+export function deleteProfilePhoto() {
+  return api<{ ok: true }>('/api/me/profile/photo', { method: 'DELETE' });
+}
+
+export function uploadOrganizationLogo(organizationId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return apiForm<{ path: string; url: string }>(`/api/organizations/${organizationId}/profile/logo`, form);
+}
+
+export function deleteOrganizationLogo(organizationId: string) {
+  return api<{ ok: true }>(`/api/organizations/${organizationId}/profile/logo`, { method: 'DELETE' });
 }
 
 export function updateFamiliarFaceLabel(id: string, relationLabel: string) {

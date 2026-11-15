@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { SavedPracticeSummary, SessionUser } from '@candela/shared/rn';
+import { EMERGENCY_REASON_HEADER, ORGANIZATION_SCOPE_HEADER } from '@candela/shared/rn';
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from './tokens';
 
 export class ApiError extends Error {
@@ -19,7 +20,23 @@ const AUTH_ANON_PATHS = new Set([
   '/api/auth/google',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/invitations/accept',
+  '/api/auth/invitations/accept-google',
 ]);
+
+/** Attach validated organisation scope for doctor-scoped writes. */
+export function withOrganizationId(organizationId: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(ORGANIZATION_SCOPE_HEADER, organizationId);
+  return { ...init, headers };
+}
+
+/** Attach Super Admin emergency justification (server-enforced). */
+export function withEmergencyReason(reason: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(EMERGENCY_REASON_HEADER, reason.trim());
+  return { ...init, headers };
+}
 
 function defaultApiUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -208,6 +225,35 @@ export function uploadFamiliarFace(uri: string, relationLabel: string, mimeType?
   } as unknown as Blob);
   form.append('relationLabel', relationLabel);
   return apiForm<FamiliarFaceRecord>('/api/familiar-faces', form);
+}
+
+export function uploadProfilePhoto(uri: string, mimeType?: string, fileName?: string) {
+  const form = new FormData();
+  form.append('file', {
+    uri,
+    name: fileName || 'photo.jpg',
+    type: mimeType || 'image/jpeg',
+  } as unknown as Blob);
+  return apiForm<{ path: string; url: string }>('/api/me/profile/photo', form);
+}
+
+export function deleteProfilePhoto() {
+  return api<{ ok: true }>('/api/me/profile/photo', { method: 'DELETE' });
+}
+
+export function uploadOrganizationLogo(
+  organizationId: string,
+  uri: string,
+  mimeType?: string,
+  fileName?: string,
+) {
+  const form = new FormData();
+  form.append('file', {
+    uri,
+    name: fileName || 'logo.jpg',
+    type: mimeType || 'image/jpeg',
+  } as unknown as Blob);
+  return apiForm<{ path: string; url: string }>(`/api/organizations/${organizationId}/profile/logo`, form);
 }
 
 export function updateFamiliarFaceLabel(id: string, relationLabel: string) {

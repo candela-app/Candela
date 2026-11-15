@@ -11,6 +11,7 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
   const { session, refresh } = useAuth();
   const { fs, s } = useLayout();
   const [code, setCode] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
 
@@ -30,9 +31,13 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
     try {
       const result = await api<DocIdRequestResult>('/api/docid/requests', {
         method: 'POST',
-        body: JSON.stringify({ referralCode: code.trim().toUpperCase() }),
+        body: JSON.stringify({
+          referralCode: code.trim().toUpperCase(),
+          ...(organizationId.trim() ? { organizationId: organizationId.trim() } : {}),
+        }),
       });
       setCode('');
+      setOrganizationId('');
       await refresh();
       if (result.recipientRole === 'doctor') {
         Alert.alert(
@@ -300,6 +305,16 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
             autoCapitalize="characters"
             style={{ marginBottom: 0 }}
           />
+          <FloatingLabelInput
+            label="Destination organisation ID (cross-org)"
+            value={organizationId}
+            onChangeText={setOrganizationId}
+            autoCapitalize="none"
+            style={{ marginBottom: 0 }}
+          />
+          <Text style={{ fontSize: fs(11), color: colors.muted }}>
+            Required when requesting a doctor in another organisation. Leave blank for same-organisation changes.
+          </Text>
           <Pressable
             onPress={() => void onSubmit()}
             disabled={saving || code.trim().length !== 6}

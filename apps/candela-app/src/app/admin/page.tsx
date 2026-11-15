@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, withEmergencyReason } from '@/lib/api';
 import type { DoctorSummary, DocIdRequestResult, PatientSummary } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
@@ -53,6 +53,7 @@ export default function AdminPage() {
   const [transferPatientId, setTransferPatientId] = useState('');
   const [transferCode, setTransferCode] = useState('');
   const [transferSaving, setTransferSaving] = useState(false);
+  const [resendBusyId, setResendBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -220,6 +221,42 @@ export default function AdminPage() {
     }
   }
 
+  async function onResendInvitation(patient: PatientSummary) {
+    setResendBusyId(patient.id);
+    setError('');
+    try {
+      const isSa = session?.user.role === 'super_admin';
+      let init: RequestInit = { method: 'POST' };
+      if (isSa) {
+        const reason = window.prompt(
+          'Emergency intervention reason (required for Super Admin resend):',
+        );
+        if (!reason || reason.trim().length < 3) {
+          toast.error('An emergency reason is required');
+          return;
+        }
+        init = withEmergencyReason(reason, init);
+      }
+      const path = isSa
+        ? `/api/super-admin/patients/${patient.id}/invitations/resend`
+        : `/api/admin/patients/${patient.id}/invitations/resend`;
+      const result = await api<{ emailSent: boolean; expiresAt: string }>(path, init);
+      if (result.emailSent) {
+        toast.success(
+          `Invitation resent to ${patient.email} (expires ${new Date(result.expiresAt).toLocaleString('en-GB')}).`,
+        );
+      } else {
+        toast.error('Invitation was renewed, but the email could not be sent. Try again shortly.');
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not resend invitation';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResendBusyId(null);
+    }
+  }
+
   async function onTransfer(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -300,6 +337,14 @@ export default function AdminPage() {
         </section>
 
         <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+          <div className="mb-6">
+            <a
+              href="/admin/organization-profile"
+              className="inline-flex rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900"
+            >
+              Organisation profile
+            </a>
+          </div>
           <h2 className="text-lg font-bold text-gray-900 mb-1">Internal DocID transfer</h2>
           <p className="text-sm text-gray-500 mb-4">
             Sends a confirmation email to the patient. The current DocID is kept in history after they confirm.
@@ -525,6 +570,7 @@ export default function AdminPage() {
                           <th className="px-6 py-3.5">Contact Email</th>
                           <th className="px-6 py-3.5">Phone Number</th>
                           <th className="px-6 py-3.5">DocID Referral History</th>
+                          <th className="px-6 py-3.5">Invitation</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -545,6 +591,16 @@ export default function AdminPage() {
                                     (prev: {p.previousReferralCodes.join(', ')})
                                   </span>
                                 )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  type="button"
+                                  onClick={() => void onResendInvitation(p)}
+                                  disabled={resendBusyId === p.id}
+                                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-blue-200 hover:text-blue-700 disabled:opacity-60"
+                                >
+                                  {resendBusyId === p.id ? 'Resending…' : 'Resend invitation'}
+                                </button>
                               </td>
                             </tr>
                           );
