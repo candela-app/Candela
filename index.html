@@ -7,7 +7,7 @@
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <title>Candela — High-Level Business Architecture</title>
     <meta
-        content="Candela high-level business architecture told as a connected patient and care-team journey, with business diagrams and open decisions."
+        content="Candela business architecture plus implemented platform flows and fresher-friendly QA scenarios for identity, invitations, trial, ownership, and emergency access."
         name="description" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
     <style>
@@ -409,9 +409,106 @@
 
         .view-switch {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 6px;
             margin: 0 0 12px
+        }
+
+        .tag {
+            display: inline-block;
+            font-size: .68rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--bd);
+            vertical-align: middle;
+            margin-right: 6px
+        }
+
+        .tag-ok {
+            background: #e8f3ea;
+            color: #1f5b2e;
+            border-color: #b7d8bf
+        }
+
+        .tag-wait {
+            background: var(--sit);
+            color: #6a5420;
+            border-color: var(--sitb)
+        }
+
+        .tag-open {
+            background: var(--proc);
+            color: var(--mut)
+        }
+
+        @media (prefers-color-scheme:dark) {
+            .tag-ok {
+                background: #1c2a20;
+                color: #a8d4b2;
+                border-color: #33553c
+            }
+
+            .tag-wait {
+                background: var(--sit);
+                color: #e0bd78;
+                border-color: var(--sitb)
+            }
+        }
+
+        .scenario {
+            margin: 12px 0;
+            padding: 12px 14px;
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            background: var(--card)
+        }
+
+        .scenario h4 {
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: .95rem;
+            color: var(--fg);
+            margin-bottom: 6px
+        }
+
+        .scenario ol {
+            margin: 6px 0 0;
+            padding-left: 1.25rem
+        }
+
+        .scenario li {
+            margin: .35em 0
+        }
+
+        .expect {
+            font-size: .92rem;
+            color: var(--mut)
+        }
+
+        table.simple {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .92rem;
+            margin: 10px 0
+        }
+
+        table.simple th,
+        table.simple td {
+            border: 1px solid var(--bd);
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top
+        }
+
+        table.simple th {
+            background: var(--proc);
+            font-size: .78rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: var(--mut)
         }
 
         .view-switch button {
@@ -593,6 +690,8 @@
                     aria-controls="view-platform" aria-selected="true">Platform</button>
                 <button type="button" role="tab" id="tab-catalogue" data-switch="catalogue"
                     aria-controls="view-catalogue" aria-selected="false">Catalogue</button>
+                <button type="button" role="tab" id="tab-build" data-switch="build"
+                    aria-controls="view-build" aria-selected="false">Build &amp; QA</button>
             </div>
             <nav id="toc-platform" data-view="platform">
                 <ul>
@@ -654,6 +753,27 @@
                         </ul>
                     </li>
                     <li><a href="#open-decisions">Open business decisions</a></li>
+                    <li><a href="#implemented-status">What is built vs still open</a></li>
+                </ul>
+            </nav>
+            <nav id="toc-build" data-view="build" hidden>
+                <ul>
+                    <li><a href="#build-overview">How to use this tab</a></li>
+                    <li><a href="#build-system">System map</a></li>
+                    <li><a href="#build-ownership">Ownership &amp; access rules</a></li>
+                    <li><a href="#build-auth-flows">Auth &amp; invitation flows</a>
+                        <ul>
+                            <li><a href="#flow-password-login">Password login (L4)</a></li>
+                            <li><a href="#flow-patient-invite">Patient invite + Option C</a></li>
+                            <li><a href="#flow-org-invite">Doctor org invitation (M4)</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#build-trial-profile">Trial vs activation vs profile</a></li>
+                    <li><a href="#build-transfers">Transfer workflows</a></li>
+                    <li><a href="#build-emergency">Super Admin emergency (H3)</a></li>
+                    <li><a href="#build-email-status">Email &amp; storage status</a></li>
+                    <li><a href="#qa-scenarios">Fresher QA scenarios</a></li>
+                    <li><a href="#build-changelog">Recent change log (002–005)</a></li>
                 </ul>
             </nav>
             <nav id="toc-catalogue" data-view="catalogue" hidden>
@@ -1755,16 +1875,36 @@
                 </section>
                 <section class="part" id="open-decisions">
                     <h2>Open business decisions</h2>
-                    <p class="muted">Keep these decisions visible during BRD review. Do not treat them as finalized
-                        architecture.</p>
+                    <p class="muted">Still open for product / BRD. Do not confuse these with the implemented ownership,
+                        invitation, trial, and emergency rules in <a href="#view-build">Build &amp; QA</a>.</p>
                     <div class="panel">
                         <ul>
-                            <li>Subscription plan tiers, pricing, renewal, and cancellation policy.</li>
-                            <li>Payment provider and failed-payment grace period.</li>
-                            <li>Which historical progress views remain available after subscription expiry.</li>
-                            <li>Transfer-request expiry, cancellation, and competing-request handling.</li>
-                            <li>Former-doctor access to historical patient records and any consent requirements.</li>
-                            <li>Exact organization-level patient visibility and organization membership history.</li>
+                            <li><span class="tag tag-open">Open</span> Subscription plan tiers, pricing, renewal, and cancellation policy.</li>
+                            <li><span class="tag tag-open">Open</span> Payment provider and failed-payment grace period.</li>
+                            <li><span class="tag tag-open">Open</span> Which historical progress views remain available after subscription expiry.</li>
+                            <li><span class="tag tag-open">Open</span> Transfer-request expiry, cancellation, and competing-request handling details.</li>
+                            <li><span class="tag tag-open">Open</span> Former-doctor access to historical patient records and any consent requirements.</li>
+                        </ul>
+                    </div>
+                </section>
+                <section class="part" id="implemented-status">
+                    <h2>What is built vs still open</h2>
+                    <p class="muted">Quick status for the Nov 2026 identity / membership / hardening wave. Full flows and
+                        test scripts are under the <strong>Build &amp; QA</strong> tab.</p>
+                    <div class="panel">
+                        <ul>
+                            <li><span class="tag tag-ok">Built</span> Patient ownership via <code>patients.organization_id</code>; doctor access fail-closed on membership.</li>
+                            <li><span class="tag tag-ok">Built</span> Password patient invitation + Google Option C activation.</li>
+                            <li><span class="tag tag-ok">Built</span> Authenticated doctor organisation invitation accept / decline (M4).</li>
+                            <li><span class="tag tag-ok">Built</span> Legacy <code>users.organization_id</code> sync on primary membership (M5).</li>
+                            <li><span class="tag tag-ok">Built</span> Transactional patient create + invite; email after commit (M6).</li>
+                            <li><span class="tag tag-ok">Built</span> Opaque password login / forgot-password (L4).</li>
+                            <li><span class="tag tag-ok">Built</span> Super Admin <code>X-Emergency-Reason</code> + <code>emergency_audit_logs</code> (H3).</li>
+                            <li><span class="tag tag-ok">Built</span> Seven-day trial starts once on first successful login (atomic).</li>
+                            <li><span class="tag tag-ok">Built</span> Soft identity profile prompts (do not block games).</li>
+                            <li><span class="tag tag-wait">Pending env</span> Production email domain / provider live verification.</li>
+                            <li><span class="tag tag-wait">Pending env</span> Live Google OAuth invitee QA and Supabase profile-photo bucket QA.</li>
+                            <li><span class="tag tag-open">Open product</span> Paid subscription / payment integration.</li>
                         </ul>
                     </div>
                 </section>
@@ -1773,9 +1913,444 @@
                     <p>A person joins Candela → receives the access they are eligible for → practises games → builds a
                         continuous history → may change doctor or subscription status → keeps their identity and history
                         throughout.</p>
-                    <p class="note">These are high-level business diagrams. Detailed data models and solution/technology
-                        architecture should follow after the business requirements are validated.</p>
+                    <p class="note">Platform tab = business story. Catalogue tab = games. Build &amp; QA tab = what the
+                        code does today and how to test it. Canonical markdown also lives in <code>docs/ARCHITECTURE.md</code>
+                        and <code>docs/AUTH_AND_ROLES_FLOW.md</code>.</p>
                 </div>
+                </div>
+                <div id="view-build" data-view="build" hidden>
+                <section class="part" id="build-overview">
+                    <h2>Build &amp; QA — fresher guide</h2>
+                    <p class="muted">Use this tab when you need the <strong>implemented</strong> rules (not open BRD
+                        ideas). Read a flow diagram, then run the matching scenario checklist.</p>
+                    <div class="panel">
+                        <ol>
+                            <li>Learn the three patient concepts: owning organisation, assigned doctor, doctor memberships.</li>
+                            <li>Walk one invitation path end-to-end (password or Google Option C).</li>
+                            <li>Confirm trial / activation / profile are three different clocks.</li>
+                            <li>Run the QA scenarios at the bottom; tick expected pass / fail before asking for help.</li>
+                        </ol>
+                        <p class="note">Self-signup patients with <code>organization_id = NULL</code> are valid — do not
+                            “repair” them into an organisation unless a real clinical link exists.</p>
+                    </div>
+                </section>
+
+                <section class="part" id="build-system">
+                    <h2>System map</h2>
+                    <article class="card">
+                        <div class="box proc">
+                            <h4>Process</h4>
+                            <p>Web and Mobile talk to one NestJS API. The API owns auth, ownership, memberships,
+                                invitations, sessions, and emergency audit. Shared package holds game and profile contracts.</p>
+                        </div>
+                        <div class="dia">
+                            <p class="hint">Swipe sideways to see the whole diagram.</p>
+                            <div class="scroll">
+                                <pre class="mermaid">flowchart TB
+  subgraph Clients
+    P[Patient]
+    D[Doctor]
+    HA[Hospital Admin]
+    SA[Super Admin]
+  end
+  Web[candela-app Next.js]
+  Mobile[candela-mobile Expo]
+  API[candela-backend NestJS]
+  Shared[packages/shared]
+  DB[(PostgreSQL)]
+  Store[Supabase Storage]
+  Mail[MailService SMTP or log]
+
+  P --&gt; Web
+  P --&gt; Mobile
+  D --&gt; Web
+  D --&gt; Mobile
+  HA --&gt; Web
+  SA --&gt; Web
+  Web --&gt; API
+  Mobile --&gt; API
+  Web --&gt; Shared
+  Mobile --&gt; Shared
+  API --&gt; Shared
+  API --&gt; DB
+  API --&gt; Store
+  API --&gt; Mail</pre>
+                            </div>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="part" id="build-ownership">
+                    <h2>Ownership &amp; access rules</h2>
+                    <article class="card">
+                        <table class="simple">
+                            <thead>
+                                <tr>
+                                    <th>Concept</th>
+                                    <th>Field</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Owning organisation</td>
+                                    <td><code>patients.organization_id</code></td>
+                                    <td>Authoritative org that owns the patient record (nullable for self-signup)</td>
+                                </tr>
+                                <tr>
+                                    <td>Assigned doctor</td>
+                                    <td><code>patients.doctor_id</code></td>
+                                    <td>Currently treating doctor</td>
+                                </tr>
+                                <tr>
+                                    <td>Doctor memberships</td>
+                                    <td><code>doctor_organization_memberships</code></td>
+                                    <td>Which orgs the doctor may work in</td>
+                                </tr>
+                                <tr>
+                                    <td>Legacy default only</td>
+                                    <td><code>users.organization_id</code></td>
+                                    <td>Synced to primary membership (M5). Not an auth source for patient access</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="box sit">
+                            <h4>Doctor may treat a patient only if all hold</h4>
+                            <ol>
+                                <li><code>patients.doctor_id</code> equals the acting doctor</li>
+                                <li><code>patients.organization_id</code> is non-null</li>
+                                <li>Doctor has an <strong>active</strong> membership in that owning organisation</li>
+                            </ol>
+                            <p>No primary-organisation fallback. Changing a doctor’s primary membership must never silently move patient ownership.</p>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="part" id="build-auth-flows">
+                    <h2>Auth &amp; invitation flows</h2>
+
+                    <article class="card" id="flow-password-login">
+                        <h3><span class="num">A</span><span>Password login (L4 opaque)</span></h3>
+                        <div class="dia">
+                            <div class="scroll">
+                                <pre class="mermaid">sequenceDiagram
+  actor User
+  participant API as NestJS
+  User-&gt;&gt;API: POST /api/auth/login
+  Note over API: Missing / unactivated / Google-only / wrong password → same Invalid email or password
+  API--&gt;&gt;User: Session or opaque error</pre>
+                            </div>
+                        </div>
+                        <p class="expect">Forgot-password always returns <code>{ ok: true }</code>. Invitation and Option C keep actionable messages inside invitation context.</p>
+                    </article>
+
+                    <article class="card" id="flow-patient-invite">
+                        <h3><span class="num">B</span><span>Patient create, invite, password / Google Option C</span></h3>
+                        <div class="box proc">
+                            <h4>Process (M6)</h4>
+                            <p>Doctor creates patient inside an org scope. One DB transaction inserts user
+                                (<code>password_hash = null</code>, patient ownership, and hashed invitation. Email is
+                                sent <strong>after</strong> commit. API returns <code>emailSent</code> without the raw token.</p>
+                        </div>
+                        <div class="dia">
+                            <div class="scroll">
+                                <pre class="mermaid">sequenceDiagram
+  actor Doc as Doctor
+  actor Pat as Patient
+  participant API as NestJS
+  participant DB as PostgreSQL
+  participant Mail as MailService
+
+  Doc-&gt;&gt;API: POST /api/doctors/me/patients + X-Organization-Id
+  API-&gt;&gt;DB: BEGIN user + patient + invite hash
+  API-&gt;&gt;DB: COMMIT
+  API-&gt;&gt;Mail: Send activation link after commit
+  API--&gt;&gt;Doc: Patient + emailSent + expiresAt
+
+  alt Password Method A
+    Pat-&gt;&gt;API: POST /api/auth/invitations/accept token + password
+    API-&gt;&gt;DB: Set password_hash + account_activated_at
+    API--&gt;&gt;Pat: ok — then sign in separately
+  else Google Option C
+    Pat-&gt;&gt;API: POST /api/auth/google
+    API--&gt;&gt;Pat: invitation_acceptance_required + acceptanceToken — no session
+    Pat-&gt;&gt;API: POST /api/auth/invitations/accept-google
+    API-&gt;&gt;DB: Link google_id + account_activated_at
+    API--&gt;&gt;Pat: Normal session
+  end</pre>
+                            </div>
+                        </div>
+                        <p class="expect">Activation source of truth is <code>patients.account_activated_at</code> — not
+                            password hash and not profile completion. Pending invitees cannot get a normal Google session alone.</p>
+                    </article>
+
+                    <article class="card" id="flow-org-invite">
+                        <h3><span class="num">C</span><span>Doctor organisation invitation (M4)</span></h3>
+                        <div class="dia">
+                            <div class="scroll">
+                                <pre class="mermaid">sequenceDiagram
+  actor Admin as Hospital or Super Admin
+  actor Doc as Invited doctor
+  participant API as NestJS
+  Admin-&gt;&gt;API: Create membership invitation
+  Doc-&gt;&gt;API: GET preview by token — never activates
+  Doc-&gt;&gt;API: Login as invitee doctor
+  Doc-&gt;&gt;API: POST accept or decline authenticated
+  Note over API: actor.id must equal invitation.doctorId
+  API--&gt;&gt;Doc: Membership activated or declined</pre>
+                            </div>
+                        </div>
+                        <p class="expect">Token alone never activates membership. Wrong doctor must be rejected. Web:
+                            <code>/org-invitation</code>. Mobile: <code>org-invitation</code>.</p>
+                    </article>
+                </section>
+
+                <section class="part" id="build-trial-profile">
+                    <h2>Trial vs activation vs profile</h2>
+                    <article class="card">
+                        <table class="simple">
+                            <thead>
+                                <tr>
+                                    <th>Clock</th>
+                                    <th>Field / trigger</th>
+                                    <th>What it is not</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Account activation</td>
+                                    <td><code>account_activated_at</code> on invitation accept</td>
+                                    <td>Not profile complete; not trial start</td>
+                                </tr>
+                                <tr>
+                                    <td>Identity profile</td>
+                                    <td><code>identity_profile_completed_at</code> via explicit complete</td>
+                                    <td>Soft banner only — does not block games</td>
+                                </tr>
+                                <tr>
+                                    <td>Trial</td>
+                                    <td><code>trial_started_at</code> / <code>trial_ends_at</code> on first successful session / login</td>
+                                    <td>Not started by invite send, profile, or gameplay alone</td>
+                                </tr>
+                                <tr>
+                                    <td>Subscription</td>
+                                    <td>Not implemented</td>
+                                    <td>—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="dia">
+                            <div class="scroll">
+                                <pre class="mermaid">flowchart LR
+  A[Account created] --&gt; B[Invitation optional]
+  B --&gt; C[Account activated]
+  C --&gt; D[First successful login]
+  D --&gt; E[Atomic UPDATE sets trial window]
+  E --&gt; F[Seven-day window]
+  F --&gt; G[Later logins keep same window]</pre>
+                            </div>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="part" id="build-transfers">
+                    <h2>Transfer workflows (implemented)</h2>
+                    <article class="card">
+                        <table class="simple">
+                            <thead>
+                                <tr>
+                                    <th>Flow</th>
+                                    <th>Who starts</th>
+                                    <th>Who confirms</th>
+                                    <th>Ownership</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Patient DocID attach / change</td>
+                                    <td>Patient</td>
+                                    <td>Receiving doctor</td>
+                                    <td>May set/change org with explicit <code>organizationId</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Hospital Admin internal</td>
+                                    <td>Hospital Admin</td>
+                                    <td>Patient (email)</td>
+                                    <td>Unchanged — same owning org</td>
+                                </tr>
+                                <tr>
+                                    <td>Super Admin cross-org</td>
+                                    <td>Super Admin</td>
+                                    <td>Patient (email)</td>
+                                    <td>Moves to target org; needs emergency reason + audit</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="expect">Transfers must not restart the trial or erase practice history.</p>
+                    </article>
+                </section>
+
+                <section class="part" id="build-emergency">
+                    <h2>Super Admin emergency access (H3)</h2>
+                    <article class="card">
+                        <div class="box proc">
+                            <h4>Process</h4>
+                            <p>Sensitive SA routes require header <code>X-Emergency-Reason</code> (non-empty). Ordinary
+                                platform ops (list/create orgs, metrics, announcements) do not. Outcomes append to
+                                <code>emergency_audit_logs</code>. Emergency access does <strong>not</strong> bypass ownership or membership integrity.</p>
+                        </div>
+                        <div class="dia">
+                            <div class="scroll">
+                                <pre class="mermaid">sequenceDiagram
+  actor SA as Super Admin
+  participant API as NestJS
+  participant Audit as emergency_audit_logs
+  SA-&gt;&gt;API: Sensitive request + X-Emergency-Reason
+  alt Missing reason
+    API--&gt;&gt;SA: 400
+  else Valid
+    API-&gt;&gt;Audit: Insert success or failure
+    API--&gt;&gt;SA: Response
+  end</pre>
+                            </div>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="part" id="build-email-status">
+                    <h2>Email &amp; storage status</h2>
+                    <article class="card">
+                        <p><span class="tag tag-ok">App</span> <code>MailService</code> supports <code>log</code> and
+                            <code>smtp</code>. Invitation, DocID, reset, org invite, and emergency notices call it.</p>
+                        <p><span class="tag tag-wait">Env</span> Production email domain / provider and live delivery are
+                            <strong>not</strong> claimed verified. With <code>MAIL_TRANSPORT=log</code>, treat
+                            <code>emailSent: false</code> + resend as normal.</p>
+                        <p><span class="tag tag-wait">Env</span> Profile photos use private Supabase bucket
+                            <code>profile-photos</code> (configurable). Familiar Faces uses a separate bucket.</p>
+                    </article>
+                </section>
+
+                <section class="part" id="qa-scenarios">
+                    <h2>Fresher QA scenarios</h2>
+                    <p class="muted">Run these in order on a fresh environment. Prefer one browser profile per role.</p>
+
+                    <div class="scenario" id="qa-1">
+                        <h4>Scenario 1 — Self-signup patient (null org is OK)</h4>
+                        <ol>
+                            <li>Sign up as patient without DocID / invitation.</li>
+                            <li>Confirm dashboard loads; soft profile banner may appear.</li>
+                            <li>Confirm patient can play catalogue games during trial window after first login.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> <code>patients.organization_id</code> may be null.
+                            Do not invent an owning organisation.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-2">
+                        <h4>Scenario 2 — Doctor creates patient (M6) + password accept</h4>
+                        <ol>
+                            <li>Doctor selects org via <code>X-Organization-Id</code> / UI and creates patient.</li>
+                            <li>If <code>emailSent</code> is false, use authorised resend; account must still exist.</li>
+                            <li>Open invite link; set password; then log in separately.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> <code>account_activated_at</code> set; raw token never
+                            returned in create response; trial still null until first login.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-3">
+                        <h4>Scenario 3 — Google Option C</h4>
+                        <ol>
+                            <li>As unactivated doctor-created patient, choose Google Sign-In.</li>
+                            <li>Confirm challenge / <code>invitation_acceptance_required</code> — no Candela session yet.</li>
+                            <li>Complete accept-google; confirm normal session.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Wrong Google email bound to invite is rejected. Challenge TTL ~15 minutes.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-4">
+                        <h4>Scenario 4 — Opaque login (L4)</h4>
+                        <ol>
+                            <li>Login with unknown email → same error as wrong password.</li>
+                            <li>Login with unactivated invitee email → same opaque error.</li>
+                            <li>Forgot-password for unknown email → <code>ok: true</code>.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> No “user not found” / “not activated” distinction on password login.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-5">
+                        <h4>Scenario 5 — Doctor org invitation (M4)</h4>
+                        <ol>
+                            <li>Admin invites doctor; open preview link while logged out — membership not active.</li>
+                            <li>Login as the invited doctor; accept — membership becomes active.</li>
+                            <li>Repeat with a different doctor account and the same token — must fail.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Only invitee doctor can accept/decline.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-6">
+                        <h4>Scenario 6 — Fail-closed doctor–patient access</h4>
+                        <ol>
+                            <li>Doctor A active in Org A treats patient owned by Org A.</li>
+                            <li>Remove / suspend Doctor A membership in Org A (keep assignment if needed).</li>
+                            <li>Doctor A retries patient clinical APIs.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Access denied. Primary membership in another org must not grant access.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-7">
+                        <h4>Scenario 7 — Trial starts once</h4>
+                        <ol>
+                            <li>Activate patient; note <code>trial_*</code> still null.</li>
+                            <li>First successful login → trial window set (~7 days).</li>
+                            <li>Logout / login again; resend invite; optional transfer — trial dates unchanged.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> No second trial. Server clock authoritative.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-8">
+                        <h4>Scenario 8 — Soft profile does not block play</h4>
+                        <ol>
+                            <li>Login with incomplete identity profile.</li>
+                            <li>Dismiss banner; open a game; finish a session if allowed by prescription/trial.</li>
+                            <li>Complete profile later via profile screens.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Games are not gated on profile completion.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-9">
+                        <h4>Scenario 9 — Super Admin emergency reason (H3)</h4>
+                        <ol>
+                            <li>Call a sensitive SA route without <code>X-Emergency-Reason</code> → 400.</li>
+                            <li>Retry with a clear reason; confirm success path and audit row.</li>
+                            <li>List/create organisations without reason → still allowed.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Audit append-only via app APIs; ownership rules still enforced.</p>
+                    </div>
+
+                    <div class="scenario" id="qa-10">
+                        <h4>Scenario 10 — Email failure recovery</h4>
+                        <ol>
+                            <li>With <code>MAIL_TRANSPORT=log</code> (or forced SMTP failure), create patient.</li>
+                            <li>Confirm patient + invite exist and <code>emailSent</code> may be false.</li>
+                            <li>Authorised resend; activate with the latest valid token.</li>
+                        </ol>
+                        <p class="expect"><strong>Expect:</strong> Delivery failure does not roll back the account.</p>
+                    </div>
+                </section>
+
+                <section class="part" id="build-changelog">
+                    <h2>Recent change log (Entries 002–005)</h2>
+                    <article class="card">
+                        <ul>
+                            <li><strong>002</strong> — Invitation-aware Google authentication (Option C).</li>
+                            <li><strong>003</strong> — Identity profiles, soft onboarding, media upload, trial foundation.</li>
+                            <li><strong>004</strong> — Hardening: M4 org invites, M5 legacy org sync, M6 transactional create, L4, H3, trial atomicity.</li>
+                            <li><strong>005</strong> — Documentation consolidation (markdown + this Pages refresh).</li>
+                        </ul>
+                        <p class="note">Repo sources: <code>docs/CANDELA_ARCHITECTURE_CHANGE_LOG.md</code>,
+                            <code>docs/ARCHITECTURE.md</code>, <code>docs/AUTH_AND_ROLES_FLOW.md</code>,
+                            <code>docs/DEPLOYMENT_AND_ENV.md</code>.</p>
+                    </article>
+                </section>
                 </div>
                 <div id="view-catalogue" data-view="catalogue" hidden>
                 <section class="part" id="chapter-games">
@@ -2757,8 +3332,8 @@
         </main>
     </div>
     <footer>
-        <div class="w">Candela — High-Level Business Architecture. Diagrams use Mermaid and formulas use KaTeX. Both need an internet connection
-            to render on first load.</div>
+        <div class="w">Candela — Business Architecture + Build &amp; QA. Diagrams use Mermaid and formulas use KaTeX. Both need an internet connection
+            to render on first load. Updated Nov 2026 (Entries 002–005).</div>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
