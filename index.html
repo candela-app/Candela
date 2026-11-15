@@ -5,9 +5,9 @@
 <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
-    <title>Candela — High-Level Business Architecture</title>
+    <title>Candela — High-Level Business Architecture &amp; Technical Architecture</title>
     <meta
-        content="Candela business architecture plus implemented platform flows and fresher-friendly QA scenarios for identity, invitations, trial, ownership, and emergency access."
+        content="Candela business architecture, technical data model, identity and access flows, game-session analytics, operational boundaries and QA scenarios."
         name="description" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
     <style>
@@ -678,7 +678,7 @@
 <body>
     <header class="top"><button aria-controls="toc" aria-label="Open or close contents" class="menu-btn"
             id="menu-btn">☰</button>
-        <h1>Candela — High-Level Business Architecture</h1>
+        <h1>Candela — Business &amp; Technical Architecture <span style="font-size:.72rem;font-weight:500;opacity:.8">Review update · 15 Nov 2026</span></h1>
     </header>
     <div class="backdrop" id="backdrop"></div>
     <div class="layout" id="layout">
@@ -761,6 +761,10 @@
                     <li><a href="#build-overview">How to use this tab</a></li>
                     <li><a href="#build-system">System map</a></li>
                     <li><a href="#build-ownership">Ownership &amp; access rules</a></li>
+                    <li><a href="#build-data-model">Canonical data model &amp; identity fields</a></li>
+                    <li><a href="#build-session-lifecycle">Game sessions &amp; analytics data</a></li>
+                    <li><a href="#build-client-security">Client, API &amp; security boundaries</a></li>
+                    <li><a href="#build-governance-ops">Privacy, retention &amp; operations</a></li>
                     <li><a href="#build-auth-flows">Auth &amp; invitation flows</a>
                         <ul>
                             <li><a href="#flow-password-login">Password login (L4)</a></li>
@@ -859,8 +863,8 @@
     HospitalAdmin --&gt;|Manages organization and staff assignments| Candela
     Candela --&gt;|Organization-level operational information| HospitalAdmin
 
-    SuperAdmin --&gt;|Operates and oversees the platform| Candela
-    Candela --&gt;|Platform and subscription operations information| SuperAdmin</pre>
+    SuperAdmin --&gt;|Maintains application health and creates organisations| Candela
+    Candela --&gt;|Platform health and organisation provisioning information| SuperAdmin</pre>
                             </div>
                         </div>
                         <div class="box sit">
@@ -901,9 +905,9 @@
     HospitalAdmin --&gt; H2[Reassign patients when a doctor leaves]
     HospitalAdmin --&gt; H3[Review organization operations]
 
-    SuperAdmin --&gt; S1[Manage platform operations]
-    SuperAdmin --&gt; S2[Oversee plans and subscriptions]
-    SuperAdmin --&gt; S3[Review platform-level operational information]</pre>
+    SuperAdmin --&gt; S1[Maintain application health]
+    SuperAdmin --&gt; S2[Create organisations]
+    SuperAdmin --&gt; S3[Emergency intervention with reason and audit]</pre>
                             </div>
                         </div>
                         <div class="box sit">
@@ -1114,8 +1118,10 @@
                         <p>The dashboards should not be four unrelated products. They should show the same underlying
                             business events from four different perspectives: the patient manages their own practice and
                             subscription; the doctor manages authorized patients and prescriptions; the hospital
-                            administrator manages organization operations; and the Super Admin manages platform-wide
-                            operations and subscriptions.</p>
+                            administrator manages organisation operations; and the Super Admin maintains application
+                            health, creates organisations, and retains exceptional reason-audited emergency authority.
+                            A self-user is a patient who joined independently, not a separate privileged role; the
+                            patient dashboard serves both self-signup and doctor-managed patients.</p>
                         <p class="note">The images below are illustrative dashboard wireframes to show content
                             hierarchy, not final UI designs or live product screenshots. Example counts are
                             placeholders, not real Candela data.</p>
@@ -1417,12 +1423,11 @@
                                     y="157" font-family="Arial,sans-serif" font-size="11" fill="#3e3629">Accounts</text>
                                 <rect x="23" y="178" width="108" height="25" rx="5" fill="#f4efe4" /><text x="32"
                                     y="195" font-family="Arial,sans-serif" font-size="11"
-                                    fill="#3e3629">Subscriptions</text>
+                                    fill="#3e3629">Platform health</text>
                                 <rect x="23" y="216" width="108" height="25" rx="5" fill="#f4efe4" /><text x="32"
-                                    y="233" font-family="Arial,sans-serif" font-size="11" fill="#3e3629">Payments</text>
+                                    y="233" font-family="Arial,sans-serif" font-size="11" fill="#3e3629">Service status</text>
                                 <rect x="23" y="254" width="108" height="25" rx="5" fill="#f4efe4" /><text x="32"
-                                    y="271" font-family="Arial,sans-serif" font-size="11" fill="#3e3629">Audit &
-                                    support</text><text x="160" y="70" font-family="Arial,sans-serif" font-size="18"
+                                    y="271" font-family="Arial,sans-serif" font-size="11" fill="#3e3629">Emergency audit</text><text x="160" y="70" font-family="Arial,sans-serif" font-size="18"
                                     font-weight="700" fill="#2b2620">Platform operations</text>
                                 <rect x="157" y="84" width="180" height="62" rx="7" fill="#f4efe4" stroke="#e0d8c6" />
                                 <text x="170" y="105" font-family="Arial,sans-serif" font-size="11"
@@ -1431,17 +1436,16 @@
                                     fill="#2b2620">42</text>
                                 <rect x="348" y="84" width="180" height="62" rx="7" fill="#f4efe4" stroke="#e0d8c6" />
                                 <text x="361" y="105" font-family="Arial,sans-serif" font-size="11"
-                                    fill="#6b6150">ACTIVE SUBSCRIPTIONS</text><text x="361" y="130"
+                                    fill="#6b6150">SERVICES</text><text x="361" y="130"
                                     font-family="Arial,sans-serif" font-size="18" font-weight="700"
-                                    fill="#2b2620">1,284</text>
+                                    fill="#2b2620">OK</text>
                                 <rect x="539" y="84" width="205" height="62" rx="7" fill="#f4efe4" stroke="#e0d8c6" />
                                 <text x="552" y="105" font-family="Arial,sans-serif" font-size="11"
-                                    fill="#6b6150">PAYMENT REVIEW</text><text x="552" y="130"
-                                    font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#2b2620">Needs
-                                    attention</text>
+                                    fill="#6b6150">PLATFORM STATUS</text><text x="552" y="130"
+                                    font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#2b2620">Operational</text>
                                 <rect x="157" y="158" width="350" height="170" rx="7" fill="#fff" stroke="#e0d8c6" />
                                 <text x="171" y="181" font-family="Arial,sans-serif" font-size="13" font-weight="700"
-                                    fill="#2b2620">Subscription trend (illustrative)</text>
+                                    fill="#2b2620">Service health (illustrative)</text>
                                 <path d="M174 293 L225 270 L276 280 L327 232 L378 244 L429 205 L490 217" fill="none"
                                     stroke="#7a6c52" stroke-width="3" />
                                 <path d="M174 302 H490 M174 250 H490 M174 200 H490" stroke="#e0d8c6"
@@ -1449,40 +1453,27 @@
                                 <rect x="519" y="158" width="225" height="170" rx="7" fill="#fff" stroke="#e0d8c6" />
                                 <text x="533" y="181" font-family="Arial,sans-serif" font-size="13" font-weight="700"
                                     fill="#2b2620">Operations queue</text><text x="533" y="207"
-                                    font-family="Arial,sans-serif" font-size="11" fill="#2b2620">• Payment
-                                    exceptions</text><text x="533" y="231" font-family="Arial,sans-serif" font-size="11"
-                                    fill="#2b2620">• Renewal / cancellation</text><text x="533" y="255"
-                                    font-family="Arial,sans-serif" font-size="11" fill="#2b2620">• Account
-                                    support</text><text x="533" y="279" font-family="Arial,sans-serif" font-size="11"
-                                    fill="#2b2620">• Audit events</text>
+                                    font-family="Arial,sans-serif" font-size="11" fill="#2b2620">• API availability</text><text x="533" y="231" font-family="Arial,sans-serif" font-size="11"
+                                    fill="#2b2620">• Database connectivity</text><text x="533" y="255"
+                                    font-family="Arial,sans-serif" font-size="11" fill="#2b2620">• Background jobs</text><text x="533" y="279" font-family="Arial,sans-serif" font-size="11"
+                                    fill="#2b2620">• Emergency audit events</text>
                             </svg>
-                            <div class="dashboard-caption">Illustrative platform operations dashboard: organizations,
-                                subscription status, payment exceptions, and audit/support queues.</div>
+                            <div class="dashboard-caption">Illustrative platform operations dashboard: organisation provisioning, service health, and emergency audit visibility. It is not a hospital operations or patient billing dashboard.</div>
                         </div>
                         <div class="box proc">
                             <h4>What belongs here</h4>
                             <ul>
-                                <li><b>Platform overview:</b> organizations and account totals, plus operational health
-                                    indicators supported by real data.</li>
-                                <li><b>Subscription operations:</b> patient subscription states, trials, renewals,
-                                    cancellations, and conversions where implemented.</li>
-                                <li><b>Payments and revenue:</b> payment status, exceptions, refunds, and revenue
-                                    reporting only after a payment provider and billing model are decided.</li>
-                                <li><b>Plan management:</b> plan and entitlement administration once pricing and plan
-                                    tiers are finalized.</li>
-                                <li><b>Support and audit:</b> operational support queues, important administrative
-                                    actions, and traceable changes.</li>
-                                <li><b>Privacy boundary:</b> platform operations do not automatically grant unrestricted
-                                    access to patient clinical history.</li>
+                                <li><b>Platform overview:</b> organisation directory and application-health indicators supported by real operational data.</li>
+                                <li><b>Organisation provisioning:</b> create organisations and establish their initial platform presence. Routine doctor, patient, prescription, and staffing operations belong to the Hospital Admin and clinical roles.</li>
+                                <li><b>Application health:</b> service availability, API health, database connectivity, storage integration status, and deployment health where those signals are implemented.</li>
+                                <li><b>Emergency authority:</b> retain restricted emergency intervention capability. Sensitive actions require a reason and create an <code>emergency_audit_logs</code> record.</li>
+                                <li><b>Operational boundary:</b> Super Admin does not routinely manage an organisation's doctors, patients, prescriptions, or internal assignments.</li>
+                                <li><b>Privacy boundary:</b> platform operation does not imply routine access to patient clinical history. Emergency access is exceptional, justified, and audited.</li>
                             </ul>
                         </div>
                         <div class="box sit">
                             <h4>Situation</h4>
-                            <p>The Super Admin notices an increase in failed renewals and opens the payment operations
-                                view to review affected subscriptions and support cases. They can investigate platform
-                                and billing status, but they do not automatically gain unrestricted access to patients'
-                                practice details. Pricing, plan tiers, and payment provider remain decisions to
-                                finalize.</p>
+                            <p>The Super Admin sees a service-health warning, checks API and database status, and creates an organisation when onboarding a new hospital. If an exceptional cross-organisation intervention is necessary, the Super Admin supplies an emergency reason and the action is recorded. Routine patient care and hospital staffing remain with the organisation's Hospital Admin and doctors.</p>
                         </div>
                     </article>
                     <div class="panel">
@@ -1884,6 +1875,10 @@
                             <li><span class="tag tag-open">Open</span> Which historical progress views remain available after subscription expiry.</li>
                             <li><span class="tag tag-open">Open</span> Transfer-request expiry, cancellation, and competing-request handling details.</li>
                             <li><span class="tag tag-open">Open</span> Former-doctor access to historical patient records and any consent requirements.</li>
+                            <li><span class="tag tag-open">Open</span> Self-user visibility and whether non-clinical activity signals may support patient re-engagement workflows.</li>
+                            <li><span class="tag tag-open">Open</span> Guardian consent and verification workflow for minor patients.</li>
+                            <li><span class="tag tag-open">Open</span> Clinical data retention, patient export/deletion, and emergency-audit retention periods.</li>
+                            <li><span class="tag tag-open">Open</span> Production backup, restore, disaster-recovery, monitoring and incident-response objectives.</li>
                         </ul>
                     </div>
                 </section>
@@ -2048,8 +2043,8 @@
                         <h3><span class="num">B</span><span>Patient create, invite, password / Google Option C</span></h3>
                         <div class="box proc">
                             <h4>Process (M6)</h4>
-                            <p>Doctor creates patient inside an org scope. One DB transaction inserts user
-                                (<code>password_hash = null</code>, patient ownership, and hashed invitation. Email is
+                            <p>Doctor creates patient inside an org scope. One DB transaction inserts the user
+                                (<code>password_hash = null</code>), patient ownership, and hashed invitation. Email is
                                 sent <strong>after</strong> commit. API returns <code>emailSent</code> without the raw token.</p>
                         </div>
                         <div class="dia">
@@ -2129,7 +2124,7 @@
                                 </tr>
                                 <tr>
                                     <td>Trial</td>
-                                    <td><code>trial_started_at</code> / <code>trial_ends_at</code> on first successful session / login</td>
+                                    <td><code>trial_started_at</code> / <code>trial_ends_at</code> on first successful login</td>
                                     <td>Not started by invite send, profile, or gameplay alone</td>
                                 </tr>
                                 <tr>
@@ -2227,6 +2222,178 @@
                             <code>emailSent: false</code> + resend as normal.</p>
                         <p><span class="tag tag-wait">Env</span> Profile photos use private Supabase bucket
                             <code>profile-photos</code> (configurable). Familiar Faces uses a separate bucket.</p>
+                    </article>
+                </section>
+
+                <section class="part" id="build-data-model">
+                    <h2>Canonical data model &amp; identity fields</h2>
+                    <article class="card">
+                        <div class="box proc">
+                            <h4>Canonical relationship rules</h4>
+                            <p><code>users</code> is the account identity. <code>patients</code> and <code>doctors</code> are role-specific profiles. A doctor may have multiple organisation memberships; a patient has one owning organisation at a time, or no organisation while independently registered and unassigned. A self-user is represented as a patient with <code>origin = self_signup</code>; it is not a separate privileged role.</p>
+                            <p><code>patients.organization_id</code> is patient ownership; <code>patients.doctor_id</code> is the current clinical assignment; <code>doctor_organization_memberships</code> authorises the doctor's organisation relationship. These are separate concepts and must never be inferred from one another.</p>
+                        </div>
+                        <div class="dia"><p class="hint">Conceptual relationship diagram; exact constraints remain defined by entities and migrations.</p><div class="scroll">
+                            <pre class="mermaid">erDiagram
+  USERS ||--o| PATIENTS : "patient profile"
+  USERS ||--o| DOCTORS : "doctor profile"
+  DOCTORS ||--o{ DOCTOR_ORGANIZATION_MEMBERSHIPS : "has memberships"
+  ORGANIZATIONS ||--o{ DOCTOR_ORGANIZATION_MEMBERSHIPS : "hosts membership"
+  ORGANIZATIONS o|--o{ PATIENTS : "owns; nullable for self-signup"
+  DOCTORS o|--o{ PATIENTS : "currently assigned"
+  PATIENTS ||--o{ PRESCRIPTIONS : "has prescriptions"
+  PRESCRIPTIONS ||--o{ PRESCRIPTION_REVISIONS : "has revisions"
+  PATIENTS ||--o{ GAME_SESSIONS : "has completed plays"
+  USERS ||--o{ EMERGENCY_AUDIT_LOGS : "performs audited action"
+  USERS {
+    uuid id PK
+    string email
+    string role
+    uuid organization_id
+  }
+  PATIENTS {
+    uuid user_id PK
+    uuid organization_id FK
+    uuid doctor_id FK
+    string origin
+    timestamp account_activated_at
+    timestamp identity_profile_completed_at
+    timestamp trial_started_at
+    timestamp trial_ends_at
+  }
+  DOCTORS {
+    uuid user_id PK
+    string referral_code
+    timestamp identity_profile_completed_at
+  }
+  ORGANIZATIONS {
+    uuid id PK
+    string code
+    string name
+    timestamp identity_profile_completed_at
+  }
+  DOCTOR_ORGANIZATION_MEMBERSHIPS {
+    uuid id PK
+    uuid doctor_id FK
+    uuid organization_id FK
+    string membership_status
+    boolean is_primary
+  }
+  GAME_SESSIONS {
+    uuid id PK
+    uuid patient_id FK
+    integer session_number
+    string client_event_id
+    string game_id
+  }</pre>
+                        </div></div>
+                        <h3>Identity profile field inventory</h3>
+                        <p class="note">This is a field ownership summary, not a replacement for the DTO/entity schema. Names and validation must stay aligned with the backend.</p>
+                        <div class="tw"><table class="simple"><thead><tr><th>Profile</th><th>Fields collected</th><th>Completion / boundary</th></tr></thead><tbody>
+                            <tr><td>Shared account</td><td><code>users.name</code>, <code>users.email</code>, <code>users.phone</code></td><td>Account identity; role-specific profile completion is separate.</td></tr>
+                            <tr><td>Patient</td><td><code>patients.date_of_birth</code>, <code>gender</code>, <code>preferred_language</code>, <code>city</code>, <code>state</code>, <code>country</code>, <code>profile_photo_path</code>; conditional <code>guardian_name</code>, <code>guardian_phone</code>, <code>guardian_relationship</code>. Name, email and phone remain on <code>users</code>.</td><td><code>patients.identity_profile_completed_at</code>. Incomplete identity profile does not block gameplay. Minor consent / guardian verification workflow remains a product and legal decision.</td></tr>
+                            <tr><td>Doctor</td><td><code>doctors.professional_title</code>, <code>specialization</code>, <code>qualifications</code>, <code>preferred_language</code>; optional <code>years_experience</code>, <code>external_registration_id</code>, <code>profile_photo_path</code>. <code>referral_code</code> is the Candela DocID.</td><td><code>doctors.identity_profile_completed_at</code>. External registration ID is not DocID.</td></tr>
+                            <tr><td>Organisation</td><td><code>organizations.organization_type</code>, <code>contact_phone</code>, <code>address_line1</code>, <code>city</code>, <code>state</code>, <code>country</code>; optional <code>address_line2</code>, <code>website</code>, <code>license_number</code>, <code>logo_path</code>.</td><td><code>organizations.identity_profile_completed_at</code>. Organisation profile completion is independent of doctor membership and patient ownership.</td></tr>
+                        </tbody></table></div>
+                        <div class="box sit"><h4>Three independent patient clocks</h4><p><code>account_activated_at</code> records invitation activation; <code>identity_profile_completed_at</code> records identity details completion; <code>trial_started_at</code> / <code>trial_ends_at</code> record the one-time trial window. One must never be used as a substitute for another.</p></div>
+                    </article>
+                </section>
+
+                <section class="part" id="build-session-lifecycle">
+                    <h2>Game sessions &amp; analytics data</h2>
+                    <article class="card">
+                        <div class="box proc"><h4>What becomes a saved session</h4><p>A game session is persisted only when the game's completion gate passes and the results flow is reached. A completed play becomes a durable patient-history record. An abandoned or reset attempt is not a completed clinical practice record.</p></div>
+                        <div class="dia"><div class="scroll"><pre class="mermaid">flowchart TD
+  Start[Patient starts game] --> Play[Game runs locally]
+  Play --> End{How did it end?}
+  End -->|Quit / leave / reset / warm-up only| Discard[Do not persist a game session]
+  End -->|Protocol completed / valid timeout completion| Result[Results card opens]
+  Result --> Gate[Shared persist gate]
+  Gate -->|Pass| Payload[Build metrics + detail payload]
+  Payload --> API[POST game session]
+  API --> Idempotent[Deduplicate retry by clientEventId]
+  Idempotent --> Row[(game_sessions row)]
+  Row --> History[Patient history]
+  Row --> Analytics[Patient and authorised doctor analytics]</pre></div></div>
+                        <div class="tw"><table class="simple"><thead><tr><th>Data concept</th><th>Current meaning</th><th>Invariant</th></tr></thead><tbody>
+                            <tr><td>Finished play</td><td>One completed game sitting, stored in <code>game_sessions</code>.</td><td>Quit, leave, reset and warm-up-only attempts are not saved as completed sessions.</td></tr>
+                            <tr><td>Session number</td><td>Sequential per patient for each persisted play.</td><td>Does not reset when the patient changes doctor.</td></tr>
+                            <tr><td><code>client_event_id</code></td><td>Client-generated idempotency key for a finished-play submission.</td><td>Retries must not create duplicate rows for the same patient event.</td></tr>
+                            <tr><td>Metrics</td><td>Correct, wrong taps, misses, timeouts, accuracy, reaction-time statistics, efficiency and duration where applicable.</td><td>Game-specific definitions apply; do not combine unlike game metrics as if equivalent.</td></tr>
+                            <tr><td>Prescription context</td><td>Session is independent or associated with the applicable prescription/revision context.</td><td>A later prescription must not retroactively relabel earlier independent play.</td></tr>
+                            <tr><td>Analytics aggregation</td><td>Daily and monthly chart buckets pool finished plays according to the shared analytics rules.</td><td>Empty dates do not create fake chart points. A daily visit-number entity is not implemented.</td></tr>
+                        </tbody></table></div>
+                        <p class="expect">Detailed formulas, module-specific error taxonomy and chart pooling are maintained in the game specification and session metrics reference. Keep those as the detailed sources rather than duplicating every formula here.</p>
+                    </article>
+                </section>
+
+                <section class="part" id="build-client-security">
+                    <h2>Client, API &amp; security boundaries</h2>
+                    <article class="card">
+                        <div class="dia"><div class="scroll"><pre class="mermaid">flowchart LR
+  subgraph Web[Web client]
+    W[Next.js] --> WC[Cookie-based API client]
+  end
+  subgraph Mobile[Mobile client]
+    M[Expo] --> MB[Bearer-token API client]
+  end
+  WC --> API[NestJS API]
+  MB --> API
+  API --> Guard[JWT authentication + role guards]
+  Guard --> Scope[Relationship and organisation checks]
+  Scope --> Domain[Domain services]
+  Domain --> DB[(PostgreSQL)]
+  Domain --> Storage[Private Supabase Storage]
+  Domain --> Mail[MailService]
+  Shared[packages/shared] -. shared contracts and game rules .- Web
+  Shared -. shared contracts and game rules .- Mobile
+  Shared -. shared contracts and game rules .- API</pre></div></div>
+                        <ul>
+                            <li>The backend is the authority for authentication, role checks, organisation scope, patient ownership, prescription access and session persistence.</li>
+                            <li>Web uses the cookie-based client; mobile uses bearer authentication. Client route hiding is not authorisation.</li>
+                            <li><code>X-Organization-Id</code> selects an organisation context for scoped operations; it is not proof of access. The backend must validate the actor's active membership.</li>
+                            <li>Doctor access to a patient requires the current doctor assignment, a non-null patient owning organisation, and an active doctor membership in that exact organisation. No primary-membership fallback.</li>
+                            <li>Profile-photo and logo APIs validate uploads and store object paths; clients must not be allowed to choose arbitrary storage paths. Private media is exposed through authorised/signed access.</li>
+                            <li>Patient invitation and password-reset tokens share <code>password_reset_tokens</code> with a purpose discriminator; the purposes are isolated, hashed, expiring and single-use. Doctor–organisation invitations use their separate invitation table and authenticated invitee acceptance.</li>
+                            <li>Emergency Super Admin operations require <code>X-Emergency-Reason</code> and produce application-level audit records. Application insert-only behaviour is not the same as database-level immutability.</li>
+                        </ul>
+                    </article>
+                </section>
+
+                <section class="part" id="build-governance-ops">
+                    <h2>Privacy, retention &amp; operational readiness</h2>
+                    <article class="card">
+                        <h3>Established boundaries</h3>
+                        <ul>
+                            <li>Candela supports therapy practice and clinician workflows; it does not diagnose or replace a clinician.</li>
+                            <li>Patient clinical information is relationship-scoped. Hospital Admin authority is organisation-scoped; Super Admin's routine role is platform health and organisation creation, with exceptional reason-audited access.</li>
+                            <li>Self-signup users with <code>patients.organization_id = NULL</code> are valid unassigned patients. Their organisation ownership is not fabricated from a doctor's primary membership.</li>
+                            <li>Identity profile incompleteness does not block games. Account activation, identity completion, trial and subscription are independent states.</li>
+                            <li>Guardian identity fields exist for minors when required; the exact guardian consent, verification, and age-handling workflow is not yet specified here.</li>
+                            <li>Manually entered hospital measurements, if/when implemented, must remain distinguishable from automatically generated game-session metrics and retain data provenance.</li>
+                        </ul>
+                        <h3>Operational dependencies and evidence status</h3>
+                        <div class="tw"><table class="simple"><thead><tr><th>Area</th><th>Known current position</th><th>What remains to verify / decide</th></tr></thead><tbody>
+                            <tr><td>Email</td><td>MailService has <code>log</code> and <code>smtp</code> transport logic.</td><td>Domain/provider configuration and live delivery are pending; do not describe email as production verified.</td></tr>
+                            <tr><td>Google OAuth</td><td>Google sign-in and invitation-aware Option C are implemented in application logic.</td><td>Live OAuth and invitee acceptance QA on real web/mobile clients.</td></tr>
+                            <tr><td>Supabase Storage</td><td>Profile photos use the private <code>profile-photos</code> bucket; Familiar Faces uses separate storage.</td><td>Bucket configuration, policies, upload and signed-access QA in target environment.</td></tr>
+                            <tr><td>Database migrations</td><td>TypeORM migrations are the schema change mechanism; schema synchronisation is disabled.</td><td>Confirm all required migrations are applied in each target environment and test rollback/restore procedures.</td></tr>
+                            <tr><td>Trial concurrency</td><td>Trial start uses an atomic conditional update.</td><td>Run multi-connection concurrency QA against real PostgreSQL.</td></tr>
+                            <tr><td>Web production build</td><td>TypeScript checks were reported as passing in the implementation summary.</td><td>A production build was not reported in the final hardening pass; run and record it.</td></tr>
+                            <tr><td>Mobile deep links</td><td>Invitation screens and deep-link paths are implemented.</td><td>Verify real device links, cold start, warm start and token handling.</td></tr>
+                            <tr><td>Announcement targeting</td><td>Legacy organisation reference is synchronised on primary membership changes.</td><td>Re-verify all announcement targeting edge cases after membership changes.</td></tr>
+                            <tr><td>Backup / disaster recovery</td><td>No verified recovery objective is stated in this architecture.</td><td>Define backup ownership, retention, restore drills, RPO and RTO before production reliance.</td></tr>
+                            <tr><td>Monitoring / alerting</td><td>Platform-health dashboard requirements are described, but monitoring implementation is not established by this document.</td><td>Verify health checks, logs, error reporting, alert routing and incident ownership against deployed services.</td></tr>
+                            <tr><td>Data retention / deletion</td><td>Game-session rows are linked to patient identity; the current documented schema indicates patient deletion cascades to sessions.</td><td>Define clinical retention, account closure, export, deletion, legal hold and audit-log retention policies.</td></tr>
+                        </tbody></table></div>
+                        <div class="box sit"><h4>Product and governance decisions still open</h4><ul>
+                            <li>What self-users can see and which activity information may be used for non-clinical re-engagement or follow-up.</li>
+                            <li>Minor consent and guardian verification requirements.</li>
+                            <li>Historical patient analytics visibility after subscription expiry.</li>
+                            <li>Former-doctor access after transfer or organisation departure.</li>
+                            <li>Clinical data retention, export, deletion and audit-log retention periods.</li>
+                            <li>Monitoring, backup, disaster-recovery objectives and operational ownership.</li>
+                        </ul></div>
                     </article>
                 </section>
 
@@ -2628,6 +2795,25 @@
                             <li>Repeated sessions aggregation</li>
                             <li>Detail persistence</li>
                         </ul>
+                    </article>
+                    <article class="card game-card" id="game-sorting">
+                        <h3><span class="num">S</span><span>Sorting Module</span></h3>
+                        <div class="game-meta">
+                            <div><b>Module ID / family</b><code>sorting</code> / Spin Field</div>
+                            <div><b>Supported devices</b>Mobile, tablet and TV</div>
+                        </div>
+                        <h4>Clinical intent and levels</h4>
+                        <p>Visual discrimination, visual search and cognitive sequencing in two-dimensional space. The catalogue specification defines uppercase alphabet sorting, lowercase alphabet sorting and configurable numeric sorting.</p>
+                        <h4>How to play</h4>
+                        <ol>
+                            <li>Targets are distributed across the play area without overlap.</li>
+                            <li>The prompt identifies the next required symbol.</li>
+                            <li>The patient taps the exact next item in sequence; skip-ahead and incorrect-symbol taps are wrong taps.</li>
+                            <li>Background taps are misses. Items arrive in device-sized batches until the sequence is complete.</li>
+                        </ol>
+                        <h4>Batch rules in the game specification</h4>
+                        <ul><li>Mobile: 4 items per batch.</li><li>Tablet: 4 items per batch.</li><li>TV: 5 items per batch.</li></ul>
+                        <p class="expect">The detailed implementation and level configuration remain governed by the shared game catalogue and the canonical game specification.</p>
                     </article>
                     <article class="card game-card" id="game-bee">
                         <h3><span class="num">02</span><span>Bee Path</span></h3>
