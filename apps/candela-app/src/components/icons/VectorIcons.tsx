@@ -760,7 +760,7 @@ export function CheckCircleIcon({ className = 'w-5 h-5', size, ...props }: IconP
   );
 }
 
-/** Solid verified badge — filled circle with check (profile-complete mark). */
+/** Instagram-blue verified badge — perfect circle with white check. */
 export function VerifiedBadgeIcon({ className = 'w-5 h-5', size, ...props }: IconProps) {
   return (
     <svg
@@ -773,11 +773,11 @@ export function VerifiedBadgeIcon({ className = 'w-5 h-5', size, ...props }: Ico
       aria-hidden={props['aria-label'] ? undefined : true}
       {...props}
     >
-      <circle cx="12" cy="12" r="10" fill="currentColor" />
+      <circle cx="12" cy="12" r="10" fill="#3897F0" />
       <path
         d="m8.5 12.2 2.2 2.2 4.8-5"
         fill="none"
-        stroke="white"
+        stroke="#fff"
         strokeWidth="2.25"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -135,6 +135,8 @@ export function HomePageContent({
   const pageRef = React.useRef<HTMLDivElement>(null);
   const productMenuRef = React.useRef<HTMLDivElement>(null);
   const accountMenuRef = React.useRef<HTMLDivElement>(null);
+  const heroVideoRef = React.useRef<HTMLVideoElement>(null);
+  const ctaRowRef = React.useRef<HTMLDivElement>(null);
   const scrollFrameRef = React.useRef<number | null>(null);
   const [isHeaderVisible, setIsHeaderVisible] = React.useState(true);
   const [isProductMenuOpen, setIsProductMenuOpen] = React.useState(false);
@@ -282,17 +284,81 @@ export function HomePageContent({
     };
   }, [isProductMenuOpen, isAccountMenuOpen]);
 
-  const moveSpecularHighlight = (event: React.PointerEvent<HTMLElement>) => {
+  React.useEffect(() => {
+    const video = heroVideoRef.current;
+    const row = ctaRowRef.current;
+    if (!video || !row) return;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const canvas = document.createElement('canvas');
+    canvas.width = 48;
+    canvas.height = 27;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+
+    let frameId = 0;
+    let lastSampleAt = 0;
+
+    const sampleVideoIntoButtons = (now: number) => {
+      frameId = window.requestAnimationFrame(sampleVideoIntoButtons);
+      if (prefersReducedMotion.matches || document.hidden) return;
+      if (now - lastSampleAt < 90) return;
+      if (video.readyState < 2) return;
+      lastSampleAt = now;
+
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Sample mid/lower frame — roughly where the CTAs sit over the hero.
+        const { data } = ctx.getImageData(10, 14, 28, 10);
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 16) {
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+          count += 1;
+        }
+        if (!count) return;
+        r = Math.round(r / count);
+        g = Math.round(g / count);
+        b = Math.round(b / count);
+        const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        row.style.setProperty('--video-r', String(r));
+        row.style.setProperty('--video-g', String(g));
+        row.style.setProperty('--video-b', String(b));
+        row.style.setProperty('--video-luma', luma.toFixed(3));
+        row.style.setProperty('--video-glow', `${Math.round(0.18 + luma * 0.35)}`);
+        if (row.dataset.pointerActive !== 'true') {
+          const idleAngle = ((now / 36) % 360) - 180;
+          row.style.setProperty('--refraction-idle', `${idleAngle.toFixed(1)}deg`);
+        }
+      } catch {
+        // Ignore canvas security / decode edge cases.
+      }
+    };
+
+    frameId = window.requestAnimationFrame(sampleVideoIntoButtons);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  const moveBorderRefraction = (event: React.PointerEvent<HTMLElement>) => {
     if (event.pointerType === 'touch') return;
+    ctaRowRef.current?.setAttribute('data-pointer-active', 'true');
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(92, Math.max(8, ((event.clientX - rect.left) / rect.width) * 100));
-    const y = Math.min(82, Math.max(10, ((event.clientY - rect.top) / rect.height) * 100));
-    event.currentTarget.style.setProperty('--specular-x', `${x}%`);
-    event.currentTarget.style.setProperty('--specular-y', `${y}%`);
+    const angle =
+      (Math.atan2(
+        event.clientY - (rect.top + rect.height / 2),
+        event.clientX - (rect.left + rect.width / 2),
+      ) *
+        180) /
+      Math.PI;
+    event.currentTarget.style.setProperty('--refraction-angle', `${angle}deg`);
   };
-  const resetSpecularHighlight = (event: React.PointerEvent<HTMLElement>) => {
-    event.currentTarget.style.setProperty('--specular-x', '28%');
-    event.currentTarget.style.setProperty('--specular-y', '18%');
+  const resetBorderRefraction = (event: React.PointerEvent<HTMLElement>) => {
+    ctaRowRef.current?.removeAttribute('data-pointer-active');
+    event.currentTarget.style.removeProperty('--refraction-angle');
   };
 
   return (
@@ -322,12 +388,14 @@ export function HomePageContent({
                       setIsAccountMenuOpen(false);
                       setIsProductMenuOpen((open) => !open);
                     }}
-                    className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-bold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                    className={`${styles.navGlassLink} inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                   >
-                    Product
-                    <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 transition ${isProductMenuOpen ? 'rotate-180' : ''}`}>
-                      <path d="M5 7.5 10 12.5 15 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <span className="relative z-10 inline-flex items-center gap-1">
+                      Product
+                      <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 transition ${isProductMenuOpen ? 'rotate-180' : ''}`}>
+                        <path d="M5 7.5 10 12.5 15 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
                   </button>
                   {isProductMenuOpen ? (
                     <div
@@ -358,21 +426,21 @@ export function HomePageContent({
                 </div>
                 <Link
                   href="/blog"
-                  className="rounded-xl px-3 py-2 text-sm font-bold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                  className={`${styles.navGlassLink} rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                 >
-                  Blogs
+                  <span className="relative z-10">Blogs</span>
                 </Link>
                 <a
                   href="#footer"
-                  className="rounded-xl px-3 py-2 text-sm font-bold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                  className={`${styles.navGlassLink} rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                 >
-                  Contact Us
+                  <span className="relative z-10">Contact Us</span>
                 </a>
                 <a
                   href="#footer"
-                  className="rounded-xl px-3 py-2 text-sm font-bold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                  className={`${styles.navGlassLink} rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                 >
-                  About
+                  <span className="relative z-10">About</span>
                 </a>
               </nav>
 
@@ -380,9 +448,9 @@ export function HomePageContent({
                 {!isUserAuthenticated ? (
                   <Link
                     href="/login"
-                    className="rounded-xl px-3 py-2 text-sm font-extrabold text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200"
+                    className={`${styles.navGlassLink} rounded-xl px-3 py-2 text-sm font-extrabold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                   >
-                    Sign in
+                    <span className="relative z-10">Sign in</span>
                   </Link>
                 ) : (
                   <div ref={accountMenuRef} className="relative">
@@ -396,9 +464,11 @@ export function HomePageContent({
                         setIsProductMenuOpen(false);
                         setIsAccountMenuOpen((open) => !open);
                       }}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white [text-shadow:0_1px_8px_rgba(15,23,42,0.75)] transition hover:bg-white/10 hover:text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                      className={`${styles.navGlassLink} inline-flex h-9 w-9 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50`}
                     >
-                      <UserIcon className="h-5 w-5" />
+                      <span className="relative z-10">
+                        <UserIcon className="h-5 w-5" />
+                      </span>
                     </button>
                     {isAccountMenuOpen ? (
                       <div
@@ -450,6 +520,7 @@ export function HomePageContent({
         <section className="relative flex min-h-[720px] items-center overflow-hidden bg-slate-950 px-5 pb-16 pt-32 text-white sm:px-8 lg:min-h-0 lg:flex-1">
           <div aria-hidden className="absolute inset-0">
             <video
+              ref={heroVideoRef}
               autoPlay
               loop
               muted
@@ -457,6 +528,7 @@ export function HomePageContent({
               preload="auto"
               poster="/hero-background.jpg"
               className="absolute inset-0 h-full w-full object-cover object-center pointer-events-none"
+              crossOrigin="anonymous"
             >
               <source src="/hero-background.mp4" type="video/mp4" />
               <img
@@ -486,46 +558,34 @@ export function HomePageContent({
                 Configurable visual and cognitive exercises for patients and clinicians, with clear session
                 results and progress analytics across supported devices.
               </p>
-              <div className="mt-8 flex flex-row justify-center gap-3">
+              <div ref={ctaRowRef} className={`${styles.ctaReactiveRow} mt-8 flex flex-row justify-center gap-3`}>
                 <button
                   type="button"
                   onClick={onOpenDashboard}
-                  onPointerMove={moveSpecularHighlight}
-                  onPointerLeave={resetSpecularHighlight}
-                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full border border-white/30 bg-blue-300/[0.08] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04),inset_0_-10px_22px_rgba(96,165,250,0.04),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-blue-200/[0.12] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.68),inset_0_0_0_1px_rgba(255,255,255,0.07),inset_0_-10px_24px_rgba(147,197,253,0.08),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
+                  onPointerMove={moveBorderRefraction}
+                  onPointerLeave={resetBorderRefraction}
+                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full px-3 py-3.5 text-sm font-bold text-white transition duration-300 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
                 >
                   <span aria-hidden className={styles.glassSheen} />
+                  <span aria-hidden className={styles.videoReactiveGlow} />
                   <span aria-hidden className={styles.refractionBorder} />
-                  <span aria-hidden className={styles.specularHighlight} />
-                  <span aria-hidden className={styles.specularEdge} />
-                  <span aria-hidden className="absolute inset-x-4 top-px h-px rounded-full bg-gradient-to-r from-transparent via-white/90 to-transparent" />
-                  <span aria-hidden className="absolute -bottom-7 left-1/2 h-12 w-4/5 -translate-x-1/2 rounded-full bg-blue-200/20 blur-xl transition group-hover:bg-blue-100/30" />
-                  <span
-                    aria-hidden
-                    className="absolute -left-1/2 top-[-50%] h-[200%] w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 blur-[1px] transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100 motion-reduce:hidden"
-                  />
-                  <span className="relative z-10 flex items-center gap-2">
+                  <span aria-hidden className="absolute inset-x-5 top-px h-px rounded-full bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+                  <span className="relative z-10 flex items-center gap-2 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]">
                     {dashboardLabel}
                     <ArrowRightIcon className="h-4 w-4" />
                   </span>
                 </button>
                 <a
                   href="#how-it-works"
-                  onPointerMove={moveSpecularHighlight}
-                  onPointerLeave={resetSpecularHighlight}
-                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center overflow-hidden whitespace-nowrap rounded-full border border-white/25 bg-white/[0.035] px-3 py-3.5 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),inset_0_0_0_1px_rgba(255,255,255,0.03),inset_0_-10px_22px_rgba(255,255,255,0.018),0_10px_32px_-12px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-0.5 hover:border-white/45 hover:bg-white/[0.08] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.65),inset_0_0_0_1px_rgba(255,255,255,0.06),inset_0_-10px_24px_rgba(255,255,255,0.04),0_14px_38px_-12px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
+                  onPointerMove={moveBorderRefraction}
+                  onPointerLeave={resetBorderRefraction}
+                  className={`${styles.liquidGlassControl} group relative isolate inline-flex items-center justify-center overflow-hidden whitespace-nowrap rounded-full px-3 py-3.5 text-sm font-bold text-white transition duration-300 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none sm:px-7 sm:text-base`}
                 >
                   <span aria-hidden className={styles.glassSheen} />
+                  <span aria-hidden className={styles.videoReactiveGlow} />
                   <span aria-hidden className={`${styles.refractionBorder} ${styles.refractionBorderNeutral}`} />
-                  <span aria-hidden className={styles.specularHighlight} />
-                  <span aria-hidden className={styles.specularEdge} />
-                  <span aria-hidden className="absolute inset-x-4 top-px h-px rounded-full bg-gradient-to-r from-transparent via-white/85 to-transparent" />
-                  <span aria-hidden className="absolute -bottom-7 left-1/2 h-12 w-4/5 -translate-x-1/2 rounded-full bg-white/15 blur-xl transition group-hover:bg-white/25" />
-                  <span
-                    aria-hidden
-                    className="absolute -left-1/2 top-[-50%] h-[200%] w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/35 to-transparent opacity-0 blur-[1px] transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100 motion-reduce:hidden"
-                  />
-                  <span className="relative z-10">See how it works</span>
+                  <span aria-hidden className="absolute inset-x-5 top-px h-px rounded-full bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+                  <span className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]">See how it works</span>
                 </a>
               </div>
               <p className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 text-xs leading-5 text-slate-400">

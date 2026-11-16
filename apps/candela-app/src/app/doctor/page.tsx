@@ -13,9 +13,11 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import {
   AnalyticsIcon,
+  ArrowRightIcon,
   BellIcon,
   LayoutDashboardIcon,
   LogOutIcon,
+  PlusIcon,
   SearchIcon,
   SlidersIcon,
   UserIcon,
@@ -49,24 +51,27 @@ function patientInitials(name: string) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+const PANEL =
+  'rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)]';
+const PRIMARY_BTN =
+  'cursor-pointer rounded-[13px] bg-gray-950 px-[21px] py-[13px] text-[13px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60';
+const SECONDARY_BTN =
+  'cursor-pointer rounded-[13px] bg-gray-100 px-[13px] py-[13px] text-[13px] font-semibold text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60';
+
 function StatCard({
   label,
   value,
   hint,
-  labelColor,
 }: {
   label: string;
   value: string;
   hint: string;
-  labelColor: string;
 }) {
   return (
-    <div className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <p className="text-[13px] font-bold uppercase tracking-wider" style={{ color: labelColor }}>
-        {label}
-      </p>
-      <p className="mt-[8px] text-[34px] font-semibold leading-none text-gray-900">{value}</p>
-      <p className="mt-[8px] text-[13px] text-gray-500">{hint}</p>
+    <div className={PANEL}>
+      <p className="text-[13px] font-semibold text-gray-500">{label}</p>
+      <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-950">{value}</p>
+      <p className="mt-[8px] text-[13px] text-pretty text-gray-500">{hint}</p>
     </div>
   );
 }
@@ -252,13 +257,32 @@ function DoctorDashboard() {
     );
   }
 
-  const nav: { id: Section; label: string; icon: typeof LayoutDashboardIcon }[] = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboardIcon },
-    { id: 'patients', label: 'My patients', icon: UsersIcon },
-    { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
-    { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
-    { id: 'transfers', label: 'Transfer requests', icon: BellIcon },
-    { id: 'account', label: 'Account', icon: UserIcon },
+  const navGroups: {
+    label: string;
+    items: { id: Section; label: string; icon: typeof LayoutDashboardIcon }[];
+  }[] = [
+    {
+      label: 'Start',
+      items: [{ id: 'overview', label: 'Overview', icon: LayoutDashboardIcon }],
+    },
+    {
+      label: 'Patients',
+      items: [
+        { id: 'transfers', label: 'Transfer requests', icon: BellIcon },
+        { id: 'patients', label: 'My patients', icon: UsersIcon },
+      ],
+    },
+    {
+      label: 'Care',
+      items: [
+        { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
+        { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
+      ],
+    },
+    {
+      label: 'You',
+      items: [{ id: 'account', label: 'Account', icon: UserIcon }],
+    },
   ];
 
   return (
@@ -309,37 +333,48 @@ function DoctorDashboard() {
         ) : null}
         <nav
           aria-label="Doctor workspace"
-          className={`dashboard-scrollbar fixed left-4 top-[68px] z-40 flex max-h-[calc(100dvh-81px)] w-[220px] flex-col gap-[8px] overflow-y-auto rounded-[13px] border border-gray-100 bg-white p-[13px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] ${
+          className={`dashboard-scrollbar fixed left-4 top-[68px] z-40 flex max-h-[calc(100dvh-81px)] w-[220px] flex-col gap-[8px] overflow-y-auto rounded-[13px] border border-gray-100 bg-white p-[13px] shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)] ${
             navOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
           } lg:sticky lg:left-auto lg:top-[68px] lg:z-auto lg:mb-0 lg:flex lg:h-auto lg:max-h-none lg:w-auto lg:translate-x-0 lg:self-start lg:overflow-visible`}
         >
-          {nav.map((item) => {
-            const Icon = item.icon;
-            const active = section === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  openSection(item.id);
-                  setNavOpen(false);
-                }}
-                aria-current={active ? 'page' : undefined}
-                className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold ${
-                  active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
+          {navGroups.map((group, groupIndex) => (
+            <div key={group.label} className="flex flex-col gap-[4px]">
+              <p
+                className={`px-[13px] text-[11px] font-semibold uppercase text-gray-400 ${
+                  groupIndex === 0 ? 'pt-[2px]' : 'pt-[13px]'
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+                {group.label}
+              </p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = section === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      openSection(item.id);
+                      setNavOpen(false);
+                    }}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold ${
+                      active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
           <button
             type="button"
             onClick={() => void onSignOut()}
-            className="mt-[13px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
+            className="mt-[8px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
           >
-            <LogOutIcon className="h-4 w-4 shrink-0" />
+            <LogOutIcon className="size-4 shrink-0" />
             <span>Sign out</span>
           </button>
         </nav>
@@ -349,61 +384,59 @@ function DoctorDashboard() {
 
           {section === 'overview' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Doctor dashboard</h1>
+              <h1 className="text-balance text-[21px] font-semibold text-gray-950">Overview</h1>
               <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-3">
                 <StatCard
-                  label="Assigned patients"
+                  label="Patients"
                   value={String(patients.length)}
-                  hint="Patients you can open"
-                  labelColor="#2563EB"
+                  hint="Assigned to you"
                 />
                 <StatCard
-                  label="Pending transfers"
+                  label="Transfers"
                   value={String(incoming.length)}
-                  hint="Attach and change requests"
-                  labelColor="#D97706"
+                  hint="Waiting on your decision"
                 />
                 <StatCard
-                  label="Active prescriptions"
+                  label="Prescribed"
                   value={String(prescribedPatients.length)}
-                  hint="Patients with activities assigned"
-                  labelColor="#7C3AED"
+                  hint="With activities assigned"
                 />
               </div>
               {incoming.length > 0 ? (
-                <section className="rounded-[13px] border border-amber-100 bg-amber-50/70 p-[21px]">
+                <section className={`${PANEL} border-amber-100 bg-amber-50/70`}>
                   <div className="flex flex-wrap items-center justify-between gap-[13px]">
                     <div>
-                      <h2 className="text-[21px] font-semibold text-gray-900">Pending transfers</h2>
-                      <p className="mt-[8px] text-[13px] text-gray-600">
-                        {incoming.length} request{incoming.length === 1 ? '' : 's'} waiting for your decision.
+                      <h2 className="text-balance text-[18px] font-semibold text-gray-950">
+                        Pending transfers
+                      </h2>
+                      <p className="mt-[8px] text-[13px] text-pretty text-gray-600">
+                        {incoming.length} request{incoming.length === 1 ? '' : 's'} need a decision.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => openSection('transfers')}
-                      className="cursor-pointer rounded-[13px] bg-amber-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
+                      className={PRIMARY_BTN}
                     >
-                      Review transfers
+                      Review
                     </button>
                   </div>
                 </section>
               ) : null}
               {unprescribedPatients.length > 0 ? (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <h2 className="text-[21px] font-semibold text-gray-900">Needs a prescription</h2>
-                  <p className="mt-[8px] text-[13px] text-gray-500">
-                    Open a patient to prescribe. Full roster lives under My patients.
-                  </p>
-                  <ul className="mt-[21px] space-y-[13px]">
+                <section className={PANEL}>
+                  <h2 className="text-balance text-[18px] font-semibold text-gray-950">
+                    Needs a prescription
+                  </h2>
+                  <ul className="mt-[21px] space-y-[8px]">
                     {unprescribedPatients.slice(0, 5).map((patient) => (
                       <li key={patient.id}>
                         <Link
                           href={`/doctor/patients/${patient.id}?view=prescription`}
-                          className="flex items-center justify-between rounded-[13px] border border-gray-100 px-[13px] py-[13px] text-[13px] hover:border-blue-200 hover:bg-blue-50"
+                          className="flex items-center justify-between gap-[13px] rounded-[13px] bg-gray-50 px-[13px] py-[13px] text-[13px] transition hover:bg-gray-100"
                         >
-                          <span className="font-semibold text-gray-900">{patient.name}</span>
-                          <span className="font-semibold text-blue-600">Prescribe</span>
+                          <span className="truncate font-semibold text-gray-950">{patient.name}</span>
+                          <span className="shrink-0 font-semibold text-gray-500">Prescribe</span>
                         </Link>
                       </li>
                     ))}
@@ -412,20 +445,20 @@ function DoctorDashboard() {
                     <button
                       type="button"
                       onClick={() => openSection('patients')}
-                      className="mt-[13px] cursor-pointer text-[13px] font-semibold text-blue-600"
+                      className="mt-[13px] cursor-pointer text-[13px] font-semibold text-gray-950"
                     >
                       View all patients
                     </button>
                   ) : null}
                 </section>
               ) : (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <p className="text-[13px] text-gray-500">
-                    Roster and create live under{' '}
+                <section className={PANEL}>
+                  <p className="text-[13px] text-pretty text-gray-500">
+                    All assigned patients have a prescription. Manage the roster in{' '}
                     <button
                       type="button"
                       onClick={() => openSection('patients')}
-                      className="cursor-pointer font-semibold text-blue-600"
+                      className="cursor-pointer font-semibold text-gray-950"
                     >
                       My patients
                     </button>
@@ -438,84 +471,98 @@ function DoctorDashboard() {
 
           {section === 'patients' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">My patients</h1>
+              <div className="flex min-w-0 items-center gap-[13px]">
+                <h1 className="text-balance text-[21px] font-semibold text-gray-950">My patients</h1>
+                <span className="rounded-full bg-gray-100 px-[10px] py-[4px] text-[13px] font-semibold tabular-nums text-gray-600">
+                  {patients.length}
+                </span>
+              </div>
               <div className="mx-auto flex w-full max-w-[576px] rounded-[13px] bg-gray-200 p-[8px]">
                 <button
                   type="button"
-                  onClick={() => setListTab('create')}
-                  className={`flex-1 cursor-pointer rounded-[13px] py-[13px] text-[13px] font-semibold ${
-                    listTab === 'create' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
-                  }`}
-                >
-                  Create patient
-                </button>
-                <button
-                  type="button"
                   onClick={() => setListTab('patients')}
-                  className={`flex-1 cursor-pointer rounded-[13px] py-[13px] text-[13px] font-semibold ${
+                  className={`flex flex-1 cursor-pointer items-center justify-center gap-[8px] rounded-[13px] py-[13px] text-[13px] font-semibold ${
                     listTab === 'patients' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
                   }`}
                 >
+                  <UsersIcon className="size-[14px]" />
                   Patients
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setListTab('create')}
+                  className={`flex flex-1 cursor-pointer items-center justify-center gap-[8px] rounded-[13px] py-[13px] text-[13px] font-semibold ${
+                    listTab === 'create' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  <PlusIcon className="size-[14px]" />
+                  Create patient
+                </button>
               </div>
+
               {listTab === 'create' && (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <h2 className="mb-[21px] text-[21px] font-semibold leading-none text-gray-900">Create patient</h2>
-                  <p className="mb-[21px] text-[13px] text-gray-500">
-                    The patient receives a secure email invitation to set their own password. You never create or send a
-                    password.
-                  </p>
-                  <form onSubmit={onCreatePatient} className="grid grid-cols-1 gap-[21px] sm:grid-cols-2">
-                    {activeMemberships.length > 1 ? (
-                      <label className="sm:col-span-2 block text-[13px] font-semibold text-gray-700">
-                        Organisation
-                        <select
-                          className="mt-[8px] w-full rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] text-gray-900"
-                          value={organizationId}
-                          onChange={(e) => setOrganizationId(e.target.value)}
-                          required
-                        >
-                          <option value="" disabled>
-                            Select organisation
-                          </option>
-                          {activeMemberships.map((m) => (
-                            <option key={m.organizationId} value={m.organizationId}>
-                              {m.organizationName}
-                              {m.isPrimary ? ' (primary)' : ''}
+                <section className={PANEL}>
+                  <div className="mx-auto w-full max-w-[420px]">
+                    <h2 className="text-balance text-center text-[18px] font-semibold text-gray-950">
+                      Create patient
+                    </h2>
+                    <form onSubmit={onCreatePatient} className="mt-[21px] space-y-[21px]">
+                      {activeMemberships.length > 1 ? (
+                        <label className="block text-[13px] font-semibold text-gray-700">
+                          Organisation
+                          <select
+                            className="mt-[8px] w-full rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] text-gray-950"
+                            value={organizationId}
+                            onChange={(e) => setOrganizationId(e.target.value)}
+                            required
+                          >
+                            <option value="" disabled>
+                              Select organisation
                             </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : activeMemberships.length === 1 ? (
-                      <p className="sm:col-span-2 text-[13px] text-gray-500">
-                        Organisation: <span className="font-semibold text-gray-800">{activeMemberships[0].organizationName}</span>
-                      </p>
-                    ) : (
-                      <p className="sm:col-span-2 text-[13px] font-medium text-red-600">
-                        No active organisation membership. You cannot create patients until you join an organisation.
-                      </p>
-                    )}
-                    <FloatingLabelInput label="Name" value={name} onChange={setName} required scale="golden" />
-                    <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required scale="golden" />
-                    <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required scale="golden" />
-                    <button
-                      type="submit"
-                      disabled={saving || !organizationId}
-                      className="w-fit rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white disabled:opacity-60 sm:col-span-2"
-                    >
-                      {saving ? 'Creating…' : 'Create patient & send invitation'}
-                    </button>
-                  </form>
+                            {activeMemberships.map((m) => (
+                              <option key={m.organizationId} value={m.organizationId}>
+                                {m.organizationName}
+                                {m.isPrimary ? ' (primary)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : activeMemberships.length === 1 ? (
+                        <div className="rounded-[13px] border border-blue-100 bg-blue-50 px-[13px] py-[13px]">
+                          <p className="text-[12px] font-semibold uppercase text-blue-700">
+                            Organisation
+                          </p>
+                          <p className="mt-[4px] text-[15px] font-semibold text-gray-950">
+                            {activeMemberships[0].organizationName}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-center text-[13px] font-medium text-red-600">
+                          Join an organisation before creating patients.
+                        </p>
+                      )}
+                      <FloatingLabelInput label="Name" value={name} onChange={setName} required scale="golden" />
+                      <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required scale="golden" />
+                      <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required scale="golden" />
+                      <button
+                        type="submit"
+                        disabled={saving || !organizationId}
+                        className={`w-full ${PRIMARY_BTN}`}
+                      >
+                        {saving ? 'Creating…' : 'Create patient & send invitation'}
+                      </button>
+                    </form>
+                  </div>
                 </section>
               )}
+
               {listTab === 'patients' && (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <div className="mb-[13px] flex items-center gap-[13px]">
+                <section className={PANEL}>
+                  <div className="mb-[21px] flex items-center gap-[13px]">
                     {searchOpen ? (
                       <div className="min-w-0 flex-1">
                         <FloatingLabelInput
-                          label="Search patient name, email..."
+                          label="Search name, email, or phone"
                           value={searchQuery}
                           onChange={setSearchQuery}
                           autoFocus
@@ -523,13 +570,9 @@ function DoctorDashboard() {
                         />
                       </div>
                     ) : (
-                      <>
-                        <h2 className="text-[21px] font-semibold text-gray-900">Patients</h2>
-                        <span className="rounded-full bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-500">
-                          {patients.length}
-                        </span>
-                        <div className="flex-1" />
-                      </>
+                      <p className="min-w-0 flex-1 text-[13px] text-pretty text-gray-500">
+                        Open a patient to prescribe, review progress, or manage care.
+                      </p>
                     )}
                     <button
                       type="button"
@@ -541,48 +584,51 @@ function DoctorDashboard() {
                           setSearchOpen(true);
                         }
                       }}
-                      className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[13px] ${
-                        searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+                      className={`flex size-[34px] shrink-0 items-center justify-center rounded-[13px] ${
+                        searchOpen ? 'bg-gray-950 text-white' : 'bg-gray-100 text-gray-600'
                       }`}
                       title={searchOpen ? 'Close search' : 'Search patients'}
                       aria-label={searchOpen ? 'Close search' : 'Search patients'}
                     >
-                      {searchOpen ? <XIcon className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
+                      {searchOpen ? <XIcon className="size-4" /> : <SearchIcon className="size-4" />}
                     </button>
                   </div>
                   {patients.length === 0 && (
-                    <div className="py-2">
-                      <p className="text-[13px] text-gray-500">No patients yet.</p>
+                    <div>
+                      <p className="text-[13px] text-pretty text-gray-500">No patients yet.</p>
                       <button
                         type="button"
                         onClick={() => setListTab('create')}
-                        className="mt-[13px] cursor-pointer rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
+                        className={`mt-[13px] ${PRIMARY_BTN}`}
                       >
-                        Create a patient
+                        Invite a patient
                       </button>
                     </div>
                   )}
                   {patients.length > 0 && filteredPatients.length === 0 && (
-                    <div className="px-[13px] py-[34px] text-center text-gray-400">
-                      <SearchIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                      <p className="text-[13px] font-semibold text-gray-500">No patients found</p>
-                      <p className="mt-0.5 text-[13px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
+                    <div className="py-[34px] text-center">
+                      <SearchIcon className="mx-auto mb-[8px] size-8 text-gray-300" />
+                      <p className="text-[13px] font-semibold text-gray-700">No matches</p>
+                      <p className="mt-[4px] text-[13px] text-gray-500">
+                        Nothing for &quot;{searchQuery}&quot;
+                      </p>
                     </div>
                   )}
-                  <ul className="grid grid-cols-2 gap-[13px]">
+                  <ul className="grid grid-cols-1 gap-[8px] sm:grid-cols-2">
                     {filteredPatients.map((patient) => (
                       <li key={patient.id} className="min-w-0">
                         <Link
                           href={`/doctor/patients/${patient.id}`}
-                          className="flex min-w-0 items-center gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50"
+                          className="group flex min-w-0 items-center gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] text-[13px] font-semibold text-gray-950 transition hover:border-blue-200 hover:bg-blue-50"
                         >
                           <span
                             aria-hidden
-                            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
+                            className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
                           >
                             {patientInitials(patient.name)}
                           </span>
-                          <span className="min-w-0 truncate">{patient.name}</span>
+                          <span className="min-w-0 flex-1 truncate">{patient.name}</span>
+                          <ArrowRightIcon className="size-[14px] shrink-0 text-gray-400 transition group-hover:text-blue-600" />
                         </Link>
                       </li>
                     ))}
@@ -594,10 +640,10 @@ function DoctorDashboard() {
 
           {section === 'prescriptions' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Prescriptions</h1>
+              <h1 className="text-balance text-[21px] font-semibold text-gray-950">Prescriptions</h1>
               <PatientShortcutList
-                title="Open a patient to prescribe"
-                empty="No patients yet. Create a patient before prescribing."
+                title="Prescribe"
+                empty="Invite a patient before prescribing."
                 patients={patients}
                 hrefFor={(patient) => `/doctor/patients/${patient.id}?view=prescription`}
                 actionLabel="Prescribe"
@@ -611,10 +657,10 @@ function DoctorDashboard() {
 
           {section === 'transfers' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Transfer requests</h1>
+              <h1 className="text-balance text-[21px] font-semibold text-gray-950">Transfer requests</h1>
               {incoming.length === 0 ? (
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                  <p className="text-[13px] text-gray-500">No pending transfer requests.</p>
+                <section className={PANEL}>
+                  <p className="text-[13px] text-pretty text-gray-500">No pending transfer requests.</p>
                 </section>
               ) : (
                 <TransferQueue
@@ -628,20 +674,20 @@ function DoctorDashboard() {
 
           {section === 'analytics' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Analytics</h1>
+              <h1 className="text-balance text-[21px] font-semibold text-gray-950">Analytics</h1>
               <PatientShortcutList
-                title="Open a patient for analytics"
+                title="Patient analytics"
                 empty="No patients yet."
                 patients={patients}
                 hrefFor={(patient) => `/doctor/patients/${patient.id}?view=analytics`}
-                actionLabel="Analytics"
+                actionLabel="Open"
               />
             </>
           )}
 
           {section === 'account' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Account</h1>
+              <h1 className="text-balance text-[21px] font-semibold text-gray-950">Account</h1>
               <DoctorAccountCard session={session} />
             </>
           )}
@@ -661,32 +707,32 @@ function TransferQueue({
   onSettle: (id: string, accept: boolean) => void;
 }) {
   return (
-    <section className="space-y-[21px] rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+    <section className={`${PANEL} space-y-[21px]`}>
       <div>
-        <h2 className="text-[21px] font-semibold text-gray-900">Incoming attach requests</h2>
-        <p className="mt-[8px] text-[13px] text-gray-500">
-          Patients asked to join or switch to your DocID. Confirm or reject here if the email is delayed.
+        <h2 className="text-balance text-[18px] font-semibold text-gray-950">Incoming requests</h2>
+        <p className="mt-[8px] text-[13px] text-pretty text-gray-500">
+          Confirm or reject attach requests for your DocID.
         </p>
       </div>
-      <ul className="space-y-[13px]">
+      <ul className="space-y-[8px]">
         {incoming.map((request) => (
           <li
             key={request.id}
-            className="flex flex-col gap-[13px] rounded-[13px] border border-gray-100 p-[13px] sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-[13px] rounded-[13px] bg-gray-50 p-[13px] sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
-              <p className="text-[13px] font-semibold text-gray-900">{request.patientName}</p>
-              <p className="text-[13px] text-gray-500">
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-gray-950">{request.patientName}</p>
+              <p className="truncate text-[13px] text-gray-500">
                 {request.patientEmail}
                 {request.source === 'change' ? ' · reassignment' : ' · new attach'}
               </p>
             </div>
-            <div className="flex gap-[8px]">
+            <div className="flex shrink-0 gap-[8px]">
               <button
                 type="button"
                 disabled={incomingBusy === request.id}
                 onClick={() => onSettle(request.id, true)}
-                className="rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                className={PRIMARY_BTN}
               >
                 Confirm
               </button>
@@ -694,7 +740,7 @@ function TransferQueue({
                 type="button"
                 disabled={incomingBusy === request.id}
                 onClick={() => onSettle(request.id, false)}
-                className="rounded-[13px] bg-gray-100 px-[13px] py-[13px] text-[13px] font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-60"
+                className={SECONDARY_BTN}
               >
                 Reject
               </button>
@@ -722,42 +768,38 @@ function PatientShortcutList({
   onCreate?: () => void;
 }) {
   return (
-    <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <h2 className="text-[21px] font-semibold text-gray-900">{title}</h2>
-      <p className="mt-[8px] text-[13px] text-gray-500">
-        Full roster stays under My patients. This list jumps straight into the patient workspace.
-      </p>
+    <section className={PANEL}>
+      <h2 className="text-balance text-[18px] font-semibold text-gray-950">{title}</h2>
       {patients.length === 0 ? (
         <div className="mt-[21px]">
-          <p className="text-[13px] text-gray-500">{empty}</p>
+          <p className="text-[13px] text-pretty text-gray-500">{empty}</p>
           {onCreate ? (
-            <button
-              type="button"
-              onClick={onCreate}
-              className="mt-[13px] cursor-pointer rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
-            >
-              Create a patient
+            <button type="button" onClick={onCreate} className={`mt-[13px] ${PRIMARY_BTN}`}>
+              Invite a patient
             </button>
           ) : null}
         </div>
       ) : (
-        <ul className="mt-[21px] space-y-[13px]">
+        <ul className="mt-[21px] space-y-[8px]">
           {patients.map((patient) => (
             <li key={patient.id}>
               <Link
                 href={hrefFor(patient)}
-                className="flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-100 px-[13px] py-[13px] text-[13px] hover:border-blue-200 hover:bg-blue-50"
+                className="group flex items-center justify-between gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] text-[13px] transition hover:border-blue-200 hover:bg-blue-50"
               >
                 <span className="flex min-w-0 items-center gap-[13px]">
                   <span
                     aria-hidden
-                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
+                    className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
                   >
                     {patientInitials(patient.name)}
                   </span>
-                  <span className="truncate font-semibold text-gray-900">{patient.name}</span>
+                  <span className="truncate font-semibold text-gray-950">{patient.name}</span>
                 </span>
-                <span className="shrink-0 font-semibold text-blue-600">{actionLabel}</span>
+                <span className="flex shrink-0 items-center gap-[8px] font-semibold text-gray-500 transition group-hover:text-blue-600">
+                  {actionLabel}
+                  <ArrowRightIcon className="size-[14px]" />
+                </span>
               </Link>
             </li>
           ))}
