@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import type { SessionUser } from '@candela/shared/rn';
+import { isGoogleAuthInvitationRequired } from '@candela/shared/rn';
 import { AuthShell, Field, PasswordField, PrimaryButton, WebsiteExploreNote } from '../src/components/AuthForm';
 import { AuthDivider, GoogleSignInButton } from '../src/components/GoogleSignInButton';
 import { ScreenLoader } from '../src/components/ScreenLoader';
 import { ApiError, api } from '../src/lib/api';
 import { roleHomePath, useAuth } from '../src/lib/auth-context';
 import { consumeGoogleIdToken } from '../src/lib/google';
+import { storeGoogleInvitationAcceptance } from '../src/lib/google-invitation';
 import { clearTokens } from '../src/lib/tokens';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
@@ -60,10 +62,23 @@ export default function LoginScreen() {
     setError('');
     setGoogleBusy(true);
     try {
-      const next = await api<SessionUser>('/api/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({ idToken }),
-      });
+      const next = await api<SessionUser | import('@candela/shared/rn').GoogleAuthInvitationRequiredResponse>(
+        '/api/auth/google',
+        {
+          method: 'POST',
+          body: JSON.stringify({ idToken }),
+        },
+      );
+      if (isGoogleAuthInvitationRequired(next)) {
+        storeGoogleInvitationAcceptance({
+          acceptanceToken: next.acceptanceToken,
+          invitation: next.invitation,
+          message: next.message,
+        });
+        setGoogleBusy(false);
+        router.replace('/accept-google-invitation' as never);
+        return;
+      }
       applySession(next);
     } catch (err) {
       setGoogleBusy(false);

@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DoctorProfile } from './doctor-profile.entity';
+import { Organization } from './organization.entity';
 import { PatientProfile } from './patient-profile.entity';
 import { User } from './user.entity';
 
@@ -41,6 +42,19 @@ export class DocIdRequest {
   @ManyToOne(() => DoctorProfile, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'to_doctor_id' })
   toDoctor: DoctorProfile;
+
+  /**
+   * Organisation intended for this request.
+   * - Preserve path: copy of patient.organization_id when already set.
+   * - First association / explicit cross-org: caller-supplied org validated as
+   *   an active membership of the target doctor (never inferred from primary).
+   */
+  @Column({ name: 'target_organization_id', type: 'uuid', nullable: true })
+  targetOrganizationId: string | null;
+
+  @ManyToOne(() => Organization, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'target_organization_id' })
+  targetOrganization: Organization | null;
 
   @Column({ type: 'varchar', length: 16 })
   source: DocIdRequestSource;

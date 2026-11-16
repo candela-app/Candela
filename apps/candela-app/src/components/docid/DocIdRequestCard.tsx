@@ -12,6 +12,7 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
   const { session, refresh } = useAuth();
   const toast = useToast();
   const [code, setCode] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resending, setResending] = useState(false);
@@ -33,9 +34,15 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
     try {
       const result = await api<DocIdRequestResult>('/api/docid/requests', {
         method: 'POST',
-        body: JSON.stringify({ referralCode: code.trim().toUpperCase() }),
+        body: JSON.stringify({
+          referralCode: code.trim().toUpperCase(),
+          ...(organizationId.trim()
+            ? { organizationId: organizationId.trim() }
+            : {}),
+        }),
       });
       setCode('');
+      setOrganizationId('');
       await refresh();
       if (result.recipientRole === 'doctor') {
         toast.success(
@@ -171,24 +178,36 @@ export function DocIdRequestCard({ embedded = false }: { embedded?: boolean }) {
       {error ? <p className="text-[13px] leading-[21px] font-medium text-red-600 text-pretty">{error}</p> : null}
     </div>
   ) : (
-    <form onSubmit={onSubmit} className="flex flex-col gap-[13px] sm:flex-row sm:items-center">
-      <FloatingLabelInput
-        label="DocID"
-        value={code}
-        onChange={(v) => setCode(v.toUpperCase())}
-        minLength={6}
-        maxLength={6}
-        required
-        className="min-w-[10rem] flex-1 [&_input]:font-mono [&_input]:font-semibold [&_input]:uppercase"
-      />
-      <button
-        type="submit"
-        disabled={saving || code.trim().length !== 6}
-        className="rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white disabled:opacity-60"
-      >
-        {saving ? 'Sending…' : linked ? 'Request a change' : 'Request attach'}
-      </button>
-      {error ? <p className="text-[13px] leading-[21px] font-medium text-red-600 text-pretty sm:basis-full">{error}</p> : null}
+    <form onSubmit={onSubmit} className="flex flex-col gap-[13px]">
+      <div className="flex flex-col gap-[13px] sm:flex-row sm:items-center">
+        <FloatingLabelInput
+          label="DocID"
+          value={code}
+          onChange={(v) => setCode(v.toUpperCase())}
+          minLength={6}
+          maxLength={6}
+          required
+          className="min-w-[10rem] flex-1 [&_input]:font-mono [&_input]:font-semibold [&_input]:uppercase"
+        />
+        <FloatingLabelInput
+          label="Destination organisation ID (cross-org)"
+          value={organizationId}
+          onChange={setOrganizationId}
+          className="min-w-[12rem] flex-1 [&_input]:font-mono [&_input]:text-[12px]"
+        />
+        <button
+          type="submit"
+          disabled={saving || code.trim().length !== 6}
+          className="rounded-[13px] bg-blue-600 px-[13px] py-[13px] text-[13px] font-semibold text-white disabled:opacity-60"
+        >
+          {saving ? 'Sending…' : linked ? 'Request a change' : 'Request attach'}
+        </button>
+      </div>
+      <p className="text-[12px] leading-[18px] text-gray-500 text-pretty">
+        Same-organisation changes can omit the organisation ID. For a doctor in another organisation, enter that
+        organisation&apos;s ID so ownership can update after the doctor accepts.
+      </p>
+      {error ? <p className="text-[13px] leading-[21px] font-medium text-red-600 text-pretty">{error}</p> : null}
     </form>
   );
 

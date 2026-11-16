@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, withEmergencyReason } from '@/lib/api';
 import type { OrganizationDetail } from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AdminDashboardSkeleton } from '@/components/common/Skeleton';
@@ -25,29 +25,37 @@ export default function OrganizationDetailPage() {
   // Search filters
   const [doctorFilter, setDoctorFilter] = useState('');
   const [patientFilter, setPatientFilter] = useState('');
+  const [emergencyReason, setEmergencyReason] = useState('');
 
   const loadOrg = useCallback(async () => {
     if (!params?.id) return;
+    const reason = emergencyReason.trim();
+    if (reason.length < 3) {
+      setDataLoading(false);
+      setError('Enter an emergency intervention reason to view organisation identity details.');
+      return;
+    }
     try {
       setDataLoading(true);
       setError('');
-      const data = await api<OrganizationDetail>(`/api/super-admin/organizations/${params.id}`);
+      const data = await api<OrganizationDetail>(
+        `/api/super-admin/organizations/${params.id}`,
+        withEmergencyReason(reason),
+      );
       setOrg(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load organization details');
     } finally {
       setDataLoading(false);
     }
-  }, [params?.id]);
+  }, [params?.id, emergencyReason]);
 
   useEffect(() => {
     if (loading) return;
     if (!session || session.user.role !== 'super_admin') {
       router.replace('/');
-      return;
     }
-    loadOrg();
-  }, [loading, session, router, loadOrg]);
+  }, [loading, session, router]);
 
   const filteredDoctors = useMemo(() => {
     if (!org?.doctors) return [];
@@ -76,7 +84,7 @@ export default function OrganizationDetailPage() {
     );
   }, [org?.patients, patientFilter]);
 
-  if (loading || dataLoading || !session || session.user.role !== 'super_admin') {
+  if (loading || !session || session.user.role !== 'super_admin') {
     return (
       <div className="min-h-screen bg-[#F4F7FC]">
         <AppHeader backHref="/super-admin" />
@@ -85,16 +93,36 @@ export default function OrganizationDetailPage() {
     );
   }
 
-  if (error || !org) {
+  if (!org) {
     return (
       <div className="min-h-screen bg-[#F4F7FC]">
         <AppHeader backHref="/super-admin" />
-        <main className="max-w-6xl mx-auto px-6 py-12 text-center space-y-4">
-          <div className="p-8 bg-white rounded-3xl border border-gray-100 max-w-md mx-auto shadow-sm space-y-4">
-            <p className="text-sm font-bold text-red-600">{error || 'Organization not found.'}</p>
+        <main className="max-w-6xl mx-auto px-6 py-12 space-y-4">
+          <div className="p-8 bg-white rounded-3xl border border-gray-100 max-w-lg mx-auto shadow-sm space-y-4">
+            <h1 className="text-lg font-bold text-gray-900">Emergency access reason</h1>
+            <p className="text-sm text-gray-600">
+              Viewing organisation doctor and patient identity requires a Super Admin emergency reason.
+              This is audited server-side.
+            </p>
+            <textarea
+              value={emergencyReason}
+              onChange={(e) => setEmergencyReason(e.target.value)}
+              rows={3}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Why is emergency access required?"
+            />
+            {error ? <p className="text-sm font-bold text-red-600">{error}</p> : null}
+            <button
+              type="button"
+              disabled={dataLoading}
+              onClick={() => void loadOrg()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl disabled:opacity-60"
+            >
+              {dataLoading ? 'Loading…' : 'Continue with reason'}
+            </button>
             <Link
               href="/super-admin"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-gray-600"
             >
               <ArrowLeftIcon className="w-3.5 h-3.5" />
               <span>Back to Super Admin</span>

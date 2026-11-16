@@ -71,15 +71,9 @@ export class SuperAdminService {
       const orgUsers = await this.users.find({ where: { organizationId: org.id } });
       const admin = orgUsers.find((u) => u.role === 'admin');
       const doctorUsers = orgUsers.filter((u) => u.role === 'doctor');
-      const doctorUserIds = doctorUsers.map((d) => d.id);
 
-      let patientCount = 0;
-      if (doctorUserIds.length > 0) {
-        patientCount = await this.patients
-          .createQueryBuilder('patient')
-          .where('patient.doctorId IN (:...doctorUserIds)', { doctorUserIds })
-          .getCount();
-      }
+      // Authoritative ownership: patients.organization_id (not doctor legacy users.organization_id).
+      const patientCount = await this.patients.count({ where: { organizationId: org.id } });
 
       summaries.push({
         id: org.id,
@@ -173,8 +167,10 @@ export class SuperAdminService {
     const totalSelfPatients = await this.patients.count({
       where: { origin: 'self_signup', doctorId: IsNull() },
     });
-    const totalAllPatients = await this.patients.count();
-    const totalOrgPatients = Math.max(0, totalAllPatients - totalSelfPatients);
+    const totalOrgPatients = await this.patients
+      .createQueryBuilder('patient')
+      .where('patient.organization_id IS NOT NULL')
+      .getCount();
 
     return {
       totalOrganizations,
@@ -204,7 +200,9 @@ export class SuperAdminService {
     const doctorsList: OrganizationDoctorSummary[] = [];
     for (const docUser of doctorUsers) {
       const profile = doctorProfileMap.get(docUser.id);
-      const patientCount = await this.patients.count({ where: { doctorId: docUser.id } });
+      const patientCount = await this.patients.count({
+        where: { organizationId: org.id, doctorId: docUser.id },
+      });
       doctorsList.push({
         id: docUser.id,
         name: docUser.name,
@@ -216,13 +214,10 @@ export class SuperAdminService {
       });
     }
 
-    let orgPatients: PatientProfile[] = [];
-    if (doctorUserIds.length > 0) {
-      orgPatients = await this.patients.find({
-        where: { doctorId: In(doctorUserIds) },
-        relations: ['user'],
-      });
-    }
+    const orgPatients = await this.patients.find({
+      where: { organizationId: org.id },
+      relations: ['user'],
+    });
 
     const doctorMap = new Map(doctorUsers.map((d) => [d.id, d]));
     const patientsList: OrganizationPatientSummary[] = [];

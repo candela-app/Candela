@@ -7,8 +7,10 @@ import { AuthShell, Field, PrimaryButton } from '@/components/auth/AuthForm';
 import { AuthDivider, GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { ScreenLoader } from '@/components/common/ScreenLoader';
 import type { SessionUser } from '@candela/shared';
+import { isGoogleAuthInvitationRequired } from '@candela/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { storeGoogleInvitationAcceptance } from '@/lib/google-invitation';
 import { FormEvent, useEffect, useState } from 'react';
 
 export default function SignupPage() {
@@ -56,10 +58,23 @@ export default function SignupPage() {
     setError('');
     setGoogleBusy(true);
     try {
-      const next = await api<SessionUser>('/api/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({ accessToken }),
-      });
+      const next = await api<SessionUser | import('@candela/shared').GoogleAuthInvitationRequiredResponse>(
+        '/api/auth/google',
+        {
+          method: 'POST',
+          body: JSON.stringify({ accessToken }),
+        },
+      );
+      if (isGoogleAuthInvitationRequired(next)) {
+        storeGoogleInvitationAcceptance({
+          acceptanceToken: next.acceptanceToken,
+          invitation: next.invitation,
+          message: next.message,
+        });
+        toast.success(next.message);
+        router.replace('/accept-google-invitation');
+        return;
+      }
       setRedirecting(true);
       applySession(next);
       toast.success('Account created successfully! Welcome to Kandela.');

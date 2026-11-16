@@ -8,6 +8,9 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 
+/** password_reset = forgot-password; patient_invitation = doctor-created account setup. */
+export type PasswordTokenPurpose = 'password_reset' | 'patient_invitation';
+
 @Entity('password_reset_tokens')
 export class PasswordResetToken {
   @PrimaryGeneratedColumn('uuid')
@@ -22,6 +25,9 @@ export class PasswordResetToken {
 
   @Column({ name: 'token_hash', type: 'varchar', length: 64, unique: true })
   tokenHash: string;
+
+  @Column({ type: 'varchar', length: 32, default: 'password_reset' })
+  purpose: PasswordTokenPurpose;
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt: Date;

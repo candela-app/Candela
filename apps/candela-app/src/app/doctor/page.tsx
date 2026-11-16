@@ -2,8 +2,13 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api } from '@/lib/api';
-import type { IncomingDocIdRequest, PatientSummary } from '@candela/shared';
+import { ApiError, api, withOrganizationId } from '@/lib/api';
+import type {
+  CreateDoctorPatientResponse,
+  DoctorOrganizationMembershipView,
+  IncomingDocIdRequest,
+  PatientSummary,
+} from '@candela/shared';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
 import {
@@ -17,32 +22,24 @@ import {
   UsersIcon,
   XIcon,
 } from '@/components/icons/VectorIcons';
-import {
-  FloatingLabelInput,
-  FloatingLabelPasswordInput,
-} from '@/components/ui/FloatingLabelInput';
+import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
 import { CopyButton } from '@/components/ui/CopyButton';
+import { DoctorAccountCard } from '@/components/profile/DoctorAccountCard';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
-const SECTIONS = ['overview', 'patients', 'prescriptions', 'transfers', 'analytics', 'settings'] as const;
+const ORG_STORAGE_KEY = 'candela.doctor.activeOrganizationId';
+
+const SECTIONS = ['overview', 'patients', 'prescriptions', 'transfers', 'analytics', 'account'] as const;
 type Section = (typeof SECTIONS)[number];
 
 function readSection(value: string | null): Section {
+  if (value === 'settings') return 'account';
   if (value && (SECTIONS as readonly string[]).includes(value)) {
     return value as Section;
   }
   return 'patients';
-}
-
-function prescriptionLabel(patient: PatientSummary) {
-  const activities = patient.prescribedModuleIds.length;
-  if (activities === 0) {
-    return 'None';
-  }
-  const levels = Object.values(patient.prescribedLevels || {}).reduce((sum, ids) => sum + ids.length, 0);
-  return levels > 0 ? `${activities} activities · ${levels} levels` : `${activities} activities`;
 }
 
 function patientInitials(name: string) {
@@ -100,7 +97,6 @@ function DoctorDashboard() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
@@ -108,7 +104,14 @@ function DoctorDashboard() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [listTab, setListTab] = useState<'create' | 'patients'>('patients');
   const [navOpen, setNavOpen] = useState(false);
+  const [memberships, setMemberships] = useState<DoctorOrganizationMembershipView[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
   const section = readSection(searchParams.get('section'));
+
+  const activeMemberships = useMemo(
+    () => memberships.filter((m) => m.membershipStatus === 'active'),
+    [memberships],
+  );
 
   const filteredPatients = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -132,12 +135,23 @@ function DoctorDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [next, nextIncoming] = await Promise.all([
+      const [next, nextIncoming, orgs] = await Promise.all([
         api<PatientSummary[]>('/api/doctors/me/patients'),
         api<IncomingDocIdRequest[]>('/api/docid/incoming'),
+        api<DoctorOrganizationMembershipView[]>('/api/me/organizations'),
       ]);
       setPatients(next);
       setIncoming(nextIncoming);
+      const active = orgs.filter((m) => m.membershipStatus === 'active');
+      setMemberships(orgs);
+      setOrganizationId((current) => {
+        if (current && active.some((m) => m.organizationId === current)) return current;
+        const stored =
+          typeof window !== 'undefined' ? window.localStorage.getItem(ORG_STORAGE_KEY) : null;
+        if (stored && active.some((m) => m.organizationId === stored)) return stored;
+        const primary = active.find((m) => m.isPrimary);
+        return primary?.organizationId ?? active[0]?.organizationId ?? '';
+      });
     } finally {
       setDataLoading(false);
     }
@@ -165,20 +179,42 @@ function DoctorDashboard() {
   async function onCreatePatient(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (!organizationId) {
+      const msg = 'Select an organisation before creating a patient.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
     setSaving(true);
     const patientName = name.trim();
     try {
-      const created = await api<PatientSummary>('/api/doctors/me/patients', {
-        method: 'POST',
-        body: JSON.stringify({ name, phone, email, password }),
-      });
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ORG_STORAGE_KEY, organizationId);
+      }
+      const created = await api<CreateDoctorPatientResponse>(
+        '/api/doctors/me/patients',
+        withOrganizationId(organizationId, {
+          method: 'POST',
+          body: JSON.stringify({ name, phone, email }),
+        }),
+      );
       setName('');
       setPhone('');
       setEmail('');
-      setPassword('');
-      toast.success(`Patient ${patientName} created successfully!`);
+      await load();
+      if (created.invitation.emailSent) {
+        toast.success(
+          `Patient ${patientName} created. Invitation sent to ${created.patient.email} (expires ${new Date(created.invitation.expiresAt).toLocaleString('en-GB')}).`,
+        );
+      } else {
+        toast.error(
+          `Patient ${patientName} was created, but the invitation email could not be sent. Open the patient profile to resend.`,
+        );
+      }
       setListTab('patients');
-      router.push(`/doctor/patients/${created.id}`);
+      router.push(
+        `/doctor/patients/${created.patient.id}?invite=${created.invitation.emailSent ? 'sent' : 'failed'}&expires=${encodeURIComponent(created.invitation.expiresAt)}`,
+      );
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
       setError(msg);
@@ -222,7 +258,7 @@ function DoctorDashboard() {
     { id: 'prescriptions', label: 'Prescriptions', icon: SlidersIcon },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
     { id: 'transfers', label: 'Transfer requests', icon: BellIcon },
-    { id: 'settings', label: 'Settings', icon: UserIcon },
+    { id: 'account', label: 'Account', icon: UserIcon },
   ];
 
   return (
@@ -334,42 +370,67 @@ function DoctorDashboard() {
                   labelColor="#7C3AED"
                 />
               </div>
-              {incoming.length > 0 && (
-                <TransferQueue
-                  incoming={incoming}
-                  incomingBusy={incomingBusy}
-                  onSettle={(id, accept) => void settleIncoming(id, accept)}
-                />
-              )}
-              <PatientTable
-                title="Patients"
-                patients={patients}
-                empty="No patients yet."
-                searchable
-                onCreate={() => {
-                  setListTab('create');
-                  openSection('patients');
-                }}
-              />
-              {unprescribedPatients.length > 0 && (
+              {incoming.length > 0 ? (
+                <section className="rounded-[13px] border border-amber-100 bg-amber-50/70 p-[21px]">
+                  <div className="flex flex-wrap items-center justify-between gap-[13px]">
+                    <div>
+                      <h2 className="text-[21px] font-semibold text-gray-900">Pending transfers</h2>
+                      <p className="mt-[8px] text-[13px] text-gray-600">
+                        {incoming.length} request{incoming.length === 1 ? '' : 's'} waiting for your decision.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openSection('transfers')}
+                      className="cursor-pointer rounded-[13px] bg-amber-600 px-[13px] py-[13px] text-[13px] font-semibold text-white"
+                    >
+                      Review transfers
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+              {unprescribedPatients.length > 0 ? (
                 <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                   <h2 className="text-[21px] font-semibold text-gray-900">Needs a prescription</h2>
                   <p className="mt-[8px] text-[13px] text-gray-500">
-                    These assigned patients have no activities yet. Open a patient to prescribe on their profile.
+                    Open a patient to prescribe. Full roster lives under My patients.
                   </p>
                   <ul className="mt-[21px] space-y-[13px]">
-                    {unprescribedPatients.map((patient) => (
+                    {unprescribedPatients.slice(0, 5).map((patient) => (
                       <li key={patient.id}>
                         <Link
-                          href={`/doctor/patients/${patient.id}`}
+                          href={`/doctor/patients/${patient.id}?view=prescription`}
                           className="flex items-center justify-between rounded-[13px] border border-gray-100 px-[13px] py-[13px] text-[13px] hover:border-blue-200 hover:bg-blue-50"
                         >
                           <span className="font-semibold text-gray-900">{patient.name}</span>
-                          <span className="font-semibold text-blue-600">Open</span>
+                          <span className="font-semibold text-blue-600">Prescribe</span>
                         </Link>
                       </li>
                     ))}
                   </ul>
+                  {unprescribedPatients.length > 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => openSection('patients')}
+                      className="mt-[13px] cursor-pointer text-[13px] font-semibold text-blue-600"
+                    >
+                      View all patients
+                    </button>
+                  ) : null}
+                </section>
+              ) : (
+                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+                  <p className="text-[13px] text-gray-500">
+                    Roster and create live under{' '}
+                    <button
+                      type="button"
+                      onClick={() => openSection('patients')}
+                      className="cursor-pointer font-semibold text-blue-600"
+                    >
+                      My patients
+                    </button>
+                    .
+                  </p>
                 </section>
               )}
             </>
@@ -401,24 +462,49 @@ function DoctorDashboard() {
               {listTab === 'create' && (
                 <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
                   <h2 className="mb-[21px] text-[21px] font-semibold leading-none text-gray-900">Create patient</h2>
+                  <p className="mb-[21px] text-[13px] text-gray-500">
+                    The patient receives a secure email invitation to set their own password. You never create or send a
+                    password.
+                  </p>
                   <form onSubmit={onCreatePatient} className="grid grid-cols-1 gap-[21px] sm:grid-cols-2">
+                    {activeMemberships.length > 1 ? (
+                      <label className="sm:col-span-2 block text-[13px] font-semibold text-gray-700">
+                        Organisation
+                        <select
+                          className="mt-[8px] w-full rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] text-gray-900"
+                          value={organizationId}
+                          onChange={(e) => setOrganizationId(e.target.value)}
+                          required
+                        >
+                          <option value="" disabled>
+                            Select organisation
+                          </option>
+                          {activeMemberships.map((m) => (
+                            <option key={m.organizationId} value={m.organizationId}>
+                              {m.organizationName}
+                              {m.isPrimary ? ' (primary)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : activeMemberships.length === 1 ? (
+                      <p className="sm:col-span-2 text-[13px] text-gray-500">
+                        Organisation: <span className="font-semibold text-gray-800">{activeMemberships[0].organizationName}</span>
+                      </p>
+                    ) : (
+                      <p className="sm:col-span-2 text-[13px] font-medium text-red-600">
+                        No active organisation membership. You cannot create patients until you join an organisation.
+                      </p>
+                    )}
                     <FloatingLabelInput label="Name" value={name} onChange={setName} required scale="golden" />
                     <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required scale="golden" />
                     <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required scale="golden" />
-                    <FloatingLabelPasswordInput
-                      label="Password (min 8)"
-                      value={password}
-                      onChange={setPassword}
-                      required
-                      minLength={8}
-                      scale="golden"
-                    />
                     <button
                       type="submit"
-                      disabled={saving}
+                      disabled={saving || !organizationId}
                       className="w-fit rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white disabled:opacity-60 sm:col-span-2"
                     >
-                      {saving ? 'Creating…' : 'Create patient'}
+                      {saving ? 'Creating…' : 'Create patient & send invitation'}
                     </button>
                   </form>
                 </section>
@@ -509,11 +595,12 @@ function DoctorDashboard() {
           {section === 'prescriptions' && (
             <>
               <h1 className="text-[21px] font-semibold text-gray-900">Prescriptions</h1>
-              <PatientTable
-                title="Assigned patients"
-                patients={patients}
+              <PatientShortcutList
+                title="Open a patient to prescribe"
                 empty="No patients yet. Create a patient before prescribing."
-                searchable
+                patients={patients}
+                hrefFor={(patient) => `/doctor/patients/${patient.id}?view=prescription`}
+                actionLabel="Prescribe"
                 onCreate={() => {
                   setListTab('create');
                   openSection('patients');
@@ -542,48 +629,20 @@ function DoctorDashboard() {
           {section === 'analytics' && (
             <>
               <h1 className="text-[21px] font-semibold text-gray-900">Analytics</h1>
-              <PatientTable
-                title="Assigned patients"
-                patients={patients}
+              <PatientShortcutList
+                title="Open a patient for analytics"
                 empty="No patients yet."
-                searchable
-                showAnalytics
+                patients={patients}
+                hrefFor={(patient) => `/doctor/patients/${patient.id}?view=analytics`}
+                actionLabel="Analytics"
               />
             </>
           )}
 
-          {section === 'settings' && (
+          {section === 'account' && (
             <>
-              <h1 className="text-[21px] font-semibold text-gray-900">Settings</h1>
-              <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-                <dl className="grid grid-cols-1 gap-[21px] sm:grid-cols-2">
-                  <div>
-                    <dt className="text-[13px] text-gray-500">Name</dt>
-                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.name}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500">Email</dt>
-                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.email}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500">Phone</dt>
-                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.phone || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500">Organization</dt>
-                    <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.organization?.name || '—'}</dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-[13px] text-gray-500">DocID</dt>
-                    <dd className="mt-[8px] flex items-center gap-[8px]">
-                      <span className="font-mono text-[21px] font-semibold leading-none text-blue-700">
-                        {session.doctor?.referralCode || '—'}
-                      </span>
-                      <CopyButton text={session.doctor?.referralCode} label="DocID" iconSize={13} />
-                    </dd>
-                  </div>
-                </dl>
-              </section>
+              <h1 className="text-[21px] font-semibold text-gray-900">Account</h1>
+              <DoctorAccountCard session={session} />
             </>
           )}
         </main>
@@ -647,83 +706,31 @@ function TransferQueue({
   );
 }
 
-function PatientTable({
+function PatientShortcutList({
   title,
   patients,
   empty,
-  searchable = false,
-  showAnalytics = false,
+  hrefFor,
+  actionLabel,
   onCreate,
 }: {
   title: string;
   patients: PatientSummary[];
   empty: string;
-  searchable?: boolean;
-  showAnalytics?: boolean;
+  hrefFor: (patient: PatientSummary) => string;
+  actionLabel: string;
   onCreate?: () => void;
 }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const visiblePatients = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!searchable || !q || !searchOpen) return patients;
-    return patients.filter(
-      (patient) =>
-        patient.name.toLowerCase().includes(q) ||
-        patient.email.toLowerCase().includes(q) ||
-        patient.phone.toLowerCase().includes(q),
-    );
-  }, [patients, searchQuery, searchOpen, searchable]);
-
   return (
     <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <div className={`flex items-center gap-[13px] ${searchable ? 'mb-[13px]' : ''}`}>
-        {searchable && patients.length > 0 && searchOpen ? (
-          <div className="min-w-0 flex-1">
-            <FloatingLabelInput
-              label="Search patient name, email..."
-              value={searchQuery}
-              onChange={setSearchQuery}
-              autoFocus
-              scale="golden"
-            />
-          </div>
-        ) : (
-          <>
-            <h2 className="text-[21px] font-semibold text-gray-900">{title}</h2>
-            {searchable && patients.length > 0 && (
-              <span className="rounded-full bg-gray-100 px-[8px] py-[8px] text-[13px] font-semibold text-gray-500">
-                {patients.length}
-              </span>
-            )}
-            <div className="flex-1" />
-          </>
-        )}
-        {searchable && patients.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              if (searchOpen) {
-                setSearchOpen(false);
-                setSearchQuery('');
-              } else {
-                setSearchOpen(true);
-              }
-            }}
-            className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[13px] ${
-              searchOpen ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-            }`}
-            title={searchOpen ? 'Close search' : 'Search patients'}
-            aria-label={searchOpen ? 'Close search' : 'Search patients'}
-          >
-            {searchOpen ? <XIcon className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
-          </button>
-        )}
-      </div>
+      <h2 className="text-[21px] font-semibold text-gray-900">{title}</h2>
+      <p className="mt-[8px] text-[13px] text-gray-500">
+        Full roster stays under My patients. This list jumps straight into the patient workspace.
+      </p>
       {patients.length === 0 ? (
-        <div className="py-2">
+        <div className="mt-[21px]">
           <p className="text-[13px] text-gray-500">{empty}</p>
-          {onCreate && (
+          {onCreate ? (
             <button
               type="button"
               onClick={onCreate}
@@ -731,100 +738,30 @@ function PatientTable({
             >
               Create a patient
             </button>
-          )}
-        </div>
-      ) : visiblePatients.length === 0 ? (
-        <div className="px-[13px] py-[34px] text-center text-gray-400">
-          <SearchIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          <p className="text-[13px] font-semibold text-gray-500">No patients found</p>
-          <p className="mt-0.5 text-[13px] text-gray-400">No match for &quot;{searchQuery}&quot;</p>
+          ) : null}
         </div>
       ) : (
-        <>
-          <ul className={`md:hidden ${searchable ? '' : 'mt-[21px]'}`}>
-            {visiblePatients.map((patient) => (
-              <li key={patient.id} className="border-b border-gray-200 py-3">
-                <div className="flex items-center gap-[13px] rounded-[13px] border border-transparent bg-gray-50 px-[13px] py-[13px] transition-colors hover:border-blue-200 hover:bg-blue-50">
-                  <div className="flex min-w-0 flex-1 items-center gap-[13px]">
-                    <span
-                      aria-hidden
-                      className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
-                    >
-                      {patientInitials(patient.name)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-gray-800">{patient.name}</p>
-                      <p className="truncate text-[13px] text-gray-500">{prescriptionLabel(patient)}</p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end">
-                    <Link
-                      href={`/doctor/patients/${patient.id}`}
-                      className="cursor-pointer rounded-[8px] px-[13px] py-[8px] text-[13px] font-semibold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
-                    >
-                      Open
-                    </Link>
-                    {showAnalytics && (
-                      <Link
-                        href={`/doctor/patients/${patient.id}?view=analytics`}
-                        className="cursor-pointer rounded-[8px] px-[13px] py-[8px] text-[13px] font-semibold text-blue-600 transition-colors hover:bg-white hover:text-blue-800"
-                      >
-                        Analytics
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className={`dashboard-scrollbar hidden overflow-x-auto md:block ${searchable ? '' : 'mt-[21px]'}`}>
-            <table className="w-full min-w-[520px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-gray-100 text-[13px] font-semibold text-gray-500">
-                  <th className="px-[13px] py-[13px] font-semibold">Patient</th>
-                  <th className="px-[13px] py-[13px] font-semibold">Prescription</th>
-                  <th className="px-[13px] py-[13px] text-center font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visiblePatients.map((patient) => (
-                  <tr key={patient.id} className="border-b border-gray-50 last:border-0 transition-colors hover:bg-[#F4F7FC]">
-                    <td className="px-[13px] py-[13px]">
-                      <div className="flex items-center gap-[13px]">
-                        <span
-                          aria-hidden
-                          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
-                        >
-                          {patientInitials(patient.name)}
-                        </span>
-                        <p className="truncate font-semibold text-gray-900">{patient.name}</p>
-                      </div>
-                    </td>
-                    <td className="px-[13px] py-[13px] text-gray-700">{prescriptionLabel(patient)}</td>
-                    <td className="px-[13px] py-[13px] text-center">
-                      <div className="flex items-center justify-center gap-[8px]">
-                        <Link
-                          href={`/doctor/patients/${patient.id}`}
-                          className="cursor-pointer rounded-[8px] px-[13px] py-[8px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
-                        >
-                          Open
-                        </Link>
-                        {showAnalytics && (
-                          <Link
-                            href={`/doctor/patients/${patient.id}?view=analytics`}
-                            className="cursor-pointer rounded-[8px] px-[13px] py-[8px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
-                          >
-                            Analytics
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <ul className="mt-[21px] space-y-[13px]">
+          {patients.map((patient) => (
+            <li key={patient.id}>
+              <Link
+                href={hrefFor(patient)}
+                className="flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-100 px-[13px] py-[13px] text-[13px] hover:border-blue-200 hover:bg-blue-50"
+              >
+                <span className="flex min-w-0 items-center gap-[13px]">
+                  <span
+                    aria-hidden
+                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold uppercase text-white"
+                  >
+                    {patientInitials(patient.name)}
+                  </span>
+                  <span className="truncate font-semibold text-gray-900">{patient.name}</span>
+                </span>
+                <span className="shrink-0 font-semibold text-blue-600">{actionLabel}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

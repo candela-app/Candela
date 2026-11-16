@@ -362,7 +362,8 @@ html, body {
   background-color: #9ca3af;
   transform: scaleX(0);
   transform-origin: left center;
-  animation: kpi-draw 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  /* One-shot underline — infinite loop caused continuous paint lag on doctor/patient shells. */
+  animation: kpi-draw 1.2s cubic-bezier(0.22, 1, 0.36, 1) 1 forwards;
   animation-delay: var(--kpi-delay, 0ms);
 }
 

@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GameSession } from '../entities/game-session.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
+import { MembershipsModule } from '../memberships/memberships.module';
 import { DoctorGameSessionsController, PatientGameSessionsController } from './game-sessions.controller';
 import { GameSessionsService } from './game-sessions.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GameSession, PatientProfile])],
+  imports: [TypeOrmModule.forFeature([GameSession, PatientProfile]), MembershipsModule],
   controllers: [PatientGameSessionsController, DoctorGameSessionsController],
   providers: [GameSessionsService],
 })

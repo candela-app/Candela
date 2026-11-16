@@ -2,7 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { GAME_CATALOG, GAME_FAMILIES, PEDIATRIC_GAME_FAMILIES, MODULE_LEVELS, canonicalizeDirectionSenseLevels, type IncomingDocIdRequest, type PatientSummary, type SavedPracticeSummary, type TherapyModuleId } from '@candela/shared/rn';
+import {
+  GAME_CATALOG,
+  GAME_FAMILIES,
+  PEDIATRIC_GAME_FAMILIES,
+  MODULE_LEVELS,
+  canonicalizeDirectionSenseLevels,
+  type CreateDoctorPatientResponse,
+  type DoctorOrganizationMembershipView,
+  type IncomingDocIdRequest,
+  type PatientSummary,
+  type SavedPracticeSummary,
+  type TherapyModuleId,
+} from '@candela/shared/rn';
 import { AnalyticsIcon, BellIcon, CheckIcon, ChevronUpIcon, LogOutIcon, MonitorIcon, SearchIcon, SideDockIcon, SlidersIcon, UserIcon, UsersIcon, XIcon } from '../src/components/icons';
 import { AppHeader } from '../src/components/AppHeader';
 import { CopyDocId } from '../src/components/CopyDocId';
@@ -11,17 +23,15 @@ import { ScreenLoader } from '../src/components/ScreenLoader';
 import { PracticeOverview } from '../src/components/PracticeOverview';
 import { PrescriptionPractice } from '../src/components/PrescriptionPractice';
 import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
-import {
-  FloatingLabelInput,
-  FloatingLabelPasswordInput,
-} from '../src/components/FloatingLabelInput';
-import { ApiError, api, getPatientPracticeSummary } from '../src/lib/api';
+import { FloatingLabelInput } from '../src/components/FloatingLabelInput';
+import { ApiError, api, getPatientPracticeSummary, withOrganizationId } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
 import { colors } from '../src/lib/theme';
 
 const PHONE_SECTIONS = ['overview', 'patients', 'prescriptions', 'analytics', 'transfers', 'settings'] as const;
 type PhoneSection = (typeof PHONE_SECTIONS)[number];
+let rememberedOrganizationId = '';
 
 function prescriptionLabel(patient: PatientSummary) {
   const activities = patient.prescribedModuleIds.length;
@@ -133,9 +143,17 @@ export default function DoctorScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [memberships, setMemberships] = useState<DoctorOrganizationMembershipView[]>([]);
+  const [organizationId, setOrganizationId] = useState(rememberedOrganizationId);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [inviteNote, setInviteNote] = useState<string | null>(null);
+
+  const activeMemberships = useMemo(
+    () => memberships.filter((m) => m.membershipStatus === 'active'),
+    [memberships],
+  );
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
   const [incomingBusy, setIncomingBusy] = useState<string | null>(null);
   const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
@@ -169,6 +187,7 @@ export default function DoctorScreen() {
   useEffect(() => {
     setOpenFamilyId(null);
     setShowAnalytics(false);
+    setInviteNote(null);
   }, [selectedId]);
 
   useEffect(() => {
@@ -196,12 +215,23 @@ export default function DoctorScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [next, nextIncoming] = await Promise.all([
+      const [next, nextIncoming, orgs] = await Promise.all([
         api<PatientSummary[]>('/api/doctors/me/patients'),
         api<IncomingDocIdRequest[]>('/api/docid/incoming'),
+        api<DoctorOrganizationMembershipView[]>('/api/me/organizations'),
       ]);
       setPatients(next);
       setIncoming(nextIncoming);
+      const active = orgs.filter((m) => m.membershipStatus === 'active');
+      setMemberships(orgs);
+      setOrganizationId((current) => {
+        if (current && active.some((m) => m.organizationId === current)) return current;
+        if (rememberedOrganizationId && active.some((m) => m.organizationId === rememberedOrganizationId)) {
+          return rememberedOrganizationId;
+        }
+        const primary = active.find((m) => m.isPrimary);
+        return primary?.organizationId ?? active[0]?.organizationId ?? '';
+      });
       setSelectedId((current) => (current && next.some((p) => p.id === current) ? current : null));
     } finally {
       setDataLoading(false);
@@ -219,28 +249,78 @@ export default function DoctorScreen() {
 
   async function onCreatePatient() {
     setError('');
+    setInviteNote(null);
+    if (!organizationId) {
+      const msg = 'Select an organisation before creating a patient.';
+      setError(msg);
+      Alert.alert('Error', msg);
+      return;
+    }
     setSaving(true);
     const patientName = name.trim();
     try {
-      const created = await api<PatientSummary>('/api/doctors/me/patients', {
-        method: 'POST',
-        body: JSON.stringify({ name, phone, email, password }),
-      });
+      rememberedOrganizationId = organizationId;
+      const created = await api<CreateDoctorPatientResponse>(
+        '/api/doctors/me/patients',
+        withOrganizationId(organizationId, {
+          method: 'POST',
+          body: JSON.stringify({ name, phone, email }),
+        }),
+      );
       setName('');
       setPhone('');
       setEmail('');
-      setPassword('');
-      setSelectedId(created.id);
+      setSelectedId(created.patient.id);
       setPhoneSection('patients');
       setPhoneTab('patients');
       await load();
-      Alert.alert('Success', `Patient ${patientName} created successfully!`);
+      if (created.invitation.emailSent) {
+        setInviteNote(
+          `Invitation sent to ${created.patient.email} (expires ${new Date(created.invitation.expiresAt).toLocaleString()}).`,
+        );
+        Alert.alert('Success', `Patient ${patientName} created. Invitation email sent.`);
+      } else {
+        setInviteNote(
+          `Patient created, but the invitation email could not be sent. Use Resend invitation.`,
+        );
+        Alert.alert(
+          'Created with warning',
+          `Patient ${patientName} was created, but the invitation email could not be sent. Use Resend invitation.`,
+        );
+      }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
       setError(msg);
       Alert.alert('Error', msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onResendInvitation() {
+    if (!selected) return;
+    setResendBusy(true);
+    setError('');
+    try {
+      const result = await api<{ emailSent: boolean; expiresAt: string }>(
+        `/api/doctors/me/patients/${selected.id}/invitations/resend`,
+        { method: 'POST' },
+      );
+      if (result.emailSent) {
+        setInviteNote(
+          `Invitation resent to ${selected.email} (expires ${new Date(result.expiresAt).toLocaleString()}).`,
+        );
+        Alert.alert('Sent', `Invitation resent to ${selected.email}.`);
+      } else {
+        setInviteNote('Invitation was renewed, but the email could not be sent. Try again shortly.');
+        Alert.alert('Warning', 'Invitation was renewed, but the email could not be sent.');
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not resend invitation';
+      setError(msg);
+      Alert.alert('Error', msg);
+    } finally {
+      setResendBusy(false);
     }
   }
 
@@ -679,17 +759,57 @@ export default function DoctorScreen() {
 
         {!phoneProfile && phoneSection === 'patients' && phoneTab === 'create' ? (
         <View style={{ backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, marginBottom: s(21), ...cardShadow }}>
-          <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(21) }}>Create patient</Text>
+          <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(13) }}>Create patient</Text>
+          <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(21), lineHeight: fs(20) }}>
+            The patient receives a secure email invitation to set their own password. You never create or send a password.
+          </Text>
+          {activeMemberships.length > 1 ? (
+            <View style={{ marginBottom: s(13) }}>
+              <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.text, marginBottom: s(8) }}>Organisation</Text>
+              {activeMemberships.map((m) => {
+                const selectedOrg = organizationId === m.organizationId;
+                return (
+                  <Pressable
+                    key={m.organizationId}
+                    onPress={() => setOrganizationId(m.organizationId)}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: selectedOrg ? colors.blue : colors.border,
+                      backgroundColor: selectedOrg ? '#EFF6FF' : colors.white,
+                      borderRadius: s(13),
+                      paddingHorizontal: s(13),
+                      paddingVertical: s(13),
+                      marginBottom: s(8),
+                    }}
+                  >
+                    <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.text }}>
+                      {m.organizationName}
+                      {m.isPrimary ? ' (primary)' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : activeMemberships.length === 1 ? (
+            <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(13) }}>
+              Organisation: <Text style={{ fontWeight: '700', color: colors.text }}>{activeMemberships[0].organizationName}</Text>
+            </Text>
+          ) : (
+            <Text style={{ fontSize: fs(13), color: colors.red, fontWeight: '600', marginBottom: s(13) }}>
+              No active organisation membership. You cannot create patients until you join an organisation.
+            </Text>
+          )}
           <FloatingLabelInput label="Name" value={name} onChangeText={setName} scale="golden" />
           <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" scale="golden" />
-          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" scale="golden" />
-          <FloatingLabelPasswordInput label="Password (min 8)" value={password} onChangeText={setPassword} scale="golden" style={{ marginBottom: s(21) }} />
+          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" scale="golden" style={{ marginBottom: s(21) }} />
           <Pressable
             onPress={() => void onCreatePatient()}
-            disabled={saving}
-            style={{ alignSelf: 'flex-start', backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(21), paddingVertical: s(13), alignItems: 'center', opacity: saving ? 0.6 : 1 }}
+            disabled={saving || !organizationId}
+            style={{ alignSelf: 'flex-start', backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(21), paddingVertical: s(13), alignItems: 'center', opacity: saving || !organizationId ? 0.6 : 1 }}
           >
-            <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>{saving ? 'Creating…' : 'Create patient'}</Text>
+            <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>
+              {saving ? 'Creating…' : 'Create patient & send invitation'}
+            </Text>
           </Pressable>
         </View>
         ) : null}
@@ -839,6 +959,23 @@ export default function DoctorScreen() {
                       <Text style={{ fontWeight: '600', fontSize: fs(13) }}>Analytics</Text>
                     </Pressable>
                     <Pressable
+                      onPress={() => void onResendInvitation()}
+                      disabled={resendBusy}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: s(13),
+                        paddingHorizontal: s(13),
+                        paddingVertical: s(8),
+                        backgroundColor: colors.white,
+                        opacity: resendBusy ? 0.6 : 1,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '600', fontSize: fs(13), color: colors.text }}>
+                        {resendBusy ? 'Resending…' : 'Resend invitation'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
                       onPress={() => Alert.alert('Coming soon.')}
                       style={{
                         borderWidth: 1,
@@ -852,6 +989,9 @@ export default function DoctorScreen() {
                       <Text style={{ fontWeight: '600', fontSize: fs(13), color: colors.text }}>Other device games</Text>
                     </Pressable>
                   </View>
+                  {inviteNote ? (
+                    <Text style={{ fontSize: fs(13), color: colors.muted, lineHeight: fs(20) }}>{inviteNote}</Text>
+                  ) : null}
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(13), marginBottom: s(21) }}>
                   <SummaryCard
@@ -1153,6 +1293,12 @@ export default function DoctorScreen() {
                 )}
               </View>
             ))}
+            <Pressable
+              onPress={() => router.push('/doctor-profile' as never)}
+              style={{ marginTop: s(8), backgroundColor: colors.blue, borderRadius: s(12), paddingVertical: s(12), alignItems: 'center' }}
+            >
+              <Text style={{ color: colors.white, fontWeight: '700' }}>Edit professional profile</Text>
+            </Pressable>
           </View>
         ) : null}
       </ScrollView>

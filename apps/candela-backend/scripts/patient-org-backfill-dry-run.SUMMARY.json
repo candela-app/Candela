@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-11-14T18:37:06.531Z",
+  "environment": "target DATABASE_URL (preflight before ApplyPatientOrganizationId179700)",
+  "appliedMigration": "AddPatientOrganizationId1797000000000",
+  "note": "Preflight gates passed; migration applied. Doctor primary among multiple active memberships is never confident evidence.",
+  "summary": {
+    "totalPatients": 18,
+    "unassigned": 9,
+    "missingDoctorRef": 0,
+    "multiOrgDoctorCount": 0,
+    "eligibleConfidentAutomaticBackfill": 9,
+    "requiringManualReview": 0,
+    "classificationCounts": {
+      "confident_sole_active": 9,
+      "unassigned": 9
+    }
+  },
+  "postMigration": {
+    "with_org": 9,
+    "unassigned": 9,
+    "assigned_missing_org": 0
+  },
+  "evidenceRules": {
+    "confident_sole_active": "Assigned doctor has exactly one active membership; users.organization_id is null or matches that sole org.",
+    "confident_legacy_only": "No active memberships; users.organization_id points at an existing organisation (transitional).",
+    "manual_multi_org_ambiguous": "Doctor has multiple active memberships — do not use primary.",
+    "manual_sole_vs_legacy_conflict": "Sole active membership disagrees with users.organization_id.",
+    "unassigned": "doctor_id IS NULL — leave organization_id null until association.",
+    "missing_doctor_ref": "doctor_id set but no doctors row."
+  }
+}

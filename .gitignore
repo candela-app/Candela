@@ -10,6 +10,10 @@ credentials-local/
 
 # Local one-shot DB tools — never commit
 **/.migrate_to_supabase.py
+apps/candela-backend/backups/
+apps/candela-backend/preflight-migration-*.json
+apps/candela-backend/post-migration-verify-*.json
+apps/candela-backend/backfill-dry-run*.json
 
 # Environment variables / secrets — IMPORTANT
 .env

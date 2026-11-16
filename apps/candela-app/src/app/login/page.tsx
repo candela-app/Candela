@@ -6,13 +6,23 @@ import { ApiError, api } from '@/lib/api';
 import { AuthShell, Field, PasswordField, PrimaryButton } from '@/components/auth/AuthForm';
 import { AuthDivider, GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import type { SessionUser } from '@candela/shared';
+import { isGoogleAuthInvitationRequired } from '@candela/shared';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { returnToMobileApp } from '@/lib/mobile-google-return';
-import { FormEvent, useEffect, useState } from 'react';
+import { storeGoogleInvitationAcceptance } from '@/lib/google-invitation';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 
-export default function LoginPage() {
+function safeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+  return raw;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const { session, loading, applySession } = useAuth();
   const toast = useToast();
   const [email, setEmail] = useState('');
@@ -22,15 +32,22 @@ export default function LoginPage() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
+  function postLoginPath(role: SessionUser['user']['role']): string {
+    if (nextPath && role === 'doctor' && nextPath.startsWith('/org-invitation')) {
+      return nextPath;
+    }
+    return roleHomePath(role);
+  }
+
   useEffect(() => {
     if (returnToMobileApp()) {
       return;
     }
     if (!loading && session) {
       setRedirecting(true);
-      router.replace(roleHomePath(session.user.role));
+      router.replace(postLoginPath(session.user.role));
     }
-  }, [loading, session, router]);
+  }, [loading, session, router, nextPath]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -44,7 +61,7 @@ export default function LoginPage() {
       setRedirecting(true);
       applySession(next);
       toast.success(`Welcome back, ${next.user.name}!`);
-      router.replace(roleHomePath(next.user.role));
+      router.replace(postLoginPath(next.user.role));
     } catch (err) {
       setSubmitting(false);
       const msg = err instanceof ApiError ? err.message : 'Could not sign in';
@@ -57,17 +74,30 @@ export default function LoginPage() {
     setError('');
     setGoogleBusy(true);
     try {
-      const next = await api<SessionUser>('/api/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({ accessToken }),
-      });
+      const next = await api<SessionUser | import('@candela/shared').GoogleAuthInvitationRequiredResponse>(
+        '/api/auth/google',
+        {
+          method: 'POST',
+          body: JSON.stringify({ accessToken }),
+        },
+      );
+      if (isGoogleAuthInvitationRequired(next)) {
+        storeGoogleInvitationAcceptance({
+          acceptanceToken: next.acceptanceToken,
+          invitation: next.invitation,
+          message: next.message,
+        });
+        toast.success(next.message);
+        router.replace('/accept-google-invitation');
+        return;
+      }
       setRedirecting(true);
       applySession(next);
       toast.success(`Welcome back, ${next.user.name}!`);
       if (next.isNewUser && next.user.role === 'patient') {
         router.replace('/dashboard?welcome=1');
       } else {
-        router.replace(roleHomePath(next.user.role));
+        router.replace(postLoginPath(next.user.role));
       }
     } catch (err) {
       setGoogleBusy(false);
@@ -112,5 +142,19 @@ export default function LoginPage() {
         </Link>
       </p>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-page">
+          <p className="text-sm font-semibold text-shell-muted">Loading…</p>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

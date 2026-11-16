@@ -1,95 +1,177 @@
 # Deployment & Environment Configuration Guide
 
-## 1. Architecture Deployment Topology
+Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md). Auth: [AUTH_AND_ROLES_FLOW.md](./AUTH_AND_ROLES_FLOW.md).
+
+---
+
+## 1. Deployment topology
 
 ```mermaid
-graph LR
-    Vercel["Frontend: Next.js (Vercel)\nhttps://candela-app.vercel.app"]
-    Render["Backend: NestJS (Render)\nhttps://candela-backend-gbdz.onrender.com"]
-    Supabase["Database: PostgreSQL + Storage (Supabase)"]
+flowchart LR
+  Vercel[Next.js on Vercel]
+  Render[NestJS on Render]
+  Supabase[(PostgreSQL + Storage on Supabase)]
+  MailPending[Email provider / domain — configuration pending]
 
-    Vercel -->|HTTPS + withCredentials| Render
-    Render -->|TypeORM Connection Pool| Supabase
+  Vercel -->|HTTPS credentials| Render
+  Render --> Supabase
+  Render -.->|MailService SMTP when configured| MailPending
 ```
 
 ---
 
-## 2. Environment Variables
+## 2. Environment variables
+
+Use placeholders only in git. Real secrets belong in local `.env` (gitignored) or the host dashboard.
 
 ### Backend (`apps/candela-backend/.env`)
 
-| Variable | Required | Description | Example / Default |
-|---|---|---|---|
-| `PORT` | Optional | Port for the NestJS server | `4000` |
-| `NODE_ENV` | Yes | Environment mode | `production` or `development` |
-| `DATABASE_URL` | Yes | Supabase session pooler for runtime queries | `postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require` |
-| `DATABASE_URL_DIRECT` | Yes | Same pooler for TypeORM migrations (direct `db.*` host is often IPv6-only) | `postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require` |
-| `JWT_ACCESS_SECRET` | Yes | Secret key for signing access tokens | long random string (never commit the real value) |
-| `FRONTEND_URL` | Yes | Website origin for CORS | `https://candela-app-eta.vercel.app` |
-| `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | Seed | First admin; add `ADMIN_2_*` for more | set on Render / local `.env` only |
-| `ADMIN_SEED_OVERWRITE` | No | `true` updates existing admin passwords from env | `false` |
-| `MAIL_TRANSPORT` | No | `smtp` (default for sending), `log` (print links, no send) | `smtp` |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | If `smtp` | SMTP mailbox. Use an app password. Never commit real values | `smtp.gmail.com` / `587` |
-| `SMTP_SECURE` | No | `true` for port 465 | `false` |
-| `MAIL_FROM` | No | From header; defaults to `SMTP_USER` | same as SMTP user |
-| `DOC_ID_REQUEST_TTL_HOURS` | No | Confirm-link lifetime | `48` |
-| `PASSWORD_RESET_TTL_HOURS` | No | Forgot-password link lifetime | `1` |
-| `GOOGLE_CLIENT_ID_WEB` | Google Sign-In | Web OAuth client ID | `….apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_ID_ANDROID` | Google Sign-In | Android OAuth client ID | `….apps.googleusercontent.com` |
-| `SUPABASE_URL` | Familiar Faces | Project URL, e.g. `https://PROJECT_REF.supabase.co` | set on Render / local `.env` |
-| `SUPABASE_SECRET_KEY` | Familiar Faces | Server-only secret key (never put this on Vercel) | set on Render / local `.env` |
-| `SUPABASE_STORAGE_BUCKET` | Familiar Faces | Private bucket name | `familiar-faces` |
+| Variable | Required | Description |
+|---|---|---|
+| `PORT` | Optional | Nest listen port (example `3001`) |
+| `NODE_ENV` | Yes | `development` / `production` |
+| `DATABASE_URL` | Yes | Postgres session pooler (runtime) |
+| `DATABASE_URL_DIRECT` | Yes | Preferred for migrations (often same pooler) |
+| `JWT_ACCESS_SECRET` | Yes | Access JWT signing secret |
+| `JWT_REFRESH_SECRET` | Recommended | Refresh-related secret where used |
+| `FRONTEND_URL` | Yes | Web origin for CORS and email links |
+| `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` / `ADMIN_1_NAME` | Seed | First admin; `ADMIN_2_*` optional |
+| `ADMIN_SEED_OVERWRITE` | No | `true` only when rotating seeded passwords |
+| `MAIL_TRANSPORT` | No | `log` (default in code if unset for skip) or `smtp`. `sendgrid` not wired |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | If smtp | SMTP credentials |
+| `SMTP_SECURE` | No | `true` for port 465 |
+| `MAIL_FROM` | No | From header; defaults to `SMTP_USER` |
+| `DOC_ID_REQUEST_TTL_HOURS` | No | Default 48 |
+| `PASSWORD_RESET_TTL_HOURS` | No | Default 1 |
+| `PATIENT_INVITATION_TTL_HOURS` | No | Default 72 |
+| `ORG_INVITE_TTL_HOURS` | No | Default 72 |
+| `GOOGLE_INVITATION_ACCEPT_TTL_MINUTES` | No | Default 15 |
+| `GOOGLE_CLIENT_ID_WEB` | Google | Web OAuth client ID |
+| `GOOGLE_CLIENT_ID_ANDROID` | Google | Android OAuth client ID |
+| `SUPABASE_URL` | Storage | Project URL |
+| `SUPABASE_SECRET_KEY` | Storage | Server-only secret |
+| `SUPABASE_STORAGE_BUCKET` | Familiar Faces | Default `familiar-faces` |
+| `SUPABASE_PROFILE_PHOTOS_BUCKET` | Profiles | Default `profile-photos` |
 
-### Frontend (`apps/candela-app/.env.local` / Vercel Environment)
+### Super Admin emergency access
 
-| Variable | Required | Description | Example / Default |
-|---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | Yes | Public API endpoint of the backend | `https://candela-backend-gbdz.onrender.com` |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Sign-In | Same as `GOOGLE_CLIENT_ID_WEB` (public) | web client ID |
+Sensitive Super Admin HTTP requests must include header **`X-Emergency-Reason`** (non-empty; validated server-side). Rows are written to `emergency_audit_logs` (migration `AddEmergencyAuditLogs1800000000000`). That migration is required in each environment before relying on audited routes.
+
+### Frontend (`apps/candela-app`)
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | Yes | Backend public URL |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google | Same as web Google client ID |
+
+### Mobile (`apps/candela-mobile`)
+
+| Variable | Required | Description |
+|---|---|---|
+| `EXPO_PUBLIC_API_URL` | Recommended | Backend URL; otherwise platform defaults / production URL in release builds |
 
 ---
 
-## 3. Production Deployment Notes
+## 3. Email delivery status
 
-### Cross-Domain Cookie Authentication
-- When frontend and backend run on different domains (e.g. `*.vercel.app` and `*.onrender.com`), browsers enforce third-party cookie restrictions unless:
-  1. `sameSite: 'none'`
-  2. `secure: true`
-  3. `credentials: 'include'` (in all `fetch` / `api()` client requests)
-  4. Backend reflects matching `Access-Control-Allow-Origin` (not wildcard `*`) with `Access-Control-Allow-Credentials: true`.
+**Email delivery status: Implemented in application logic; external provider/domain configuration and live delivery testing pending.**
 
-### Database Migrations
-Pending migrations run automatically when the Nest process starts (`main.ts`).
-You can still apply them by hand against `DATABASE_URL_DIRECT`:
+### What the application implements
+
+- `MailService` supports `MAIL_TRANSPORT=log` (no send; returns `false`) and `MAIL_TRANSPORT=smtp` (nodemailer).
+- `MAIL_TRANSPORT=sendgrid` is explicitly **not wired** (throws).
+- Flows that call mail: patient invitations, doctor org invitations, DocID confirm/reject, password reset, emergency hospital-admin notices, related notifications.
+
+### What is not claimed
+
+- No production Candela email domain is documented as configured.
+- Live invitation / reset / DocID delivery has **not** been marked verified in this documentation set.
+- Local development can proceed with `MAIL_TRANSPORT=log` (links may be printed for debugging; tokens must not be logged in production paths).
+
+### When a provider is chosen later
+
+Set SMTP (or implement SendGrid), configure DNS/`MAIL_FROM`, then verify each invitation and reset journey end-to-end. Until then treat `emailSent: false` and resend as first-class recovery paths.
+
+---
+
+## 4. Database migrations
+
+Pending migrations run on Nest process start (`main.ts` → `runPendingMigrations`).
+
+Manual:
+
 ```bash
 npm run migration:run -w @candela/backend
 ```
 
-Familiar Faces also needs Render env `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and a private Storage bucket (`familiar-faces` by default).
+Relevant recent migrations include identity/memberships, patient organisation ownership, account activation / Google invite challenges, trial windows, and `emergency_audit_logs`.
 
-### Initial Admin Seeding
-Seed initial system administrators on first startup or via script:
+Do not invent ownership for self-signup patients with `organization_id` null.
+
+---
+
+## 5. Supabase Storage
+
+| Bucket env | Purpose | Required setup |
+|---|---|---|
+| `SUPABASE_STORAGE_BUCKET` | Familiar Faces photos | Private bucket |
+| `SUPABASE_PROFILE_PHOTOS_BUCKET` | Patient/doctor photos, org logos | Private bucket |
+
+Paths: `patients/`, `doctors/`, `organizations/` under the profile bucket. Clients receive signed URLs; they cannot set storage paths via profile PATCH.
+
+**Live private-bucket upload/signed-URL QA:** treat as pending unless verified in the target environment.
+
+---
+
+## 6. Google OAuth
+
+Configure Web and Android OAuth client IDs in Google Cloud Console and mirror them in backend/frontend env. Option C invitation acceptance requires live testing with a doctor-created invitee email.
+
+**Live Google invite path QA:** pending unless verified.
+
+---
+
+## 7. Production notes
+
+### Cookies across domains
+
+`sameSite=none`, `secure=true`, `credentials: 'include'`, CORS allow-credentials with explicit origin.
+
+### Admin seed
+
 ```bash
 npm run seed:admins -w @candela/backend
 ```
 
 ---
 
-## 4. GitHub Actions & Slack
+## 8. Outstanding external / environment QA
 
-Production deploys run on every push to `main` (`.github/workflows/deploy.yml`).
+| Item | Status in docs |
+|---|---|
+| Production email domain + provider | **Pending** |
+| Live invitation / reset / DocID email delivery | **Pending** |
+| Google OAuth Option C live path | **Pending** |
+| Supabase profile-photos private bucket live upload | **Pending** |
+| Mobile deep links for org / patient invitations | **Pending device QA** |
+| Multi-connection Postgres trial concurrency | **Pending** (unit semantics covered in tests) |
+| Web production build verification | **Pending** unless run in CI/environment |
+| Emergency audit migration in each env | Apply / verify per environment |
+
+Automated backend and shared unit tests, and TypeScript checks, are separate from the items above.
+
+---
+
+## 9. GitHub Actions & Slack
+
+Production deploys on push to `main` (`.github/workflows/deploy.yml`).
 
 | Secret | Purpose |
 |---|---|
-| `SLACK_WEBHOOK_URL_WEB` | `#web-app` — frontend (Vercel) and backend (Render) deploy notifications |
-| `SLACK_WEBHOOK_URL_MOBILE` | `#mobile-app` — EAS Android APK build notifications |
-| `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel CLI deploy |
-| `RENDER_DEPLOY_HOOK_URL` | Render backend deploy hook |
-| `EXPO_TOKEN` | EAS APK — candelaapp (first) |
-| `EXPO_TOKEN_BACKUP1` | EAS APK — satvik-27s-team if candelaapp quota is exhausted |
-| `EXPO_TOKEN_BACKUP2` | EAS APK — srisais-team if the first two are exhausted |
+| `SLACK_WEBHOOK_URL_WEB` | Web/backend deploy notifications |
+| `SLACK_WEBHOOK_URL_MOBILE` | EAS Android APK notifications |
+| `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel deploy |
+| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook |
+| `EXPO_TOKEN` (+ backups) | EAS APK |
 
-**Web channel:** started / succeeded / failed for Vercel frontend; started / triggered / failed for Render backend hook.
-
-**Mobile channel:** APK build runs when `apps/candela-mobile/**` or `packages/shared/**` change, or when you run **EAS Android APK** (Actions → Run workflow). Success message includes the expo.dev build page and direct APK URL.
-Never commit webhook URLs or tokens to the repo.
+Never commit webhook URLs or tokens.

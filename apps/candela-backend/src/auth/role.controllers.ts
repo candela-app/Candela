@@ -10,43 +10,170 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service';
+import { EmergencyAuditService } from '../audit/emergency-audit.service';
 import { PrescriptionAnalyticsService, PrescriptionPeriodQueryDto } from '../prescriptions/prescription-analytics.service';
-import { CreateAccountDto, AddPrescriptionDto, UpdateDoctorDto } from '../auth/dto';
+import { CreateAccountDto, CreatePatientDto, AddPrescriptionDto, UpdateDoctorDto } from '../auth/dto';
 import { isTherapyModuleId } from '../common/catalog';
 import { CurrentUser } from '../common/current-user.decorator';
 import { Roles } from '../common/decorators';
+import { readEmergencyReason, requireEmergencyReason } from '../common/emergency-access';
 import { User } from '../entities/user.entity';
+import { RepairPatientOrganizationDto } from '../docid/docid.dto';
+import { MembershipsService } from '../memberships/memberships.service';
+import { requireOrganizationScopeHeader } from '../memberships/organization-scope';
+import { ProfilesService } from '../profiles/profiles.service';
 
 @Controller('api/admin')
 @Roles('super_admin', 'admin')
 export class AdminController {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
+    @Inject(EmergencyAuditService) private readonly emergencyAudit: EmergencyAuditService,
+  ) {}
+
+  private async withSaEmergency<T>(
+    user: User,
+    req: Request,
+    meta: {
+      action: string;
+      resourceType: string;
+      resourceId?: string | null;
+      organizationId?: string | null;
+      notify?: boolean;
+    },
+    run: () => Promise<T>,
+  ): Promise<T> {
+    if (user.role !== 'super_admin') {
+      return run();
+    }
+    const reason = requireEmergencyReason(user, readEmergencyReason(req));
+    try {
+      const result = await run();
+      await this.emergencyAudit.record({
+        actor: user,
+        organizationId: meta.organizationId,
+        resourceType: meta.resourceType,
+        resourceId: meta.resourceId,
+        action: meta.action,
+        reason,
+        outcome: 'success',
+        notifyHospitalAdmins: Boolean(meta.notify && meta.organizationId),
+      });
+      return result;
+    } catch (err) {
+      await this.emergencyAudit.record({
+        actor: user,
+        organizationId: meta.organizationId,
+        resourceType: meta.resourceType,
+        resourceId: meta.resourceId,
+        action: meta.action,
+        reason,
+        outcome: 'failure',
+        errorMessage: err instanceof Error ? err.message : 'failed',
+      });
+      throw err;
+    }
+  }
 
   @Post('doctors')
-  createDoctor(@CurrentUser() user: User, @Body() dto: CreateAccountDto) {
-    return this.auth.createDoctor(dto, user.organizationId);
+  createDoctor(@CurrentUser() user: User, @Req() req: Request, @Body() dto: CreateAccountDto) {
+    return this.withSaEmergency(
+      user,
+      req,
+      {
+        action: 'create_doctor',
+        resourceType: 'doctor',
+        organizationId: user.organizationId,
+        notify: true,
+      },
+      () => this.auth.createDoctor(dto, user.organizationId),
+    );
   }
 
   @Get('doctors')
-  listDoctors(@CurrentUser() user: User) {
-    return this.auth.listDoctors(user.role === 'super_admin' ? null : user.organizationId);
+  listDoctors(@CurrentUser() user: User, @Req() req: Request) {
+    return this.withSaEmergency(
+      user,
+      req,
+      { action: 'list_doctors', resourceType: 'doctor' },
+      () => this.auth.listDoctors(user.role === 'super_admin' ? null : user.organizationId),
+    );
   }
 
   @Patch('doctors/:id')
-  updateDoctor(@Param('id') id: string, @Body() dto: UpdateDoctorDto) {
-    return this.auth.updateDoctor(id, dto);
+  updateDoctor(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateDoctorDto,
+  ) {
+    return this.withSaEmergency(
+      user,
+      req,
+      { action: 'update_doctor', resourceType: 'doctor', resourceId: id, notify: true },
+      () => this.auth.updateDoctor(user, id, dto),
+    );
   }
 
   @Delete('doctors/:id')
-  deleteDoctor(@Param('id') id: string) {
-    return this.auth.deleteDoctor(id);
+  deleteDoctor(@CurrentUser() user: User, @Req() req: Request, @Param('id') id: string) {
+    return this.withSaEmergency(
+      user,
+      req,
+      { action: 'delete_doctor', resourceType: 'doctor', resourceId: id, notify: true },
+      () => this.auth.deleteDoctor(user, id),
+    );
   }
 
   @Get('patients')
-  listPatients(@CurrentUser() user: User) {
-    return this.auth.listAllPatients(user.role === 'super_admin' ? null : user.organizationId);
+  listPatients(@CurrentUser() user: User, @Req() req: Request) {
+    return this.withSaEmergency(
+      user,
+      req,
+      { action: 'list_patients', resourceType: 'patient' },
+      () => this.auth.listAllPatients(user.role === 'super_admin' ? null : user.organizationId),
+    );
+  }
+
+  /** Ownership repair — admin may only set their own organisation; no primary fallback. */
+  @Post('patients/:patientId/organization')
+  repairPatientOrganization(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('patientId') patientId: string,
+    @Body() dto: RepairPatientOrganizationDto,
+  ) {
+    return this.withSaEmergency(
+      user,
+      req,
+      {
+        action: 'repair_patient_organization',
+        resourceType: 'patient',
+        resourceId: patientId,
+        organizationId: dto.organizationId,
+        notify: true,
+      },
+      () => this.memberships.repairPatientOrganization(user, patientId, dto.organizationId),
+    );
+  }
+
+  @Post('patients/:patientId/invitations/resend')
+  resendPatientInvitation(
+    @CurrentUser() user: User,
+    @Req() req: Request,
+    @Param('patientId') patientId: string,
+  ) {
+    return this.withSaEmergency(
+      user,
+      req,
+      { action: 'resend_patient_invitation', resourceType: 'patient', resourceId: patientId },
+      () => this.auth.resendPatientInvitation(user, patientId),
+    );
   }
 }
 
@@ -57,11 +184,23 @@ export class DoctorController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(PrescriptionAnalyticsService) private readonly prescriptionAnalytics: PrescriptionAnalyticsService,
+    @Inject(ProfilesService) private readonly profiles: ProfilesService,
   ) {}
 
   @Post('patients')
-  createPatient(@CurrentUser() user: User, @Body() dto: CreateAccountDto) {
-    return this.auth.createDoctorPatient(user.id, dto);
+  createPatient(@CurrentUser() user: User, @Req() req: Request, @Body() dto: CreatePatientDto) {
+    const organizationId = requireOrganizationScopeHeader(req);
+    return this.auth.createDoctorPatient(user.id, dto, organizationId);
+  }
+
+  @Post('patients/:patientId/invitations/resend')
+  resendPatientInvitation(@CurrentUser() user: User, @Param('patientId') patientId: string) {
+    return this.auth.resendPatientInvitation(user, patientId);
+  }
+
+  @Get('patients/:patientId/profile')
+  getPatientProfile(@CurrentUser() user: User, @Param('patientId') patientId: string) {
+    return this.profiles.getPatientProfileForDoctor(user.id, patientId);
   }
 
   @Get('patients')

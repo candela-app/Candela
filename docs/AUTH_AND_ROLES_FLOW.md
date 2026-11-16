@@ -1,123 +1,249 @@
-# Authentication, Roles & Session Flows
+# Authentication, Roles & Access Flows
 
-## 1. Role Hierarchy & Access Matrix
-
-Candela supports 3 core roles stored on a unified `users` table:
-
-```mermaid
-graph TD
-    User["User Table (id, email, password_hash, role)"]
-    Admin["Admin (role = 'admin')"]
-    Doctor["Doctor (role = 'doctor')\nLinked to 'doctors' (DocID)"]
-    Patient["Patient (role = 'patient')\nLinked to 'patients' (doctorId nullable)"]
-
-    User --> Admin
-    User --> Doctor
-    User --> Patient
-
-    Admin -->|Manages| Doctor
-    Doctor -->|Manages| Patient
-```
-
-### Access Matrix
-
-| Role | Landing Route | Permitted Views | Actions & Capabilities |
-|---|---|---|---|
-| **Visitor / Unauthenticated** | `/` (Homepage) | `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password` | Explore therapy tool descriptions, register, sign in, or reset a password |
-| **Patient (Self-Signup)** | `/dashboard` | `/`, `/dashboard` | Play all catalog modules; finished plays save to analytics |
-| **Patient (Doctor-Managed)**| `/dashboard` | `/`, `/dashboard` | Play prescribed modules; finished plays save to analytics |
-| **Doctor** | `/doctor` | `/`, `/doctor` | Onboard patients, prescribe modules, view that patient’s session charts |
-| **Admin** | `/admin` | `/`, `/admin` | Create doctors, edit doctor credentials, delete test doctors, inspect all platform patients |
+Canonical authentication and authorisation reference. System architecture: [ARCHITECTURE.md](./ARCHITECTURE.md). Environment: [DEPLOYMENT_AND_ENV.md](./DEPLOYMENT_AND_ENV.md). Change history: [CANDELA_ARCHITECTURE_CHANGE_LOG.md](./CANDELA_ARCHITECTURE_CHANGE_LOG.md).
 
 ---
 
-## 2. Authentication Lifecycle
+## 1. Role hierarchy and access matrix
+
+### Diagram 4 — Role and access-control boundaries
+
+```mermaid
+flowchart TB
+  SA[Super Admin — platform]
+  HA[Hospital Admin — one organisation]
+  Doc[Doctor — one or more org memberships]
+  Pat[Patient — zero or one owning org]
+  Self[Self-user — patient origin self_signup may have null org]
+
+  Platform[Candela platform]
+  OrgA[Organisation A]
+  OrgB[Organisation B]
+
+  SA --> Platform
+  HA --> OrgA
+  Doc --> OrgA
+  Doc --> OrgB
+  Pat --> OrgA
+  Self -.->|optional later DocID| OrgA
+```
+
+| Role | Landing (web) | Capabilities |
+|---|---|---|
+| Visitor | `/` | Marketing, login, signup, forgot/reset password, invitation pages |
+| Patient (self-signup) | `/dashboard` | All catalog modules until linked; soft profile prompt; may have null org |
+| Patient (doctor-created / linked) | `/dashboard` | Prescribed modules; soft profile prompt |
+| Doctor | `/doctor` | Patients in active org scopes, prescribe, analytics, profile, org invitations |
+| Hospital Admin | `/admin` | Doctors, org profile, internal transfers, org patients |
+| Super Admin | `/super-admin` | Organisations, metrics, announcements; sensitive ops need emergency reason |
+
+Mobile mirrors supported workflows (`login`, `dashboard`, `doctor`, `admin`, `super-admin`, profile screens, invitation screens).
+
+---
+
+## 2. Session model
+
+| Token | Lifetime | Transport |
+|---|---|---|
+| Access JWT | ~1 day | Web: `httpOnly` cookie `candela_access`. Mobile: `Authorization: Bearer` |
+| Refresh (opaque SHA-256) | ~14 days | Cookie / stored token; rotated on use |
+
+Production cross-site cookies: `sameSite=none`, `secure=true`, credentials included, CORS origin not `*`.
+
+Session payload includes role-specific doctor/patient data. For patients, first successful session build may start the trial (`ensurePatientTrialStarted`).
+
+---
+
+## 3. Normal authentication
+
+### Diagram 3a — Password and Google login (activated accounts)
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User as Client (Web / Mobile)
-    participant Next as Next.js Web App
-    participant Nest as NestJS Backend
-    participant DB as PostgreSQL Database
+  actor User
+  participant API as NestJS
+  participant DB as PostgreSQL
 
-    Note over User,Nest: 1. Sign In Flow
-    User->>Nest: POST /api/auth/login (email, password)
-    Nest->>DB: Verify bcrypt password hash
-    Nest->>DB: Create Refresh Token Record (SHA-256)
-    Nest-->>User: 200 OK + Set Cookies (candela_access, candela_refresh) + JSON (user, doctor, patient)
-    User->>Next: Redirects to role home (/admin, /doctor, /dashboard)
-
-    Note over User,Nest: 2. Authenticated API Call
-    User->>Nest: GET /api/me (Cookies / Bearer token)
-    Nest->>Nest: JwtAuthGuard validates token
-    Nest-->>User: 200 OK with session & allowedModuleIds
-
-    Note over User,Nest: 3. Session Refresh Flow
-    User->>Nest: POST /api/auth/refresh (refresh token)
-    Nest->>DB: Validate token & revoke old token
-    Nest->>DB: Issue new rotated token pair
-    Nest-->>User: 200 OK + Updated Cookies
-
-    Note over User,Nest: 4. Sign Out Flow
-    User->>Nest: POST /api/auth/logout
-    Nest->>DB: Revoke refresh token
-    Nest-->>User: Clear Cookies + Toast Notification
-
-    Note over User,Nest: 5. Forgot password
-    User->>Nest: POST /api/auth/forgot-password (email)
-    Nest->>DB: If the user has a password, store a SHA-256 reset token
-    Nest->>User: Same generic OK (does not reveal whether the email exists)
-    Nest-->>User: SMTP reset link to {FRONTEND_URL}/reset-password?token=…
-    User->>Nest: POST /api/auth/reset-password (token, new password)
-    Nest->>DB: bcrypt hash, consume token, revoke refresh tokens
+  alt Email / password
+    User->>API: POST /api/auth/login
+    Note over API: Missing / unactivated / Google-only / wrong password → same "Invalid email or password"
+    API->>DB: Verify bcrypt when password_hash present
+    API->>DB: Issue refresh + access
+    API-->>User: Session cookies / tokens
+  else Google Sign-In activated or self-signup
+    User->>API: POST /api/auth/google
+    API->>API: Verify Google identity
+    API->>DB: Link or create self_signup patient as needed
+    API-->>User: Session
+  end
 ```
 
----
-
-## 3. Session Management & Cookies
-
-### Dual Token System
-1. **Access Token (JWT)**:
-   - Lifetime: **1 Day**
-   - Payload: `{ sub: userId, email: string, role: Role, name: string }`
-   - Transport: `httpOnly` cookie `candela_access` (Web) OR `Authorization: Bearer <token>` (Mobile/Native).
-2. **Refresh Token (Opaque Hash)**:
-   - Lifetime: **14 Days**
-   - Storage: Cryptographic SHA-256 hash stored in `refresh_tokens` table.
-   - Rotation: Automatically revoked upon use and re-issued.
-
-### Cross-Origin Production Cookie Configuration
-For decoupled deployments (e.g. Next.js on Vercel $\leftrightarrow$ NestJS on Render):
-- `sameSite: 'none'`
-- `secure: true`
-- `httpOnly: true`
-- `path: '/'`
+**L4:** Password login does not reveal whether an email exists or is activated. Forgot-password always returns `{ ok: true }`.
 
 ---
 
-## 4. Forgot password
+## 4. Patient invitation lifecycle
 
-Public pages: `/forgot-password` and `/reset-password?token=…` (web). Mobile can request a link; the email always opens the website.
+Doctor-created patients: `password_hash = null`, `origin = doctor_created`, `account_activated_at = null` until acceptance.
 
-| Method | Path | Who | Purpose |
+### Diagram 8 — Patient creation and email delivery
+
+```mermaid
+sequenceDiagram
+  actor Doc as Doctor
+  participant API as NestJS
+  participant DB as PostgreSQL
+  participant Mail as MailService
+
+  Doc->>API: POST /api/doctors/me/patients + X-Organization-Id
+  API->>API: Assert active membership in that org
+  API->>DB: BEGIN
+  API->>DB: Insert user password_hash null
+  API->>DB: Insert patient ownership doctor_id + organization_id
+  API->>DB: Insert patient_invitation token hash only
+  API->>DB: COMMIT
+  API->>Mail: Send activation link after commit
+  alt SMTP success
+    Mail-->>API: emailSent true
+  else log mode or SMTP failure
+    Mail-->>API: emailSent false — account and invite remain; authorised resend OK
+  end
+  API-->>Doc: Patient summary + emailSent + expiresAt — no raw token
+```
+
+### Password acceptance (Method A)
+
+```mermaid
+sequenceDiagram
+  actor Pat as Patient
+  participant API as NestJS
+  participant DB as PostgreSQL
+
+  Pat->>API: POST /api/auth/invitations/accept token + password
+  API->>DB: Validate purpose=patient_invitation single-use unexpired
+  API->>DB: Set password_hash, account_activated_at, consume tokens
+  API-->>Pat: ok true — then sign in separately
+```
+
+Activation source of truth: **`patients.account_activated_at`**. Not `password_hash`. Not profile completion.
+
+### Diagram 3b — Google Option C
+
+```mermaid
+sequenceDiagram
+  actor Pat as Pending invitee
+  participant API as NestJS
+  participant DB as PostgreSQL
+
+  Pat->>API: POST /api/auth/google
+  API->>DB: doctor_created and account_activated_at null
+  API-->>Pat: invitation_acceptance_required + acceptanceToken — no Candela session
+  Pat->>API: POST /api/auth/invitations/accept-google
+  API->>DB: Validate challenge + invitation + email bind
+  API->>DB: Link google_id, set account_activated_at, consume tokens
+  API-->>Pat: Normal session issued
+```
+
+Pending invitees **cannot** obtain a normal session via Google alone. Challenge TTL defaults to 15 minutes (`GOOGLE_INVITATION_ACCEPT_TTL_MINUTES`).
+
+---
+
+## 5. Doctor organisation invitation
+
+### Diagram 3c — Authenticated org invitation acceptance
+
+```mermaid
+sequenceDiagram
+  actor Admin as Hospital / Super Admin
+  actor Doc as Invited doctor
+  participant API as NestJS
+  participant DB as PostgreSQL
+
+  Admin->>API: POST /api/organizations/:id/memberships/invitations
+  API->>DB: Store invitation token hash pending
+  API-->>Doc: Email link /org-invitation?token=… when mail configured
+  Doc->>API: GET …/preview public — never activates membership
+  Doc->>API: Login if needed — must be the invitee doctor
+  Doc->>API: POST …/accept or …/decline as authenticated doctor
+  API->>API: actor.id must equal invitation.doctorId
+  API->>DB: Activate membership only on accept
+  API-->>Doc: Membership or declined status
+```
+
+- Token alone does not activate membership.
+- Another doctor cannot accept.
+- One doctor account and one DocID across organisations.
+- Web: `/org-invitation`. Mobile: `org-invitation` (+ scheme `candela`).
+
+---
+
+## 6. Password reset and token purpose isolation
+
+| Purpose | Table / rows | Used by |
+|---|---|---|
+| `password_reset` | `password_reset_tokens` | Forgot / reset password |
+| `patient_invitation` | same table, different purpose | Patient activation |
+| Doctor org invite | `doctor_organization_invitations` | Separate entity |
+
+Password-reset cannot activate an unactivated invitee. Invitation accept rejects `password_reset` tokens. Resend patient invitation invalidates outstanding **patient_invitation** tokens only.
+
+---
+
+## 7. Organisation scoping
+
+| Actor | Scope |
+|---|---|
+| Doctor | `X-Organization-Id` must match an **active** membership for writes such as patient create |
+| Hospital Admin | `users.organization_id` for admin org boundary; patients filtered by `patients.organization_id` |
+| Super Admin | Platform-wide for listed platform routes; sensitive routes need `X-Emergency-Reason` |
+
+Doctor–patient clinical access uses membership in **`patients.organization_id`**, never doctor primary alone.
+
+---
+
+## 8. Transfer authorisation summary
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) §8 for diagrams.
+
+| Flow | Who starts | Who confirms (code) | Cross-org |
 |---|---|---|---|
-| POST | `/api/auth/forgot-password` | Public | `{ email }`. Always `{ ok: true }`. Sends mail only if that user has a password hash. |
-| POST | `/api/auth/reset-password` | Public | `{ token, password }` (min 8 chars). Consumes the token and revokes refresh tokens. |
-
-Tokens are random, stored as SHA-256, single-use, default TTL **1 hour** (`PASSWORD_RESET_TTL_HOURS`). Mail uses the same `MailService` as DocID (`MAIL_TRANSPORT=smtp` or `log`). Google-only accounts (`password_hash` null) do not get a reset mail — they keep using Google Sign-In. Do not log emails or tokens (except `MAIL_TRANSPORT=log`, which prints the reset URL for local testing).
+| Patient DocID request | Patient | Receiving doctor | Yes if explicit `organizationId` and membership valid |
+| Admin transfer | Hospital Admin | Patient email confirm | No — same owning org |
+| SA cross-org transfer | Super Admin | Patient email confirm | Yes — requires emergency reason + audit |
 
 ---
 
-## 5. DocID Referral Mechanics
+## 9. Emergency access
 
-Every doctor account is assigned a unique **DocID** (referral code) automatically upon creation:
-- **Format**: Exactly **6 alphanumeric characters** (e.g. `K9X2B4`).
-- **Composition**: 3 uppercase letters (A–Z) and 3 digits (0–9).
-- **Rule**: First character is always an uppercase letter.
-- **Safety**: Generates with collision retries (up to 20 attempts).
-- **Purpose**: Unique clinic/doctor tracking identifier linking patients to their supervising physician.
+Sensitive Super Admin routes require `X-Emergency-Reason`. Audit inserts into `emergency_audit_logs`. Successful mutating interventions may email hospital admins (action category + audit id; no clinical session payloads). Ordinary platform ops do not require a reason.
 
-Patients can later **attach** or **change** that DocID. Admin can **transfer**. Confirmation is by SMTP email. Full flow: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
+Details and diagram: [ARCHITECTURE.md](./ARCHITECTURE.md) §9.
 
-Finished therapy plays (not login sessions) are documented in [SESSION_METRICS_AND_ANALYTICS.md](./SESSION_METRICS_AND_ANALYTICS.md).
+---
+
+## 10. Trial vs activation vs profile
+
+| Concept | Field / trigger |
+|---|---|
+| Account activation | `account_activated_at` — invitation accept |
+| Identity profile complete | `identity_profile_completed_at` — explicit complete |
+| Trial | `trial_started_at` / `trial_ends_at` — first successful session |
+| Subscription | Not implemented |
+
+---
+
+## 11. Related APIs (selected)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/auth/login` | Opaque failures |
+| POST | `/api/auth/google` | May return Option C challenge |
+| POST | `/api/auth/invitations/accept` | Password activate |
+| POST | `/api/auth/invitations/accept-google` | Google activate + session |
+| GET/POST | `/api/doctor-organization-invitations/:token/*` | Preview public; accept/decline doctor-auth |
+| GET/PATCH/POST | `/api/me/profile*` | Identity profile |
+| POST | `/api/docid/requests` | Patient DocID |
+| POST | `/api/docid/transfers` | Hospital Admin internal |
+| POST | `/api/docid/cross-organization-transfers` | Super Admin + emergency reason |
+
+DocID mail details: [DOCID_AND_MAIL.md](./DOCID_AND_MAIL.md).
