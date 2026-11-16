@@ -36,10 +36,10 @@ function DetailRow({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex h-[34px] items-center justify-between gap-[8px]">
-      <dt className="shrink-0 text-[13px] text-gray-500">{label}</dt>
+    <div className="flex h-[26px] items-center justify-between gap-[8px]">
+      <dt className="shrink-0 text-[12px] text-white/65">{label}</dt>
       <dd className="flex min-w-0 items-center justify-end gap-[8px]">
-        <span className="truncate text-right text-[13px] font-semibold text-gray-950">{value}</span>
+        <span className="truncate text-right text-[12px] font-semibold text-white">{value}</span>
         {action}
       </dd>
     </div>
@@ -58,44 +58,52 @@ const PANELS: ReadonlyArray<{ id: PanelId; title: string }> = [
   { id: 'clinic', title: 'Clinic' },
 ];
 
-const PANEL_BODY_CLASS = 'h-[136px]';
+const PANEL_BODY_CLASS = 'h-[108px]';
+const WRAP =
+  'mx-auto flex w-full max-w-[377px] flex-col gap-[10px]';
 const CARD =
-  'mx-auto w-full max-w-[377px] overflow-hidden rounded-[21px] border border-gray-100 bg-white shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)]';
+  'overflow-hidden rounded-[21px] border border-gray-100 bg-slate-900 shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)]';
 
 function SkeletonBar({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse rounded-[8px] bg-slate-200/90 ${className}`} />;
 }
 
+const SKELETON_CARD =
+  'overflow-hidden rounded-[21px] border border-gray-100 bg-white shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)]';
+
 export function DoctorAccountCardSkeleton() {
   return (
-    <article className={CARD} aria-busy aria-label="Loading account">
-      <div className="relative aspect-[4/3] animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300" />
-      <div className="space-y-[13px] px-[21px] pb-[21px] pt-[13px]">
-        <SkeletonBar className="h-[21px] w-[160px]" />
-        <SkeletonBar className="h-[13px] w-[200px]" />
-        <div className="rounded-[13px] border border-gray-100 bg-gray-50/80 px-[13px] py-[13px]">
-          <div className="mb-[8px] flex items-center justify-between gap-[8px]">
-            <SkeletonBar className="size-[34px] rounded-full" />
-            <SkeletonBar className="h-[13px] w-[72px]" />
-            <SkeletonBar className="size-[34px] rounded-full" />
-          </div>
-          <div className={`${PANEL_BODY_CLASS} flex flex-col justify-between py-[8px]`}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex h-[34px] items-center justify-between gap-[8px]">
-                <SkeletonBar className="h-[13px] w-[72px]" />
-                <SkeletonBar className="h-[13px] w-[120px]" />
-              </div>
-            ))}
-          </div>
-          <div className="mt-[8px] flex items-center justify-center gap-[8px]">
-            <SkeletonBar className="h-[8px] w-[21px] rounded-full" />
-            <SkeletonBar className="h-[8px] w-[8px] rounded-full" />
-            <SkeletonBar className="h-[8px] w-[8px] rounded-full" />
+    <div className={WRAP}>
+      <article className={SKELETON_CARD} aria-busy aria-label="Loading account">
+        <div className="relative aspect-[2/3] overflow-hidden bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-white via-white/85 to-transparent"
+          />
+          <div className="absolute inset-x-0 bottom-0 space-y-[8px] px-[18px] pb-[16px] pt-[20px]">
+            <div className="flex items-center justify-between gap-[8px]">
+              <SkeletonBar className="size-[28px] rounded-full" />
+              <SkeletonBar className="h-[24px] w-[140px]" />
+              <SkeletonBar className="size-[28px] rounded-full" />
+            </div>
+            <div className={`${PANEL_BODY_CLASS} flex flex-col justify-between`}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex h-[26px] items-center justify-between gap-[8px]">
+                  <SkeletonBar className="h-[12px] w-[64px]" />
+                  <SkeletonBar className="h-[12px] w-[110px]" />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-[6px]">
+              <SkeletonBar className="h-[6px] w-[18px] rounded-full" />
+              <SkeletonBar className="h-[6px] w-[6px] rounded-full" />
+              <SkeletonBar className="h-[6px] w-[6px] rounded-full" />
+            </div>
           </div>
         </div>
-        <SkeletonBar className="h-[55px] w-full rounded-[13px]" />
-      </div>
-    </article>
+      </article>
+      <SkeletonBar className="h-[46px] w-full rounded-[13px]" />
+    </div>
   );
 }
 
@@ -146,7 +154,7 @@ export function DoctorAccountCard({ session }: Props) {
   const panelBody = useMemo(() => {
     if (!profile) {
       return (
-        <p className="flex h-full items-center justify-center text-[13px] text-gray-500">
+        <p className="flex h-full items-center justify-center text-[12px] text-white/70">
           Could not load details.
         </p>
       );
@@ -154,7 +162,7 @@ export function DoctorAccountCard({ session }: Props) {
 
     if (panel.id === 'contact') {
       return (
-        <dl className="flex h-full flex-col justify-between py-[8px]">
+        <dl className="flex h-full flex-col justify-between">
           <DetailRow label="Email" value={profile.email || '—'} />
           <DetailRow label="Phone" value={profile.phone || '—'} />
           <DetailRow
@@ -171,7 +179,7 @@ export function DoctorAccountCard({ session }: Props) {
 
     if (panel.id === 'practice') {
       return (
-        <dl className="flex h-full flex-col justify-between py-[8px]">
+        <dl className="flex h-full flex-col justify-between">
           <DetailRow label="Title" value={profile.professionalTitle || '—'} />
           <DetailRow label="Specialization" value={profile.specialization || '—'} />
           <DetailRow
@@ -186,7 +194,7 @@ export function DoctorAccountCard({ session }: Props) {
     }
 
     return (
-      <dl className="flex h-full flex-col justify-between py-[8px]">
+      <dl className="flex h-full flex-col justify-between">
         <DetailRow
           label="DocID"
           value={docId || '—'}
@@ -213,106 +221,102 @@ export function DoctorAccountCard({ session }: Props) {
   }
 
   return (
-    <article className={CARD}>
-      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
-        {photoUrl ? (
-          <>
-            {!photoLoaded ? (
-              <div
-                className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300"
-                aria-hidden
-              />
-            ) : null}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photoUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              onLoad={() => setPhotoLoaded(true)}
-              onError={() => setPhotoLoaded(true)}
-              className={`h-full w-full object-cover transition-opacity duration-300 ${
-                photoLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-          </>
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-[8px] text-slate-400">
-            <div className="flex size-[55px] items-center justify-center rounded-full bg-white/80 text-[21px] font-semibold text-slate-500 shadow-sm">
-              {initial}
-            </div>
-            <UserIcon className="absolute bottom-[13px] right-[13px] size-[21px] opacity-40" />
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-[13px] px-[21px] pb-[21px] pt-[13px]">
-        <div className="flex items-center gap-[8px]">
-          <h3 className="truncate text-[21px] font-semibold leading-none tracking-tight text-gray-950">
-            {name}
-          </h3>
-          {complete ? (
-            <VerifiedBadgeIcon
-              className="size-[21px] shrink-0 text-blue-600"
-              aria-label="Profile complete"
-            />
-          ) : null}
-        </div>
-        {profile?.professionalTitle || profile?.specialization ? (
-          <p className="truncate text-[13px] leading-[21px] text-gray-500">
-            {[profile.professionalTitle, profile.specialization].filter(Boolean).join(' · ')}
-          </p>
-        ) : null}
-
-        <div className="rounded-[13px] border border-gray-100 bg-gray-50/80 px-[13px] py-[13px]">
-          <div className="mb-[8px] flex items-center justify-between gap-[8px]">
-            <button
-              type="button"
-              onClick={goPrev}
-              className="flex size-[34px] items-center justify-center rounded-full bg-white text-gray-700 shadow-sm hover:bg-gray-100"
-              aria-label="Previous details"
-            >
-              <ArrowLeftIcon className="size-[13px]" />
-            </button>
-            <p className="text-[13px] font-semibold uppercase tracking-wide text-gray-500">
-              {panel.title}
-            </p>
-            <button
-              type="button"
-              onClick={goNext}
-              className="flex size-[34px] items-center justify-center rounded-full bg-white text-gray-700 shadow-sm hover:bg-gray-100"
-              aria-label="Next details"
-            >
-              <ArrowRightIcon className="size-[13px]" />
-            </button>
-          </div>
-
-          <div className={PANEL_BODY_CLASS}>{panelBody}</div>
-
-          <div className="mt-[8px] flex items-center justify-center gap-[8px]">
-            {PANELS.map((p, i) => (
-              <button
-                key={p.id}
-                type="button"
-                aria-label={`Show ${p.title}`}
-                aria-current={i === panelIndex ? 'true' : undefined}
-                onClick={() => setPanelIndex(i)}
-                className={`h-[8px] rounded-full transition-all ${
-                  i === panelIndex ? 'w-[21px] bg-gray-900' : 'w-[8px] bg-gray-300 hover:bg-gray-400'
+    <div className={WRAP}>
+      <article className={CARD}>
+        <div className="relative aspect-[2/3] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950">
+          {photoUrl ? (
+            <>
+              {!photoLoaded ? (
+                <div
+                  className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300"
+                  aria-hidden
+                />
+              ) : null}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onLoad={() => setPhotoLoaded(true)}
+                onError={() => setPhotoLoaded(true)}
+                className={`h-full w-full object-cover object-top transition-opacity duration-300 ${
+                  photoLoaded ? 'opacity-100' : 'opacity-0'
                 }`}
               />
-            ))}
+            </>
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-[8px] text-slate-300">
+              <div className="flex size-[72px] items-center justify-center rounded-full bg-white/15 text-[28px] font-semibold text-white shadow-sm backdrop-blur-sm">
+                {initial}
+              </div>
+              <UserIcon className="absolute right-[18px] top-[18px] size-[21px] text-white/35" />
+            </div>
+          )}
+
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black/90 via-black/55 to-transparent backdrop-blur-md [mask-image:linear-gradient(to_top,black_65%,transparent)]"
+          />
+
+          <div className="absolute inset-x-0 bottom-0 space-y-[8px] px-[18px] pb-[16px] pt-[20px]">
+            <div className="flex items-center justify-between gap-[8px]">
+              <button
+                type="button"
+                onClick={goPrev}
+                className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-white/15 text-white shadow-sm transition hover:bg-white/25"
+                aria-label="Previous details"
+              >
+                <ArrowLeftIcon className="size-[12px]" />
+              </button>
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-[8px]">
+                <h3 className="truncate text-[24px] font-bold leading-none tracking-tight text-white [text-shadow:0_2px_16px_rgba(0,0,0,0.9),0_1px_2px_rgba(0,0,0,0.85)]">
+                  {name}
+                </h3>
+                {complete ? (
+                  <VerifiedBadgeIcon
+                    className="size-[20px] shrink-0 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]"
+                    aria-label="Profile complete"
+                  />
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={goNext}
+                className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-white/15 text-white shadow-sm transition hover:bg-white/25"
+                aria-label="Next details"
+              >
+                <ArrowRightIcon className="size-[12px]" />
+              </button>
+            </div>
+
+            <div className={PANEL_BODY_CLASS}>{panelBody}</div>
+
+            <div className="flex items-center justify-center gap-[6px]">
+              {PANELS.map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-label={`Show ${p.title}`}
+                  aria-current={i === panelIndex ? 'true' : undefined}
+                  onClick={() => setPanelIndex(i)}
+                  className={`h-[6px] rounded-full transition-all ${
+                    i === panelIndex ? 'w-[18px] bg-white' : 'w-[6px] bg-white/35 hover:bg-white/55'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
+      </article>
 
-        <Link
-          href="/doctor/profile"
-          className="flex w-full items-center justify-center gap-[8px] rounded-[13px] bg-gray-950 px-[21px] py-[13px] text-[13px] font-semibold text-white transition hover:bg-black"
-        >
-          <PencilIcon className="size-[13px]" />
-          Edit professional profile
-        </Link>
-      </div>
-    </article>
+      <Link
+        href="/doctor/profile"
+        className="flex w-full items-center justify-center gap-[8px] rounded-[13px] bg-gray-950 px-[21px] py-[13px] text-[13px] font-semibold text-white transition hover:bg-black"
+      >
+        <PencilIcon className="size-[13px]" />
+        Edit professional profile
+      </Link>
+    </div>
   );
 }

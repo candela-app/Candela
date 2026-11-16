@@ -67,32 +67,42 @@ function ProfileSkeleton() {
       </div>
 
       <div className="space-y-[21px]">
-        <div className="grid grid-cols-1 items-stretch gap-[13px] md:grid-cols-2">
-          <Skeleton className="aspect-[4/3] w-full rounded-[13px]" />
-          <div className="grid min-w-0 grid-cols-1 items-stretch gap-[13px]">
-            <Skeleton className="h-[89px] w-full rounded-[13px]" />
-            <Skeleton className="h-[89px] w-full rounded-[13px]" />
-            <Skeleton className="h-[89px] w-full rounded-[13px]" />
+        <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+          <div className="flex flex-col gap-[21px] lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex flex-col gap-[21px] sm:flex-row sm:items-start">
+              <Skeleton className="mx-auto aspect-[2/3] w-full max-w-[220px] shrink-0 rounded-[13px] sm:mx-0" />
+              <div className="min-w-0 flex-1 space-y-[13px]">
+                <Skeleton className="h-[34px] w-[200px] rounded-[8px]" />
+                <div className="flex gap-[8px]">
+                  <Skeleton className="h-[24px] w-[72px] rounded-full" />
+                  <Skeleton className="h-[24px] w-[72px] rounded-full" />
+                  <Skeleton className="h-[24px] w-[72px] rounded-full" />
+                </div>
+              </div>
+            </div>
+            <div className="mx-auto grid w-full max-w-[377px] gap-[21px] sm:mx-0 lg:w-[377px] lg:shrink-0">
+              <Skeleton className="h-full min-h-[89px] w-full rounded-[13px]" />
+              <Skeleton className="h-full min-h-[89px] w-full rounded-[13px]" />
+              <Skeleton className="h-full min-h-[89px] w-full rounded-[13px]" />
+            </div>
           </div>
         </div>
 
-        <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-          <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, group) => (
-              <div
-                key={group}
-                className="min-w-0 space-y-[8px] rounded-[13px] border border-gray-100 bg-gray-50/80 p-[13px]"
-              >
-                <Skeleton className="h-[13px] w-[89px]" />
-                {Array.from({ length: 4 }).map((__, i) => (
-                  <div key={i} className="flex items-center justify-between gap-[13px] py-[8px]">
-                    <Skeleton className="h-[13px] w-[72px]" />
-                    <Skeleton className="h-[13px] w-[89px]" />
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 gap-[21px] sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, group) => (
+            <div
+              key={group}
+              className={`min-w-0 space-y-[8px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${PAGE_SHADOW}`}
+            >
+              <Skeleton className="h-[13px] w-[89px]" />
+              {Array.from({ length: 4 }).map((__, i) => (
+                <div key={i} className="flex items-center justify-between gap-[13px] py-[8px]">
+                  <Skeleton className="h-[13px] w-[72px]" />
+                  <Skeleton className="h-[13px] w-[89px]" />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </main>
@@ -374,194 +384,262 @@ function DoctorPatientProfile() {
         )}
 
         {patient && (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-[13px]">
-              <button
-                type="button"
-                onClick={() => openWorkspace('overview')}
-                className="flex items-center gap-[8px] text-left"
-                title="Back to overview"
-              >
-                <h1 className="text-[34px] font-semibold leading-none text-gray-900">{patient.name}</h1>
-                {profileComplete ? (
-                  <VerifiedBadgeIcon
-                    className="size-[21px] shrink-0 text-blue-600"
-                    aria-label="Profile complete"
-                  />
-                ) : null}
-              </button>
-              <div className="flex shrink-0 flex-wrap items-center gap-[8px]">
-                {(
-                  [
-                    {
-                      id: 'analytics' as const,
-                      label: 'Analytics',
-                      icon: AnalyticsIcon,
-                      title: 'Session analytics',
-                    },
-                    {
-                      id: 'prescription' as const,
-                      label: 'Prescription',
-                      icon: SlidersIcon,
-                      title: 'Prescribed modules',
-                    },
-                    {
-                      id: 'invitation' as const,
-                      label: 'Invitation',
-                      icon: MailIcon,
-                      title: 'Resend invitation',
-                    },
-                    {
-                      id: 'devices' as const,
-                      label: 'Devices',
-                      icon: MonitorIcon,
-                      title: 'Other device games',
-                    },
-                  ] as const
-                ).map((item) => {
-                  const active = workspace === item.id;
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => openWorkspace(active ? 'overview' : item.id)}
-                      title={active ? 'Back to overview' : item.title}
-                      aria-label={active ? 'Back to overview' : item.title}
-                      aria-current={active ? 'page' : undefined}
-                      className={`inline-flex h-[55px] min-w-[55px] cursor-pointer items-center justify-center gap-[8px] rounded-[13px] border px-[13px] text-[13px] font-semibold leading-none ${
-                        active
-                          ? 'border-blue-200 bg-blue-50 text-blue-800'
-                          : 'border-gray-200 bg-white text-gray-800 hover:border-blue-200'
-                      }`}
-                    >
-                      <Icon className="size-[13px] shrink-0 text-blue-600" aria-hidden />
-                      <span className="hidden sm:inline">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {error ? <p className="text-[13px] font-medium leading-[21px] text-red-600">{error}</p> : null}
-
-            <section className="space-y-[21px]">
-              {workspace === 'overview' ? (
-                <DoctorPatientIdentityPanel
-                  patientId={patient.id}
-                  profile={identityProfile}
-                  profileLoading={detailsLoading}
-                  stats={[
-                    {
-                      label: 'Saved sessions',
-                      value: detailsLoading
-                        ? '…'
-                        : practiceFailed
-                          ? '—'
-                          : String(practice?.sessionCount ?? 0),
-                      hint: detailsLoading
-                        ? 'Loading practice summary'
-                        : practiceFailed
-                          ? 'Summary unavailable'
-                          : practice?.availability === 'recorded'
-                            ? 'Saved sessions'
-                            : 'No session saved',
-                      index: 0,
-                    },
-                    {
-                      label: 'Last saved',
-                      value: saved.value,
-                      hint: saved.hint,
-                      index: 1,
-                    },
-                    {
-                      label: 'Prescribed',
-                      value: String(prescribedCount),
-                      hint:
-                        prescribedCount === 1
-                          ? '1 activity'
-                          : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`,
-                      index: 3,
-                    },
-                  ]}
-                />
-              ) : null}
-
-              {workspace === 'analytics' ? (
-                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-                  <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
-                </div>
-              ) : null}
-
-              {workspace === 'prescription' ? (
-                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-                  <DoctorPatientPrescribe
-                    patient={patient}
-                    onToggleModule={(moduleId, enabled) => void toggleModule(moduleId, enabled)}
-                    onToggleLevel={(moduleId, levelId, enabled) => void toggleLevel(moduleId, levelId, enabled)}
-                  />
-                </div>
-              ) : null}
-
-              {workspace === 'invitation' ? (
-                <div className={`space-y-[13px] rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-                  <div>
-                    <h2 className="text-[21px] font-semibold text-gray-900">Invitation</h2>
-                    <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
-                      Resend only works before the patient activates their account. They set their own
-                      password from the email link.
-                    </p>
-                  </div>
-                  {inviteBanner ? (
-                    <div
-                      className={`rounded-[13px] border px-[13px] py-[13px] text-[13px] leading-[21px] ${
-                        inviteBanner.status === 'sent'
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                          : 'border-amber-200 bg-amber-50 text-amber-900'
-                      }`}
-                    >
-                      {inviteBanner.status === 'sent' ? (
-                        <p>
-                          Invitation email sent
-                          {inviteBanner.expiresAt
-                            ? ` · expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')}`
-                            : ''}
-                          .
-                        </p>
-                      ) : (
-                        <p>
-                          Invitation email could not be sent
-                          {inviteBanner.expiresAt
-                            ? ` (link expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')})`
-                            : ''}
-                          .
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void onResendInvitation()}
-                    disabled={resendBusy}
-                    className="cursor-pointer rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    {resendBusy ? 'Resending…' : 'Resend invitation'}
-                  </button>
-                </div>
-              ) : null}
-
-              {workspace === 'devices' ? (
-                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-                  <h2 className="text-[21px] font-semibold text-gray-900">Other device games</h2>
-                  <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
-                    Cross-device game assignment is coming soon.
-                  </p>
-                </div>
-              ) : null}
-            </section>
-          </>
+          <PatientWorkspace
+            patient={patient}
+            workspace={workspace}
+            profileComplete={profileComplete}
+            error={error}
+            identityProfile={identityProfile}
+            detailsLoading={detailsLoading}
+            practice={practice}
+            practiceFailed={practiceFailed}
+            saved={saved}
+            prescribedCount={prescribedCount}
+            assignedLevelCount={assignedLevelCount}
+            inviteBanner={inviteBanner}
+            resendBusy={resendBusy}
+            openWorkspace={openWorkspace}
+            onResendInvitation={() => void onResendInvitation()}
+            onToggleModule={(moduleId, enabled) => void toggleModule(moduleId, enabled)}
+            onToggleLevel={(moduleId, levelId, enabled) => void toggleLevel(moduleId, levelId, enabled)}
+          />
         )}
       </main>
     </div>
+  );
+}
+
+function PatientWorkspace({
+  patient,
+  workspace,
+  profileComplete,
+  error,
+  identityProfile,
+  detailsLoading,
+  practice,
+  practiceFailed,
+  saved,
+  prescribedCount,
+  assignedLevelCount,
+  inviteBanner,
+  resendBusy,
+  openWorkspace,
+  onResendInvitation,
+  onToggleModule,
+  onToggleLevel,
+}: {
+  patient: PatientSummary;
+  workspace: WorkspacePane;
+  profileComplete: boolean;
+  error: string;
+  identityProfile: PatientIdentityProfile | null;
+  detailsLoading: boolean;
+  practice: SavedPracticeSummary | null;
+  practiceFailed: boolean;
+  saved: { value: string; hint: string };
+  prescribedCount: number;
+  assignedLevelCount: number;
+  inviteBanner: { status: 'sent' | 'failed'; expiresAt: string | null } | null;
+  resendBusy: boolean;
+  openWorkspace: (pane: WorkspacePane) => void;
+  onResendInvitation: () => void;
+  onToggleModule: (moduleId: TherapyModuleId, enabled: boolean) => void;
+  onToggleLevel: (moduleId: TherapyModuleId, levelId: string, enabled: boolean) => void;
+}) {
+  const workspaceActions = (
+    <>
+      {(
+        [
+          {
+            id: 'analytics' as const,
+            label: 'Analytics',
+            icon: AnalyticsIcon,
+            title: 'Session analytics',
+          },
+          {
+            id: 'prescription' as const,
+            label: 'Prescription',
+            icon: SlidersIcon,
+            title: 'Prescribed modules',
+          },
+          {
+            id: 'invitation' as const,
+            label: 'Invitation',
+            icon: MailIcon,
+            title: 'Resend invitation',
+          },
+          {
+            id: 'devices' as const,
+            label: 'Devices',
+            icon: MonitorIcon,
+            title: 'Other device games',
+          },
+        ] as const
+      ).map((item) => {
+        const active = workspace === item.id;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => openWorkspace(active ? 'overview' : item.id)}
+            title={active ? 'Back to overview' : item.title}
+            aria-label={active ? 'Back to overview' : item.title}
+            aria-current={active ? 'page' : undefined}
+            className={`inline-flex h-[55px] min-w-[55px] cursor-pointer items-center justify-center gap-[8px] rounded-[13px] border px-[13px] text-[13px] font-semibold leading-none transition ${
+              active
+                ? 'border-blue-200 bg-blue-50 text-blue-800'
+                : 'border-gray-200 bg-white text-gray-800 hover:border-blue-200'
+            }`}
+          >
+            <Icon className="size-[13px] shrink-0 text-blue-600" aria-hidden />
+            <span className="hidden sm:inline">{item.label}</span>
+          </button>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-[13px]">
+        <button
+          type="button"
+          onClick={() => openWorkspace('overview')}
+          className="flex items-center gap-[8px] text-left"
+          title="Back to overview"
+        >
+          <h1 className="text-[34px] font-semibold leading-none text-gray-900">{patient.name}</h1>
+          {profileComplete ? (
+            <VerifiedBadgeIcon
+              className="size-[21px] shrink-0 text-blue-600"
+              aria-label="Profile complete"
+            />
+          ) : null}
+        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-[8px]">{workspaceActions}</div>
+      </div>
+
+      {error ? <p className="text-[13px] font-medium leading-[21px] text-red-600">{error}</p> : null}
+
+      <section className="space-y-[21px]">
+        {workspace === 'overview' ? (
+          <DoctorPatientIdentityPanel
+            patientId={patient.id}
+            profile={identityProfile}
+            profileLoading={detailsLoading}
+            fallbackName={patient.name}
+            stats={[
+              {
+                label: 'Saved sessions',
+                value: detailsLoading
+                  ? '…'
+                  : practiceFailed
+                    ? '—'
+                    : String(practice?.sessionCount ?? 0),
+                hint: detailsLoading
+                  ? 'Loading practice summary'
+                  : practiceFailed
+                    ? 'Summary unavailable'
+                    : practice?.availability === 'recorded'
+                      ? 'Saved sessions'
+                      : 'No session saved',
+                index: 0,
+              },
+              {
+                label: 'Last saved',
+                value: saved.value,
+                hint: saved.hint,
+                index: 1,
+              },
+              {
+                label: 'Prescribed',
+                value: String(prescribedCount),
+                hint:
+                  prescribedCount === 1
+                    ? '1 activity'
+                    : `${prescribedCount} activities${
+                        assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''
+                      }`,
+                index: 2,
+                onClick: () => openWorkspace('prescription'),
+              },
+            ]}
+          />
+        ) : null}
+
+        {workspace === 'analytics' ? (
+          <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+            <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
+          </div>
+        ) : null}
+
+        {workspace === 'prescription' ? (
+          <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+            <DoctorPatientPrescribe
+              patient={patient}
+              onToggleModule={onToggleModule}
+              onToggleLevel={onToggleLevel}
+            />
+          </div>
+        ) : null}
+
+        {workspace === 'invitation' ? (
+          <div className={`space-y-[13px] rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+            <div>
+              <h2 className="text-[21px] font-semibold text-gray-900">Invitation</h2>
+              <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
+                Resend only works before the patient activates their account. They set their own
+                password from the email link.
+              </p>
+            </div>
+            {inviteBanner ? (
+              <div
+                className={`rounded-[13px] border px-[13px] py-[13px] text-[13px] leading-[21px] ${
+                  inviteBanner.status === 'sent'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    : 'border-amber-200 bg-amber-50 text-amber-900'
+                }`}
+              >
+                {inviteBanner.status === 'sent' ? (
+                  <p>
+                    Invitation email sent
+                    {inviteBanner.expiresAt
+                      ? ` · expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')}`
+                      : ''}
+                    .
+                  </p>
+                ) : (
+                  <p>
+                    Invitation email could not be sent
+                    {inviteBanner.expiresAt
+                      ? ` (link expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')})`
+                      : ''}
+                    .
+                  </p>
+                )}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={onResendInvitation}
+              disabled={resendBusy}
+              className="cursor-pointer rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {resendBusy ? 'Resending…' : 'Resend invitation'}
+            </button>
+          </div>
+        ) : null}
+
+        {workspace === 'devices' ? (
+          <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+            <h2 className="text-[21px] font-semibold text-gray-900">Other device games</h2>
+            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
+              Cross-device game assignment is coming soon.
+            </p>
+          </div>
+        ) : null}
+      </section>
+    </>
   );
 }
