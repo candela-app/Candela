@@ -1,4 +1,5 @@
 import { IsEmail, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
+import { IsE164Phone } from '../common/is-e164.decorator';
 
 export class LoginDto {
   @IsEmail()
@@ -13,8 +14,7 @@ export class SignupDto {
   @MinLength(1)
   name: string;
 
-  @IsString()
-  @MinLength(6)
+  @IsE164Phone()
   phone: string;
 
   @IsEmail()
@@ -27,6 +27,36 @@ export class SignupDto {
 
 export class CreateAccountDto extends SignupDto {}
 
+/** Doctor-created patient — no password; activation via invitation email. */
+export class CreatePatientDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+
+  @IsE164Phone()
+  phone: string;
+
+  @IsEmail()
+  email: string;
+}
+
+export class AcceptPatientInvitationDto {
+  @IsString()
+  @MinLength(20)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
+/** H2 Option C — explicit accept after Google auth (uses server-issued challenge). */
+export class AcceptGooglePatientInvitationDto {
+  @IsString()
+  @MinLength(20)
+  acceptanceToken: string;
+}
+
 export class UpdateDoctorDto {
   @IsOptional()
   @IsString()
@@ -34,8 +64,7 @@ export class UpdateDoctorDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  @MinLength(6)
+  @IsE164Phone()
   phone?: string;
 
   @IsOptional()
@@ -117,7 +146,7 @@ export class CreateOrganizationDto {
   adminPassword: string;
 
   @IsOptional()
-  @IsString()
+  @IsE164Phone()
   adminPhone?: string;
 }
 

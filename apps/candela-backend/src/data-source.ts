@@ -2,11 +2,15 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { DocIdHistory } from './entities/docid-history.entity';
 import { DocIdRequest } from './entities/docid-request.entity';
+import { DoctorOrganizationInvitation } from './entities/doctor-organization-invitation.entity';
+import { DoctorOrganizationMembership } from './entities/doctor-organization-membership.entity';
+import { EmergencyAuditLog } from './entities/emergency-audit-log.entity';
 import { DoctorProfile } from './entities/doctor-profile.entity';
 import { PatientProfile } from './entities/patient-profile.entity';
 import { Prescription } from './entities/prescription.entity';
 import { PrescriptionRevision } from './entities/prescription-revision.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { GoogleInvitationChallenge } from './entities/google-invitation-challenge.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { Organization } from './entities/organization.entity';
 import { User } from './entities/user.entity';
@@ -25,6 +29,11 @@ import { AddOrganizationsAndSuperAdmin1792000000000 } from './migrations/1792000
 import { AddAnnouncements1793000000000 } from './migrations/1793000000000-AddAnnouncements';
 import { AddGameSessionDetail1794000000000 } from './migrations/1794000000000-AddGameSessionDetail';
 import { AddPrescriptionRevisions1795000000000 } from './migrations/1795000000000-AddPrescriptionRevisions';
+import { Phase1IdentityProfilesAndMemberships1796000000000 } from './migrations/1796000000000-Phase1IdentityProfilesAndMemberships';
+import { AddPatientOrganizationId1797000000000 } from './migrations/1797000000000-AddPatientOrganizationId';
+import { AddAccountActivationAndGoogleInviteChallenge1798000000000 } from './migrations/1798000000000-AddAccountActivationAndGoogleInviteChallenge';
+import { AddPatientTrialWindows1799000000000 } from './migrations/1799000000000-AddPatientTrialWindows';
+import { AddEmergencyAuditLogs1800000000000 } from './migrations/1800000000000-AddEmergencyAuditLogs';
 import { loadBackendEnv } from './common/load-env';
 import { postgresConnectionUrl } from './common/postgres-url';
 
@@ -44,12 +53,16 @@ export const AppDataSource = new DataSource({
     PrescriptionRevision,
     RefreshToken,
     PasswordResetToken,
+    GoogleInvitationChallenge,
     DocIdRequest,
     DocIdHistory,
     FamiliarFace,
     GameSession,
     Announcement,
     UserAnnouncementRead,
+    DoctorOrganizationMembership,
+    DoctorOrganizationInvitation,
+    EmergencyAuditLog,
   ],
   migrations: [
     InitAuth1740000000000,
@@ -63,6 +76,11 @@ export const AppDataSource = new DataSource({
     AddAnnouncements1793000000000,
     AddGameSessionDetail1794000000000,
     AddPrescriptionRevisions1795000000000,
+    Phase1IdentityProfilesAndMemberships1796000000000,
+    AddPatientOrganizationId1797000000000,
+    AddAccountActivationAndGoogleInviteChallenge1798000000000,
+    AddPatientTrialWindows1799000000000,
+    AddEmergencyAuditLogs1800000000000,
   ],
 });
 

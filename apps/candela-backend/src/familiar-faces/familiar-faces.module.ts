@@ -11,5 +11,6 @@ import { SupabaseStorageService } from './supabase-storage';
   imports: [ConfigModule, TypeOrmModule.forFeature([FamiliarFace, PatientProfile])],
   controllers: [FamiliarFacesController],
   providers: [SupabaseStorageService, FamiliarFacesService],
+  exports: [SupabaseStorageService],
 })
 export class FamiliarFacesModule {}

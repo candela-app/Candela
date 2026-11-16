@@ -116,11 +116,15 @@ function serviceFor(input: {
     },
   };
   const doctors = { find: async () => [] };
+  const memberships = {
+    doctorCanAccessPatient: async () => input.owned !== false,
+  };
   const service = new PrescriptionAnalyticsService(
     patients as unknown as Repository<PatientProfile>,
     revisions as unknown as Repository<PrescriptionRevision>,
     sessions as unknown as Repository<GameSession>,
     doctors as unknown as Repository<DoctorProfile>,
+    memberships as never,
   );
   return { service, calls, finds };
 }

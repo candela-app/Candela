@@ -10,14 +10,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { isValidReferralCode } from '../common/referral-code';
 import { DocIdHistory } from '../entities/docid-history.entity';
 import { DocIdRequest, DocIdRequestSource } from '../entities/docid-request.entity';
+import { DoctorOrganizationMembership } from '../entities/doctor-organization-membership.entity';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { User } from '../entities/user.entity';
 import { MailService } from '../mail/mail.service';
+import { MembershipsService } from '../memberships/memberships.service';
+import { resolveFirstAssociationOrganizationId } from '../memberships/patient-organization';
 
 const DEFAULT_TTL_HOURS = 48;
 
@@ -62,9 +65,15 @@ export class DocIdService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @Inject(MailService) private readonly mail: MailService,
     @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
+    @Inject(DataSource) private readonly dataSource: DataSource,
   ) {}
 
-  async requestByPatient(user: User, rawCode: string): Promise<DocIdRequestResult> {
+  async requestByPatient(
+    user: User,
+    rawCode: string,
+    explicitOrganizationId?: string,
+  ): Promise<DocIdRequestResult> {
     if (user.role !== 'patient') {
       throw new ForbiddenException('Only patients can attach or change a DocID');
     }
@@ -77,18 +86,87 @@ export class DocIdService {
       if (patient.origin !== 'self_signup') {
         throw new BadRequestException('Ask an administrator to transfer you to a doctor');
       }
-      return this.createAndNotify(patient, doctor, 'self');
+      return this.createAndNotify(patient, doctor, 'self', explicitOrganizationId);
     }
-    return this.createAndNotify(patient, doctor, 'change');
+    // Same-org doctor change: preserve patient.organization_id. Cross-org requires explicit org.
+    return this.createAndNotify(patient, doctor, 'change', explicitOrganizationId);
   }
 
-  async requestByAdmin(patientId: string, rawCode: string): Promise<DocIdRequestResult> {
+  /**
+   * Hospital admin: internal reassignment only (same patient.organization_id).
+   * Cross-organisation transfers require super_admin.requestCrossOrganizationTransfer.
+   */
+  async requestByAdmin(admin: User, patientId: string, rawCode: string): Promise<DocIdRequestResult> {
+    if (admin.role !== 'admin') {
+      throw new ForbiddenException('Only hospital administrators can transfer patients');
+    }
+    if (!admin.organizationId) {
+      throw new ForbiddenException('Administrator is not assigned to an organisation');
+    }
     const patient = await this.requirePatient(patientId);
+    if (!patient.organizationId) {
+      throw new ForbiddenException(
+        'Patient has no owning organisation. Use ownership repair before transfer.',
+      );
+    }
+    if (patient.organizationId !== admin.organizationId) {
+      throw new ForbiddenException(
+        'Hospital administrators may only reassign patients within their organisation. Cross-organisation transfers require a super administrator.',
+      );
+    }
+    if (!patient.doctorId) {
+      throw new ForbiddenException(
+        'You can only transfer patients currently assigned to a doctor in your organisation',
+      );
+    }
+    await this.memberships.assertAdminManagesDoctor(admin, patient.doctorId);
     const doctor = await this.requireDoctorByCode(rawCode);
+    await this.memberships.assertAdminManagesDoctor(admin, doctor.userId);
     if (patient.doctorId === doctor.userId) {
       throw new ConflictException('Patient is already linked to this doctor');
     }
+    // Preserve patient organisation (internal only).
     return this.createAndNotify(patient, doctor, 'internal');
+  }
+
+  /**
+   * Super-admin cross-organisation DocID transfer. Requires explicit target organisation;
+   * receiving doctor must have an active membership there. Does not invent primary.
+   */
+  async requestCrossOrganizationTransfer(
+    actor: User,
+    patientId: string,
+    rawCode: string,
+    targetOrganizationId: string,
+  ): Promise<DocIdRequestResult> {
+    if (actor.role !== 'super_admin') {
+      throw new ForbiddenException('Only super administrators can perform cross-organisation transfers');
+    }
+    if (!targetOrganizationId) {
+      throw new BadRequestException('target organizationId is required for cross-organisation transfer');
+    }
+    const patient = await this.requirePatient(patientId);
+    if (!patient.organizationId) {
+      throw new ForbiddenException(
+        'Patient has no owning organisation. Repair ownership before cross-organisation transfer.',
+      );
+    }
+    if (patient.organizationId === targetOrganizationId) {
+      throw new BadRequestException(
+        'Patient already belongs to that organisation; use an internal reassignment instead',
+      );
+    }
+    const doctor = await this.requireDoctorByCode(rawCode);
+    const active = await this.memberships.listActiveMembershipOrganizationIds(doctor.userId);
+    if (!active.includes(targetOrganizationId)) {
+      throw new ForbiddenException(
+        'Target doctor has no active membership in the requested organisation',
+      );
+    }
+    if (patient.doctorId === doctor.userId) {
+      throw new ConflictException('Patient is already linked to this doctor');
+    }
+    return this.createAndNotify(patient, doctor, 'internal', targetOrganizationId);
   }
 
   async previewByToken(token: string): Promise<DocIdRequestPreview> {
@@ -292,10 +370,17 @@ export class DocIdService {
     patient: PatientProfile,
     toDoctor: DoctorProfile,
     source: DocIdRequestSource,
+    explicitOrganizationId?: string,
   ): Promise<DocIdRequestResult> {
     await this.requests.update(
       { patientId: patient.userId, status: 'pending' },
       { status: 'rejected', resolvedAt: new Date() },
+    );
+
+    const targetOrganizationId = await this.resolveRequestTargetOrganization(
+      patient,
+      toDoctor.userId,
+      explicitOrganizationId,
     );
 
     const fromReferralCode = patient.doctor?.referralCode ?? null;
@@ -311,6 +396,7 @@ export class DocIdService {
         fromDoctorId: patient.doctorId,
         fromReferralCode,
         toDoctorId: toDoctor.userId,
+        targetOrganizationId,
         source,
         status: 'pending',
         tokenHash: hashToken(rawToken),
@@ -383,39 +469,146 @@ export class DocIdService {
       return;
     }
 
-    const patient = await this.requirePatient(request.patientId);
-    const toDoctor = await this.doctors.findOne({
-      where: { userId: request.toDoctorId },
-      relations: ['user'],
+    await this.dataSource.transaction(async (manager) => {
+      const requestRepo = manager.getRepository(DocIdRequest);
+      const patientRepo = manager.getRepository(PatientProfile);
+      const doctorRepo = manager.getRepository(DoctorProfile);
+      const historyRepo = manager.getRepository(DocIdHistory);
+      const membershipRepo = manager.getRepository(DoctorOrganizationMembership);
+
+      const locked = await requestRepo.findOne({
+        where: { id: request.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) {
+        throw new NotFoundException('Request not found');
+      }
+      if (locked.status !== 'pending') {
+        throw new ConflictException(
+          locked.status === 'accepted' ? 'This request was already accepted' : 'This request was already rejected',
+        );
+      }
+      if (locked.expiresAt.getTime() < Date.now()) {
+        locked.status = 'rejected';
+        locked.resolvedAt = new Date();
+        await requestRepo.save(locked);
+        Object.assign(request, locked);
+        throw new GoneException('This confirmation link has expired');
+      }
+
+      const patient = await patientRepo.findOne({
+        where: { userId: locked.patientId },
+        relations: ['user', 'doctor', 'doctor.user'],
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!patient) {
+        throw new NotFoundException('Patient not found');
+      }
+
+      const toDoctor = await doctorRepo.findOne({
+        where: { userId: locked.toDoctorId },
+        relations: ['user'],
+      });
+      if (!toDoctor) {
+        locked.status = 'rejected';
+        locked.resolvedAt = new Date();
+        await requestRepo.save(locked);
+        Object.assign(request, locked);
+        throw new NotFoundException('The requested doctor is no longer available');
+      }
+
+      if (locked.source === 'self' && patient.doctorId) {
+        throw new ConflictException('This patient is already linked to a doctor');
+      }
+
+      const targetOrgId = locked.targetOrganizationId;
+      if (!targetOrgId) {
+        throw new BadRequestException(
+          'This request has no target organisation. Re-submit with an explicit organisation.',
+        );
+      }
+
+      const membership = await membershipRepo.findOne({
+        where: {
+          doctorId: toDoctor.userId,
+          organizationId: targetOrgId,
+          membershipStatus: 'active',
+        },
+      });
+      if (!membership) {
+        throw new ForbiddenException('No active membership for the requested organisation');
+      }
+
+      // History records known ownership at write time; never invent for legacy nulls.
+      if (locked.fromReferralCode && locked.source !== 'self') {
+        await historyRepo.save(
+          historyRepo.create({
+            patientId: patient.userId,
+            referralCode: locked.fromReferralCode,
+            doctorId: locked.fromDoctorId,
+            organizationId: patient.organizationId ?? null,
+            source: locked.source === 'internal' ? 'internal' : 'change',
+          }),
+        );
+      }
+
+      if (patient.organizationId && patient.organizationId !== targetOrgId) {
+        patient.organizationId = targetOrgId;
+      } else if (!patient.organizationId) {
+        patient.organizationId = targetOrgId;
+      }
+
+      patient.doctorId = toDoctor.userId;
+      await patientRepo.save(patient);
+
+      locked.status = 'accepted';
+      locked.resolvedAt = new Date();
+      await requestRepo.save(locked);
+      Object.assign(request, locked);
     });
-    if (!toDoctor) {
-      request.status = 'rejected';
-      request.resolvedAt = new Date();
-      await this.requests.save(request);
-      throw new NotFoundException('The requested doctor is no longer available');
+  }
+
+  /**
+   * Resolve organisation for a DocID request.
+   * - Existing patient.organization_id: preserve unless explicitOrganizationId differs
+   *   (cross-org) and target doctor is active there.
+   * - First association: explicit org or sole active membership of target doctor.
+   * Never uses doctor primary among multiple memberships.
+   */
+  private async resolveRequestTargetOrganization(
+    patient: PatientProfile,
+    toDoctorId: string,
+    explicitOrganizationId?: string,
+  ): Promise<string> {
+    const activeOrgIds = await this.memberships.listActiveMembershipOrganizationIds(toDoctorId);
+
+    if (patient.organizationId) {
+      if (explicitOrganizationId && explicitOrganizationId !== patient.organizationId) {
+        if (!activeOrgIds.includes(explicitOrganizationId)) {
+          throw new ForbiddenException(
+            'Target doctor has no active membership in the requested organisation',
+          );
+        }
+        return explicitOrganizationId;
+      }
+      if (!activeOrgIds.includes(patient.organizationId)) {
+        throw new ForbiddenException(
+          'Target doctor has no active membership in the patient organisation. Cross-organisation transfer requires an explicit organisationId.',
+        );
+      }
+      return patient.organizationId;
     }
 
-    if (request.source === 'self' && patient.doctorId) {
-      throw new ConflictException('This patient is already linked to a doctor');
-    }
-
-    if (request.fromReferralCode && request.source !== 'self') {
-      await this.history.save(
-        this.history.create({
-          patientId: patient.userId,
-          referralCode: request.fromReferralCode,
-          doctorId: request.fromDoctorId,
-          source: request.source === 'internal' ? 'internal' : 'change',
-        }),
+    const resolved = resolveFirstAssociationOrganizationId({
+      explicitOrganizationId,
+      activeMembershipOrganizationIds: activeOrgIds,
+    });
+    if (!resolved) {
+      throw new BadRequestException(
+        'organisationId is required when the patient has no owning organisation and the doctor belongs to more than one organisation',
       );
     }
-
-    patient.doctorId = toDoctor.userId;
-    await this.patients.save(patient);
-
-    request.status = 'accepted';
-    request.resolvedAt = new Date();
-    await this.requests.save(request);
+    return resolved;
   }
 
   private async expireIfNeeded(request: DocIdRequest): Promise<boolean> {

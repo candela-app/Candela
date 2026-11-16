@@ -1,4 +1,5 @@
 import type { SavedPracticeSummary, SessionUser } from '@candela/shared';
+import { EMERGENCY_REASON_HEADER, ORGANIZATION_SCOPE_HEADER } from '@candela/shared';
 
 export class ApiError extends Error {
   status: number;
@@ -20,18 +21,45 @@ async function parseBody(res: Response): Promise<unknown> {
   }
 }
 
+function isHtml(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    trimmed.startsWith('<') ||
+    /<(?:!doctype|html|head|body|div|p|script|style)[\s>]/i.test(trimmed)
+  );
+}
+
+function statusFallback(status: number, statusText?: string): string {
+  if (status === 429) {
+    return 'Server is busy or waking up. Please wait a moment and try again.';
+  }
+  if (status === 502 || status === 503 || status === 504) {
+    return 'Server is temporarily unavailable. Please wait a moment and try again.';
+  }
+  if (status === 401) {
+    return 'Invalid email or password';
+  }
+  if (status === 404) {
+    return 'Requested service was not found.';
+  }
+  return statusText || `Request failed (${status})`;
+}
+
 function errorMessage(body: unknown, fallback: string): string {
   if (body && typeof body === 'object' && 'message' in body) {
     const message = (body as { message: unknown }).message;
     if (Array.isArray(message)) {
       return message.join(', ');
     }
-    if (typeof message === 'string' && message.length > 0) {
+    if (typeof message === 'string' && message.length > 0 && !isHtml(message)) {
       return message;
     }
   }
-  if (typeof body === 'string' && body.trim().length > 0) {
-    return body.trim();
+  if (typeof body === 'string' && body.trim().length > 0 && !isHtml(body)) {
+    const trimmed = body.trim();
+    if (trimmed.toLowerCase() !== 'too many requests') {
+      return trimmed;
+    }
   }
   return fallback;
 }
@@ -43,7 +71,23 @@ const AUTH_PUBLIC_PATHS = new Set([
   '/api/auth/google',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/invitations/accept',
+  '/api/auth/invitations/accept-google',
 ]);
+
+/** Attach validated organisation scope for doctor-scoped writes. */
+export function withOrganizationId(organizationId: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(ORGANIZATION_SCOPE_HEADER, organizationId);
+  return { ...init, headers };
+}
+
+/** Attach Super Admin emergency justification (server-enforced). */
+export function withEmergencyReason(reason: string, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set(EMERGENCY_REASON_HEADER, reason.trim());
+  return { ...init, headers };
+}
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -61,7 +105,7 @@ async function tryRefresh(): Promise<boolean> {
   return refreshInFlight;
 }
 
-export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+export async function api<T>(path: string, init: RequestInit = {}, retries: boolean | number = 2): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -72,26 +116,25 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     credentials: 'include',
   });
 
-  if (res.status === 401 && retry && !AUTH_PUBLIC_PATHS.has(path)) {
+  const retriesLeft = typeof retries === 'number' ? retries : retries ? 1 : 0;
+
+  if (res.status === 401 && retriesLeft > 0 && !AUTH_PUBLIC_PATHS.has(path)) {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      return api<T>(path, init, false);
+      return api<T>(path, init, 0);
     }
   }
 
-  // Gracefully retry on 429 once after 2 seconds (gives sleeping container time to finish booting)
-  if (res.status === 429 && retry) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    return api<T>(path, init, false);
+  // Gracefully retry on 429 (gives sleeping container time to finish booting)
+  if (res.status === 429 && retriesLeft > 0) {
+    const delay = retriesLeft === 2 ? 2500 : 3500;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return api<T>(path, init, retriesLeft - 1);
   }
 
   const body = await parseBody(res);
   if (!res.ok) {
-    const defaultFallback =
-      res.status === 429
-        ? 'Server is busy or waking up. Please wait a moment and try again.'
-        : res.statusText || `Request failed (${res.status})`;
-    throw new ApiError(res.status, errorMessage(body, defaultFallback));
+    throw new ApiError(res.status, errorMessage(body, statusFallback(res.status, res.statusText)));
   }
   return body as T;
 }
@@ -107,32 +150,31 @@ export type FamiliarFaceRecord = {
   createdAt: string;
 };
 
-async function apiForm<T>(path: string, form: FormData, retry = true): Promise<T> {
+async function apiForm<T>(path: string, form: FormData, retries: boolean | number = 2): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
     body: form,
     credentials: 'include',
   });
 
-  if (res.status === 401 && retry) {
+  const retriesLeft = typeof retries === 'number' ? retries : retries ? 1 : 0;
+
+  if (res.status === 401 && retriesLeft > 0) {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      return apiForm<T>(path, form, false);
+      return apiForm<T>(path, form, 0);
     }
   }
 
-  if (res.status === 429 && retry) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    return apiForm<T>(path, form, false);
+  if (res.status === 429 && retriesLeft > 0) {
+    const delay = retriesLeft === 2 ? 2500 : 3500;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return apiForm<T>(path, form, retriesLeft - 1);
   }
 
   const body = await parseBody(res);
   if (!res.ok) {
-    const defaultFallback =
-      res.status === 429
-        ? 'Server is busy or waking up. Please wait a moment and try again.'
-        : res.statusText || `Request failed (${res.status})`;
-    throw new ApiError(res.status, errorMessage(body, defaultFallback));
+    throw new ApiError(res.status, errorMessage(body, statusFallback(res.status, res.statusText)));
   }
   return body as T;
 }
@@ -146,6 +188,26 @@ export function uploadFamiliarFace(file: File, relationLabel: string) {
   form.append('file', file);
   form.append('relationLabel', relationLabel);
   return apiForm<FamiliarFaceRecord>('/api/familiar-faces', form);
+}
+
+export function uploadProfilePhoto(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return apiForm<{ path: string; url: string }>('/api/me/profile/photo', form);
+}
+
+export function deleteProfilePhoto() {
+  return api<{ ok: true }>('/api/me/profile/photo', { method: 'DELETE' });
+}
+
+export function uploadOrganizationLogo(organizationId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return apiForm<{ path: string; url: string }>(`/api/organizations/${organizationId}/profile/logo`, form);
+}
+
+export function deleteOrganizationLogo(organizationId: string) {
+  return api<{ ok: true }>(`/api/organizations/${organizationId}/profile/logo`, { method: 'DELETE' });
 }
 
 export function updateFamiliarFaceLabel(id: string, relationLabel: string) {

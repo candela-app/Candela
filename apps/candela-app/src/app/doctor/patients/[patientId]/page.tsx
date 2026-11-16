@@ -2,10 +2,11 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { ApiError, api, getPatientPracticeSummary, listPatientGameSessionOverview, type StoredGameSessionRecord } from '@/lib/api';
+import { ApiError, api, getPatientPracticeSummary } from '@/lib/api';
 import {
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
+  type PatientIdentityProfile,
   type PatientSummary,
   type SavedPracticeSummary,
   type TherapyModuleId,
@@ -14,10 +15,27 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { DoctorPatientPrescribe } from '@/components/doctor/DoctorPatientPrescribe';
 import { DoctorPatientAnalytics } from '@/components/doctor/DoctorPatientAnalytics';
-import { AnalyticsIcon } from '@/components/icons/VectorIcons';
+import { DoctorPatientIdentityPanel } from '@/components/profile/DoctorPatientIdentityPanel';
+import {
+  AnalyticsIcon,
+  MailIcon,
+  MonitorIcon,
+  SlidersIcon,
+  VerifiedBadgeIcon,
+} from '@/components/icons/VectorIcons';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+type WorkspacePane = 'overview' | 'analytics' | 'prescription' | 'invitation' | 'devices';
+
+function workspaceFromSearch(view: string | null): WorkspacePane {
+  if (view === 'analytics') return 'analytics';
+  if (view === 'prescription') return 'prescription';
+  if (view === 'invitation') return 'invitation';
+  if (view === 'devices') return 'devices';
+  return 'overview';
+}
 
 function lastSavedCard(summary: SavedPracticeSummary | null, failed: boolean) {
   if (failed) return { value: '—', hint: 'Summary unavailable' };
@@ -33,44 +51,50 @@ function lastSavedCard(summary: SavedPracticeSummary | null, failed: boolean) {
   };
 }
 
-function SummaryCard({
-  label,
-  value,
-  hint,
-  index,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  index: number;
-}) {
-  return (
-    <div className="flex h-full items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
-      <div className="min-w-0">
-        <p className="text-[13px] leading-[21px] text-gray-900">
-          <span className="kpi-draw" style={{ '--kpi-delay': `${index * 180}ms` } as CSSProperties}>{label}</span>
-        </p>
-        <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{hint}</p>
-      </div>
-      <p className="shrink-0 whitespace-nowrap text-[34px] font-semibold leading-none tabular-nums text-gray-900">{value}</p>
-    </div>
-  );
-}
+const PAGE_SHADOW = 'shadow-[0_13px_34px_-13px_rgba(15,23,42,0.45)]';
 
 function ProfileSkeleton() {
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 animate-pulse">
-      <div>
-        <Skeleton className="h-8 w-48 mb-2" />
-        <Skeleton className="h-4 w-72" />
+    <main className="mx-auto max-w-[987px] space-y-[34px] px-[21px] py-[34px]" aria-busy>
+      <div className="flex flex-wrap items-center justify-between gap-[13px]">
+        <Skeleton className="h-[34px] w-[144px] rounded-[8px]" />
+        <div className="flex shrink-0 flex-wrap items-center gap-[8px]">
+          <Skeleton className="h-[55px] w-[55px] rounded-[13px]" />
+          <Skeleton className="h-[55px] w-[55px] rounded-[13px]" />
+          <Skeleton className="h-[55px] w-[55px] rounded-[13px]" />
+          <Skeleton className="h-[55px] w-[55px] rounded-[13px]" />
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-[13px] lg:grid-cols-4">
-        <Skeleton className="h-24 rounded-[13px]" />
-        <Skeleton className="h-24 rounded-[13px]" />
-        <Skeleton className="h-24 rounded-[13px]" />
-        <Skeleton className="h-24 rounded-[13px]" />
+
+      <div className="space-y-[21px]">
+        <div className="grid grid-cols-1 items-stretch gap-[13px] md:grid-cols-2">
+          <Skeleton className="aspect-[4/3] w-full rounded-[13px]" />
+          <div className="grid min-w-0 grid-cols-1 items-stretch gap-[13px]">
+            <Skeleton className="h-[89px] w-full rounded-[13px]" />
+            <Skeleton className="h-[89px] w-full rounded-[13px]" />
+            <Skeleton className="h-[89px] w-full rounded-[13px]" />
+          </div>
+        </div>
+
+        <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+          <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, group) => (
+              <div
+                key={group}
+                className="min-w-0 space-y-[8px] rounded-[13px] border border-gray-100 bg-gray-50/80 p-[13px]"
+              >
+                <Skeleton className="h-[13px] w-[89px]" />
+                {Array.from({ length: 4 }).map((__, i) => (
+                  <div key={i} className="flex items-center justify-between gap-[13px] py-[8px]">
+                    <Skeleton className="h-[13px] w-[72px]" />
+                    <Skeleton className="h-[13px] w-[89px]" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <Skeleton className="h-96 rounded-[13px]" />
     </main>
   );
 }
@@ -110,33 +134,67 @@ function DoctorPatientProfile() {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   const [error, setError] = useState('');
   const [dataLoading, setDataLoading] = useState(true);
-  const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
-  const [sessionsTruncated, setSessionsTruncated] = useState(false);
   const loadToken = useRef(0);
   const [practice, setPractice] = useState<SavedPracticeSummary | null>(null);
   const [practiceFailed, setPracticeFailed] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(true);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [inviteBanner, setInviteBanner] = useState<{ status: 'sent' | 'failed'; expiresAt: string | null } | null>(
+    null,
+  );
+  const [identityProfile, setIdentityProfile] = useState<PatientIdentityProfile | null>(null);
+  const profileComplete = identityProfile?.completion.profileComplete ?? false;
 
-  const isAnalytics = searchParams.get('view') === 'analytics';
+  const workspace = workspaceFromSearch(searchParams.get('view'));
+
+  const openWorkspace = (pane: WorkspacePane) => {
+    if (!patientId) return;
+    if (pane === 'overview') {
+      router.push(`/doctor/patients/${patientId}`);
+      return;
+    }
+    router.push(`/doctor/patients/${patientId}?view=${pane}`);
+  };
+
+  useEffect(() => {
+    const invite = searchParams.get('invite');
+    if (invite !== 'sent' && invite !== 'failed') return;
+    const expires = searchParams.get('expires');
+    setInviteBanner({ status: invite, expiresAt: expires });
+    router.replace(`/doctor/patients/${patientId}?view=invitation`);
+  }, [searchParams, patientId, router]);
 
   const load = useCallback(async () => {
     if (!patientId) {
       throw new ApiError(404, 'Patient not found');
     }
     const token = ++loadToken.current;
-    const next = await api<PatientSummary>(`/api/doctors/me/patients/${patientId}`);
+    setError('');
+    setPractice(null);
+    setPracticeFailed(false);
+    setIdentityProfile(null);
+    setDetailsLoading(true);
+
+    const patientPromise = api<PatientSummary>(`/api/doctors/me/patients/${patientId}`);
+    const practicePromise = getPatientPracticeSummary(patientId)
+      .then((value) => ({ value, failed: false as const }))
+      .catch(() => ({ value: null, failed: true as const }));
+    const identityPromise = api<PatientIdentityProfile>(
+      `/api/doctors/me/patients/${patientId}/profile`,
+    ).catch(() => null);
+
+    // Paint shell as soon as the patient summary is ready.
+    const next = await patientPromise;
     if (loadToken.current !== token) return;
     setPatient(next);
-    const [overview, summary] = await Promise.all([
-      listPatientGameSessionOverview(patientId).catch(() => null),
-      getPatientPracticeSummary(patientId)
-        .then((value) => ({ value, failed: false }))
-        .catch(() => ({ value: null, failed: true })),
-    ]);
+    setDataLoading(false);
+
+    const [summary, identity] = await Promise.all([practicePromise, identityPromise]);
     if (loadToken.current !== token) return;
-    setSessions(overview?.sessions ?? []);
-    setSessionsTruncated(overview?.truncated ?? false);
     setPractice(summary.value);
     setPracticeFailed(summary.failed);
+    setIdentityProfile(identity);
+    setDetailsLoading(false);
   }, [patientId]);
 
   useEffect(() => {
@@ -149,27 +207,60 @@ function DoctorPatientProfile() {
     }
     let cancelled = false;
     setDataLoading(true);
-    load()
-      .catch((err) => {
-        if (cancelled) return;
-        setPatient(null);
-        setError(err instanceof ApiError ? err.message : 'Failed to load patient');
-      })
-      .finally(() => {
-        if (!cancelled) setDataLoading(false);
-      });
+    setDetailsLoading(true);
+    load().catch((err) => {
+      if (cancelled) return;
+      setPatient(null);
+      setIdentityProfile(null);
+      setPractice(null);
+      setPracticeFailed(false);
+      setError(err instanceof ApiError ? err.message : 'Failed to load patient');
+      setDataLoading(false);
+      setDetailsLoading(false);
+    });
     return () => {
       cancelled = true;
     };
   }, [loading, session, router, load]);
 
   const prescribedCount = patient?.prescribedModuleIds.length ?? 0;
-  const saved = lastSavedCard(practice, practiceFailed);
+  const saved = detailsLoading
+    ? { value: '…', hint: 'Loading practice summary' }
+    : lastSavedCard(practice, practiceFailed);
 
   const assignedLevelCount = useMemo(() => {
     if (!patient) return 0;
     return Object.values(patient.prescribedLevels || {}).reduce((sum, levels) => sum + levels.length, 0);
   }, [patient]);
+
+  async function onResendInvitation() {
+    if (!patient) return;
+    setResendBusy(true);
+    setError('');
+    try {
+      const result = await api<{ emailSent: boolean; expiresAt: string }>(
+        `/api/doctors/me/patients/${patient.id}/invitations/resend`,
+        { method: 'POST' },
+      );
+      setInviteBanner({
+        status: result.emailSent ? 'sent' : 'failed',
+        expiresAt: result.expiresAt,
+      });
+      if (result.emailSent) {
+        toast.success(
+          `Invitation resent to ${patient.email} (expires ${new Date(result.expiresAt).toLocaleString('en-GB')}).`,
+        );
+      } else {
+        toast.error('Invitation was renewed, but the email could not be sent. Try again shortly.');
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not resend invitation';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResendBusy(false);
+    }
+  }
 
   async function toggleModule(moduleId: TherapyModuleId, enabled: boolean) {
     if (!patient) {
@@ -272,87 +363,202 @@ function DoctorPatientProfile() {
         }
       />
 
-      <main className="mx-auto max-w-[930px] space-y-[34px] px-[21px] py-[34px]">
+      <main className="mx-auto max-w-[987px] space-y-[34px] px-[21px] py-[34px]">
         {!patient && (
-          <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] text-center shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+          <section className={`rounded-[13px] border border-gray-100 bg-white p-[21px] text-center ${PAGE_SHADOW}`}>
             <h1 className="text-[21px] font-semibold text-gray-900">Patient not found</h1>
-            <p className="mt-[8px] text-[13px] text-gray-500">{error || 'This patient is not on your list.'}</p>
+            <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">
+              {error || 'This patient is not on your list.'}
+            </p>
           </section>
         )}
 
         {patient && (
           <>
-            <div className="flex items-start justify-between gap-[13px]">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-[13px]">
+              <button
+                type="button"
+                onClick={() => openWorkspace('overview')}
+                className="flex items-center gap-[8px] text-left"
+                title="Back to overview"
+              >
                 <h1 className="text-[34px] font-semibold leading-none text-gray-900">{patient.name}</h1>
-                <p className="mt-[8px] text-[13px] text-gray-500">
-                  {patient.email} · {patient.phone}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-[8px]">
-                {!isAnalytics && (
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/doctor/patients/${patient.id}?view=analytics`)}
-                    className="flex cursor-pointer items-center gap-[8px] rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 hover:border-blue-200"
-                    title="View Session Analytics"
-                  >
-                    <AnalyticsIcon className="h-[13px] w-[13px] text-blue-600" />
-                    <span className="hidden sm:inline">Analytics</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => toast.info('Coming soon.')}
-                  className="cursor-pointer rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[13px] font-semibold text-gray-800 hover:border-blue-200 hover:text-blue-700"
-                >
-                  Other device games
-                </button>
+                {profileComplete ? (
+                  <VerifiedBadgeIcon
+                    className="size-[21px] shrink-0 text-blue-600"
+                    aria-label="Profile complete"
+                  />
+                ) : null}
+              </button>
+              <div className="flex shrink-0 flex-wrap items-center gap-[8px]">
+                {(
+                  [
+                    {
+                      id: 'analytics' as const,
+                      label: 'Analytics',
+                      icon: AnalyticsIcon,
+                      title: 'Session analytics',
+                    },
+                    {
+                      id: 'prescription' as const,
+                      label: 'Prescription',
+                      icon: SlidersIcon,
+                      title: 'Prescribed modules',
+                    },
+                    {
+                      id: 'invitation' as const,
+                      label: 'Invitation',
+                      icon: MailIcon,
+                      title: 'Resend invitation',
+                    },
+                    {
+                      id: 'devices' as const,
+                      label: 'Devices',
+                      icon: MonitorIcon,
+                      title: 'Other device games',
+                    },
+                  ] as const
+                ).map((item) => {
+                  const active = workspace === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openWorkspace(active ? 'overview' : item.id)}
+                      title={active ? 'Back to overview' : item.title}
+                      aria-label={active ? 'Back to overview' : item.title}
+                      aria-current={active ? 'page' : undefined}
+                      className={`inline-flex h-[55px] min-w-[55px] cursor-pointer items-center justify-center gap-[8px] rounded-[13px] border px-[13px] text-[13px] font-semibold leading-none ${
+                        active
+                          ? 'border-blue-200 bg-blue-50 text-blue-800'
+                          : 'border-gray-200 bg-white text-gray-800 hover:border-blue-200'
+                      }`}
+                    >
+                      <Icon className="size-[13px] shrink-0 text-blue-600" aria-hidden />
+                      <span className="hidden sm:inline">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {error && <p className="text-[13px] font-medium text-red-600">{error}</p>}
+            {error ? <p className="text-[13px] font-medium leading-[21px] text-red-600">{error}</p> : null}
 
-            {isAnalytics ? (
-              <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
-            ) : (
-              <>
-                <div className="grid grid-cols-1 items-stretch gap-[13px] md:grid-cols-2">
-                  <SummaryCard
-                    label="Saved sessions"
-                    value={practiceFailed ? '—' : String(practice?.sessionCount ?? 0)}
-                    hint={practiceFailed ? 'Summary unavailable' : practice?.availability === 'recorded' ? 'Saved sessions' : 'No session saved'}
-                    index={0}
-                  />
-                  <SummaryCard
-                    label="Last saved"
-                    value={saved.value}
-                    hint={saved.hint}
-                    index={1}
-                  />
-                  <SummaryCard
-                    label="Prescribed"
-                    value={String(prescribedCount)}
-                    hint={
-                      prescribedCount === 1
-                        ? '1 activity'
-                        : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`
-                    }
-                    index={3}
-                  />
+            <section className="space-y-[21px]">
+              {workspace === 'overview' ? (
+                <DoctorPatientIdentityPanel
+                  patientId={patient.id}
+                  profile={identityProfile}
+                  profileLoading={detailsLoading}
+                  stats={[
+                    {
+                      label: 'Saved sessions',
+                      value: detailsLoading
+                        ? '…'
+                        : practiceFailed
+                          ? '—'
+                          : String(practice?.sessionCount ?? 0),
+                      hint: detailsLoading
+                        ? 'Loading practice summary'
+                        : practiceFailed
+                          ? 'Summary unavailable'
+                          : practice?.availability === 'recorded'
+                            ? 'Saved sessions'
+                            : 'No session saved',
+                      index: 0,
+                    },
+                    {
+                      label: 'Last saved',
+                      value: saved.value,
+                      hint: saved.hint,
+                      index: 1,
+                    },
+                    {
+                      label: 'Prescribed',
+                      value: String(prescribedCount),
+                      hint:
+                        prescribedCount === 1
+                          ? '1 activity'
+                          : `${prescribedCount} activities${assignedLevelCount ? ` · ${assignedLevelCount} levels` : ''}`,
+                      index: 3,
+                    },
+                  ]}
+                />
+              ) : null}
+
+              {workspace === 'analytics' ? (
+                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+                  <DoctorPatientAnalytics patientId={patient.id} patientName={patient.name} />
                 </div>
+              ) : null}
 
-                <section className="rounded-[13px] border border-gray-100 bg-white p-[21px] shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]">
+              {workspace === 'prescription' ? (
+                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
                   <DoctorPatientPrescribe
                     patient={patient}
-                    sessions={sessions}
-                    historyTruncated={sessionsTruncated}
                     onToggleModule={(moduleId, enabled) => void toggleModule(moduleId, enabled)}
                     onToggleLevel={(moduleId, levelId, enabled) => void toggleLevel(moduleId, levelId, enabled)}
                   />
-                </section>
-              </>
-            )}
+                </div>
+              ) : null}
+
+              {workspace === 'invitation' ? (
+                <div className={`space-y-[13px] rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+                  <div>
+                    <h2 className="text-[21px] font-semibold text-gray-900">Invitation</h2>
+                    <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
+                      Resend only works before the patient activates their account. They set their own
+                      password from the email link.
+                    </p>
+                  </div>
+                  {inviteBanner ? (
+                    <div
+                      className={`rounded-[13px] border px-[13px] py-[13px] text-[13px] leading-[21px] ${
+                        inviteBanner.status === 'sent'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : 'border-amber-200 bg-amber-50 text-amber-900'
+                      }`}
+                    >
+                      {inviteBanner.status === 'sent' ? (
+                        <p>
+                          Invitation email sent
+                          {inviteBanner.expiresAt
+                            ? ` · expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')}`
+                            : ''}
+                          .
+                        </p>
+                      ) : (
+                        <p>
+                          Invitation email could not be sent
+                          {inviteBanner.expiresAt
+                            ? ` (link expires ${new Date(inviteBanner.expiresAt).toLocaleString('en-GB')})`
+                            : ''}
+                          .
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void onResendInvitation()}
+                    disabled={resendBusy}
+                    className="cursor-pointer rounded-[13px] bg-blue-600 px-[21px] py-[13px] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {resendBusy ? 'Resending…' : 'Resend invitation'}
+                  </button>
+                </div>
+              ) : null}
+
+              {workspace === 'devices' ? (
+                <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+                  <h2 className="text-[21px] font-semibold text-gray-900">Other device games</h2>
+                  <p className="mt-[8px] text-[13px] leading-[21px] text-gray-600">
+                    Cross-device game assignment is coming soon.
+                  </p>
+                </div>
+              ) : null}
+            </section>
           </>
         )}
       </main>

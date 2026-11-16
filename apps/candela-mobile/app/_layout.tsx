@@ -38,6 +38,9 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen name="login" options={{ animation: 'none' }} />
             <Stack.Screen name="forgot-password" options={{ animation: 'none' }} />
+            <Stack.Screen name="accept-invitation" options={{ animation: 'none' }} />
+            <Stack.Screen name="accept-google-invitation" options={{ animation: 'none' }} />
+            <Stack.Screen name="org-invitation" options={{ animation: 'none' }} />
             <Stack.Screen name="signup" options={{ animation: 'none' }} />
             <Stack.Screen name="oauth" options={{ animation: 'none' }} />
             <Stack.Screen name="dashboard" options={{ animation: 'none' }} />
@@ -45,6 +48,9 @@ export default function RootLayout() {
             <Stack.Screen name="admin" options={{ animation: 'none' }} />
             <Stack.Screen name="super-admin" options={{ animation: 'none' }} />
             <Stack.Screen name="doctor" options={{ animation: 'none' }} />
+            <Stack.Screen name="profile" options={{ animation: 'none' }} />
+            <Stack.Screen name="doctor-profile" options={{ animation: 'none' }} />
+            <Stack.Screen name="organization-profile" options={{ animation: 'none' }} />
             <Stack.Screen
               name="play/geoboard"
               options={{ gestureEnabled: false, fullScreenGestureEnabled: false }}

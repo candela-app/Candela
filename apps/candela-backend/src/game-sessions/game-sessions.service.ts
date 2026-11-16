@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -16,6 +16,7 @@ import { PATIENT_ADVISORY_LOCK_NS, PATIENT_ADVISORY_LOCK_SQL } from '../common/p
 import { GameSession } from '../entities/game-session.entity';
 import { PatientProfile } from '../entities/patient-profile.entity';
 import { PrescriptionRevision } from '../entities/prescription-revision.entity';
+import { MembershipsService } from '../memberships/memberships.service';
 import { revisionRecord } from '../prescriptions/revision-record';
 import { CreateGameSessionDto, GameSessionQueryDto } from './game-sessions.dto';
 
@@ -37,6 +38,7 @@ export class GameSessionsService {
   constructor(
     @InjectRepository(GameSession) private readonly sessions: Repository<GameSession>,
     @InjectRepository(PatientProfile) private readonly patients: Repository<PatientProfile>,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
   ) {}
 
   async createForPatient(patientId: string, dto: CreateGameSessionDto) {
@@ -143,10 +145,7 @@ export class GameSessionsService {
   }
 
   async listForDoctor(doctorId: string, patientId: string, query: GameSessionQueryDto) {
-    const patient = await this.patients.findOne({ where: { userId: patientId, doctorId } });
-    if (!patient) {
-      throw new NotFoundException('Patient not found');
-    }
+    await this.memberships.assertDoctorCanAccessPatient(doctorId, patientId);
     if (query.coverage === 'newest') return this.listNewest(patientId, query);
     return this.list(patientId, query);
   }
@@ -157,10 +156,7 @@ export class GameSessionsService {
   }
 
   async summaryForDoctor(doctorId: string, patientId: string) {
-    const patient = await this.patients.findOne({ where: { userId: patientId, doctorId } });
-    if (!patient) {
-      throw new NotFoundException('Patient not found');
-    }
+    await this.memberships.assertDoctorCanAccessPatient(doctorId, patientId);
     return this.summary(patientId);
   }
 

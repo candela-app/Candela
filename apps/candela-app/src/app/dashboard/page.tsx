@@ -85,6 +85,8 @@ import { SessionAnalyticsPanel } from '@/components/shared/SessionAnalyticsPanel
 import { EditPatientNameModal } from '@/components/common/EditPatientNameModal';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { DocIdRequestCard } from '@/components/docid/DocIdRequestCard';
+import { ProfileCompletionBanner } from '@/components/profile/ProfileCompletionBanner';
+import { PatientAccountCard } from '@/components/profile/PatientAccountCard';
 import { MODULE_CARDS } from '@/lib/shell';
 import type { LottieHandle } from 'lottie-react';
 
@@ -99,7 +101,8 @@ const EMPTY_LEVELS =
   'col-span-full bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] p-10 text-center w-full';
 
 const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none lg:overflow-visible';
-const CHOOSER_SCROLL = 'relative z-0 max-h-full overflow-y-auto overscroll-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:-mt-[81px] lg:h-[calc(100%+81px)] lg:max-h-none lg:pt-[81px]';
+const CHOOSER_SCROLL =
+  'relative z-0 h-full min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:-mt-[81px] lg:h-[calc(100%+81px)] lg:max-h-none lg:pt-[81px]';
 
 type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
@@ -1562,6 +1565,7 @@ function MainContent() {
                   : undefined
           }
         />
+        <ProfileCompletionBanner />
         </div>
       )}
 
@@ -1584,38 +1588,58 @@ function MainContent() {
           >
             {(
               [
-                { id: 'practice' as const, label: 'Dashboard', icon: LayoutDashboardIcon, active: view === 'module', onClick: openPractice },
-                { id: 'games' as const, label: 'My games', icon: EyeIcon, active: view === 'games' || view === 'family' || view === 'game', onClick: openGames },
-                { id: 'analytics' as const, label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
-                { id: 'history' as const, label: 'Session history', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
-                { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon, active: view === 'subscription', onClick: () => openWorkspace('subscription') },
-                { id: 'account' as const, label: 'Account', icon: UserIcon, active: view === 'account', onClick: openAccount },
-                { id: 'settings' as const, label: 'Settings', icon: GearIcon, active: view === 'settings', onClick: openSettings },
-                { id: 'help' as const, label: 'Help', icon: InfoIcon, active: view === 'help', onClick: () => openWorkspace('help') },
+                {
+                  label: 'Practice',
+                  items: [
+                    { id: 'practice' as const, label: 'Dashboard', icon: LayoutDashboardIcon, active: view === 'module', onClick: openPractice },
+                    { id: 'games' as const, label: 'My games', icon: EyeIcon, active: view === 'games' || view === 'family' || view === 'game', onClick: openGames },
+                  ],
+                },
+                {
+                  label: 'Progress',
+                  items: [
+                    { id: 'analytics' as const, label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
+                    { id: 'history' as const, label: 'Session history', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
+                  ],
+                },
+                {
+                  label: 'Account',
+                  items: [
+                    { id: 'account' as const, label: 'Account', icon: UserIcon, active: view === 'account', onClick: openAccount },
+                    { id: 'settings' as const, label: 'Settings', icon: GearIcon, active: view === 'settings', onClick: openSettings },
+                    { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon, active: view === 'subscription', onClick: () => openWorkspace('subscription') },
+                    { id: 'help' as const, label: 'Help', icon: InfoIcon, active: view === 'help', onClick: () => openWorkspace('help') },
+                  ],
+                },
               ]
-            ).map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={item.onClick}
-                  aria-current={item.active ? 'page' : undefined}
-                  className={`flex shrink-0 items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold cursor-pointer ${
-                    item.active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+            ).map((group, groupIndex) => (
+              <div key={group.label} className={`flex flex-col gap-[8px] ${groupIndex > 0 ? 'mt-[8px] border-t border-gray-100 pt-[13px]' : ''}`}>
+                <p className="px-[13px] text-[11px] font-semibold uppercase tracking-wide text-gray-400">{group.label}</p>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={item.onClick}
+                      aria-current={item.active ? 'page' : undefined}
+                      className={`flex shrink-0 items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold cursor-pointer ${
+                        item.active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
             <button
               type="button"
               onClick={() => {
                 void logout().then(() => router.replace('/'));
               }}
-              className="mt-[8px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
+              className="mt-[13px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] border-t border-gray-100 bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
             >
               <LogOutIcon className="size-4 shrink-0" />
               <span>Sign out</span>
@@ -1863,24 +1887,9 @@ function MainContent() {
             )}
 
             {view === 'account' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[930px] space-y-[34px] px-4 py-[21px] pb-[89px] sm:px-[34px] lg:pl-0 lg:pb-[34px]">
                 <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Account</h2>
-                <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-                  <dl className="space-y-[21px]">
-                    <div>
-                      <dt className="text-[13px] leading-[21px] text-gray-900">Name</dt>
-                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.name}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[13px] leading-[21px] text-gray-900">Email</dt>
-                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.email}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[13px] leading-[21px] text-gray-900">Phone</dt>
-                      <dd className="mt-[8px] text-[21px] font-semibold leading-none text-gray-900">{session.user.phone || '—'}</dd>
-                    </div>
-                  </dl>
-                </div>
+                <PatientAccountCard session={session} />
               </div>
             )}
 

@@ -12,9 +12,10 @@ Start here. Each file covers one concern; session scoring lives in [SESSION_METR
 
 | Doc | What it covers |
 |---|---|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Monorepo, stack, shared package, design principles |
-| [AUTH_AND_ROLES_FLOW.md](./AUTH_AND_ROLES_FLOW.md) | Roles, login, cookies vs Bearer, access matrix |
-| [DEPLOYMENT_AND_ENV.md](./DEPLOYMENT_AND_ENV.md) | Hosting, env vars (placeholders only — no secrets) |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Canonical architecture: roles, ownership, profiles, trial, transfers, emergency audit, Mermaid diagrams |
+| [AUTH_AND_ROLES_FLOW.md](./AUTH_AND_ROLES_FLOW.md) | Auth matrix, sessions, patient/org invitations, Google Option C, scoping, token purpose isolation |
+| [CANDELA_ARCHITECTURE_CHANGE_LOG.md](./CANDELA_ARCHITECTURE_CHANGE_LOG.md) | Chronological decisions (Option C, profiles/trial, hardening, docs consolidation) |
+| [DEPLOYMENT_AND_ENV.md](./DEPLOYMENT_AND_ENV.md) | Env vars, migrations, email/OAuth/Supabase status, outstanding external QA |
 
 ## Clinical product
 

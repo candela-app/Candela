@@ -75,9 +75,16 @@ function serviceFor(input: { owned?: boolean; patient?: boolean; count?: number;
       return qb;
     },
   };
+  const memberships = {
+    assertDoctorCanAccessPatient: async () => {
+      if (input.owned === false) throw new NotFoundException('Patient not found');
+      return { userId: 'patient-1' };
+    },
+  };
   const service = new GameSessionsService(
     sessions as unknown as Repository<GameSession>,
     patients as unknown as Repository<PatientProfile>,
+    memberships as never,
   );
   return { service, calls };
 }
