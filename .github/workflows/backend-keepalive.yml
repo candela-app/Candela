@@ -1,0 +1,22 @@
+name: Backend Keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping Backend Health
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping health endpoint
+        run: |
+          echo "Pinging Candela backend on Render..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "https://candela-backend-gbdz.onrender.com/api/health" || echo "FAILED")
+          echo "Backend responded with HTTP status: $STATUS"
