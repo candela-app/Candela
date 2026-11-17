@@ -64,6 +64,10 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status === 502 || status === 503 || status === 504;
+}
+
 const AUTH_PUBLIC_PATHS = new Set([
   '/api/auth/refresh',
   '/api/auth/login',
@@ -125,8 +129,8 @@ export async function api<T>(path: string, init: RequestInit = {}, retries: bool
     }
   }
 
-  // Gracefully retry on 429 (gives sleeping container time to finish booting)
-  if (res.status === 429 && retriesLeft > 0) {
+  // Gracefully retry on 429 / 502 / 503 / 504 (gives sleeping container time to finish booting)
+  if (isRetryableStatus(res.status) && retriesLeft > 0) {
     const delay = retriesLeft === 2 ? 2500 : 3500;
     await new Promise((resolve) => setTimeout(resolve, delay));
     return api<T>(path, init, retriesLeft - 1);
@@ -166,7 +170,7 @@ async function apiForm<T>(path: string, form: FormData, retries: boolean | numbe
     }
   }
 
-  if (res.status === 429 && retriesLeft > 0) {
+  if (isRetryableStatus(res.status) && retriesLeft > 0) {
     const delay = retriesLeft === 2 ? 2500 : 3500;
     await new Promise((resolve) => setTimeout(resolve, delay));
     return apiForm<T>(path, form, retriesLeft - 1);
