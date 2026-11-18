@@ -323,3 +323,95 @@ export function getGameFamily(id: string | null | undefined): GameFamily | undef
 export function familyForModuleId(moduleId: string): GameFamily | undefined {
   return allGameFamilies().find((family) => family.moduleIds.includes(moduleId as TherapyModuleId));
 }
+
+export interface FamilyGroup<T> {
+  familyId: TherapyFamilyId | null;
+  title: string;
+  body: string | null;
+  accent: string | null;
+  bar: string | null;
+  items: T[];
+}
+
+/** Resolve a catalog module id from an id and/or display name. */
+export function resolveCatalogModuleId(
+  moduleId?: string | null,
+  moduleName?: string | null,
+): TherapyModuleId | null {
+  if (moduleId && isTherapyModuleId(moduleId)) return moduleId;
+  if (moduleName) {
+    const hit = (Object.keys(GAME_CATALOG) as TherapyModuleId[]).find(
+      (id) => GAME_CATALOG[id].name === moduleName,
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Group catalog items by dashboard family order; unknown modules land in Other. */
+export function groupByGameFamily<T extends { moduleId?: string; moduleName?: string }>(
+  items: readonly T[],
+): FamilyGroup<T & { moduleId: string }>[] {
+  type Row = T & { moduleId: string };
+  const buckets = new Map<string, FamilyGroup<Row>>();
+  for (const family of allGameFamilies()) {
+    buckets.set(family.id, {
+      familyId: family.id,
+      title: family.title,
+      body: family.body,
+      accent: family.accent,
+      bar: family.bar,
+      items: [],
+    });
+  }
+  const other: FamilyGroup<Row> = {
+    familyId: null,
+    title: 'Other',
+    body: 'Activities outside the standard families',
+    accent: null,
+    bar: null,
+    items: [],
+  };
+
+  for (const item of items) {
+    const moduleId = resolveCatalogModuleId(item.moduleId, item.moduleName) ?? item.moduleId ?? 'unknown';
+    const row = { ...item, moduleId } as Row;
+    const family = familyForModuleId(moduleId);
+    if (!family) {
+      other.items.push(row);
+      continue;
+    }
+    buckets.get(family.id)!.items.push(row);
+  }
+
+  const groups = allGameFamilies()
+    .map((family) => {
+      const group = buckets.get(family.id)!;
+      const order = new Map(family.moduleIds.map((id, index) => [id, index]));
+      group.items.sort((a, b) => (order.get(a.moduleId as TherapyModuleId) ?? 99) - (order.get(b.moduleId as TherapyModuleId) ?? 99));
+      return group;
+    })
+    .filter((group) => group.items.length > 0);
+  if (other.items.length > 0) groups.push(other);
+  return groups;
+}
+
+/** Nest family items under their module for family → module → level layouts. */
+export function groupFamilyItemsByModule<T extends { moduleId: string; moduleName: string }>(
+  items: readonly T[],
+): Array<{ moduleId: string; moduleName: string; items: T[] }> {
+  const buckets = new Map<string, { moduleId: string; moduleName: string; items: T[] }>();
+  for (const item of items) {
+    const existing = buckets.get(item.moduleId);
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+    buckets.set(item.moduleId, {
+      moduleId: item.moduleId,
+      moduleName: item.moduleName,
+      items: [item],
+    });
+  }
+  return [...buckets.values()];
+}

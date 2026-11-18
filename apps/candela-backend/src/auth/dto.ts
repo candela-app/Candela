@@ -27,7 +27,7 @@ export class SignupDto {
 
 export class CreateAccountDto extends SignupDto {}
 
-/** Doctor-created patient — no password; activation via invitation email. */
+/** Doctor-created patient — optional password activates immediately; omit → invitation email. */
 export class CreatePatientDto {
   @IsString()
   @MinLength(1)
@@ -38,6 +38,13 @@ export class CreatePatientDto {
 
   @IsEmail()
   email: string;
+
+  /** When set (≥8 chars), patient can log in immediately; invitation email is skipped. */
+  @IsOptional()
+  @ValidateIf((_, value) => value != null && value !== '')
+  @IsString()
+  @MinLength(8)
+  password?: string;
 }
 
 export class AcceptPatientInvitationDto {

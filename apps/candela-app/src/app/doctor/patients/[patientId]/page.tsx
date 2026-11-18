@@ -70,7 +70,7 @@ function ProfileSkeleton() {
         <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
           <div className="flex flex-col gap-[21px] lg:flex-row lg:items-stretch lg:justify-between">
             <div className="flex flex-col gap-[21px] sm:flex-row sm:items-start">
-              <Skeleton className="mx-auto aspect-[2/3] w-full max-w-[220px] shrink-0 rounded-[13px] sm:mx-0" />
+              <Skeleton className="mx-auto h-[330px] w-full max-w-none shrink-0 rounded-[13px] sm:mx-0 sm:aspect-[2/3] sm:h-auto sm:w-[220px] sm:max-w-[220px]" />
               <div className="min-w-0 flex-1 space-y-[13px]">
                 <Skeleton className="h-[34px] w-[200px] rounded-[8px]" />
                 <div className="flex gap-[8px]">
@@ -147,7 +147,8 @@ function DoctorPatientProfile() {
   const loadToken = useRef(0);
   const [practice, setPractice] = useState<SavedPracticeSummary | null>(null);
   const [practiceFailed, setPracticeFailed] = useState(false);
-  const [detailsLoading, setDetailsLoading] = useState(true);
+  const [practiceLoading, setPracticeLoading] = useState(true);
+  const [identityLoading, setIdentityLoading] = useState(true);
   const [resendBusy, setResendBusy] = useState(false);
   const [inviteBanner, setInviteBanner] = useState<{ status: 'sent' | 'failed'; expiresAt: string | null } | null>(
     null,
@@ -183,7 +184,8 @@ function DoctorPatientProfile() {
     setPractice(null);
     setPracticeFailed(false);
     setIdentityProfile(null);
-    setDetailsLoading(true);
+    setPracticeLoading(true);
+    setIdentityLoading(true);
 
     const patientPromise = api<PatientSummary>(`/api/doctors/me/patients/${patientId}`);
     const practicePromise = getPatientPracticeSummary(patientId)
@@ -199,12 +201,18 @@ function DoctorPatientProfile() {
     setPatient(next);
     setDataLoading(false);
 
-    const [summary, identity] = await Promise.all([practicePromise, identityPromise]);
-    if (loadToken.current !== token) return;
-    setPractice(summary.value);
-    setPracticeFailed(summary.failed);
-    setIdentityProfile(identity);
-    setDetailsLoading(false);
+    // Settle identity and practice independently so chips are not blocked by summary.
+    void identityPromise.then((identity) => {
+      if (loadToken.current !== token) return;
+      setIdentityProfile(identity);
+      setIdentityLoading(false);
+    });
+    void practicePromise.then((summary) => {
+      if (loadToken.current !== token) return;
+      setPractice(summary.value);
+      setPracticeFailed(summary.failed);
+      setPracticeLoading(false);
+    });
   }, [patientId]);
 
   useEffect(() => {
@@ -217,7 +225,8 @@ function DoctorPatientProfile() {
     }
     let cancelled = false;
     setDataLoading(true);
-    setDetailsLoading(true);
+    setPracticeLoading(true);
+    setIdentityLoading(true);
     load().catch((err) => {
       if (cancelled) return;
       setPatient(null);
@@ -226,7 +235,8 @@ function DoctorPatientProfile() {
       setPracticeFailed(false);
       setError(err instanceof ApiError ? err.message : 'Failed to load patient');
       setDataLoading(false);
-      setDetailsLoading(false);
+      setPracticeLoading(false);
+      setIdentityLoading(false);
     });
     return () => {
       cancelled = true;
@@ -234,7 +244,7 @@ function DoctorPatientProfile() {
   }, [loading, session, router, load]);
 
   const prescribedCount = patient?.prescribedModuleIds.length ?? 0;
-  const saved = detailsLoading
+  const saved = practiceLoading
     ? { value: '…', hint: 'Loading practice summary' }
     : lastSavedCard(practice, practiceFailed);
 
@@ -390,7 +400,8 @@ function DoctorPatientProfile() {
             profileComplete={profileComplete}
             error={error}
             identityProfile={identityProfile}
-            detailsLoading={detailsLoading}
+            identityLoading={identityLoading}
+            practiceLoading={practiceLoading}
             practice={practice}
             practiceFailed={practiceFailed}
             saved={saved}
@@ -415,7 +426,8 @@ function PatientWorkspace({
   profileComplete,
   error,
   identityProfile,
-  detailsLoading,
+  identityLoading,
+  practiceLoading,
   practice,
   practiceFailed,
   saved,
@@ -433,7 +445,8 @@ function PatientWorkspace({
   profileComplete: boolean;
   error: string;
   identityProfile: PatientIdentityProfile | null;
-  detailsLoading: boolean;
+  identityLoading: boolean;
+  practiceLoading: boolean;
   practice: SavedPracticeSummary | null;
   practiceFailed: boolean;
   saved: { value: string; hint: string };
@@ -527,17 +540,17 @@ function PatientWorkspace({
           <DoctorPatientIdentityPanel
             patientId={patient.id}
             profile={identityProfile}
-            profileLoading={detailsLoading}
+            profileLoading={identityLoading}
             fallbackName={patient.name}
             stats={[
               {
                 label: 'Saved sessions',
-                value: detailsLoading
+                value: practiceLoading
                   ? '…'
                   : practiceFailed
                     ? '—'
                     : String(practice?.sessionCount ?? 0),
-                hint: detailsLoading
+                hint: practiceLoading
                   ? 'Loading practice summary'
                   : practiceFailed
                     ? 'Summary unavailable'

@@ -338,8 +338,8 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
-   * Doctor-created patient: no password. Creates user + ownership + invitation token
-   * in one DB transaction, then emails after commit (M6).
+   * Doctor-created patient. With password: hash + activate immediately (no invite email).
+   * Without password: invitation token in one DB transaction, then email after commit (M6).
    * organizationId must be an explicitly validated active membership (X-Organization-Id).
    */
   async createDoctorPatient(doctorUserId: string, dto: CreatePatientDto, organizationId: string) {
@@ -355,9 +355,12 @@ export class AuthService implements OnModuleInit {
     const email = dto.email.trim().toLowerCase();
     const name = dto.name.trim();
     const phone = dto.phone.trim();
-    const rawToken = randomBytes(32).toString('hex');
+    const password = dto.password?.trim() || null;
+    const activateNow = Boolean(password);
+    const rawToken = activateNow ? null : randomBytes(32).toString('hex');
     const ttlHours = this.invitationTtlHours();
-    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+    const expiresAt = activateNow ? null : new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+    const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
 
     let userId: string;
     try {
@@ -374,7 +377,7 @@ export class AuthService implements OnModuleInit {
         const user = await userRepo.save(
           userRepo.create({
             email,
-            passwordHash: null,
+            passwordHash,
             name,
             phone,
             role: 'patient',
@@ -388,23 +391,25 @@ export class AuthService implements OnModuleInit {
             doctorId: doctor.userId,
             organizationId,
             origin: 'doctor_created',
-            accountActivatedAt: null,
+            accountActivatedAt: activateNow ? new Date() : null,
           }),
         );
 
-        await tokenRepo.update(
-          { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
-          { usedAt: new Date() },
-        );
-        await tokenRepo.save(
-          tokenRepo.create({
-            userId: user.id,
-            tokenHash: hashToken(rawToken),
-            purpose: 'patient_invitation',
-            expiresAt,
-            usedAt: null,
-          }),
-        );
+        if (!activateNow && rawToken && expiresAt) {
+          await tokenRepo.update(
+            { userId: user.id, purpose: 'patient_invitation', usedAt: IsNull() },
+            { usedAt: new Date() },
+          );
+          await tokenRepo.save(
+            tokenRepo.create({
+              userId: user.id,
+              tokenHash: hashToken(rawToken),
+              purpose: 'patient_invitation',
+              expiresAt,
+              usedAt: null,
+            }),
+          );
+        }
 
         return user.id;
       });
@@ -415,20 +420,30 @@ export class AuthService implements OnModuleInit {
       throw err;
     }
 
+    const patient = await this.toPatientSummary(userId);
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    if (activateNow) {
+      return {
+        patient,
+        invitation: null,
+        activated: true,
+      };
+    }
+
     const user = await this.users.findOne({ where: { id: userId } });
-    if (!user) {
+    if (!user || !rawToken || !expiresAt) {
       throw new NotFoundException('Patient not found');
     }
 
     // Email only after commit — never send a token that is not durable.
     const emailSent = await this.sendPatientInvitationEmail(user, rawToken, ttlHours);
-    const patient = await this.toPatientSummary(user.id);
-    if (!patient) {
-      throw new NotFoundException('Patient not found');
-    }
     return {
       patient,
       invitation: { emailSent, expiresAt: expiresAt.toISOString() } satisfies PatientInvitationIssueResult,
+      activated: false,
     };
   }
 

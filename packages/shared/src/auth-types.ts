@@ -66,7 +66,7 @@ export interface PatientSummary extends PublicUser {
   organizationName?: string | null;
 }
 
-/** Wave 3/4 — doctor create-patient response (no password; invitation email). */
+/** Wave 3/4 — doctor create-patient invitation delivery (null when activated with password). */
 export interface PatientInvitationDelivery {
   emailSent: boolean;
   expiresAt: string;
@@ -74,7 +74,10 @@ export interface PatientInvitationDelivery {
 
 export interface CreateDoctorPatientResponse {
   patient: PatientSummary;
-  invitation: PatientInvitationDelivery;
+  /** Present when an invitation was issued; null when the account was activated with a password. */
+  invitation: PatientInvitationDelivery | null;
+  /** True when the doctor supplied a password and the patient can log in immediately. */
+  activated: boolean;
 }
 
 export interface OrganizationSummary {

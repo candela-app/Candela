@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import {
   GAME_CATALOG,
@@ -8,6 +8,8 @@ import {
   analyticsQueryRange,
   assignmentLevelName,
   formatReportSeconds,
+  groupByGameFamily,
+  groupFamilyItemsByModule,
   insightPresetRange,
   isTherapyModuleId,
   resolvedTimeZone,
@@ -25,6 +27,8 @@ import { colors } from '../lib/theme';
 type RangeChoice = InsightPreset | 'custom';
 type DoctorPractice = DoctorPrescriptionAnalytics & { period?: PrescriptionPeriod };
 type PatientPractice = PatientPrescriptionPractice & { period?: PatientPrescriptionPeriod };
+type PatientActivity = PatientPrescriptionPractice['activities'][number];
+type PatientModuleWithoutLevels = PatientPrescriptionPractice['modulesWithoutLevels'][number];
 
 function moduleLabel(moduleId: string): string {
   return isTherapyModuleId(moduleId) ? GAME_CATALOG[moduleId].name : moduleId;
@@ -139,93 +143,220 @@ export function PrescriptionPractice({
     );
   }
 
-  return (
-    <View style={{ gap: s(8), marginBottom: s(21), backgroundColor: colors.white, borderRadius: s(13), borderWidth: 1, borderColor: colors.border, padding: s(13) }}>
-      <Text style={{ fontSize: fs(21), fontWeight: '700', color: colors.text }}>Assigned activities</Text>
-      <Text style={text}>
-        Saved sessions in this date range that match an assigned level. The practice record counts every saved session. A missing session is not a missed activity.
-      </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
-        {(
-          [
-            ['7d', '7 days'],
-            ['30d', '30 days'],
-            ['90d', '90 days'],
-            ['custom', 'Custom'],
-          ] as const
-        ).map(([id, label]) => {
-          const selected = choice === id;
+  function FamilySections<T extends { moduleId: string; moduleName: string }>({
+    items,
+    renderItem,
+  }: {
+    items: readonly T[];
+    renderItem: (item: T) => ReactNode;
+  }) {
+    const groups = groupByGameFamily(items);
+    const [openKeys, setOpenKeys] = useState<string[]>([]);
+    useEffect(() => {
+      setOpenKeys([]);
+    }, [groups.map((group) => group.familyId ?? 'other').join('|')]);
+    if (groups.length === 0) return null;
+    return (
+      <View style={{ gap: s(13) }}>
+        {groups.map((group) => {
+          const key = group.familyId ?? 'other';
+          const open = openKeys.includes(key);
+          const modules = groupFamilyItemsByModule(group.items);
           return (
-            <Pressable
-              key={id}
-              onPress={() => setChoice(id)}
-              style={{
-                borderRadius: s(13),
-                borderWidth: 1,
-                borderColor: selected ? colors.blue : colors.border,
-                backgroundColor: selected ? colors.blue : colors.white,
-                paddingHorizontal: s(13),
-                paddingVertical: s(8),
-              }}
+            <View
+              key={key}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: s(13), overflow: 'hidden' }}
             >
-              <Text style={{ color: selected ? colors.white : colors.text, fontWeight: '700', fontSize: fs(13) }}>{label}</Text>
-            </Pressable>
+              <Pressable
+                onPress={() =>
+                  setOpenKeys((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]))
+                }
+                style={{ padding: s(13), gap: s(4) }}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open }}
+              >
+                <Text style={{ ...title, fontSize: fs(16) }}>{group.title}</Text>
+                {group.body ? <Text style={text}>{group.body}</Text> : null}
+                <Text style={text}>
+                  {group.items.length} {group.items.length === 1 ? 'level' : 'levels'} · {open ? 'Hide' : 'Show'}
+                </Text>
+              </Pressable>
+              {open ? (
+                <View style={{ gap: s(13), borderTopWidth: 1, borderTopColor: colors.border, padding: s(13) }}>
+                  {modules.map((module) => (
+                    <View key={module.moduleId} style={{ gap: s(8) }}>
+                      <Text style={title}>{module.moduleName}</Text>
+                      <View style={{ gap: s(8) }}>{module.items.map(renderItem)}</View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        gap: s(8),
+        marginBottom: s(21),
+        backgroundColor: colors.white,
+        borderRadius: s(13),
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: s(13),
+      }}
+    >
+      <View style={{ gap: s(13) }}>
+        <Text style={{ fontSize: fs(21), fontWeight: '700', color: colors.text }}>Activities history</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s(8) }}>
+          {(
+            [
+              ['7d', '7 days'],
+              ['30d', '30 days'],
+              ['90d', '90 days'],
+              ['custom', 'Custom'],
+            ] as const
+          ).map(([id, label]) => {
+            const selected = choice === id;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => {
+                  if (id === 'custom') {
+                    const preset = insightPresetRange(
+                      choice === 'custom' ? '30d' : choice,
+                      new Date().toISOString(),
+                      timeZone,
+                    );
+                    const from = customFrom || preset.from;
+                    const to = customTo || preset.to;
+                    setCustomFrom(from);
+                    setCustomTo(to);
+                  }
+                  setChoice(id);
+                }}
+                style={{
+                  borderRadius: s(13),
+                  borderWidth: 1,
+                  borderColor: selected ? colors.blue : colors.border,
+                  backgroundColor: selected ? colors.blue : colors.white,
+                  paddingHorizontal: s(13),
+                  paddingVertical: s(8),
+                }}
+              >
+                <Text style={{ color: selected ? colors.white : colors.text, fontWeight: '700', fontSize: fs(13) }}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
       {choice === 'custom' ? (
-        <View style={{ flexDirection: 'row', gap: s(13) }}>
-          <TextInput
-            value={customFrom}
-            onChangeText={setCustomFrom}
-            placeholder="From YYYY-MM-DD"
-            accessibilityLabel="From date"
-            autoCapitalize="none"
-            style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(8), color: colors.text }}
-          />
-          <TextInput
-            value={customTo}
-            onChangeText={setCustomTo}
-            placeholder="To YYYY-MM-DD"
-            accessibilityLabel="To date"
-            autoCapitalize="none"
-            style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(8), color: colors.text }}
-          />
+        <View style={{ gap: s(8) }}>
+          <View style={{ flexDirection: 'row', gap: s(13) }}>
+            <TextInput
+              value={customFrom}
+              onChangeText={setCustomFrom}
+              placeholder="From YYYY-MM-DD"
+              accessibilityLabel="From date"
+              autoCapitalize="none"
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: s(13),
+                padding: s(8),
+                color: colors.text,
+              }}
+            />
+            <TextInput
+              value={customTo}
+              onChangeText={setCustomTo}
+              placeholder="To YYYY-MM-DD"
+              accessibilityLabel="To date"
+              autoCapitalize="none"
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: s(13),
+                padding: s(8),
+                color: colors.text,
+              }}
+            />
+          </View>
         </View>
       ) : null}
       {loading ? <Text style={text}>Loading assigned activities…</Text> : null}
       {error ? <Text style={{ color: colors.red, fontSize: fs(13) }}>{error}</Text> : null}
+
       {patientPeriod?.emptyLabel ? <Text style={text}>{patientPeriod.emptyLabel}</Text> : null}
-      {patientPeriod?.modulesWithoutLevels.map((module) => (
-        <Text key={module.moduleName} style={text}>
-          {module.moduleName}: {module.label}
-        </Text>
-      ))}
-      {patientPeriod?.activities.map((activity) => (
-        <View key={`${activity.moduleName}-${activity.levelName}`} style={{ gap: s(4) }}>
-          <Text style={title}>{activity.moduleName}</Text>
-          <Text style={text}>{activity.levelName}</Text>
-          <Text style={{ ...text, color: colors.text }}>
-            {activity.availability === 'none_saved' ? NO_SESSION_SAVED_LABEL : `${activity.sessionCount} saved`}
-          </Text>
-          {activity.lastRecordedAt ? <Text style={text}>Latest {formatWhen(activity.lastRecordedAt, timeZone)}</Text> : null}
-        </View>
-      ))}
+      {patientPeriod ? (
+        <FamilySections
+          items={patientPeriod.modulesWithoutLevels}
+          renderItem={(module: PatientModuleWithoutLevels) => (
+            <Text key={module.moduleId} style={text}>
+              {module.moduleName}: {module.label}
+            </Text>
+          )}
+        />
+      ) : null}
+      {patientPeriod ? (
+        <FamilySections
+          items={patientPeriod.activities}
+          renderItem={(activity: PatientActivity) => (
+            <View
+              key={`${activity.moduleId}-${activity.levelId}`}
+              style={{ gap: s(4), borderWidth: 1, borderColor: colors.border, borderRadius: s(13), padding: s(8) }}
+            >
+              <Text style={title}>{activity.moduleName}</Text>
+              <Text style={text}>{activity.levelName}</Text>
+              <Text style={{ ...text, color: colors.text }}>
+                {activity.availability === 'none_saved' ? NO_SESSION_SAVED_LABEL : `${activity.sessionCount} saved`}
+              </Text>
+              {activity.lastRecordedAt ? (
+                <Text style={text}>Latest {formatWhen(activity.lastRecordedAt, timeZone)}</Text>
+              ) : null}
+            </View>
+          )}
+        />
+      ) : null}
       {patientPeriod?.truncated ? <Text style={text}>{TRUNCATED_HISTORY_NOTE}</Text> : null}
+
       {period ? <Text style={title}>Current assignment</Text> : null}
       {period && current.length === 0 ? <Text style={text}>{NO_ACTIVITIES_ASSIGNED_LABEL}</Text> : null}
-      {current.map((activity) => (
-        <DoctorActivity key={`${activity.moduleId}-${activity.levelId}`} activity={activity} />
-      ))}
+      {period && current.length > 0 ? (
+        <FamilySections
+          items={current}
+          renderItem={(activity) => (
+            <DoctorActivity key={`${activity.moduleId}-${activity.levelId}`} activity={activity} />
+          )}
+        />
+      ) : null}
       {previous.length > 0 ? <Text style={title}>No longer prescribed</Text> : null}
-      {previous.map((activity) => (
-        <DoctorActivity key={`${activity.moduleId}-${activity.levelId}`} activity={activity} />
-      ))}
-      {period?.modulesWithoutLevels.map((module) => (
-        <Text key={module.moduleId} style={text}>
-          {module.moduleName}: {module.label}
-        </Text>
-      ))}
+      {previous.length > 0 ? (
+        <FamilySections
+          items={previous}
+          renderItem={(activity) => (
+            <DoctorActivity key={`${activity.moduleId}-${activity.levelId}`} activity={activity} />
+          )}
+        />
+      ) : null}
+      {period ? (
+        <FamilySections
+          items={period.modulesWithoutLevels}
+          renderItem={(module) => (
+            <Text key={module.moduleId} style={text}>
+              {module.moduleName}: {module.label}
+            </Text>
+          )}
+        />
+      ) : null}
       {period?.truncated ? <Text style={text}>{TRUNCATED_HISTORY_NOTE}</Text> : null}
       {doctorAnalytics ? <Text style={title}>Assignment history</Text> : null}
       {doctorAnalytics?.revisions.length === 0 ? <Text style={text}>No assignment history</Text> : null}
@@ -240,24 +371,46 @@ export function PrescriptionPractice({
                 .map((assignment) =>
                   assignment.levels.length === 0
                     ? `${moduleLabel(assignment.moduleId)}: no specific levels assigned`
-                    : `${moduleLabel(assignment.moduleId)}: ${assignment.levels.map((levelId) => assignmentLevelName(assignment.moduleId, levelId)).join(', ')}`,
+                    : `${moduleLabel(assignment.moduleId)}: ${assignment.levels
+                        .map((levelId) => assignmentLevelName(assignment.moduleId, levelId))
+                        .join(', ')}`,
                 )
                 .join(' · ')}
         </Text>
       ))}
       {(period?.recordedButNotAssigned.length ?? 0) > 0 ? <Text style={title}>Recorded but not assigned</Text> : null}
-      {period?.recordedButNotAssigned.map((session) => (
-        <Text key={session.id} style={text}>
-          {session.levelName} · {formatWhen(session.recordedAt, timeZone)} · {session.label}
-          {session.note ? ` ${session.note}` : ''}
-        </Text>
-      ))}
-      {(period?.unattributed.length ?? 0) > 0 ? <Text style={title}>Sessions not linked to an assignment</Text> : null}
-      {period?.unattributed.map((session) => (
-        <Text key={session.id} style={text}>
-          {session.levelName} · {formatWhen(session.recordedAt, timeZone)} · {session.label}
-        </Text>
-      ))}
+      {period && period.recordedButNotAssigned.length > 0 ? (
+        <FamilySections
+          items={period.recordedButNotAssigned.map((session) => ({
+            ...session,
+            moduleId: session.gameId,
+            moduleName: moduleLabel(session.gameId),
+          }))}
+          renderItem={(session) => (
+            <Text key={session.id} style={text}>
+              {session.levelName} · {formatWhen(session.recordedAt, timeZone)} · {session.label}
+              {session.note ? ` ${session.note}` : ''}
+            </Text>
+          )}
+        />
+      ) : null}
+      {(period?.unattributed.length ?? 0) > 0 ? (
+        <Text style={title}>Sessions not linked to an assignment</Text>
+      ) : null}
+      {period && period.unattributed.length > 0 ? (
+        <FamilySections
+          items={period.unattributed.map((session) => ({
+            ...session,
+            moduleId: session.gameId,
+            moduleName: moduleLabel(session.gameId),
+          }))}
+          renderItem={(session) => (
+            <Text key={session.id} style={text}>
+              {session.levelName} · {formatWhen(session.recordedAt, timeZone)} · {session.label}
+            </Text>
+          )}
+        />
+      ) : null}
     </View>
   );
 }

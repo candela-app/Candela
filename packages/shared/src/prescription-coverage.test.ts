@@ -764,6 +764,8 @@ describe('assigned activity period', () => {
     const patient = projectPatientPrescriptionPeriod(period);
     const encoded = JSON.stringify(patient);
     expect(patient.activities[0]).toEqual({
+      moduleId: 'rotatory',
+      levelId: 'uppercase',
       moduleName: 'Rotatory Wheel',
       levelName: 'Uppercase Rotatory',
       sessionCount: 1,
@@ -774,7 +776,6 @@ describe('assigned activity period', () => {
     expect(encoded).not.toContain('prescriptionRevisionId');
     expect(encoded).not.toContain('direct_link_mismatch');
     expect(encoded).not.toContain('no_longer_prescribed');
-    expect(encoded).not.toContain('moduleId');
   });
 
   it('treats 2000 rows as complete and 2001 as an incomplete newer window', () => {

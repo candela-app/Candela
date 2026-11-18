@@ -114,8 +114,10 @@ export interface DoctorPrescriptionAnalytics {
 }
 
 export interface PatientPrescriptionPractice {
-  modulesWithoutLevels: Array<{ moduleName: string; label: typeof EMPTY_LEVELS_LABEL }>;
+  modulesWithoutLevels: Array<{ moduleId: string; moduleName: string; label: typeof EMPTY_LEVELS_LABEL }>;
   activities: Array<{
+    moduleId: string;
+    levelId: string;
     moduleName: string;
     levelName: string;
     sessionCount: number;
@@ -777,6 +779,8 @@ export function projectPatientPrescriptionPractice(analytics: DoctorPrescription
   const activities = analytics.activities
     .filter((activity) => activity.status === 'current')
     .map((activity) => ({
+      moduleId: activity.moduleId,
+      levelId: activity.levelId,
       moduleName: activity.moduleName,
       levelName: activity.levelName,
       sessionCount: activity.sessionCount,
@@ -784,6 +788,7 @@ export function projectPatientPrescriptionPractice(analytics: DoctorPrescription
       availability: activity.availability,
     }));
   const modulesWithoutLevels = analytics.modulesWithoutLevels.map((module) => ({
+    moduleId: module.moduleId,
     moduleName: module.moduleName,
     label: module.label,
   }));
