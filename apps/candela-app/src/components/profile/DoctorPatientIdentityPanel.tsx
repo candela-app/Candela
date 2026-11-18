@@ -341,7 +341,7 @@ export function DoctorPatientIdentityPanel({
               photoLoaded={photoLoaded}
               onPhotoLoad={() => setPhotoLoaded(true)}
               initial={initial}
-              className="mx-auto aspect-[2/3] w-full max-w-[220px] shrink-0 sm:mx-0"
+              className="mx-auto h-[330px] w-full max-w-none shrink-0 sm:mx-0 sm:aspect-[2/3] sm:h-auto sm:w-[220px] sm:max-w-[220px]"
             />
 
             <div className="min-w-0 flex-1 space-y-[13px] text-center sm:text-left">
