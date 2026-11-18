@@ -23,7 +23,7 @@ import { ScreenLoader } from '../src/components/ScreenLoader';
 import { PracticeOverview } from '../src/components/PracticeOverview';
 import { PrescriptionPractice } from '../src/components/PrescriptionPractice';
 import { SessionAnalyticsPanel } from '../src/components/SessionAnalyticsPanel';
-import { FloatingLabelInput } from '../src/components/FloatingLabelInput';
+import { FloatingLabelInput, FloatingLabelPasswordInput } from '../src/components/FloatingLabelInput';
 import { ApiError, api, getPatientPracticeSummary, withOrganizationId } from '../src/lib/api';
 import { useAuth } from '../src/lib/auth-context';
 import { useLayout } from '../src/lib/layout';
@@ -143,6 +143,7 @@ export default function DoctorScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [memberships, setMemberships] = useState<DoctorOrganizationMembershipView[]>([]);
@@ -258,23 +259,36 @@ export default function DoctorScreen() {
     }
     setSaving(true);
     const patientName = name.trim();
+    const passwordValue = password.trim();
     try {
       rememberedOrganizationId = organizationId;
       const created = await api<CreateDoctorPatientResponse>(
         '/api/doctors/me/patients',
         withOrganizationId(organizationId, {
           method: 'POST',
-          body: JSON.stringify({ name, phone, email }),
+          body: JSON.stringify({
+            name,
+            phone,
+            email,
+            ...(passwordValue ? { password: passwordValue } : {}),
+          }),
         }),
       );
       setName('');
       setPhone('');
       setEmail('');
+      setPassword('');
       setSelectedId(created.patient.id);
       setPhoneSection('patients');
       setPhoneTab('patients');
       await load();
-      if (created.invitation.emailSent) {
+      if (created.activated) {
+        setInviteNote('Account activated — patient can sign in with the password you set.');
+        Alert.alert(
+          'Success',
+          `Patient ${patientName} created and activated. They can sign in with the password you set.`,
+        );
+      } else if (created.invitation?.emailSent) {
         setInviteNote(
           `Invitation sent to ${created.patient.email} (expires ${new Date(created.invitation.expiresAt).toLocaleString()}).`,
         );
@@ -761,7 +775,9 @@ export default function DoctorScreen() {
         <View style={{ backgroundColor: colors.white, borderRadius: s(13), padding: s(21), borderWidth: 1, borderColor: colors.border, marginBottom: s(21), ...cardShadow }}>
           <Text style={{ fontSize: fs(21), fontWeight: '600', marginBottom: s(13) }}>Create patient</Text>
           <Text style={{ fontSize: fs(13), color: colors.muted, marginBottom: s(21), lineHeight: fs(20) }}>
-            The patient receives a secure email invitation to set their own password. You never create or send a password.
+            {password.trim()
+              ? 'Account activates immediately with the password you set — no invitation email.'
+              : 'Leave password blank to email an invitation so the patient sets their own password.'}
           </Text>
           {activeMemberships.length > 1 ? (
             <View style={{ marginBottom: s(13) }}>
@@ -801,14 +817,26 @@ export default function DoctorScreen() {
           )}
           <FloatingLabelInput label="Name" value={name} onChangeText={setName} scale="golden" />
           <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" scale="golden" />
-          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" scale="golden" style={{ marginBottom: s(21) }} />
+          <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" scale="golden" />
+          <FloatingLabelPasswordInput
+            label="Password (optional)"
+            value={password}
+            onChangeText={setPassword}
+            autoComplete="new-password"
+            scale="golden"
+            style={{ marginBottom: s(21) }}
+          />
           <Pressable
             onPress={() => void onCreatePatient()}
             disabled={saving || !organizationId}
             style={{ alignSelf: 'flex-start', backgroundColor: colors.blue, borderRadius: s(13), paddingHorizontal: s(21), paddingVertical: s(13), alignItems: 'center', opacity: saving || !organizationId ? 0.6 : 1 }}
           >
             <Text style={{ color: colors.white, fontSize: fs(13), fontWeight: '600' }}>
-              {saving ? 'Creating…' : 'Create patient & send invitation'}
+              {saving
+                ? 'Creating…'
+                : password.trim()
+                  ? 'Create patient account'
+                  : 'Create patient & send invitation'}
             </Text>
           </Pressable>
         </View>

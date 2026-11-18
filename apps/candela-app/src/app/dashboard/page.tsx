@@ -19,6 +19,7 @@ import { FamiliarFacesGame } from '@/components/familiarFacesModule/FamiliarFace
 import {
   AnalyticsIcon,
   ArrowRightIcon,
+  CheckCheckIcon,
   ChevronDownIcon,
   CloseIcon,
   CreditCardIcon,
@@ -104,7 +105,7 @@ const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none lg:overflow
 const CHOOSER_SCROLL =
   'relative z-0 h-full min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:-mt-[81px] lg:h-[calc(100%+81px)] lg:max-h-none lg:pt-[81px]';
 
-type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
+type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'activities' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
 const DASHBOARD_SHADOW = 'shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)]';
 
@@ -1019,11 +1020,6 @@ function MainContent() {
       setSelectedModule(moduleParam);
       setSelectedFamily(familyParam || familyForModuleId(catalogId ?? '')?.id || null);
       setView('game');
-    } else if (familyParam && isTherapyFamilyId(familyParam)) {
-      setSelectedTherapy('vision');
-      setSelectedFamily(familyParam);
-      setSelectedModule(null);
-      setView('family');
     } else if (pageParam === 'games') {
       setSelectedTherapy('vision');
       setSelectedModule(null);
@@ -1032,6 +1028,9 @@ function MainContent() {
     } else if (pageParam === 'analytics') {
       setSelectedTherapy('vision');
       setView('analytics');
+    } else if (pageParam === 'activities') {
+      setSelectedTherapy('vision');
+      setView('activities');
     } else if (pageParam === 'account') {
       setSelectedTherapy('vision');
       setView('account');
@@ -1047,6 +1046,11 @@ function MainContent() {
     } else if (pageParam === 'help') {
       setSelectedTherapy('vision');
       setView('help');
+    } else if (familyParam && isTherapyFamilyId(familyParam)) {
+      setSelectedTherapy('vision');
+      setSelectedFamily(familyParam);
+      setSelectedModule(null);
+      setView('family');
     } else {
       setSelectedTherapy('vision');
       setSelectedModule(null);
@@ -1110,7 +1114,7 @@ function MainContent() {
     });
   };
 
-  const openWorkspace = (page: 'account' | 'settings' | 'history' | 'subscription' | 'help') => {
+  const openWorkspace = (page: 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'activities') => {
     setNavOpen(false);
     updateQueryParams({
       page,
@@ -1138,7 +1142,18 @@ function MainContent() {
       mode: null,
       variant: null,
       board: null,
+      range: null,
+      from: null,
+      to: null,
     });
+  };
+
+  const goBackOrPractice = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    openPractice();
   };
 
   const openGames = () => {
@@ -1419,7 +1434,7 @@ function MainContent() {
   };
 
   const isPlayingGame = view === 'play_rotatory' || view === 'play_sorting' || view === 'play_bee_tracing' || view === 'play_pursuit' || view === 'play_mobile_target' || view === 'play_geoboard' || view === 'play_peripheral_view' || view === 'play_number_search' || view === 'play_pattern_match' || view === 'play_location_memory' || view === 'play_direction_sense' || view === 'play_computer_vision' || view === 'play_familiar_faces';
-  const isChooserView = view === 'module' || view === 'games' || view === 'family' || view === 'game' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help';
+  const isChooserView = view === 'module' || view === 'games' || view === 'family' || view === 'game' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help' || view === 'activities';
   const isAnalyticsView = view === 'analytics';
   const lockToViewport = isChooserView || isAnalyticsView;
 
@@ -1560,8 +1575,8 @@ function MainContent() {
                 : handleBackToFamily
               : view === 'family'
                 ? handleBackToModules
-                : view === 'games' || view === 'analytics' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help'
-                  ? openPractice
+                : view === 'games' || view === 'analytics' || view === 'activities' || view === 'account' || view === 'settings' || view === 'history' || view === 'subscription' || view === 'help'
+                  ? goBackOrPractice
                   : undefined
           }
         />
@@ -1599,6 +1614,13 @@ function MainContent() {
                   label: 'Progress',
                   items: [
                     { id: 'analytics' as const, label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
+                    {
+                      id: 'activities' as const,
+                      label: 'Activities history',
+                      icon: CheckCheckIcon,
+                      active: view === 'activities',
+                      onClick: () => openWorkspace('activities'),
+                    },
                     { id: 'history' as const, label: 'Session history', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
                   ],
                 },
@@ -1860,10 +1882,15 @@ function MainContent() {
               );
             })()}
 
+            {view === 'activities' && (
+              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+                <PrescriptionPractice audience="patient" />
+              </main>
+            )}
+
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (
               <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
-                <PrescriptionPractice audience="patient" />
                 <PracticeOverview
                   audience="patient"
                   onOpenLevel={(gameId, levelId) => {

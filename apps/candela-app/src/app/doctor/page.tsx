@@ -24,7 +24,7 @@ import {
   UsersIcon,
   XIcon,
 } from '@/components/icons/VectorIcons';
-import { FloatingLabelInput } from '@/components/ui/FloatingLabelInput';
+import { FloatingLabelInput, FloatingLabelPasswordInput } from '@/components/ui/FloatingLabelInput';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { DoctorAccountCard } from '@/components/profile/DoctorAccountCard';
 import Link from 'next/link';
@@ -102,6 +102,7 @@ function DoctorDashboard() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [incoming, setIncoming] = useState<IncomingDocIdRequest[]>([]);
@@ -192,6 +193,7 @@ function DoctorDashboard() {
     }
     setSaving(true);
     const patientName = name.trim();
+    const passwordValue = password.trim();
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(ORG_STORAGE_KEY, organizationId);
@@ -200,14 +202,28 @@ function DoctorDashboard() {
         '/api/doctors/me/patients',
         withOrganizationId(organizationId, {
           method: 'POST',
-          body: JSON.stringify({ name, phone, email }),
+          body: JSON.stringify({
+            name,
+            phone,
+            email,
+            ...(passwordValue ? { password: passwordValue } : {}),
+          }),
         }),
       );
       setName('');
       setPhone('');
       setEmail('');
+      setPassword('');
       await load();
-      if (created.invitation.emailSent) {
+      setListTab('patients');
+      if (created.activated) {
+        toast.success(
+          `Patient ${patientName} created and activated. They can sign in with the password you set.`,
+        );
+        router.push(`/doctor/patients/${created.patient.id}`);
+        return;
+      }
+      if (created.invitation?.emailSent) {
         toast.success(
           `Patient ${patientName} created. Invitation sent to ${created.patient.email} (expires ${new Date(created.invitation.expiresAt).toLocaleString('en-GB')}).`,
         );
@@ -216,9 +232,8 @@ function DoctorDashboard() {
           `Patient ${patientName} was created, but the invitation email could not be sent. Open the patient profile to resend.`,
         );
       }
-      setListTab('patients');
       router.push(
-        `/doctor/patients/${created.patient.id}?invite=${created.invitation.emailSent ? 'sent' : 'failed'}&expires=${encodeURIComponent(created.invitation.expiresAt)}`,
+        `/doctor/patients/${created.patient.id}?invite=${created.invitation?.emailSent ? 'sent' : 'failed'}&expires=${encodeURIComponent(created.invitation?.expiresAt ?? '')}`,
       );
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not create patient';
@@ -544,12 +559,29 @@ function DoctorDashboard() {
                       <FloatingLabelInput label="Name" value={name} onChange={setName} required scale="golden" />
                       <FloatingLabelInput label="Email" type="email" value={email} onChange={setEmail} required scale="golden" />
                       <FloatingLabelInput label="Phone" value={phone} onChange={setPhone} required scale="golden" />
+                      <FloatingLabelPasswordInput
+                        label="Password (optional)"
+                        value={password}
+                        onChange={setPassword}
+                        autoComplete="new-password"
+                        minLength={8}
+                        scale="golden"
+                      />
+                      <p className="text-[12px] text-pretty text-gray-500">
+                        {password.trim()
+                          ? 'Account activates immediately — no invitation email.'
+                          : 'Leave blank to email an invitation so the patient sets their own password.'}
+                      </p>
                       <button
                         type="submit"
                         disabled={saving || !organizationId}
                         className={`w-full ${PRIMARY_BTN}`}
                       >
-                        {saving ? 'Creating…' : 'Create patient & send invitation'}
+                        {saving
+                          ? 'Creating…'
+                          : password.trim()
+                            ? 'Create patient account'
+                            : 'Create patient & send invitation'}
                       </button>
                     </form>
                   </div>

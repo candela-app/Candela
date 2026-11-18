@@ -301,12 +301,90 @@ describe('Wave 3 patient invitation', () => {
     expect(savedUsers[0]?.passwordHash).toBeNull();
     expect(savedPatients[0]?.organizationId).toBe('org-a');
     expect(savedPatients[0]?.doctorId).toBe('doctor-1');
-    expect(result.invitation.emailSent).toBe(true);
-    expect(result.invitation.expiresAt).toBeTruthy();
+    expect(savedPatients[0]?.accountActivatedAt).toBeNull();
+    expect(result.activated).toBe(false);
+    expect(result.invitation?.emailSent).toBe(true);
+    expect(result.invitation?.expiresAt).toBeTruthy();
     expect(tokenRows).toHaveLength(1);
     expect(tokenRows[0]?.purpose).toBe('patient_invitation');
     expect(tokenRows[0]?.tokenHash).toHaveLength(64);
-    expect(JSON.stringify(result)).not.toMatch(/tokenHash|rawToken/);
+    expect(JSON.stringify(result)).not.toMatch(/tokenHash|rawToken|password/);
+  });
+
+  it('activates immediately when doctor supplies a password', async () => {
+    const savedUsers: User[] = [];
+    const savedPatients: PatientProfile[] = [];
+    let mailCalls = 0;
+    const { service, tokenRows } = buildAuth({
+      users: {
+        findOne: async ({ where }: { where?: { id?: string; email?: string } } = {}) => {
+          if (where?.email) return null;
+          if (where?.id === 'patient-1') {
+            return {
+              id: 'patient-1',
+              email: 'p@example.com',
+              name: 'Pat',
+              phone: '+919999999999',
+              role: 'patient',
+              passwordHash: '$2b$10$hashed',
+              organizationId: null,
+              googleId: null,
+              createdAt: new Date(),
+            } as User;
+          }
+          return null;
+        },
+        create: (input: Partial<User>) => ({ id: 'patient-1', ...input }) as User,
+        save: async (u: User) => {
+          savedUsers.push(u);
+          return u;
+        },
+      } as never,
+      patients: {
+        create: (input: Partial<PatientProfile>) => input as PatientProfile,
+        save: async (p: PatientProfile) => {
+          savedPatients.push(p);
+          return p;
+        },
+        findOne: async () =>
+          ({
+            userId: 'patient-1',
+            doctorId: 'doctor-1',
+            organizationId: 'org-a',
+            origin: 'doctor_created',
+            accountActivatedAt: new Date(),
+            user: {
+              id: 'patient-1',
+              email: 'p@example.com',
+              name: 'Pat',
+              phone: '+919999999999',
+              role: 'patient',
+              organizationId: null,
+            },
+            doctor: { referralCode: 'ABC123', user: { name: 'Doc' } },
+            prescriptions: [],
+          }) as PatientProfile,
+      } as never,
+      mailSend: async () => {
+        mailCalls += 1;
+        return true;
+      },
+    });
+
+    const result = await service.createDoctorPatient(
+      'doctor-1',
+      { name: 'Pat', phone: '+919999999999', email: 'p@example.com', password: 'secretpass' },
+      'org-a',
+    );
+
+    expect(savedUsers[0]?.passwordHash).toBeTruthy();
+    expect(savedUsers[0]?.passwordHash).not.toBe('secretpass');
+    expect(savedPatients[0]?.accountActivatedAt).toBeInstanceOf(Date);
+    expect(result.activated).toBe(true);
+    expect(result.invitation).toBeNull();
+    expect(tokenRows).toHaveLength(0);
+    expect(mailCalls).toBe(0);
+    expect(JSON.stringify(result)).not.toMatch(/secretpass|passwordHash/);
   });
 
   it('keeps patient when email delivery fails', async () => {
@@ -360,7 +438,8 @@ describe('Wave 3 patient invitation', () => {
     );
     expect(savedUsers).toHaveLength(1);
     expect(tokenRows).toHaveLength(1);
-    expect(result.invitation.emailSent).toBe(false);
+    expect(result.activated).toBe(false);
+    expect(result.invitation?.emailSent).toBe(false);
   });
 
   it('rejects create without active membership', async () => {
