@@ -2,7 +2,7 @@ import { reactionStatsFromMs, validReactionSamples } from './game-logic';
 import { GAME_CATALOG, MODULE_LEVELS, PEDIATRIC_GAME_FAMILIES, isTherapyModuleId } from './game-registry';
 import { efficiencyIndex, round1, sessionAccuracy, sessionErrorRate } from './session-metrics';
 import type { AnalyticsMetricId } from './session-analytics-copy';
-import { extractSessionDetail, persistedDetailVersion, type SessionDetail } from './session-detail';
+import { extractSessionDetail, type SessionDetail } from './session-detail';
 import { PERSISTABLE_SESSION_ENDED_BY, type DeviceTier, type SessionResultData, type TherapyModuleId } from './types';
 
 export const GAME_SESSION_METRICS_VERSION = 1;
@@ -31,9 +31,11 @@ export interface CreateGameSessionPayload {
   stimulusColor?: string;
   contrastPercent?: number;
   metricsVersion: number;
-  /** Sanitized game-specific document. Absent on sessions saved before detail existed. */
+  /**
+   * Sanitized game-specific document. Absent on sessions saved before detail existed.
+   * Do not send top-level detailVersion — the API derives detail_version from this.
+   */
   detail?: SessionDetail | null;
-  detailVersion?: number | null;
 }
 
 export interface StoredGameSession {
@@ -419,7 +421,6 @@ export function payloadFromSessionResult(
     contrastPercent: data.contrastPercent,
     metricsVersion: GAME_SESSION_METRICS_VERSION,
     detail,
-    detailVersion: persistedDetailVersion(detail),
   };
 }
 
