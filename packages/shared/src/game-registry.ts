@@ -413,5 +413,5 @@ export function groupFamilyItemsByModule<T extends { moduleId: string; moduleNam
       items: [item],
     });
   }
-  return [...buckets.values()];
+  return Array.from(buckets.values());
 }
