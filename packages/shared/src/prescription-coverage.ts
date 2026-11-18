@@ -160,7 +160,7 @@ export interface PatientPrescriptionPeriod {
   omitted: 'older' | null;
   incomplete: boolean;
   cap: number;
-  modulesWithoutLevels: Array<{ moduleName: string; label: typeof EMPTY_LEVELS_LABEL }>;
+  modulesWithoutLevels: PatientPrescriptionPractice['modulesWithoutLevels'];
   activities: PatientPrescriptionPractice['activities'];
   emptyLabel: typeof NO_ACTIVITIES_ASSIGNED_LABEL | null;
 }
