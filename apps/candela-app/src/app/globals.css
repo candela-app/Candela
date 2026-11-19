@@ -385,3 +385,26 @@ html, body {
     transform-origin: right center;
   }
 }
+
+/* Soft bounce cue at the bottom of today's plan when more modules remain. */
+@keyframes plan-bottom-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+.plan-bottom-bounce {
+  animation: plan-bottom-bounce 1.35s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-bottom-bounce {
+    animation: none;
+    will-change: auto;
+  }
+}
