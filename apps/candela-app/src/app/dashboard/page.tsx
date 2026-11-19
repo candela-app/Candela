@@ -25,10 +25,11 @@ import {
   CreditCardIcon,
   GearIcon,
   HistoryIcon,
+  HomeIcon,
   InfoIcon,
   EyeIcon,
-  LayoutDashboardIcon,
   LogOutIcon,
+  PlayIcon,
   SortOrderIcon,
   UserIcon,
 } from '@/components/icons/VectorIcons';
@@ -65,8 +66,7 @@ import {
   formatSessionReport,
   mixedLevelNotice,
   calendarDayKey,
-  consistencyStreak,
-  streakCoverageNote,
+  assignmentLevelName,
   singleGameChartPerformance,
   TRUNCATED_HISTORY_NOTE,
   resolvedTimeZone,
@@ -101,9 +101,9 @@ const VARIANT_TILE =
 const EMPTY_LEVELS =
   'col-span-full bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.35)] p-10 text-center w-full';
 
-const CHOOSER_PANE = 'flex-1 min-h-0 overflow-hidden overscroll-none lg:overflow-visible';
+const CHOOSER_PANE = 'flex min-h-0 flex-1 overflow-hidden overscroll-none';
 const CHOOSER_SCROLL =
-  'relative z-0 h-full min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:-mt-[81px] lg:h-[calc(100%+81px)] lg:max-h-none lg:pt-[81px]';
+  'relative z-0 h-full min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
 
 type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'activities' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
@@ -395,7 +395,7 @@ function StreakDotsDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Streak"
-        className={`relative z-10 max-h-[calc(100dvh-42px)] w-full max-w-[930px] overflow-y-auto rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}
+        className={`relative z-10 max-h-[calc(100dvh-42px)] w-full max-w-[1100px] overflow-y-auto rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}
       >
         <div className="mb-[21px] flex items-center justify-between gap-[13px]">
           <HistoryMenu
@@ -579,141 +579,478 @@ function savedDate(iso: string | null | undefined): string {
   return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
 
-function savedSessionHint(summary: SavedPracticeSummary | null): string {
-  const last = summary?.last;
-  if (!last) return 'No session saved';
-  return last.levelId ? `${last.gameName} · ${last.levelName}` : last.gameName;
+function recentSessionHint(row: StoredGameSessionRecord): string {
+  const gameName = row.gameName || GAME_CATALOG[row.gameId as TherapyModuleId]?.name || row.gameId;
+  if (!row.levelId) return gameName;
+  return `${gameName} · ${assignmentLevelName(row.gameId, row.levelId)}`;
 }
 
-function DashboardSummary({
-  sessions,
-  summary,
-  doctorName,
-  doctorCode,
-  onSessionsClick,
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const NAV_EXPANDED_KEY = 'candela.patient.navExpanded';
+const PLAN_LIST_SCROLL_BOTTOM_PX = 8;
+
+function firstNameOf(fullName: string | null | undefined): string {
+  const part = (fullName || '').trim().split(/\s+/).filter(Boolean)[0];
+  return part || 'friend';
+}
+
+function mondayOfLocalWeek(timeZone: string, now = new Date()): string {
+  const today = calendarDayKey(now.toISOString(), timeZone);
+  const noon = new Date(`${today}T12:00:00`);
+  const weekday = noon.getDay();
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  noon.setDate(noon.getDate() + mondayOffset);
+  return calendarDayKey(noon.toISOString(), timeZone);
+}
+
+function weekDaySlots(timeZone: string, now = new Date()): Array<{ key: string; label: string; isToday: boolean }> {
+  const monday = mondayOfLocalWeek(timeZone, now);
+  const today = calendarDayKey(now.toISOString(), timeZone);
+  return WEEKDAY_LABELS.map((label, index) => {
+    const day = new Date(`${monday}T12:00:00`);
+    day.setDate(day.getDate() + index);
+    const key = calendarDayKey(day.toISOString(), timeZone);
+    return { key, label, isToday: key === today };
+  });
+}
+
+type HomePlanItem = {
+  uiId: string;
+  catalogId: string;
+  title: string;
+  body: string;
+  accent: string;
+  levelIds: string[];
+  doneCount: number;
+  totalCount: number;
+  doneToday: boolean;
+};
+
+function shiftPlanDayKey(dayKey: string, deltaDays: number): string {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, (day || 1) + deltaDays);
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const nextDay = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${nextMonth}-${nextDay}`;
+}
+
+function moduleProgressOnDay(
+  catalogId: string,
+  levelIds: string[],
+  sessions: StoredGameSessionRecord[],
+  dayKey: string,
+  timeZone: string,
+): { doneCount: number; totalCount: number; done: boolean } {
+  const daySessions = sessions.filter(
+    (row) => row.gameId === catalogId && calendarDayKey(row.recordedAt, timeZone) === dayKey,
+  );
+  if (levelIds.length === 0) {
+    const done = daySessions.length > 0;
+    return { doneCount: done ? 1 : 0, totalCount: 1, done };
+  }
+  const doneLevels = new Set(
+    daySessions
+      .map((row) => row.levelId)
+      .filter((id): id is string => typeof id === 'string')
+      .filter((id) => levelIds.includes(id)),
+  );
+  const doneCount = levelIds.filter((id) => doneLevels.has(id)).length;
+  return { doneCount, totalCount: levelIds.length, done: doneCount >= levelIds.length };
+}
+
+function isPlanCompleteOnDay(
+  planItems: Array<Pick<HomePlanItem, 'catalogId' | 'levelIds'>>,
+  sessions: StoredGameSessionRecord[],
+  dayKey: string,
+  timeZone: string,
+): boolean {
+  if (planItems.length === 0) return false;
+  return planItems.every((item) => moduleProgressOnDay(item.catalogId, item.levelIds, sessions, dayKey, timeZone).done);
+}
+
+/** Consecutive days where every plan module finished all suggested levels. */
+function planCompletionStreak(
+  planItems: Array<Pick<HomePlanItem, 'catalogId' | 'levelIds'>>,
+  sessions: StoredGameSessionRecord[],
+  timeZone = resolvedTimeZone(),
+  now = new Date(),
+): number {
+  if (planItems.length === 0) return 0;
+  const today = calendarDayKey(now.toISOString(), timeZone);
+  let cursor = today;
+  if (!isPlanCompleteOnDay(planItems, sessions, today, timeZone)) {
+    cursor = shiftPlanDayKey(today, -1);
+  }
+  let streak = 0;
+  while (isPlanCompleteOnDay(planItems, sessions, cursor, timeZone)) {
+    streak += 1;
+    cursor = shiftPlanDayKey(cursor, -1);
+  }
+  return streak;
+}
+
+function ModuleLevelProgressRing({
+  doneCount,
+  totalCount,
+  complete,
 }: {
-  sessions: StoredGameSessionRecord[];
-  summary: SavedPracticeSummary | null;
-  doctorName: string | null | undefined;
-  doctorCode: string | null | undefined;
-  onSessionsClick: () => void;
+  doneCount: number;
+  totalCount: number;
+  complete: boolean;
 }) {
-  const sessionCount = summary?.sessionCount ?? 0;
-  const streak = consistencyStreak(sessions.map((row) => row.recordedAt));
-  const games = loadedGameCounts(sessions);
-  const gamesIncomplete = summary != null && summary.sessionCount > sessions.length;
-  const streakFireRef = React.useRef<LottieHandle>(null);
-  const [streakOpen, setStreakOpen] = React.useState(false);
-  const cards: { label: string; value: string; hint: string }[] = [
-    {
-      label: 'Sessions',
-      value: String(sessionCount),
-      hint: sessionCount === 0 ? 'No session saved' : 'Saved sessions',
-    },
-    { label: 'Last played', value: savedDate(summary?.last?.recordedAt), hint: savedSessionHint(summary) },
-    {
-      label: 'Streak',
-      value: String(streak),
-      hint: streakCoverageNote({ sessionCount, loadedCount: sessions.length, streak }),
-    },
-  ];
+  const size = 28;
+  const stroke = 3.5;
+  const radius = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const total = Math.max(1, totalCount);
+
+  if (complete) {
+    return (
+      <span
+        className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[12px] font-bold text-white"
+        aria-label={`${doneCount} of ${total} levels completed today`}
+      >
+        ✓
+      </span>
+    );
+  }
+
+  const gapDeg = total > 1 ? 14 : 0;
+  const sweepDeg = (360 - gapDeg * total) / total;
 
   return (
-    <div className="grid grid-cols-1 gap-[13px] md:grid-cols-2">
-      <div className={`flex items-center justify-between gap-[21px] rounded-[13px] border border-gray-200 bg-white p-[21px] md:col-span-2 ${DASHBOARD_SHADOW}`}>
-        <div className="min-w-0">
-          <p className="text-[13px] leading-[21px] text-gray-900">
-            <span className="kpi-draw">Your doctor</span>
-          </p>
-          <p className="mt-[8px] text-[34px] font-semibold leading-none text-gray-900">{doctorName ? `Dr. ${doctorName}` : '—'}</p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[13px] leading-[21px] text-gray-900">
-            <span className="kpi-draw" style={{ '--kpi-delay': '180ms' } as React.CSSProperties}>DocID</span>
-          </p>
-          <p className="mt-[8px] flex items-center justify-end gap-[8px] font-mono text-[34px] font-semibold leading-none tabular-nums text-gray-900">
-            {doctorCode || '—'}
-            {doctorCode ? <CopyButton text={doctorCode} label="DocID" iconSize={13} /> : null}
-          </p>
-        </div>
-      </div>
-      {cards.map((card, index) => {
-        const isStreak = card.label === 'Streak';
-        const isSessions = card.label === 'Sessions';
-        const cardClass = `flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] text-left ${DASHBOARD_SHADOW} ${isStreak || isSessions ? 'cursor-pointer' : ''}`;
-        const body = (
-          <>
-            <div className="min-w-0">
-              <p className="text-[13px] leading-[21px] text-gray-900">
-                <span className="kpi-draw" style={{ '--kpi-delay': `${(index + 2) * 180}ms` } as React.CSSProperties}>{card.label}</span>
+    <span
+      className="relative flex size-[28px] shrink-0 items-center justify-center"
+      aria-label={`${doneCount} of ${total} levels completed today`}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden>
+        {Array.from({ length: total }, (_, index) => {
+          const startDeg = index * (sweepDeg + gapDeg);
+          const startRad = (startDeg * Math.PI) / 180;
+          const endRad = ((startDeg + sweepDeg) * Math.PI) / 180;
+          const x1 = cx + radius * Math.cos(startRad);
+          const y1 = cy + radius * Math.sin(startRad);
+          const x2 = cx + radius * Math.cos(endRad);
+          const y2 = cy + radius * Math.sin(endRad);
+          const largeArc = sweepDeg > 180 ? 1 : 0;
+          const filled = index < doneCount;
+          return (
+            <path
+              key={index}
+              d={`M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`}
+              fill="none"
+              stroke={filled ? '#10B981' : '#E5E7EB'}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+            />
+          );
+        })}
+      </svg>
+    </span>
+  );
+}
+
+function PatientHomeCommand({
+  patientName,
+  sessions,
+  summary,
+  prescribedCount,
+  planItems,
+  doctorName,
+  doctorCode,
+  onContinue,
+  onOpenPlanItem,
+  onSessionsClick,
+}: {
+  patientName: string;
+  sessions: StoredGameSessionRecord[];
+  summary: SavedPracticeSummary | null;
+  prescribedCount: number;
+  planItems: HomePlanItem[];
+  doctorName: string | null | undefined;
+  doctorCode: string | null | undefined;
+  onContinue: () => void;
+  onOpenPlanItem: (uiId: string) => void;
+  onSessionsClick: () => void;
+}) {
+  const timeZone = resolvedTimeZone();
+  const sessionCount = summary?.sessionCount ?? 0;
+  const streak = planCompletionStreak(planItems, sessions, timeZone);
+  const games = loadedGameCounts(sessions);
+  const streakFireRef = React.useRef<LottieHandle>(null);
+  const planListRef = React.useRef<HTMLUListElement>(null);
+  const [streakOpen, setStreakOpen] = React.useState(false);
+  const [planCanScrollMore, setPlanCanScrollMore] = React.useState(false);
+  const weekSlots = weekDaySlots(timeZone);
+  const planCompleteDays = React.useMemo(() => {
+    const days = new Set<string>();
+    for (const slot of weekSlots) {
+      if (isPlanCompleteOnDay(planItems, sessions, slot.key, timeZone)) {
+        days.add(slot.key);
+      }
+    }
+    return days;
+  }, [planItems, sessions, timeZone, weekSlots]);
+  const doneThisWeek = planItems.filter((item) =>
+    weekSlots.some((slot) => moduleProgressOnDay(item.catalogId, item.levelIds, sessions, slot.key, timeZone).done),
+  ).length;
+  const weekPct =
+    prescribedCount > 0 ? Math.min(100, Math.round((doneThisWeek / prescribedCount) * 100)) : sessionCount > 0 ? 100 : 0;
+  const nextItem = planItems.find((item) => !item.doneToday) ?? planItems[0] ?? null;
+  const doneTodayCount = planItems.filter((item) => item.doneToday).length;
+  const recentSessions = React.useMemo(
+    () =>
+      [...sessions]
+        .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+        .slice(0, 2),
+    [sessions],
+  );
+  const updatePlanScrollHint = () => {
+    const el = planListRef.current;
+    if (!el) {
+      setPlanCanScrollMore(false);
+      return;
+    }
+    const overflow = el.scrollHeight - el.clientHeight > 2;
+    const remaining = el.scrollHeight - el.clientHeight - el.scrollTop;
+    setPlanCanScrollMore(overflow && remaining > PLAN_LIST_SCROLL_BOTTOM_PX);
+  };
+  React.useEffect(() => {
+    let raf = 0;
+    const measure = () => {
+      updatePlanScrollHint();
+      raf = window.requestAnimationFrame(updatePlanScrollHint);
+    };
+    measure();
+    const el = planListRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return () => window.cancelAnimationFrame(raf);
+    }
+    const observer = new ResizeObserver(() => updatePlanScrollHint());
+    observer.observe(el);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [planItems]);
+  const streakHint =
+    planItems.length === 0
+      ? 'Finish a full daily plan to start a streak.'
+      : streak > 0
+        ? 'Consecutive days finishing every prescribed level in today’s plan.'
+        : 'Finish every module’s levels in today’s plan to grow your streak.';
+
+  return (
+    <div className="space-y-[21px]">
+      <div className="flex flex-wrap items-start justify-between gap-[13px]">
+        <h2 className="text-[40px] font-semibold leading-[1.05] text-blue-700 text-balance sm:text-[48px]">
+          Welcome back, {firstNameOf(patientName)}!
+        </h2>
+        {(doctorName || doctorCode) && (
+          <div className="rounded-[13px] border border-blue-100 bg-blue-50 px-[13px] py-[8px] text-right">
+            <p className="text-[12px] font-semibold text-blue-800">
+              {doctorName ? `Dr. ${doctorName}` : 'Your doctor'}
+            </p>
+            {doctorCode ? (
+              <p className="mt-[4px] flex items-center justify-end gap-[8px] font-mono text-[13px] font-semibold tabular-nums text-blue-950">
+                {doctorCode}
+                <CopyButton text={doctorCode} label="DocID" iconSize={12} />
               </p>
-              <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">{card.hint}</p>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-[21px] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
+        <div className="flex h-full min-h-0 flex-col gap-[21px]">
+          <div className={`rounded-[21px] border border-gray-100 bg-white p-[28px] xl:flex-1 ${DASHBOARD_SHADOW}`}>
+            <p className="text-[18px] font-semibold text-gray-900">Therapy time this week</p>
+            <p className="mt-[13px] text-[55px] font-semibold leading-none tabular-nums text-gray-950">{weekPct}%</p>
+            <p className="mt-[13px] text-[15px] leading-[24px] text-gray-500 text-pretty">
+              {prescribedCount > 0
+                ? `You have completed ${weekPct}% of your prescribed games this week (${doneThisWeek}/${prescribedCount}).`
+                : sessionCount > 0
+                  ? 'You have saved practice this week.'
+                  : 'No practice saved yet this week.'}
+            </p>
+            <div className="mt-[21px]">
+              <div className="h-[14px] overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-emerald-400 transition-[width] duration-200 ease-out"
+                  style={{ width: `${weekPct}%` }}
+                />
+              </div>
+              <div className="mt-[8px] flex justify-between text-[13px] font-semibold tabular-nums text-gray-400">
+                <span>0%</span>
+                <span>100%</span>
+              </div>
             </div>
-            <div className={`relative flex h-[34px] shrink-0 items-center ${isStreak ? 'pr-[48px]' : ''}`}>
-              <span className="text-[34px] font-semibold leading-none tabular-nums text-gray-900">{card.value}</span>
-              {isStreak ? (
+            <p className="mt-[13px] text-[13px] font-semibold text-gray-500">
+              Prescribed games: <span className="tabular-nums text-gray-900">{prescribedCount}</span>
+              <span className="mx-[8px] text-gray-300">·</span>
+              Sessions: <button type="button" onClick={onSessionsClick} className="tabular-nums text-blue-600 hover:underline">{sessionCount}</button>
+              <span className="mx-[8px] text-gray-300">·</span>
+              Std {games.normal} / Ped {games.pediatric}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setStreakOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={streakOpen}
+            className={`flex w-full cursor-pointer flex-col gap-[21px] rounded-[21px] border border-gray-100 bg-white p-[28px] text-left xl:flex-1 ${DASHBOARD_SHADOW}`}
+          >
+            <div className="flex items-center gap-[16px]">
+              <div className="relative flex size-[72px] items-center justify-center rounded-full bg-emerald-50">
+                <span className="text-[34px] font-semibold tabular-nums text-emerald-700">{streak}</span>
                 <StreakFire
                   lottieRef={streakFireRef}
                   src={streakFire}
                   loop
                   autoplay
                   subscriptions={{ ready: () => streakFireRef.current?.play() }}
-                  className="pointer-events-none absolute right-0 top-1/2 h-[55px] w-[40px] -translate-y-[calc(50%+9px)]"
+                  className="pointer-events-none absolute -right-[4px] -top-[8px] h-[48px] w-[36px]"
                 />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[21px] font-semibold text-gray-900">Your streak</p>
+                <p className="mt-[8px] text-[15px] leading-[24px] text-gray-500 text-pretty">{streakHint}</p>
+              </div>
+            </div>
+            <div className="flex justify-between gap-[8px]">
+              {weekSlots.map((slot) => {
+                const done = planCompleteDays.has(slot.key);
+                return (
+                  <div
+                    key={slot.key}
+                    className={`flex flex-1 flex-col items-center gap-[8px] rounded-[13px] px-[4px] py-[10px] ${
+                      slot.isToday ? 'bg-blue-50 ring-1 ring-blue-200' : ''
+                    }`}
+                  >
+                    <span
+                      className={`flex size-[34px] items-center justify-center rounded-full text-[13px] font-bold ${
+                        done ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      {done ? '✓' : ''}
+                    </span>
+                    <span className="text-[12px] font-semibold text-gray-500">{slot.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </button>
+        </div>
+
+        <div className={`flex min-h-[420px] flex-col self-stretch rounded-[21px] border border-gray-100 bg-white p-[21px] xl:min-h-full ${DASHBOARD_SHADOW}`}>
+          <p className="shrink-0 text-[15px] font-semibold text-gray-900">
+            Your plan for today
+            {planItems.length > 0 ? (
+              <span className="ml-[8px] text-[13px] font-medium text-gray-500">
+                ({doneTodayCount}/{planItems.length} completed)
+              </span>
+            ) : null}
+          </p>
+          {planItems.length === 0 ? (
+            <div className="mt-[13px] flex flex-1 flex-col items-center justify-center rounded-[13px] border border-dashed border-gray-200 bg-gray-50 px-[13px] py-[21px] text-center">
+              <p className="text-[13px] font-semibold text-gray-700">No activities prescribed yet</p>
+              <p className="mt-[8px] max-w-sm text-[13px] leading-[21px] text-gray-500 text-pretty">
+                When your doctor assigns games, they will show up here. You can still explore practice below.
+              </p>
+            </div>
+          ) : (
+            <div className="relative mt-[13px] min-h-0 flex-1">
+              <ul
+                ref={planListRef}
+                onScroll={updatePlanScrollHint}
+                className="relative h-full max-h-[288px] space-y-[2px] overflow-y-auto overscroll-y-contain pb-[28px] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <span
+                  aria-hidden
+                  className="absolute bottom-[18px] left-[22px] top-[18px] w-px bg-gray-200"
+                />
+                {planItems.map((item) => (
+                  <li key={item.uiId} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => onOpenPlanItem(item.uiId)}
+                      className="flex w-full cursor-pointer items-center gap-[13px] rounded-[13px] px-[8px] py-[8px] text-left transition hover:bg-blue-50"
+                    >
+                      <span
+                        className="relative z-[1] flex size-[34px] shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-sm"
+                        style={{ backgroundColor: item.accent }}
+                        aria-hidden
+                      >
+                        {item.title.slice(0, 1)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold text-gray-900">{item.title}</span>
+                        <span className="mt-[2px] block tabular-nums text-[12px] font-semibold text-gray-700">
+                          {item.doneCount}/{item.totalCount}
+                          <span className="ml-[6px] font-medium text-gray-500">
+                            {item.totalCount === 1 ? 'level today' : 'levels today'}
+                          </span>
+                        </span>
+                      </span>
+                      <ModuleLevelProgressRing
+                        doneCount={item.doneCount}
+                        totalCount={item.totalCount}
+                        complete={item.doneToday}
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {planCanScrollMore ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] flex h-[48px] flex-col items-center justify-end pb-[4px]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/90 to-transparent" />
+                  <span className="plan-bottom-bounce relative z-[1] flex size-[24px] items-center justify-center rounded-full bg-white/90 text-blue-600 shadow-[0_2px_8px_rgba(15,23,42,0.12)] ring-1 ring-blue-100">
+                    <ChevronDownIcon className="size-3.5" />
+                  </span>
+                </div>
               ) : null}
             </div>
-          </>
-        );
-        if (isStreak) {
-          return (
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => setStreakOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={streakOpen}
-              className={cardClass}
-            >
-              {body}
-            </button>
-          );
-        }
-        if (isSessions) {
-          return (
-            <button
-              key={card.label}
-              type="button"
-              onClick={onSessionsClick}
-              className={cardClass}
-            >
-              {body}
-            </button>
-          );
-        }
-        return (
-          <div key={card.label} className={cardClass}>
-            {body}
-          </div>
-        );
-      })}
-      <div className={`flex items-center justify-between gap-[13px] rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
-        <div className="min-w-0">
-          <p className="text-[13px] leading-[21px] text-gray-900">
-            <span className="kpi-draw" style={{ '--kpi-delay': `${(cards.length + 2) * 180}ms` } as React.CSSProperties}>Games</span>
-          </p>
-          {gamesIncomplete ? <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500">From the newest 2,000 loaded sessions</p> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-[21px]">
-          <div className="text-right">
-            <p className="text-[13px] leading-[21px] text-gray-500">Standard</p>
-            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{games.normal}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[13px] leading-[21px] text-gray-500">Pediatric</p>
-            <p className="mt-[8px] text-[34px] font-semibold leading-none tabular-nums text-gray-900">{games.pediatric}</p>
-          </div>
+          )}
+          {recentSessions.length > 0 ? (
+            <div className="mt-[13px] shrink-0 rounded-[13px] border border-gray-100 bg-gray-50 px-[13px] py-[10px]">
+              <div className="flex items-center justify-between gap-[8px]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Recently completed</p>
+                <button
+                  type="button"
+                  onClick={onSessionsClick}
+                  className="inline-flex cursor-pointer items-center gap-[4px] text-[12px] font-semibold text-blue-700 transition hover:text-blue-800"
+                >
+                  Show all
+                  <ArrowRightIcon className="size-3.5" />
+                </button>
+              </div>
+              <ul className="mt-[8px] space-y-[8px]">
+                {recentSessions.map((row) => (
+                  <li key={row.id} className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-gray-900">{recentSessionHint(row)}</p>
+                    <p className="mt-[2px] text-[12px] text-gray-500">{savedDate(row.recordedAt)}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={onContinue}
+        className="flex w-full cursor-pointer items-center justify-center gap-[8px] rounded-[16px] bg-blue-600 px-[21px] py-[18px] text-[18px] font-semibold text-white shadow-[0_12px_28px_-12px_rgba(37,99,235,0.55)] transition hover:bg-blue-700"
+      >
+        <PlayIcon className="size-5" />
+        {nextItem?.doneToday === false ? 'Continue training' : prescribedCount > 0 ? 'Open practice' : 'Explore activities'}
+      </button>
+
       <StreakDotsDialog open={streakOpen} sessions={sessions} onClose={() => setStreakOpen(false)} />
     </div>
   );
@@ -765,6 +1102,27 @@ function MainContent() {
   const { session, loading: authLoading, logout } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(false);
+
+  useEffect(() => {
+    try {
+      setNavExpanded(window.localStorage.getItem(NAV_EXPANDED_KEY) === '1');
+    } catch {
+      setNavExpanded(false);
+    }
+  }, []);
+
+  const toggleNavExpanded = () => {
+    setNavExpanded((open) => {
+      const next = !open;
+      try {
+        window.localStorage.setItem(NAV_EXPANDED_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
   const [docIdRequestOpen, setDocIdRequestOpen] = useState(false);
   const [catalog, setCatalog] = useState<'normal' | 'pediatric'>('normal');
   const [sessions, setSessions] = useState<StoredGameSessionRecord[]>([]);
@@ -1470,6 +1828,30 @@ function MainContent() {
     );
   const normalPrescribedCount = prescribedIn(GAME_FAMILIES);
   const pediatricPrescribedCount = prescribedIn(PEDIATRIC_GAME_FAMILIES);
+  const totalPrescribedCount = normalPrescribedCount + pediatricPrescribedCount;
+  const todayKey = calendarDayKey(new Date().toISOString(), resolvedTimeZone());
+  const homePlanItems: HomePlanItem[] = MODULE_CARDS.filter((card) => canPlayUiModule(card.uiId)).map((card) => {
+    const catalogId = UI_MODULE_TO_CATALOG[card.uiId] ?? card.uiId;
+    const levelIds = levelsForTherapyModule(catalogId)
+      .map((level) => level.id)
+      .filter((levelId) => isLevelAllowed(card.uiId, levelId));
+    const progress = moduleProgressOnDay(catalogId, levelIds, sessions, todayKey, resolvedTimeZone());
+    return {
+      uiId: card.uiId,
+      catalogId,
+      title: card.title,
+      body: card.body,
+      accent: card.accent,
+      levelIds,
+      doneCount: progress.doneCount,
+      totalCount: progress.totalCount,
+      doneToday: progress.done,
+    };
+  });
+  const isHomeView = view === 'module';
+  const isPracticeNav = view === 'games' || view === 'family' || view === 'game';
+  const isProgressNav = view === 'analytics' || view === 'activities' || view === 'history';
+  const isProfileNav = view === 'account' || view === 'settings' || view === 'subscription' || view === 'help';
   const activeFamily = getGameFamily(selectedFamily);
   const familyActivityCards = (activeFamily?.moduleIds ?? [])
     .map((catalogId) => MODULE_CARDS.find((card) => card.uiId === CATALOG_TO_UI_MODULE[catalogId]))
@@ -1586,98 +1968,160 @@ function MainContent() {
 
       {/* CHOOSER CONTAINER (PERSISTENT SCROLL WRAPPER) */}
       {(isChooserView || isAnalyticsView) && (
-        <div className={`${CHOOSER_PANE} lg:grid lg:grid-cols-[220px_minmax(0,930px)] lg:justify-center lg:gap-[34px]`}>
+        <div className={CHOOSER_PANE}>
           {navOpen ? (
             <button
               type="button"
-              className="fixed inset-x-0 bottom-0 top-[68px] z-30 bg-slate-900/40 lg:hidden"
+              className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"
               aria-label="Close menu"
               onClick={() => setNavOpen(false)}
             />
           ) : null}
           <nav
             aria-label="Patient workspace"
-            className={`dashboard-scrollbar fixed left-4 top-[68px] z-40 flex max-h-[calc(100dvh-81px)] w-[220px] flex-col gap-[8px] overflow-y-auto rounded-[13px] border border-gray-100 bg-white p-[13px] ${DASHBOARD_SHADOW} ${
-              navOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
-            } lg:sticky lg:left-auto lg:top-4 lg:z-auto lg:flex lg:h-fit lg:max-h-[calc(100dvh-32px)] lg:w-auto lg:translate-x-0 lg:self-start`}
+            className={`dashboard-scrollbar fixed inset-y-0 left-0 z-40 flex h-dvh w-[220px] flex-col gap-[8px] overflow-y-auto border-r border-gray-200 bg-white p-[13px] pt-[81px] ${
+              navOpen ? 'translate-x-0' : '-translate-x-full'
+            } lg:static lg:z-auto lg:h-full lg:translate-x-0 lg:pt-[13px] ${
+              navExpanded ? 'lg:w-[220px] lg:items-stretch lg:p-[13px]' : 'lg:w-[64px] lg:items-center lg:px-[8px] lg:py-[13px]'
+            }`}
           >
+            <button
+              type="button"
+              onClick={toggleNavExpanded}
+              className="mb-[4px] hidden size-[40px] shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-gray-600 hover:bg-sky-50 hover:text-sky-700 lg:flex"
+              aria-label={navExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+              title={navExpanded ? 'Collapse' : 'Expand'}
+            >
+              <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18" />
+                {navExpanded ? <rect x="4" y="4" width="5" height="16" rx="1" fill="currentColor" stroke="none" /> : null}
+              </svg>
+            </button>
             {(
               [
                 {
+                  id: 'home' as const,
+                  label: 'Home',
+                  icon: HomeIcon,
+                  active: isHomeView,
+                  onClick: openPractice,
+                  children: [] as Array<{ id: string; label: string; icon: typeof HomeIcon; active: boolean; onClick: () => void }>,
+                },
+                {
+                  id: 'practice' as const,
                   label: 'Practice',
-                  items: [
-                    { id: 'practice' as const, label: 'Dashboard', icon: LayoutDashboardIcon, active: view === 'module', onClick: openPractice },
-                    { id: 'games' as const, label: 'My games', icon: EyeIcon, active: view === 'games' || view === 'family' || view === 'game', onClick: openGames },
-                  ],
+                  icon: EyeIcon,
+                  active: isPracticeNav,
+                  onClick: openGames,
+                  children: [],
                 },
                 {
+                  id: 'progress' as const,
                   label: 'Progress',
-                  items: [
-                    { id: 'analytics' as const, label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
-                    {
-                      id: 'activities' as const,
-                      label: 'Activities history',
-                      icon: CheckCheckIcon,
-                      active: view === 'activities',
-                      onClick: () => openWorkspace('activities'),
-                    },
-                    { id: 'history' as const, label: 'Session history', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
+                  icon: AnalyticsIcon,
+                  active: isProgressNav,
+                  onClick: navigateToAnalytics,
+                  children: [
+                    { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, active: view === 'analytics', onClick: navigateToAnalytics },
+                    { id: 'activities', label: 'Activities', icon: CheckCheckIcon, active: view === 'activities', onClick: () => openWorkspace('activities') },
+                    { id: 'history', label: 'Sessions', icon: HistoryIcon, active: view === 'history', onClick: () => openWorkspace('history') },
                   ],
                 },
                 {
-                  label: 'Account',
-                  items: [
-                    { id: 'account' as const, label: 'Account', icon: UserIcon, active: view === 'account', onClick: openAccount },
-                    { id: 'settings' as const, label: 'Settings', icon: GearIcon, active: view === 'settings', onClick: openSettings },
-                    { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon, active: view === 'subscription', onClick: () => openWorkspace('subscription') },
-                    { id: 'help' as const, label: 'Help', icon: InfoIcon, active: view === 'help', onClick: () => openWorkspace('help') },
+                  id: 'profile' as const,
+                  label: 'Profile',
+                  icon: UserIcon,
+                  active: isProfileNav,
+                  onClick: openAccount,
+                  children: [
+                    { id: 'account', label: 'Account', icon: UserIcon, active: view === 'account', onClick: openAccount },
+                    { id: 'settings', label: 'Settings', icon: GearIcon, active: view === 'settings', onClick: openSettings },
+                    { id: 'subscription', label: 'Subscription', icon: CreditCardIcon, active: view === 'subscription', onClick: () => openWorkspace('subscription') },
+                    { id: 'help', label: 'Help', icon: InfoIcon, active: view === 'help', onClick: () => openWorkspace('help') },
                   ],
                 },
               ]
-            ).map((group, groupIndex) => (
-              <div key={group.label} className={`flex flex-col gap-[8px] ${groupIndex > 0 ? 'mt-[8px] border-t border-gray-100 pt-[13px]' : ''}`}>
-                <p className="px-[13px] text-[11px] font-semibold uppercase tracking-wide text-gray-400">{group.label}</p>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={item.onClick}
-                      aria-current={item.active ? 'page' : undefined}
-                      className={`flex shrink-0 items-center gap-[8px] rounded-[8px] px-[13px] py-[13px] text-[13px] font-semibold cursor-pointer ${
-                        item.active ? 'bg-gray-900 text-white' : 'bg-transparent text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Icon className="size-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+            ).map((item) => {
+              const Icon = item.icon;
+              const showChildren = item.children.length > 0 && (navExpanded || navOpen) && item.active;
+              return (
+                <div key={item.id} className={`flex w-full flex-col gap-[4px] ${navExpanded || navOpen ? '' : 'lg:items-center'}`}>
+                  <button
+                    type="button"
+                    onClick={item.onClick}
+                    aria-current={item.active ? 'page' : undefined}
+                    title={item.label}
+                    className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[10px] text-[13px] font-semibold ${
+                      navExpanded || navOpen ? 'px-[13px] py-[13px]' : 'lg:size-[40px] lg:justify-center lg:px-0 lg:py-0'
+                    } ${
+                      item.active
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-transparent text-gray-700 hover:bg-sky-50 hover:text-sky-800'
+                    }`}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className={navExpanded || navOpen ? 'inline' : 'lg:hidden'}>{item.label}</span>
+                  </button>
+                  {showChildren
+                    ? item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={child.onClick}
+                            aria-current={child.active ? 'page' : undefined}
+                            className={`ml-[13px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[10px] px-[13px] py-[10px] text-[12px] font-semibold ${
+                              child.active
+                                ? 'bg-sky-100 text-sky-900'
+                                : 'bg-transparent text-gray-600 hover:bg-gray-100'
+                            }`}
+                          >
+                            <ChildIcon className="size-3.5 shrink-0" />
+                            <span>{child.label}</span>
+                          </button>
+                        );
+                      })
+                    : null}
+                </div>
+              );
+            })}
             <button
               type="button"
               onClick={() => {
                 void logout().then(() => router.replace('/'));
               }}
-              className="mt-[13px] flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[8px] border-t border-gray-100 bg-transparent px-[13px] py-[13px] text-[13px] font-semibold text-red-600 hover:bg-red-100"
+              title="Sign out"
+              className={`mt-auto flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[10px] border-t border-gray-100 bg-transparent text-[13px] font-semibold text-red-600 hover:bg-red-50 ${
+                navExpanded || navOpen ? 'px-[13px] py-[13px]' : 'lg:size-[40px] lg:justify-center lg:px-0 lg:py-0'
+              }`}
             >
               <LogOutIcon className="size-4 shrink-0" />
-              <span>Sign out</span>
+              <span className={navExpanded || navOpen ? 'inline' : 'lg:hidden'}>Sign out</span>
             </button>
           </nav>
           <div ref={scrollContainerRef} onScroll={handleScroll} className={CHOOSER_SCROLL}>
             {/* FAMILY SELECTION VIEW */}
             {view === 'module' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
-                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Vision Therapy Dashboard</h2>
-
-                  <DashboardSummary
+              <div className="mx-auto w-full max-w-[1100px] space-y-[21px] px-4 py-[21px] sm:px-[34px]">
+                  <PatientHomeCommand
+                    patientName={session.user.name}
                     sessions={sessions}
                     summary={practiceSummary}
+                    prescribedCount={totalPrescribedCount}
+                    planItems={homePlanItems}
                     doctorName={session.patient?.doctorName}
                     doctorCode={session.patient?.referralCode}
+                    onContinue={() => {
+                      const next = homePlanItems.find((item) => !item.doneToday) ?? homePlanItems[0];
+                      if (next) {
+                        handleSelectModule(next.uiId);
+                        return;
+                      }
+                      openGames();
+                    }}
+                    onOpenPlanItem={(uiId) => handleSelectModule(uiId)}
                     onSessionsClick={() => openWorkspace('history')}
                   />
                   <RecentWindowNote show={sessionsTruncated} />
@@ -1685,8 +2129,8 @@ function MainContent() {
             )}
 
             {view === 'games' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
-                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">My games</h2>
+              <div className="mx-auto w-full max-w-[1100px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                  <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Practice</h2>
                   <RecentWindowNote show={sessionsTruncated} />
 
                   <div className="mx-auto flex w-full max-w-lg rounded-[13px] bg-gray-200 p-[8px]">
@@ -1808,7 +2252,7 @@ function MainContent() {
               const activeFamDuration = activeFamSessions.reduce((sum, s) => sum + (s.durationSec || 0), 0);
 
               return (
-                <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+                <div className="mx-auto w-full max-w-[1100px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                   <div>
                     <h2 className="text-[21px] font-semibold text-gray-900 text-balance">{activeFamily.title}</h2>
                     <p className="mt-[8px] text-[13px] leading-[21px] text-shell-muted font-medium text-pretty">{activeFamily.body}</p>
@@ -1883,14 +2327,14 @@ function MainContent() {
             })()}
 
             {view === 'activities' && (
-              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+              <main className="mx-auto w-full max-w-[1100px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
                 <PrescriptionPractice audience="patient" />
               </main>
             )}
 
             {/* ANALYTICS PLACEHOLDER VIEW */}
             {view === 'analytics' && (
-              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+              <main className="mx-auto w-full max-w-[1100px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
                 <PracticeOverview
                   audience="patient"
                   onOpenLevel={(gameId, levelId) => {
@@ -1914,14 +2358,14 @@ function MainContent() {
             )}
 
             {view === 'account' && (
-              <div className="mx-auto w-full max-w-[930px] space-y-[34px] px-4 py-[21px] pb-[89px] sm:px-[34px] lg:pl-0 lg:pb-[34px]">
+              <div className="mx-auto w-full max-w-[1100px] space-y-[34px] px-4 py-[21px] pb-[89px] sm:px-[34px] lg:pl-0 lg:pb-[34px]">
                 <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Account</h2>
                 <PatientAccountCard session={session} />
               </div>
             )}
 
             {view === 'settings' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[1100px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <div>
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Settings</h2>
                   <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">Your doctor link.</p>
@@ -1992,7 +2436,7 @@ function MainContent() {
               };
 
               return (
-              <main className="mx-auto w-full max-w-[930px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
+              <main className="mx-auto w-full max-w-[1100px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
                 <div className="flex flex-wrap items-center justify-between gap-x-[21px] gap-y-[13px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Session history</h2>
                   <div className="flex flex-wrap items-center gap-[13px]">
@@ -2126,7 +2570,7 @@ function MainContent() {
             })()}
 
             {view === 'subscription' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[1100px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Subscription</h2>
                 <div className={`rounded-[13px] border border-gray-200 bg-white p-[21px] ${DASHBOARD_SHADOW}`}>
                   <p className="text-[13px] leading-[21px] text-gray-600 text-pretty">There is no subscription on this account yet. Billing is not set up, so this page does not show a trial, a price, or a renewal date.</p>
@@ -2135,7 +2579,7 @@ function MainContent() {
             )}
 
             {view === 'help' && (
-              <div className="mx-auto w-full max-w-[930px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
+              <div className="mx-auto w-full max-w-[1100px] px-4 py-[21px] sm:px-[34px] lg:pl-0 space-y-[34px]">
                 <div>
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Help</h2>
                   <p className="mt-[8px] text-[13px] leading-[21px] text-gray-500 text-pretty">How to get support.</p>
@@ -2193,7 +2637,7 @@ function MainContent() {
           </div>
 
           {progressLevelId && selectedCatalogId ? (
-            <main className="mx-auto w-full max-w-[930px] px-4 py-4 sm:px-8">
+            <main className="mx-auto w-full max-w-[1100px] px-4 py-4 sm:px-8">
               <SessionAnalyticsPanel
                 lockedLevel={{ gameId: selectedCatalogId, levelId: progressLevelId }}
                 patientName={session.user.name || 'you'}
