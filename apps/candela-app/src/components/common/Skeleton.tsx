@@ -120,7 +120,7 @@ export function DoctorDashboardSkeleton() {
       <div className="flex-1 min-w-0">
         <div className="px-[13px] pt-[13px] pb-[8px]">
           <div className="mx-auto flex max-w-[1184px] items-center justify-end gap-2">
-            <div className="hidden sm:block h-9 w-[230px] rounded-xl bg-white border border-[#e6e3f3]" />
+            <div className="size-9 sm:w-[230px] rounded-xl bg-white border border-[#e6e3f3]" />
             <div className="size-9 rounded-xl bg-white border border-[#e6e3f3]" />
           </div>
         </div>

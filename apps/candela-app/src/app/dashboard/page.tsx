@@ -104,7 +104,7 @@ const EMPTY_LEVELS =
 
 const CHOOSER_PANE = 'flex min-h-0 flex-1 overflow-hidden overscroll-none';
 const CHOOSER_SCROLL =
-  'relative z-0 h-full min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
+  'relative z-0 h-full min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
 
 type ActiveView = 'module' | 'games' | 'family' | 'game' | 'analytics' | 'activities' | 'account' | 'settings' | 'history' | 'subscription' | 'help' | 'play_rotatory' | 'play_sorting' | 'play_bee_tracing' | 'play_pursuit' | 'play_mobile_target' | 'play_geoboard' | 'play_peripheral_view' | 'play_number_search' | 'play_pattern_match' | 'play_location_memory' | 'play_direction_sense' | 'play_computer_vision' | 'play_familiar_faces';
 
@@ -493,7 +493,7 @@ function HistoryMenu({
         aria-expanded={open}
         aria-label={label}
         onClick={() => setOpen((current) => !current)}
-        className={`flex items-center gap-[8px] rounded-[13px] border border-gray-200 bg-white px-[13px] py-[13px] text-[21px] font-semibold leading-none text-gray-900 ${DASHBOARD_SHADOW}`}
+        className={`flex items-center gap-[8px] rounded-[13px] border border-gray-200 bg-white px-[11px] py-[10px] text-[16px] sm:px-[13px] sm:py-[13px] sm:text-[21px] font-semibold leading-none text-gray-900 ${DASHBOARD_SHADOW}`}
       >
         <span>{selected}</span>
         <ChevronDownIcon className={`size-[13px] text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -844,30 +844,32 @@ function PatientHomeCommand({
 
   return (
     <div className="space-y-[21px]">
-      <div className="flex flex-wrap items-start justify-between gap-[13px]">
-        <h2 className="text-[40px] font-semibold leading-[1.05] text-blue-700 text-balance sm:text-[48px]">
+      <div className="flex flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between sm:gap-[16px]">
+        <h2 className="min-w-0 flex-1 text-[28px] font-semibold leading-[1.1] text-blue-700 text-balance sm:text-[40px] md:text-[48px]">
           Welcome back, {firstNameOf(patientName)}!
         </h2>
         {(doctorName || doctorCode) && (
-          <div className="rounded-[13px] border border-blue-100 bg-blue-50 px-[13px] py-[8px] text-right">
-            <p className="text-[12px] font-semibold text-blue-800">
-              {doctorName ? `Dr. ${doctorName}` : 'Your doctor'}
-            </p>
-            {doctorCode ? (
-              <p className="mt-[4px] flex items-center justify-end gap-[8px] font-mono text-[13px] font-semibold tabular-nums text-blue-950">
-                {doctorCode}
-                <CopyButton text={doctorCode} label="DocID" iconSize={12} />
+          <div className="inline-flex shrink-0 items-center gap-[12px] self-start rounded-[13px] border border-blue-100 bg-blue-50 px-[13px] py-[8px] sm:self-auto">
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-semibold text-blue-800">
+                {doctorName ? `Dr. ${doctorName}` : 'Your doctor'}
               </p>
-            ) : null}
+              {doctorCode ? (
+                <p className="mt-[2px] flex items-center gap-[6px] font-mono text-[13px] font-semibold tabular-nums text-blue-950">
+                  <span>{doctorCode}</span>
+                  <CopyButton text={doctorCode} label="DocID" iconSize={12} />
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 gap-[21px] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
         <div className="flex h-full min-h-0 flex-col gap-[21px]">
-          <div className={`rounded-[21px] border border-gray-100 bg-white p-[28px] xl:flex-1 ${DASHBOARD_SHADOW}`}>
+          <div className={`rounded-[21px] border border-gray-100 bg-white p-[18px] sm:p-[28px] xl:flex-1 ${DASHBOARD_SHADOW}`}>
             <p className="text-[18px] font-semibold text-gray-900">Therapy time this week</p>
-            <p className="mt-[13px] text-[55px] font-semibold leading-none tabular-nums text-gray-950">{weekPct}%</p>
+            <p className="mt-[13px] text-[44px] sm:text-[55px] font-semibold leading-none tabular-nums text-gray-950">{weekPct}%</p>
             <p className="mt-[13px] text-[15px] leading-[24px] text-gray-500 text-pretty">
               {prescribedCount > 0
                 ? `You have completed ${weekPct}% of your prescribed games this week (${doneThisWeek}/${prescribedCount}).`
@@ -901,18 +903,18 @@ function PatientHomeCommand({
             onClick={() => setStreakOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={streakOpen}
-            className={`flex w-full cursor-pointer flex-col gap-[21px] rounded-[21px] border border-gray-100 bg-white p-[28px] text-left xl:flex-1 ${DASHBOARD_SHADOW}`}
+            className={`flex w-full cursor-pointer flex-col gap-[21px] rounded-[21px] border border-gray-100 bg-white p-[18px] sm:p-[28px] text-left xl:flex-1 ${DASHBOARD_SHADOW}`}
           >
             <div className="flex items-center gap-[16px]">
-              <div className="relative flex size-[72px] items-center justify-center rounded-full bg-emerald-50">
-                <span className="text-[34px] font-semibold tabular-nums text-emerald-700">{streak}</span>
+              <div className="relative flex size-[72px] shrink-0 items-center justify-center rounded-full bg-emerald-50">
+                <span className="relative z-[1] text-[34px] font-semibold leading-none tabular-nums text-emerald-700">{streak}</span>
                 <StreakFire
                   lottieRef={streakFireRef}
                   src={streakFire}
                   loop
                   autoplay
                   subscriptions={{ ready: () => streakFireRef.current?.play() }}
-                  className="pointer-events-none absolute -right-[4px] -top-[8px] h-[48px] w-[36px]"
+                  className="pointer-events-none absolute -right-[8px] -top-[12px] h-[34px] w-[26px]"
                 />
               </div>
               <div className="min-w-0">
@@ -920,24 +922,24 @@ function PatientHomeCommand({
                 <p className="mt-[8px] text-[15px] leading-[24px] text-gray-500 text-pretty">{streakHint}</p>
               </div>
             </div>
-            <div className="flex justify-between gap-[8px]">
+            <div className="grid w-full grid-cols-7 gap-1 sm:gap-[8px]">
               {weekSlots.map((slot) => {
                 const done = planCompleteDays.has(slot.key);
                 return (
                   <div
                     key={slot.key}
-                    className={`flex flex-1 flex-col items-center gap-[8px] rounded-[13px] px-[4px] py-[10px] ${
+                    className={`flex min-w-0 flex-col items-center gap-[6px] sm:gap-[8px] rounded-[13px] px-0.5 py-2 sm:px-[4px] sm:py-[10px] ${
                       slot.isToday ? 'bg-blue-50 ring-1 ring-blue-200' : ''
                     }`}
                   >
                     <span
-                      className={`flex size-[34px] items-center justify-center rounded-full text-[13px] font-bold ${
+                      className={`flex size-[28px] sm:size-[34px] items-center justify-center rounded-full text-[12px] sm:text-[13px] font-bold ${
                         done ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'
                       }`}
                     >
                       {done ? '✓' : ''}
                     </span>
-                    <span className="text-[12px] font-semibold text-gray-500">{slot.label}</span>
+                    <span className="text-[11px] sm:text-[12px] font-semibold text-gray-500">{slot.label}</span>
                   </div>
                 );
               })}
@@ -1046,7 +1048,7 @@ function PatientHomeCommand({
       <button
         type="button"
         onClick={onContinue}
-        className="flex w-full cursor-pointer items-center justify-center gap-[8px] rounded-[16px] bg-blue-600 px-[21px] py-[18px] text-[18px] font-semibold text-white shadow-[0_12px_28px_-12px_rgba(37,99,235,0.55)] transition hover:bg-blue-700"
+        className="flex w-full cursor-pointer items-center justify-center gap-[8px] rounded-[16px] bg-sky-600 px-[21px] py-[18px] text-[18px] font-semibold text-white shadow-[0_12px_28px_-12px_rgba(2,132,199,0.55)] transition hover:bg-sky-700"
       >
         <PlayIcon className="size-5" />
         {nextItem?.doneToday === false ? 'Continue training' : prescribedCount > 0 ? 'Open practice' : 'Explore activities'}
@@ -2455,16 +2457,16 @@ function MainContent() {
               <main className="mx-auto w-full max-w-[1100px] px-[13px] py-[21px] sm:px-[34px] space-y-[34px]">
                 <div className="flex flex-wrap items-center justify-between gap-x-[21px] gap-y-[13px]">
                   <h2 className="text-[21px] font-semibold text-gray-900 text-balance">Session history</h2>
-                  <div className="flex flex-wrap items-center gap-[13px]">
-                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
-                      Module
+                  <div className="flex w-full sm:w-auto flex-wrap items-center gap-[10px] sm:gap-[13px]">
+                    <label className="flex min-w-0 flex-1 sm:flex-initial items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      <span className="shrink-0">Module</span>
                       <select
                         value={historyGameId}
                         onChange={(event) => {
                           setHistoryGameId(event.target.value);
                           setHistoryLevelId('');
                         }}
-                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
+                        className={`min-w-0 w-full sm:w-auto rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 ${DASHBOARD_SHADOW}`}
                       >
                         <option value="">All modules</option>
                         {ALL_MODULE_IDS.map((id) => (
@@ -2472,13 +2474,13 @@ function MainContent() {
                         ))}
                       </select>
                     </label>
-                    <label className="flex items-center gap-[8px] text-[13px] font-semibold text-gray-500">
-                      Level
+                    <label className="flex min-w-0 flex-1 sm:flex-initial items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+                      <span className="shrink-0">Level</span>
                       <select
                         value={historyLevelId}
                         onChange={(event) => setHistoryLevelId(event.target.value)}
                         disabled={!historyGameId}
-                        className={`rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 disabled:bg-gray-50 disabled:text-gray-400 ${DASHBOARD_SHADOW}`}
+                        className={`min-w-0 w-full sm:w-auto rounded-[13px] border border-gray-200 bg-white px-[13px] py-[8px] text-[13px] font-semibold text-gray-900 disabled:bg-gray-50 disabled:text-gray-400 ${DASHBOARD_SHADOW}`}
                       >
                         <option value="">{historyGameId ? 'All levels' : 'Pick a module first'}</option>
                         {historyLevels.map((level) => (
@@ -2490,7 +2492,7 @@ function MainContent() {
                       type="button"
                       onClick={() => setHistorySort((current) => (current === 'desc' ? 'asc' : 'desc'))}
                       aria-label={historySort === 'desc' ? 'Sort descending' : 'Sort ascending'}
-                      className={`inline-flex size-[34px] items-center justify-center rounded-[13px] border border-gray-200 bg-white text-gray-900 ${DASHBOARD_SHADOW}`}
+                      className={`inline-flex size-[34px] shrink-0 items-center justify-center rounded-[13px] border border-gray-200 bg-white text-gray-900 ${DASHBOARD_SHADOW}`}
                     >
                       <SortOrderIcon direction={historySort} className="size-[13px]" />
                     </button>

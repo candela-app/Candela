@@ -9,7 +9,6 @@ import {
   LogOut,
   UserCircle,
   Users,
-  X,
 } from 'lucide-react';
 import type { DoctorOrganizationMembershipView } from '@candela/shared';
 import { AnalyticsIcon } from '@/components/icons/VectorIcons';
@@ -129,10 +128,11 @@ export function DoctorSidebar({
     return (
       <div className="flex h-full flex-col justify-between gap-4">
         <div className="space-y-4">
-          {/* Top row: Collapse toggle (desktop) / Close (mobile), no logo */}
+          {/* Top row: Desktop collapse toggle OR mobile drawer close toggle in the same top-left spot */}
           <div
-            className={`flex items-center gap-2 ${isCollapsed ? 'justify-center' : 'justify-end lg:justify-start'
-              }`}
+            className={`flex items-center gap-2 ${
+              isCollapsed ? 'justify-center' : 'justify-start'
+            }`}
           >
             <button
               type="button"
@@ -141,8 +141,9 @@ export function DoctorSidebar({
               aria-expanded={expanded}
               data-tooltip={isCollapsed ? 'Expand sidebar' : undefined}
               title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-              className={`hidden size-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-[var(--doc-muted)] transition hover:bg-[var(--doc-primary-soft)] hover:text-[var(--doc-primary)] focus-visible:outline-2 focus-visible:outline-[var(--doc-primary)] lg:flex ${isCollapsed ? styles.collapsedTooltip : ''
-                }`}
+              className={`hidden size-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-[var(--doc-muted)] transition hover:bg-[var(--doc-primary-soft)] hover:text-[var(--doc-primary)] focus-visible:outline-2 focus-visible:outline-[var(--doc-primary)] lg:flex ${
+                isCollapsed ? styles.collapsedTooltip : ''
+              }`}
             >
               <SidebarToggleGlyph expanded={expanded} />
             </button>
@@ -150,10 +151,10 @@ export function DoctorSidebar({
             <button
               type="button"
               onClick={onCloseMobile}
-              className="flex size-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--doc-muted)] hover:bg-[var(--doc-primary-soft)] lg:hidden"
-              aria-label="Close navigation menu"
+              aria-label="Close sidebar"
+              className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100/80 lg:hidden"
             >
-              <X className="size-4" />
+              <SidebarToggleGlyph expanded={true} />
             </button>
           </div>
 
@@ -368,32 +369,36 @@ export function DoctorSidebar({
     <>
       {/* Desktop persistent collapsible chipped-off sidebar */}
       <aside
-        className={`${styles.sidebar} ${styles.sidebarDesktop} ${expanded ? styles.sidebarExpanded : styles.sidebarCollapsed
-          } hidden lg:sticky lg:top-[13px] lg:mb-[13px] lg:ml-[13px] lg:flex lg:h-[calc(100dvh-26px)]`}
+        className={`${styles.sidebar} ${styles.sidebarDesktop} ${
+          expanded
+            ? `${styles.sidebarExpanded} p-[13px]`
+            : `${styles.sidebarCollapsed} px-[10px] py-[13px]`
+        } hidden lg:sticky lg:top-[13px] lg:mb-[13px] lg:ml-[13px] lg:flex lg:h-[calc(100dvh-26px)]`}
       >
         <nav aria-label="Doctor navigation" className="h-full">
           {renderSidebarBody(!expanded)}
         </nav>
       </aside>
 
-      {/* Tablet / Mobile slide-over drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <button
-            type="button"
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px]"
-            aria-label="Close navigation menu"
-            onClick={onCloseMobile}
-          />
-          <aside
-            className={`${styles.sidebar} ${styles.sidebarExpanded} relative z-10 h-dvh max-w-[82vw] overflow-y-auto shadow-xl`}
-          >
-            <nav aria-label="Doctor navigation" className="h-full">
-              {renderSidebarBody(false)}
-            </nav>
-          </aside>
-        </div>
-      )}
+      {/* Tablet / Mobile slide-over drawer matching User login behavior */}
+      {mobileOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+          aria-label="Close menu"
+          onClick={onCloseMobile}
+        />
+      ) : null}
+      <aside
+        aria-hidden={!mobileOpen ? true : undefined}
+        className={`${styles.sidebar} fixed inset-y-0 left-0 z-50 flex h-dvh w-[244px] max-w-[82vw] overflow-y-auto p-[13px] transition-transform duration-200 ease-out motion-reduce:transition-none lg:hidden ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        }`}
+      >
+        <nav aria-label="Doctor navigation" className="h-full">
+          {renderSidebarBody(false)}
+        </nav>
+      </aside>
     </>
   );
 }
