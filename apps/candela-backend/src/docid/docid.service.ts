@@ -45,6 +45,7 @@ export type IncomingDocIdRequestView = {
   patientName: string;
   patientEmail: string;
   targetReferralCode: string;
+  createdAt: string;
   expiresAt: string;
 };
 
@@ -231,6 +232,7 @@ export class DocIdService {
         patientName: request.patient.user.name,
         patientEmail: request.patient.user.email,
         targetReferralCode: request.toDoctor.referralCode,
+        createdAt: request.createdAt.toISOString(),
         expiresAt: request.expiresAt.toISOString(),
       });
     }

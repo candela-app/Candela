@@ -1,0 +1,308 @@
+.doctorShell {
+  --doc-bg: #f6f5fc;
+  --doc-surface: #ffffff;
+  --doc-surface-subtle: #faf9fe;
+  --doc-surface-hover: #f2f0fb;
+  --doc-primary: #4f46e5;
+  --doc-primary-hover: #4338ca;
+  --doc-primary-soft: #eef2ff;
+  --doc-primary-border: #c7d2fe;
+  --doc-border: #e6e3f3;
+  --doc-border-strong: #d5d0ea;
+  --doc-text: #141937;
+  --doc-muted: #5c647d;
+  --doc-muted-soft: #858ca4;
+  --doc-success-bg: #ecfdf5;
+  --doc-success-text: #047857;
+  --doc-success-border: #a7f3d0;
+  --doc-warning-bg: #fffbeb;
+  --doc-warning-text: #b45309;
+  --doc-warning-border: #fde68a;
+  --doc-error-bg: #fef2f2;
+  --doc-error-text: #b91c1c;
+  --doc-error-border: #fecaca;
+  --doc-shadow-card: 0 12px 32px -14px rgba(15, 23, 42, 0.24);
+  --doc-shadow-hover: 0 14px 34px -14px rgba(79, 70, 229, 0.24);
+
+  min-height: 100dvh;
+  background-color: var(--doc-bg);
+  background-image: radial-gradient(1200px 480px at 20% -10%, rgba(255, 255, 255, 0.92), transparent 60%);
+  color: var(--doc-text);
+  font-family: var(--font-poppins), 'Poppins', var(--font-main), system-ui, sans-serif;
+  overflow-x: clip;
+  display: flex;
+  flex-direction: column;
+}
+
+.doctorShell :where(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+.layoutFrame {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  background: var(--doc-surface);
+  border-right: 1px solid var(--doc-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebarDesktop {
+  border: 1px solid var(--doc-border);
+  border-radius: 13px;
+  box-shadow: var(--doc-shadow-card);
+}
+
+.sidebarExpanded {
+  width: 244px;
+  padding: 13px;
+}
+
+.sidebarCollapsed {
+  width: 72px;
+  padding: 13px 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}
+
+.mainColumn {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mainContainer {
+  width: 100%;
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 4px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.card {
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  border-radius: 13px;
+  box-shadow: var(--doc-shadow-card);
+}
+
+.cardMuted {
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  border-radius: 13px;
+}
+
+.metricCard {
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  border-radius: 13px;
+  padding: 18px 20px;
+  box-shadow: var(--doc-shadow-card);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.metricCard:hover {
+  border-color: var(--doc-primary-border);
+  box-shadow: var(--doc-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.metricCard:focus-visible {
+  outline: 2px solid var(--doc-primary);
+  outline-offset: 2px;
+}
+
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--doc-muted);
+  transition: background-color 140ms ease, color 140ms ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.navItem:hover {
+  background: var(--doc-primary-soft);
+  color: var(--doc-text);
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--doc-primary);
+  outline-offset: 1px;
+}
+
+.navItemCollapsed {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.navItemActive {
+  background: var(--doc-primary);
+  color: #ffffff;
+}
+
+.navItemActive:hover {
+  background: var(--doc-primary-hover);
+  color: #ffffff;
+}
+
+/* Tooltip shown on hover/focus when desktop sidebar is collapsed */
+.collapsedTooltip {
+  position: relative;
+}
+
+.collapsedTooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  background: #141937;
+  color: #ffffff;
+  font-family: var(--font-poppins), 'Poppins', var(--font-main), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.35);
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 60;
+}
+
+.collapsedTooltip:hover::after,
+.collapsedTooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--doc-primary);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 15px;
+  transition: background-color 140ms ease, opacity 140ms ease;
+  cursor: pointer;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--doc-primary-hover);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--doc-primary);
+  outline-offset: 2px;
+}
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border-strong);
+  color: var(--doc-text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  transition: background-color 140ms ease, border-color 140ms ease;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  background: var(--doc-surface-subtle);
+  border-color: var(--doc-primary-border);
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--doc-primary);
+  outline-offset: 2px;
+}
+
+.overviewMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.overviewSplitGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1279px) {
+  .overviewMetricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .mainContainer {
+    padding: 14px 16px 32px;
+    gap: 18px;
+  }
+
+  .overviewSplitGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 479px) {
+  .overviewMetricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}

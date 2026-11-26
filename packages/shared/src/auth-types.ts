@@ -27,7 +27,20 @@ export interface IncomingDocIdRequest {
   patientName: string;
   patientEmail: string;
   targetReferralCode: string;
+  createdAt: string;
   expiresAt: string;
+}
+
+export interface DoctorDashboardSummary {
+  timeZone: string;
+  dateKey: string;
+  assignedPatientCount: number;
+  patientsWithActivePlansCount: number;
+  pendingTransferCount: number;
+  sessionsTodayCount: number;
+  transfersReviewedTodayCount: number;
+  prescriptionsUpdatedTodayCount: number;
+  lastSessionAtByPatientId: Record<string, string | null>;
 }
 
 export interface DocIdRequestResult {

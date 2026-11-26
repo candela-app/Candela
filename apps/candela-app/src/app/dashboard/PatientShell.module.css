@@ -1,0 +1,40 @@
+.userShellFont {
+  font-family: var(--font-poppins), 'Poppins', var(--font-main), system-ui, sans-serif;
+}
+
+.userShellFont :where(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+/* Tooltip shown on hover/focus when desktop sidebar is collapsed */
+.collapsedTooltip {
+  position: relative;
+}
+
+.collapsedTooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  background: #141937;
+  color: #ffffff;
+  font-family: var(--font-poppins), 'Poppins', var(--font-main), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.35);
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 60;
+}
+
+.collapsedTooltip:hover::after,
+.collapsedTooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}

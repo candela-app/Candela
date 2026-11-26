@@ -106,30 +106,41 @@ export function LevelSelectionSkeleton({ count = 4, isGeoboard = false }: { coun
 
 export function DoctorDashboardSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 animate-pulse">
-      <div className="mb-4 flex gap-2 lg:mb-0 lg:flex-col lg:rounded-3xl lg:border lg:border-gray-100 lg:bg-white lg:p-3">
-        <div className="h-10 w-28 rounded-xl bg-gray-200 lg:w-full" />
-        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
-        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
-        <div className="h-10 w-28 rounded-xl bg-gray-100 lg:w-full" />
+    <div className="min-h-dvh bg-[#f6f5fc] font-poppins flex animate-pulse">
+      <aside className="hidden lg:flex lg:ml-[13px] lg:my-[13px] lg:h-[calc(100dvh-26px)] lg:w-[72px] lg:shrink-0 lg:flex-col lg:items-center lg:gap-4 lg:rounded-[13px] lg:border lg:border-[#e6e3f3] lg:bg-white lg:px-[10px] lg:py-[13px]">
+        <div className="size-9 rounded-[10px] bg-slate-100" />
+        <div className="h-12 w-12 rounded-[10px] bg-indigo-50/80" />
+        <div className="space-y-2 pt-2">
+          <div className="size-11 rounded-[10px] bg-indigo-100/80" />
+          <div className="size-11 rounded-[10px] bg-slate-100" />
+          <div className="size-11 rounded-[10px] bg-slate-100" />
+          <div className="size-11 rounded-[10px] bg-slate-100" />
+        </div>
+      </aside>
+      <div className="flex-1 min-w-0">
+        <div className="px-[13px] pt-[13px] pb-[8px]">
+          <div className="mx-auto flex max-w-[1184px] items-center justify-end gap-2">
+            <div className="hidden sm:block h-9 w-[230px] rounded-xl bg-white border border-[#e6e3f3]" />
+            <div className="size-9 rounded-xl bg-white border border-[#e6e3f3]" />
+          </div>
+        </div>
+        <main className="mx-auto max-w-[1184px] space-y-6 px-6 py-2">
+          <div className="space-y-1.5">
+            <div className="h-7 w-60 rounded-lg bg-slate-200/80" />
+            <div className="h-4 w-72 rounded bg-slate-100" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <div className="h-28 rounded-[13px] border border-[#e6e3f3] bg-white" />
+            <div className="h-28 rounded-[13px] border border-[#e6e3f3] bg-white" />
+            <div className="h-28 rounded-[13px] border border-[#e6e3f3] bg-white" />
+            <div className="h-28 rounded-[13px] border border-[#e6e3f3] bg-white" />
+          </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(270px,1fr)]">
+            <div className="h-64 rounded-[13px] border border-[#e6e3f3] bg-white" />
+            <div className="h-64 rounded-[13px] border border-[#e6e3f3] bg-white" />
+          </div>
+        </main>
       </div>
-      <main className="space-y-6">
-        <div>
-          <div className="mb-2 h-9 w-64 rounded-xl bg-gray-200" />
-          <div className="h-4 w-96 max-w-full rounded-md bg-gray-100" />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="h-24 rounded-2xl bg-white" />
-          <div className="h-24 rounded-2xl bg-white" />
-          <div className="h-24 rounded-2xl bg-white" />
-        </div>
-        <section className="space-y-3 rounded-3xl border border-gray-100 bg-white p-5">
-          <div className="h-6 w-28 rounded-lg bg-gray-200" />
-          <div className="h-14 rounded-xl bg-gray-100" />
-          <div className="h-14 rounded-xl bg-gray-100" />
-          <div className="h-14 rounded-xl bg-gray-100" />
-        </section>
-      </main>
     </div>
   );
 }

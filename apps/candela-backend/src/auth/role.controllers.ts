@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service';
+import { DoctorDashboardService } from '../auth/doctor-dashboard.service';
 import { EmergencyAuditService } from '../audit/emergency-audit.service';
 import { PrescriptionAnalyticsService, PrescriptionPeriodQueryDto } from '../prescriptions/prescription-analytics.service';
 import { CreateAccountDto, CreatePatientDto, AddPrescriptionDto, UpdateDoctorDto } from '../auth/dto';
@@ -183,9 +184,15 @@ export class AdminController {
 export class DoctorController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(DoctorDashboardService) private readonly dashboard: DoctorDashboardService,
     @Inject(PrescriptionAnalyticsService) private readonly prescriptionAnalytics: PrescriptionAnalyticsService,
     @Inject(ProfilesService) private readonly profiles: ProfilesService,
   ) {}
+
+  @Get('dashboard-summary')
+  getDashboardSummary(@CurrentUser() user: User, @Query('timeZone') timeZone?: string) {
+    return this.dashboard.getSummary(user.id, timeZone);
+  }
 
   @Post('patients')
   createPatient(@CurrentUser() user: User, @Req() req: Request, @Body() dto: CreatePatientDto) {
