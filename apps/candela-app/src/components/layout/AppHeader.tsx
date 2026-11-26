@@ -79,7 +79,7 @@ export function AppHeader({ extra, leading, onBack, backHref }: AppHeaderProps) 
                 className="min-w-0 max-w-full cursor-pointer py-1 text-left"
                 title="Go home"
               >
-                <span className="block whitespace-nowrap text-[21px] font-semibold leading-[29px] text-shell-text sm:overflow-visible">
+                <span className="block truncate text-[17px] sm:text-[21px] font-semibold leading-[29px] text-shell-text">
                   {session.user.name}
                 </span>
               </button>

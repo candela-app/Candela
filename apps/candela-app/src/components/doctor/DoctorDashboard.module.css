@@ -50,30 +50,27 @@
   flex-shrink: 0;
   background: var(--doc-surface);
   border-right: 1px solid var(--doc-border);
-  display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sidebarDesktop {
   border: 1px solid var(--doc-border);
   border-radius: 13px;
   box-shadow: var(--doc-shadow-card);
+  transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sidebarExpanded {
   width: 244px;
-  padding: 13px;
 }
 
 .sidebarCollapsed {
   width: 72px;
-  padding: 13px 10px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar {
+  .sidebarDesktop {
     transition: none;
   }
 }

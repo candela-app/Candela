@@ -751,7 +751,7 @@ export function SessionAnalyticsPanel({
         {activeGameId && truncated ? (
           <p className="text-[13px] leading-[21px] text-gray-900">{TRUNCATED_HISTORY_NOTE}</p>
         ) : null}
-        <div className={lockedLevel ? 'grid grid-cols-2 gap-[13px]' : 'grid grid-cols-4 gap-[13px]'}>
+        <div className={lockedLevel ? 'grid grid-cols-1 gap-[13px] sm:grid-cols-2' : 'grid grid-cols-1 gap-[13px] sm:grid-cols-2 lg:grid-cols-4'}>
           {lockedLevel ? null : (
             <label className={STACK}>
               Module
@@ -802,8 +802,8 @@ export function SessionAnalyticsPanel({
       </div>
 
       {levelMode ? null : <div className="flex flex-wrap items-center justify-between gap-[13px]">
-        <label className={LABEL}>
-          Daily dot
+        <label className="flex min-w-0 items-center gap-[8px] text-[13px] font-semibold text-gray-500">
+          <span className="shrink-0">Daily dot</span>
           <select
             value={agg}
             onChange={(e) => setAgg(e.target.value as DailyAggMode)}
