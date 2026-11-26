@@ -46,6 +46,18 @@ function patientInitials(name: string) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function filterPatients(patients: PatientSummary[], query: string, active: boolean): PatientSummary[] {
+  const q = query.trim().toLowerCase();
+  if (!q || !active) return patients;
+  return patients.filter(
+    (p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.email.toLowerCase().includes(q) ||
+      p.phone.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q),
+  );
+}
+
 export default function DoctorPage() {
   return (
     <Suspense fallback={<DoctorDashboardSkeleton />}>
@@ -118,17 +130,10 @@ function DoctorDashboard() {
     [memberships],
   );
 
-  const filteredPatients = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q || !searchOpen) return patients;
-    return patients.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
-        p.phone.toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q),
-    );
-  }, [patients, searchQuery, searchOpen]);
+  const filteredPatients = useMemo(
+    () => filterPatients(patients, searchQuery, searchOpen),
+    [patients, searchQuery, searchOpen],
+  );
 
   const loadPatients = useCallback(async () => {
     setPatientsLoading(true);
@@ -766,9 +771,60 @@ function PatientShortcutList({
   actionLabel: string;
   onCreate?: () => void;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, [title]);
+
+  const filtered = useMemo(
+    () => filterPatients(patients, searchQuery, searchOpen),
+    [patients, searchQuery, searchOpen],
+  );
+
   return (
     <section className={`${styles.card} p-5 sm:p-6`}>
-      <h2 className="text-balance text-[18px] font-semibold text-[var(--doc-text)]">{title}</h2>
+      <div className="flex items-center gap-[13px]">
+        {searchOpen ? (
+          <div className="min-w-0 flex-1">
+            <FloatingLabelInput
+              label="Search name, email, or phone"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              autoFocus
+              scale="golden"
+            />
+          </div>
+        ) : (
+          <h2 className="min-w-0 flex-1 text-balance text-[18px] font-semibold text-[var(--doc-text)]">
+            {title}
+          </h2>
+        )}
+        {!loading && !error && patients.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (searchOpen) {
+                setSearchOpen(false);
+                setSearchQuery('');
+              } else {
+                setSearchOpen(true);
+              }
+            }}
+            className={`flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[10px] border transition ${
+              searchOpen
+                ? 'border-[var(--doc-primary)] bg-[var(--doc-primary)] text-white'
+                : 'border-[var(--doc-border)] bg-[var(--doc-surface-subtle)] text-[var(--doc-muted)]'
+            }`}
+            title={searchOpen ? 'Close search' : 'Search patients'}
+            aria-label={searchOpen ? 'Close search' : 'Search patients'}
+          >
+            {searchOpen ? <XIcon className="size-4" /> : <SearchIcon className="size-4" />}
+          </button>
+        ) : null}
+      </div>
       {loading ? (
         <div className="mt-[21px] space-y-2 animate-pulse">
           <div className="h-[58px] rounded-xl bg-slate-100" />
@@ -790,9 +846,17 @@ function PatientShortcutList({
             </button>
           ) : null}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-[34px] text-center">
+          <SearchIcon className="mx-auto mb-[8px] size-8 text-gray-300" />
+          <p className="text-[13px] font-semibold text-[var(--doc-text)]">No matches</p>
+          <p className="mt-[4px] text-[13px] text-[var(--doc-muted)]">
+            Nothing for &quot;{searchQuery}&quot;
+          </p>
+        </div>
       ) : (
         <ul className="mt-[21px] space-y-[8px]">
-          {patients.map((patient) => (
+          {filtered.map((patient) => (
             <li key={patient.id}>
               <Link
                 href={hrefFor(patient)}
