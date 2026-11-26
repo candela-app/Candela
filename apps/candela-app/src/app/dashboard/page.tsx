@@ -90,6 +90,7 @@ import { ProfileCompletionBanner } from '@/components/profile/ProfileCompletionB
 import { PatientAccountCard } from '@/components/profile/PatientAccountCard';
 import { MODULE_CARDS } from '@/lib/shell';
 import type { LottieHandle } from 'lottie-react';
+import patientShellStyles from './PatientShell.module.css';
 
 const StreakFire = dynamic(() => import('lottie-react').then((mod) => mod.Lottie), {
   ssr: false,
@@ -1922,7 +1923,9 @@ function MainContent() {
         : lockToViewport
           ? 'h-dvh overflow-hidden overscroll-none flex flex-col'
           : 'min-h-dvh overflow-x-hidden flex flex-col'
-    } w-full relative select-none touch-manipulation ${isPlayingGame ? 'bg-page' : 'page-wash'}`}>
+    } w-full relative select-none touch-manipulation ${
+      isPlayingGame ? 'bg-page' : `page-wash ${patientShellStyles.userShellFont}`
+    }`}>
       {!isPlayingGame && (
         <div className="relative z-40 shrink-0">
         <AppHeader
@@ -1979,18 +1982,23 @@ function MainContent() {
           ) : null}
           <nav
             aria-label="Patient workspace"
-            className={`dashboard-scrollbar fixed inset-y-0 left-0 z-40 flex h-dvh w-[220px] flex-col gap-[8px] overflow-y-auto border-r border-gray-200 bg-white p-[13px] pt-[81px] ${
-              navOpen ? 'translate-x-0' : '-translate-x-full'
-            } lg:static lg:z-auto lg:h-full lg:translate-x-0 lg:pt-[13px] ${
-              navExpanded ? 'lg:w-[220px] lg:items-stretch lg:p-[13px]' : 'lg:w-[64px] lg:items-center lg:px-[8px] lg:py-[13px]'
+            className={`dashboard-scrollbar fixed inset-y-0 left-0 z-40 flex h-dvh w-[220px] flex-col gap-[8px] border-r border-gray-200 bg-white p-[13px] pt-[81px] ${
+              navOpen ? 'translate-x-0 overflow-y-auto' : '-translate-x-full overflow-y-auto'
+            } lg:relative lg:z-20 lg:h-full lg:translate-x-0 lg:pt-[13px] ${
+              navExpanded
+                ? 'lg:w-[220px] lg:items-stretch lg:overflow-y-auto lg:p-[13px]'
+                : 'lg:w-[64px] lg:items-center lg:overflow-visible lg:px-[8px] lg:py-[13px]'
             }`}
           >
             <button
               type="button"
               onClick={toggleNavExpanded}
-              className="mb-[4px] hidden size-[40px] shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-gray-600 hover:bg-sky-50 hover:text-sky-700 lg:flex"
+              className={`mb-[4px] hidden size-[40px] shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-gray-600 hover:bg-sky-50 hover:text-sky-700 lg:flex ${
+                !navExpanded ? patientShellStyles.collapsedTooltip : ''
+              }`}
               aria-label={navExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-              title={navExpanded ? 'Collapse' : 'Expand'}
+              data-tooltip={!navExpanded ? 'Expand sidebar' : undefined}
+              title={navExpanded ? 'Collapse' : undefined}
             >
               <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
                 <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -2051,9 +2059,13 @@ function MainContent() {
                     type="button"
                     onClick={item.onClick}
                     aria-current={item.active ? 'page' : undefined}
-                    title={item.label}
+                    aria-label={item.label}
+                    data-tooltip={!navExpanded && !navOpen ? item.label : undefined}
+                    title={navExpanded || navOpen ? item.label : undefined}
                     className={`flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[10px] text-[13px] font-semibold ${
-                      navExpanded || navOpen ? 'px-[13px] py-[13px]' : 'lg:size-[40px] lg:justify-center lg:px-0 lg:py-0'
+                      navExpanded || navOpen
+                        ? 'px-[13px] py-[13px]'
+                        : `lg:size-[40px] lg:justify-center lg:px-0 lg:py-0 ${patientShellStyles.collapsedTooltip}`
                     } ${
                       item.active
                         ? 'bg-sky-600 text-white'
@@ -2092,9 +2104,13 @@ function MainContent() {
               onClick={() => {
                 void logout().then(() => router.replace('/'));
               }}
-              title="Sign out"
+              aria-label="Sign out"
+              data-tooltip={!navExpanded && !navOpen ? 'Sign out' : undefined}
+              title={navExpanded || navOpen ? 'Sign out' : undefined}
               className={`mt-auto flex shrink-0 cursor-pointer items-center gap-[8px] rounded-[10px] border-t border-gray-100 bg-transparent text-[13px] font-semibold text-red-600 hover:bg-red-50 ${
-                navExpanded || navOpen ? 'px-[13px] py-[13px]' : 'lg:size-[40px] lg:justify-center lg:px-0 lg:py-0'
+                navExpanded || navOpen
+                  ? 'px-[13px] py-[13px]'
+                  : `lg:size-[40px] lg:justify-center lg:px-0 lg:py-0 ${patientShellStyles.collapsedTooltip}`
               }`}
             >
               <LogOutIcon className="size-4 shrink-0" />

@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { DoctorOrganizationMembership } from '../entities/doctor-organization-membership.entity';
+import { DocIdRequest } from '../entities/docid-request.entity';
 import { DoctorProfile } from '../entities/doctor-profile.entity';
 import { GameSession } from '../entities/game-session.entity';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
@@ -24,6 +25,7 @@ import { ProfilesModule } from '../profiles/profiles.module';
 import { PrescriptionAnalyticsService } from '../prescriptions/prescription-analytics.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { DoctorDashboardService } from './doctor-dashboard.service';
 import { GoogleAuthService } from './google-auth.service';
 import { AdminController, DoctorController, MeController } from './role.controllers';
 
@@ -34,6 +36,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
       Organization,
       DoctorProfile,
       DoctorOrganizationMembership,
+      DocIdRequest,
       PatientProfile,
       Prescription,
       PrescriptionRevision,
@@ -58,6 +61,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   controllers: [AuthController, AdminController, DoctorController, MeController],
   providers: [
     AuthService,
+    DoctorDashboardService,
     PrescriptionAnalyticsService,
     GoogleAuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -350,3 +350,18 @@ export function getPatientPrescriptionAnalytics(patientId: string, params?: Pres
     }
   >(`/api/doctors/me/patients/${patientId}/prescription-analytics${prescriptionQuery(params)}`);
 }
+
+export function getDoctorDashboardSummary(timeZone?: string) {
+  let resolved = timeZone?.trim() ?? '';
+  if (!resolved && typeof Intl !== 'undefined') {
+    try {
+      resolved = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch {
+      resolved = '';
+    }
+  }
+  const query = resolved ? `?${new URLSearchParams({ timeZone: resolved }).toString()}` : '';
+  return api<import('@candela/shared').DoctorDashboardSummary>(
+    `/api/doctors/me/dashboard-summary${query}`,
+  );
+}
