@@ -8,6 +8,7 @@ import {
   PatientProfileFormSkeleton,
 } from '@/components/profile/PatientProfileForm';
 import { useAuth } from '@/lib/auth-context';
+import patientShellStyles from '../dashboard/PatientShell.module.css';
 
 export default function PatientProfilePage() {
   const { session, loading } = useAuth();
@@ -28,7 +29,7 @@ export default function PatientProfilePage() {
   const showAuthSkeleton = loading || !session || session.user.role !== 'patient';
 
   return (
-    <div className="min-h-screen page-wash">
+    <div className={`min-h-screen page-wash ${patientShellStyles.userShellFont}`}>
       <AppHeader
         onBack={
           showAuthSkeleton

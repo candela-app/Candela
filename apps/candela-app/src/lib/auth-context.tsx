@@ -3,6 +3,7 @@
 import type { SessionUser } from '@candela/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, fetchSession } from './api';
+import { clearRecentlyViewedPatients } from './doctor-recent-patients';
 
 type AuthContextValue = {
   session: SessionUser | null;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await api('/api/auth/logout', { method: 'POST' });
     } finally {
+      clearRecentlyViewedPatients();
       setSession(null);
     }
   }, []);

@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { ApiError, api, getPatientPracticeSummary } from '@/lib/api';
+import { recordRecentlyViewedPatient } from '@/lib/doctor-recent-patients';
 import {
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
@@ -198,6 +199,9 @@ function DoctorPatientProfile() {
     // Paint shell as soon as the patient summary is ready.
     const next = await patientPromise;
     if (loadToken.current !== token) return;
+    if (session?.user.id) {
+      recordRecentlyViewedPatient(session.user.id, next.id);
+    }
     setPatient(next);
     setDataLoading(false);
 
