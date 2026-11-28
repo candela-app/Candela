@@ -43,6 +43,44 @@ export interface DoctorDashboardSummary {
   lastSessionAtByPatientId: Record<string, string | null>;
 }
 
+export interface CaseloadReviewPatient {
+  patientId: string;
+  name: string;
+  lastSessionAt: string | null;
+}
+
+export interface DoctorCaseloadAnalytics {
+  from: string;
+  to: string;
+  timeZone: string;
+  startInclusive: string;
+  endExclusive: string;
+  authorizedPatientCount: number;
+  patientsWithCompletedSessionsCount: number;
+  patientsWithNoCompletedSessionsCount: number;
+  totalCompletedSessionsCount: number;
+  patientsToReview: CaseloadReviewPatient[];
+}
+
+export interface PatientAssignmentItem {
+  moduleId: string;
+  levels: string[];
+}
+
+export interface PatientAssignmentRevision {
+  id: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  actorDoctorId: string | null;
+  actorLabel: string;
+  assignments: PatientAssignmentItem[];
+}
+
+export interface PatientAssignmentsHistory {
+  current: PatientAssignmentItem[];
+  revisions: PatientAssignmentRevision[];
+}
+
 export interface DocIdRequestResult {
   emailSent: boolean;
   recipientRole: 'doctor' | 'patient';

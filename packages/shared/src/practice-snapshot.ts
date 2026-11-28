@@ -21,6 +21,11 @@ export interface SavedPracticeSummary {
   } | null;
 }
 
+export interface RangedPracticeSummary extends SavedPracticeSummary {
+  distinctModulesCount: number;
+  playedModuleIds: string[];
+}
+
 export interface PracticeSnapshot {
   sessionCount: number;
   lastRecordedAt: string | null;
