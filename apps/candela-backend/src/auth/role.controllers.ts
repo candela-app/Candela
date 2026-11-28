@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service';
+import { CaseloadAnalyticsQueryDto, DoctorAnalyticsService } from '../auth/doctor-analytics.service';
 import { DoctorDashboardService } from '../auth/doctor-dashboard.service';
 import { EmergencyAuditService } from '../audit/emergency-audit.service';
 import { PrescriptionAnalyticsService, PrescriptionPeriodQueryDto } from '../prescriptions/prescription-analytics.service';
@@ -184,10 +185,19 @@ export class AdminController {
 export class DoctorController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(DoctorAnalyticsService) private readonly doctorAnalytics: DoctorAnalyticsService,
     @Inject(DoctorDashboardService) private readonly dashboard: DoctorDashboardService,
     @Inject(PrescriptionAnalyticsService) private readonly prescriptionAnalytics: PrescriptionAnalyticsService,
     @Inject(ProfilesService) private readonly profiles: ProfilesService,
   ) {}
+
+  @Get('analytics/caseload')
+  getCaseloadAnalytics(
+    @CurrentUser() user: User,
+    @Query() query: CaseloadAnalyticsQueryDto,
+  ) {
+    return this.doctorAnalytics.getCaseload(user.id, query);
+  }
 
   @Get('dashboard-summary')
   getDashboardSummary(@CurrentUser() user: User, @Query('timeZone') timeZone?: string) {
@@ -213,6 +223,11 @@ export class DoctorController {
   @Get('patients')
   listPatients(@CurrentUser() user: User) {
     return this.auth.listDoctorPatients(user.id);
+  }
+
+  @Get('patients/:patientId/assignments')
+  getPatientAssignments(@CurrentUser() user: User, @Param('patientId') patientId: string) {
+    return this.doctorAnalytics.getPatientAssignments(user.id, patientId);
   }
 
   @Get('patients/:patientId/prescription-analytics')

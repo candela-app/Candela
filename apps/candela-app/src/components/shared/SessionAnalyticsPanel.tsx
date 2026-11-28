@@ -51,7 +51,7 @@ import {
 } from '@candela/shared';
 import { listMyGameSessionOverview, listPatientGameSessionOverview, type StoredGameSessionRecord } from '@/lib/api';
 
-function toStored(row: StoredGameSessionRecord): StoredGameSession {
+export function toStored(row: StoredGameSessionRecord): StoredGameSession {
   return {
     ...row,
     gameId: row.gameId as TherapyModuleId,
@@ -80,7 +80,7 @@ function viewBoxToScreen(svg: SVGSVGElement, vx: number, vy: number): { x: numbe
   return { x: mapped.x, y: mapped.y };
 }
 
-function LineChart({
+export function LineChart({
   points,
   metric,
   agg,
@@ -378,14 +378,22 @@ function formatReportDate(iso: string): string {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function DoctorSessionList({ rows }: { rows: StoredGameSession[] }) {
+export function DoctorSessionList({
+  rows,
+  showMixedLevelNotice = true,
+  showHeading = true,
+}: {
+  rows: StoredGameSession[];
+  showMixedLevelNotice?: boolean;
+  showHeading?: boolean;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const reports = rows.map((row) => formatSessionReport(row));
   const notice = mixedLevelNotice(reports.map((report) => report.levelName));
   return (
     <section className="space-y-[13px]">
-      <h3 className="text-[13px] font-semibold text-gray-900">Sessions</h3>
-      {notice ? <p className="text-[13px] leading-[21px] text-gray-500">{notice}</p> : null}
+      {showHeading ? <h3 className="text-[13px] font-semibold text-gray-900">Sessions</h3> : null}
+      {showMixedLevelNotice && notice ? <p className="text-[13px] leading-[21px] text-gray-500">{notice}</p> : null}
       <ul className="space-y-[8px]">
         {reports.map((report, index) => {
           const open = openId === report.id;
@@ -453,7 +461,7 @@ function DoctorSessionList({ rows }: { rows: StoredGameSession[] }) {
   );
 }
 
-function HowToReadCard({
+export function HowToReadCard({
   gameId,
   levelId,
   metrics,
@@ -543,7 +551,7 @@ function LevelTrend({ points }: { points: LevelDailyPoint[] }) {
   );
 }
 
-function LevelAnalyticsBody({
+export function LevelAnalyticsBody({
   result,
   rows,
   showPatientHistory,

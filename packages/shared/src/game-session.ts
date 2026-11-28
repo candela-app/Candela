@@ -325,6 +325,86 @@ export function localInclusiveRangeToUtc(
   return { start: start.toISOString(), endExclusive: endExclusive.toISOString() };
 }
 
+/** Rejects fixed offsets such as +05:30 alongside non-IANA timezone names. Blank defaults to UTC. */
+const FIXED_OFFSET_ZONE = /^(?:GMT|UTC)?[+-]\d{1,2}(?::?\d{2})?$/i;
+const STRICT_CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function assertStrictIanaTimeZone(rawTimeZone?: string): string {
+  const trimmed = rawTimeZone?.trim() ?? '';
+  if (!trimmed) {
+    return 'UTC';
+  }
+  if (FIXED_OFFSET_ZONE.test(trimmed)) {
+    throw new Error(`Invalid IANA time zone: ${trimmed}`);
+  }
+  return assertIanaTimeZone(trimmed);
+}
+
+/** Validates strict YYYY-MM-DD syntax and rejects impossible calendar dates such as 2026-02-31. */
+export function assertCalendarDayKey(dateKey: string): string {
+  const trimmed = dateKey.trim();
+  if (!STRICT_CALENDAR_DAY.test(trimmed)) {
+    throw new Error(`Invalid calendar date: ${dateKey}`);
+  }
+  const [y, m, d] = trimmed.split('-').map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  if (utc.getUTCFullYear() !== y || utc.getUTCMonth() !== m - 1 || utc.getUTCDate() !== d) {
+    throw new Error(`Invalid calendar date: ${dateKey}`);
+  }
+  return trimmed;
+}
+
+export interface StrictLocalPeriod {
+  from: string;
+  to: string;
+  timeZone: string;
+  startInclusive: string;
+  endExclusive: string;
+}
+
+/**
+ * Single strict converter from { from, to, timeZone } into a half-open UTC interval [startInclusive, endExclusive).
+ * Omitted dates default to the Last 30 local calendar days in `timeZone` (or UTC when omitted).
+ */
+export function resolveStrictLocalPeriod(input?: {
+  from?: string;
+  to?: string;
+  timeZone?: string;
+  now?: Date;
+}): StrictLocalPeriod {
+  const timeZone = assertStrictIanaTimeZone(input?.timeZone);
+  const rawFrom = input?.from?.trim() ?? '';
+  const rawTo = input?.to?.trim() ?? '';
+  if ((rawFrom && !rawTo) || (!rawFrom && rawTo)) {
+    throw new Error('from and to are required together');
+  }
+  let from: string;
+  let to: string;
+  if (!rawFrom && !rawTo) {
+    const today = calendarDayKey((input?.now ?? new Date()).toISOString(), timeZone);
+    from = shiftUtcDateKey(today, -29);
+    to = today;
+  } else {
+    from = assertCalendarDayKey(rawFrom);
+    to = assertCalendarDayKey(rawTo);
+    if (from > to) {
+      throw new Error('Invalid local date range: from must be on or before to');
+    }
+  }
+  const start = localMidnightUtc(from, timeZone);
+  const end = localMidnightUtc(shiftUtcDateKey(to, 1), timeZone);
+  if (end.getTime() <= start.getTime()) {
+    throw new Error('Invalid local date range');
+  }
+  return {
+    from,
+    to,
+    timeZone,
+    startInclusive: start.toISOString(),
+    endExclusive: end.toISOString(),
+  };
+}
+
 /** API `from` / `to` instants. `to` is exclusive. Date-only strings are not sent. */
 export function analyticsQueryRange(
   from: string,

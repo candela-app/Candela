@@ -138,4 +138,23 @@ export class GameSessionQueryDto {
   @IsOptional()
   @IsIn(['newest'])
   coverage?: 'newest';
+
+  /** Opt-in detail-free chart query. Defaults to including detail for backward compatibility. */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  includeDetail?: 'true' | 'false';
+}
+
+export class GameSessionSummaryQueryDto {
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  timeZone?: string;
 }

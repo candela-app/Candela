@@ -2,7 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/commo
 import { CurrentUser } from '../common/current-user.decorator';
 import { Roles } from '../common/decorators';
 import { User } from '../entities/user.entity';
-import { CreateGameSessionDto, GameSessionQueryDto } from './game-sessions.dto';
+import { CreateGameSessionDto, GameSessionQueryDto, GameSessionSummaryQueryDto } from './game-sessions.dto';
 import { GameSessionsService } from './game-sessions.service';
 
 @Controller('api/game-sessions')
@@ -41,7 +41,11 @@ export class DoctorGameSessionsController {
   }
 
   @Get('summary')
-  summary(@CurrentUser() user: User, @Param('patientId') patientId: string) {
-    return this.sessions.summaryForDoctor(user.id, patientId);
+  summary(
+    @CurrentUser() user: User,
+    @Param('patientId') patientId: string,
+    @Query() query?: GameSessionSummaryQueryDto,
+  ) {
+    return this.sessions.summaryForDoctor(user.id, patientId, query);
   }
 }

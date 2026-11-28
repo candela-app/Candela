@@ -7,6 +7,7 @@ import { recordRecentlyViewedPatient } from '@/lib/doctor-recent-patients';
 import {
   MODULE_LEVELS,
   canonicalizeDirectionSenseLevels,
+  resolvedTimeZone,
   type PatientIdentityProfile,
   type PatientSummary,
   type SavedPracticeSummary,
@@ -16,9 +17,12 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { DoctorPatientPrescribe } from '@/components/doctor/DoctorPatientPrescribe';
 import { DoctorPatientAnalytics } from '@/components/doctor/DoctorPatientAnalytics';
+import { DoctorPatientSessions } from '@/components/doctor/DoctorPatientSessions';
+import { DoctorPatientAssignments } from '@/components/doctor/DoctorPatientAssignments';
 import { DoctorPatientIdentityPanel } from '@/components/profile/DoctorPatientIdentityPanel';
 import {
   AnalyticsIcon,
+  HistoryIcon,
   MailIcon,
   MonitorIcon,
   SlidersIcon,
@@ -28,10 +32,11 @@ import { CopyButton } from '@/components/ui/CopyButton';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-type WorkspacePane = 'overview' | 'analytics' | 'prescription' | 'invitation' | 'devices';
+type WorkspacePane = 'overview' | 'analytics' | 'sessions' | 'prescription' | 'invitation' | 'devices';
 
 function workspaceFromSearch(view: string | null): WorkspacePane {
   if (view === 'analytics') return 'analytics';
+  if (view === 'sessions') return 'sessions';
   if (view === 'prescription') return 'prescription';
   if (view === 'invitation') return 'invitation';
   if (view === 'devices') return 'devices';
@@ -463,6 +468,8 @@ function PatientWorkspace({
   onToggleModule: (moduleId: TherapyModuleId, enabled: boolean) => void;
   onToggleLevel: (moduleId: TherapyModuleId, levelId: string, enabled: boolean) => void;
 }) {
+  const [prescriptionView, setPrescriptionView] = useState<'prescribe' | 'history'>('prescribe');
+
   const workspaceActions = (
     <>
       {(
@@ -472,6 +479,12 @@ function PatientWorkspace({
             label: 'Analytics',
             icon: AnalyticsIcon,
             title: 'Session analytics',
+          },
+          {
+            id: 'sessions' as const,
+            label: 'Sessions',
+            icon: HistoryIcon,
+            title: 'Session history',
           },
           {
             id: 'prescription' as const,
@@ -591,13 +604,66 @@ function PatientWorkspace({
           </div>
         ) : null}
 
-        {workspace === 'prescription' ? (
+        {workspace === 'sessions' ? (
           <div className={`rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
-            <DoctorPatientPrescribe
-              patient={patient}
-              onToggleModule={onToggleModule}
-              onToggleLevel={onToggleLevel}
-            />
+            <DoctorPatientSessions patientId={patient.id} patientName={patient.name} />
+          </div>
+        ) : null}
+
+        {workspace === 'prescription' ? (
+          <div className={`space-y-5 rounded-[13px] border border-gray-100 bg-white p-[21px] ${PAGE_SHADOW}`}>
+            <div role="tablist" aria-label="Prescription sections" className="flex gap-1 border-b border-gray-100">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={prescriptionView === 'prescribe'}
+                aria-controls="patient-prescribe-panel"
+                onClick={() => setPrescriptionView('prescribe')}
+                className={`-mb-px cursor-pointer border-b-2 px-4 py-3 text-[13px] font-semibold transition-colors ${
+                  prescriptionView === 'prescribe'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Prescribe
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={prescriptionView === 'history'}
+                aria-controls="patient-prescription-history-panel"
+                onClick={() => setPrescriptionView('history')}
+                className={`-mb-px cursor-pointer border-b-2 px-4 py-3 text-[13px] font-semibold transition-colors ${
+                  prescriptionView === 'history'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                History
+              </button>
+            </div>
+            <div
+              id="patient-prescribe-panel"
+              role="tabpanel"
+              hidden={prescriptionView !== 'prescribe'}
+            >
+              <DoctorPatientPrescribe
+                patient={patient}
+                onToggleModule={onToggleModule}
+                onToggleLevel={onToggleLevel}
+              />
+            </div>
+            <div
+              id="patient-prescription-history-panel"
+              role="tabpanel"
+              hidden={prescriptionView !== 'history'}
+            >
+              <DoctorPatientAssignments
+                patientId={patient.id}
+                timeZone={resolvedTimeZone()}
+                open={prescriptionView === 'history'}
+              />
+            </div>
           </div>
         ) : null}
 

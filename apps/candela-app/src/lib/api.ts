@@ -1,4 +1,10 @@
-import type { SavedPracticeSummary, SessionUser } from '@candela/shared';
+import type {
+  DoctorCaseloadAnalytics,
+  PatientAssignmentsHistory,
+  RangedPracticeSummary,
+  SavedPracticeSummary,
+  SessionUser,
+} from '@candela/shared';
 import { EMERGENCY_REASON_HEADER, ORGANIZATION_SCOPE_HEADER } from '@candela/shared';
 
 export class ApiError extends Error {
@@ -258,6 +264,7 @@ export type GameSessionListQuery = {
   deviceTier?: string;
   from?: string;
   to?: string;
+  includeDetail?: boolean;
 };
 
 function sessionQuery(params: GameSessionListQuery): string {
@@ -267,6 +274,7 @@ function sessionQuery(params: GameSessionListQuery): string {
   if (params.deviceTier) q.set('deviceTier', params.deviceTier);
   if (params.from) q.set('from', params.from);
   if (params.to) q.set('to', params.to);
+  if (params.includeDetail === false) q.set('includeDetail', 'false');
   const s = q.toString();
   return s ? `?${s}` : '';
 }
@@ -292,8 +300,26 @@ export function getMyPracticeSummary() {
   return api<SavedPracticeSummary>('/api/game-sessions/summary');
 }
 
-export function getPatientPracticeSummary(patientId: string) {
-  return api<SavedPracticeSummary>(`/api/doctors/me/patients/${patientId}/game-sessions/summary`);
+export function getPatientPracticeSummary(patientId: string): Promise<SavedPracticeSummary>;
+export function getPatientPracticeSummary(
+  patientId: string,
+  period: { from: string; to: string; timeZone: string },
+): Promise<RangedPracticeSummary>;
+export function getPatientPracticeSummary(
+  patientId: string,
+  period?: { from: string; to: string; timeZone: string },
+) {
+  if (!period) {
+    return api<SavedPracticeSummary>(`/api/doctors/me/patients/${patientId}/game-sessions/summary`);
+  }
+  const q = new URLSearchParams({
+    from: period.from,
+    to: period.to,
+    timeZone: period.timeZone,
+  });
+  return api<RangedPracticeSummary>(
+    `/api/doctors/me/patients/${patientId}/game-sessions/summary?${q.toString()}`,
+  );
 }
 
 export type SessionOverviewResponse = {
@@ -311,6 +337,7 @@ function overviewQuery(params: GameSessionListQuery): string {
   if (params.deviceTier) q.set('deviceTier', params.deviceTier);
   if (params.from) q.set('from', params.from);
   if (params.to) q.set('to', params.to);
+  if (params.includeDetail === false) q.set('includeDetail', 'false');
   return `?${q.toString()}`;
 }
 
@@ -364,4 +391,21 @@ export function getDoctorDashboardSummary(timeZone?: string) {
   return api<import('@candela/shared').DoctorDashboardSummary>(
     `/api/doctors/me/dashboard-summary${query}`,
   );
+}
+
+export function getDoctorCaseloadAnalytics(params: {
+  from?: string;
+  to?: string;
+  timeZone?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  if (params.timeZone) q.set('timeZone', params.timeZone);
+  const qs = q.toString();
+  return api<DoctorCaseloadAnalytics>(`/api/doctors/me/analytics/caseload${qs ? `?${qs}` : ''}`);
+}
+
+export function getPatientAssignmentsHistory(patientId: string) {
+  return api<PatientAssignmentsHistory>(`/api/doctors/me/patients/${patientId}/assignments`);
 }
