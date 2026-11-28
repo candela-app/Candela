@@ -4,10 +4,12 @@ import { Repository } from 'typeorm';
 import {
   OVERVIEW_SESSION_CAP,
   buildPracticeSnapshot,
+  type RangedPracticeSummary,
   type SavedPracticeSummary,
   persistedDetailVersion,
   planNewSessionRevision,
   prepareGameSessionInsert,
+  resolveStrictLocalPeriod,
   sanitizeSessionDetail,
   selectNewestOverview,
 } from '@candela/shared';
@@ -18,7 +20,32 @@ import { PatientProfile } from '../entities/patient-profile.entity';
 import { PrescriptionRevision } from '../entities/prescription-revision.entity';
 import { MembershipsService } from '../memberships/memberships.service';
 import { revisionRecord } from '../prescriptions/revision-record';
-import { CreateGameSessionDto, GameSessionQueryDto } from './game-sessions.dto';
+import { CreateGameSessionDto, GameSessionQueryDto, GameSessionSummaryQueryDto } from './game-sessions.dto';
+
+const CHART_SESSION_FIELDS = [
+  'id',
+  'sessionNumber',
+  'gameId',
+  'levelId',
+  'deviceTier',
+  'recordedAt',
+  'durationSec',
+  'correct',
+  'wrongTaps',
+  'misses',
+  'timeouts',
+  'accuracy',
+  'avgReactionSec',
+  'medianReactionSec',
+  'efficiencyIndex',
+  'reactionMs',
+  'stimuliCount',
+  'gameName',
+  'bgColor',
+  'stimulusColor',
+  'contrastPercent',
+  'metricsVersion',
+] as const;
 
 
 /** `to` is an exclusive UTC instant. Date-only strings are rejected so they are not read as UTC midnight. */
@@ -155,9 +182,113 @@ export class GameSessionsService {
     return this.summary(patientId);
   }
 
-  async summaryForDoctor(doctorId: string, patientId: string) {
+  async summaryForDoctor(
+    doctorId: string,
+    patientId: string,
+    query?: GameSessionSummaryQueryDto,
+  ): Promise<SavedPracticeSummary | RangedPracticeSummary> {
     await this.memberships.assertDoctorCanAccessPatient(doctorId, patientId);
-    return this.summary(patientId);
+    const hasPeriodParams = Boolean(
+      query?.from?.trim() || query?.to?.trim() || query?.timeZone?.trim(),
+    );
+    if (!hasPeriodParams) {
+      return this.summary(patientId);
+    }
+    let startInclusive: Date;
+    let endExclusive: Date;
+    try {
+      const period = resolveStrictLocalPeriod({
+        from: query?.from,
+        to: query?.to,
+        timeZone: query?.timeZone,
+      });
+      startInclusive = new Date(period.startInclusive);
+      endExclusive = new Date(period.endExclusive);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'Invalid date range');
+    }
+    return this.summaryInRange(patientId, startInclusive, endExclusive);
+  }
+
+  /** Period-scoped count, distinct modules played, and newest session snapshot (no detail/reactionMs loaded). */
+  private async summaryInRange(
+    patientId: string,
+    startInclusive: Date,
+    endExclusive: Date,
+  ): Promise<RangedPracticeSummary> {
+    const countRow = await this.sessions
+      .createQueryBuilder('s')
+      .select('COUNT(*)', 'count')
+      .addSelect('COUNT(DISTINCT s.game_id)', 'modulesCount')
+      .where('s.patient_id = :patientId', { patientId })
+      .andWhere('s.recorded_at >= :startInclusive', { startInclusive })
+      .andWhere('s.recorded_at < :endExclusive', { endExclusive })
+      .getRawOne<{ count: string; modulesCount: string }>();
+
+    const sessionCount = Number(countRow?.count ?? 0);
+    const safeCount = Number.isFinite(sessionCount) ? Math.max(0, sessionCount) : 0;
+    if (safeCount === 0) {
+      return {
+        sessionCount: 0,
+        availability: 'none_saved',
+        last: null,
+        distinctModulesCount: 0,
+        playedModuleIds: [],
+      };
+    }
+
+    const [moduleRows, latest] = await Promise.all([
+      this.sessions
+        .createQueryBuilder('s')
+        .select('DISTINCT s.game_id', 'gameId')
+        .where('s.patient_id = :patientId', { patientId })
+        .andWhere('s.recorded_at >= :startInclusive', { startInclusive })
+        .andWhere('s.recorded_at < :endExclusive', { endExclusive })
+        .orderBy('s.game_id', 'ASC')
+        .getRawMany<{ gameId: string }>(),
+      this.sessions
+        .createQueryBuilder('s')
+        .select(['s.recordedAt', 's.gameId', 's.gameName', 's.levelId'])
+        .where('s.patient_id = :patientId', { patientId })
+        .andWhere('s.recorded_at >= :startInclusive', { startInclusive })
+        .andWhere('s.recorded_at < :endExclusive', { endExclusive })
+        .orderBy('s.recorded_at', 'DESC')
+        .addOrderBy('s.session_number', 'DESC')
+        .take(1)
+        .getOne(),
+    ]);
+
+    const playedModuleIds = moduleRows.map((row) => row.gameId).filter(Boolean);
+    const rawDistinct = Number(countRow?.modulesCount ?? playedModuleIds.length);
+    const distinctModulesCount = Number.isFinite(rawDistinct) ? rawDistinct : playedModuleIds.length;
+    const snapshot = buildPracticeSnapshot({
+      sessionCount: safeCount,
+      latest: latest
+        ? {
+            recordedAt: latest.recordedAt.toISOString(),
+            gameId: latest.gameId,
+            gameName: latest.gameName,
+            levelId: latest.levelId,
+          }
+        : null,
+    });
+
+    return {
+      sessionCount: snapshot.sessionCount,
+      availability: snapshot.availability,
+      last:
+        snapshot.availability === 'recorded' && snapshot.lastRecordedAt && snapshot.lastGameId && snapshot.lastGameName
+          ? {
+              recordedAt: snapshot.lastRecordedAt,
+              gameId: snapshot.lastGameId,
+              gameName: snapshot.lastGameName,
+              levelId: snapshot.lastLevelId,
+              levelName: snapshot.lastLevelName ?? 'Level not recorded',
+            }
+          : null,
+      distinctModulesCount,
+      playedModuleIds,
+    };
   }
 
   /**
@@ -251,6 +382,9 @@ export class GameSessionsService {
       .where('s.patient_id = :patientId', { patientId })
       .orderBy('s.recorded_at', 'DESC')
       .addOrderBy('s.session_number', 'DESC');
+    if (query.includeDetail === 'false') {
+      qb.select(CHART_SESSION_FIELDS.map((field) => `s.${field}`));
+    }
     if (query.gameId) {
       if (!isTherapyModuleId(query.gameId)) {
         throw new BadRequestException('Unknown game module');
@@ -303,8 +437,8 @@ export class GameSessionsService {
       stimulusColor: row.stimulusColor,
       contrastPercent: row.contrastPercent,
       metricsVersion: row.metricsVersion,
-      detail: row.detail,
-      detailVersion: row.detailVersion,
+      detail: row.detail ?? null,
+      detailVersion: row.detailVersion ?? null,
     };
   }
 }

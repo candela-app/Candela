@@ -157,3 +157,137 @@ describe('practice summary API', () => {
     await expect(service.summaryForPatient('doctor-1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('ranged doctor summary and detail-free chart query', () => {
+  it('computes ranged summary count, distinct modules played, and last session without loading detail rows', async () => {
+    const recordedCalls: Array<{ select: string | string[] | null; wheres: string[] }> = [];
+    const sessions = {
+      createQueryBuilder() {
+        const call = { select: null as string | string[] | null, wheres: [] as string[] };
+        recordedCalls.push(call);
+        const qb = {
+          select(sel: string | string[]) {
+            call.select = sel;
+            return qb;
+          },
+          addSelect() {
+            return qb;
+          },
+          where(sql: string) {
+            call.wheres.push(sql);
+            return qb;
+          },
+          andWhere(sql: string) {
+            call.wheres.push(sql);
+            return qb;
+          },
+          orderBy() {
+            return qb;
+          },
+          addOrderBy() {
+            return qb;
+          },
+          take() {
+            return qb;
+          },
+          getRawOne: async () => ({ count: '3', modulesCount: '2' }),
+          getRawMany: async () => [{ gameId: 'bee_tracing' }, { gameId: 'rotatory' }],
+          getOne: async () => row({ gameId: 'rotatory', recordedAt: new Date('2026-11-20T10:00:00.000Z') }),
+        };
+        return qb;
+      },
+    } as unknown as Repository<GameSession>;
+
+    const service = new GameSessionsService(
+      sessions,
+      {} as Repository<PatientProfile>,
+      { assertDoctorCanAccessPatient: async () => ({ userId: 'patient-1' }) } as never,
+    );
+
+    const summary = await service.summaryForDoctor('doctor-1', 'patient-1', {
+      from: '2026-10-30',
+      to: '2026-11-28',
+      timeZone: 'Asia/Kolkata',
+    });
+
+    expect(summary).toMatchObject({
+      sessionCount: 3,
+      availability: 'recorded',
+      distinctModulesCount: 2,
+      playedModuleIds: ['bee_tracing', 'rotatory'],
+      last: {
+        recordedAt: '2026-11-20T10:00:00.000Z',
+        gameId: 'rotatory',
+      },
+    });
+    expect(JSON.stringify(recordedCalls)).not.toContain('detail');
+    expect(JSON.stringify(recordedCalls)).not.toContain('reactionMs');
+  });
+
+  it('omits detail and detailVersion while retaining reactionMs when listForDoctor uses includeDetail=false', async () => {
+    const selectedColumns: Array<string | string[] | null> = [];
+    const sessions = {
+      createQueryBuilder() {
+        const qb = {
+          select(sel: string | string[]) {
+            selectedColumns.push(sel);
+            return qb;
+          },
+          where() {
+            return qb;
+          },
+          andWhere() {
+            return qb;
+          },
+          orderBy() {
+            return qb;
+          },
+          addOrderBy() {
+            return qb;
+          },
+          take() {
+            return qb;
+          },
+          getMany: async () => [
+            row({
+              reactionMs: [410, 490],
+              accuracy: 90,
+              avgReactionSec: 0.45,
+              medianReactionSec: 0.45,
+              efficiencyIndex: 200,
+              correct: 9,
+              wrongTaps: 1,
+              misses: 0,
+              timeouts: 0,
+              durationSec: 30,
+              stimuliCount: 10,
+              metricsVersion: 1,
+            }),
+          ],
+        };
+        return qb;
+      },
+    } as unknown as Repository<GameSession>;
+
+    const service = new GameSessionsService(
+      sessions,
+      {} as Repository<PatientProfile>,
+      { assertDoctorCanAccessPatient: async () => ({ userId: 'patient-1' }) } as never,
+    );
+
+    const overview = (await service.listForDoctor('doctor-1', 'patient-1', {
+      coverage: 'newest',
+      includeDetail: 'false',
+      gameId: 'rotatory',
+    })) as { sessions: Array<{ reactionMs: number[]; detail: unknown; detailVersion: unknown }> };
+
+    expect(Array.isArray(selectedColumns[0])).toBe(true);
+    const cols = selectedColumns[0] as string[];
+    expect(cols).toContain('s.reactionMs');
+    expect(cols).not.toContain('s.detail');
+    expect(cols).not.toContain('s.detailVersion');
+    expect(overview.sessions[0]?.reactionMs).toEqual([410, 490]);
+    expect(overview.sessions[0]?.detail).toBeNull();
+    expect(overview.sessions[0]?.detailVersion).toBeNull();
+  });
+});

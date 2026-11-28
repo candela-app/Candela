@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { getContrastAdjustedColor } from './clinical-color';
 import {
   analyticsQueryRange,
+  assertCalendarDayKey,
+  assertStrictIanaTimeZone,
   buildGameSessionAnalytics,
   singleGameChartPerformance,
   calendarDayKey,
@@ -18,6 +20,7 @@ import {
   formatPlotTooltip,
   plotPointsForScale,
   prepareGameSessionInsert,
+  resolveStrictLocalPeriod,
   yValueForDaily,
   payloadFromSessionResult,
   poolSessionsByDate,
@@ -29,6 +32,7 @@ import {
   type StoredGameSession,
 } from './game-session';
 import { reactionStatsFromMs } from './game-logic';
+import { buildLevelAnalytics } from './level-analytics';
 import { analyticsMetricsForGame, availableAnalyticsMetrics, positiveReactionTime, reactionTimeAvailable } from './session-analytics-copy';
 import {
   buildSessionMetrics,
@@ -679,5 +683,148 @@ describe('phase 1 insert normalization', () => {
     expect(plan.record).toBe(stored);
     expect(plan.record.accuracy).toBe(10);
     expect(plan.record.efficiencyIndex).toBe(4);
+  });
+});
+
+describe('strict local period and chart calculation preservation', () => {
+  it('validates strict IANA zones, calendar dates, and inverted ranges', () => {
+    expect(assertStrictIanaTimeZone()).toBe('UTC');
+    expect(assertStrictIanaTimeZone('  ')).toBe('UTC');
+    expect(assertStrictIanaTimeZone('Asia/Kolkata')).toBe('Asia/Kolkata');
+    expect(() => assertStrictIanaTimeZone('+05:30')).toThrow(/IANA/);
+    expect(() => assertStrictIanaTimeZone('-04:00')).toThrow(/IANA/);
+    expect(() => assertStrictIanaTimeZone('Mars/Olympus')).toThrow(/IANA/);
+
+    expect(assertCalendarDayKey('2026-11-28')).toBe('2026-11-28');
+    expect(() => assertCalendarDayKey('2026-02-31')).toThrow(/Invalid calendar date/);
+    expect(() => assertCalendarDayKey('2026-13-01')).toThrow(/Invalid calendar date/);
+    expect(() => assertCalendarDayKey('2026-2-5')).toThrow(/Invalid calendar date/);
+
+    expect(() =>
+      resolveStrictLocalPeriod({ from: '2026-11-28', to: '2026-10-30', timeZone: 'Asia/Kolkata' }),
+    ).toThrow(/from must be on or before to/);
+    expect(() => resolveStrictLocalPeriod({ from: '2026-11-01', timeZone: 'UTC' })).toThrow(
+      /required together/,
+    );
+  });
+
+  it('defaults omitted dates to Last 30 days in supplied zone or UTC and handles DST transitions', () => {
+    const fixedNow = new Date('2026-11-28T20:00:00.000Z'); // 2026-11-29 01:30 in Asia/Kolkata
+    const istDefault = resolveStrictLocalPeriod({ timeZone: 'Asia/Kolkata', now: fixedNow });
+    expect(istDefault.from).toBe('2026-10-31');
+    expect(istDefault.to).toBe('2026-11-29');
+    expect(istDefault.startInclusive).toBe('2026-10-30T18:30:00.000Z');
+    expect(istDefault.endExclusive).toBe('2026-11-29T18:30:00.000Z');
+
+    const utcDefault = resolveStrictLocalPeriod({ now: fixedNow });
+    expect(utcDefault.timeZone).toBe('UTC');
+    expect(utcDefault.from).toBe('2026-10-30');
+    expect(utcDefault.to).toBe('2026-11-28');
+
+    // Spring-forward 2026-03-08 in America/New_York (23-hour day)
+    const spring = resolveStrictLocalPeriod({
+      from: '2026-03-08',
+      to: '2026-03-08',
+      timeZone: 'America/New_York',
+    });
+    expect(
+      (new Date(spring.endExclusive).getTime() - new Date(spring.startInclusive).getTime()) / 3600000,
+    ).toBe(23);
+
+    // Fall-back 2026-11-01 in America/New_York (25-hour day)
+    const fall = resolveStrictLocalPeriod({
+      from: '2026-11-01',
+      to: '2026-11-01',
+      timeZone: 'America/New_York',
+    });
+    expect(
+      (new Date(fall.endExclusive).getTime() - new Date(fall.startInclusive).getTime()) / 3600000,
+    ).toBe(25);
+  });
+
+  it('preserves identical chart, metric availability, and level performance outputs when detail is omitted and reactionMs is kept', () => {
+    const withDetail: StoredGameSession[] = [
+      {
+        id: 's1',
+        sessionNumber: 1,
+        gameId: 'rotatory',
+        levelId: 'uppercase',
+        deviceTier: 'tablet',
+        recordedAt: '2026-11-10T10:00:00.000Z',
+        durationSec: 45,
+        correct: 8,
+        wrongTaps: 2,
+        misses: 0,
+        timeouts: 0,
+        accuracy: 80,
+        avgReactionSec: 0.55,
+        medianReactionSec: 0.52,
+        efficiencyIndex: 145.5,
+        reactionMs: [500, 600],
+        stimuliCount: 10,
+        gameName: 'Rotatory Wheel',
+        metricsVersion: 1,
+        detail: { version: 1, gameId: 'rotatory', levelId: 'uppercase' } as StoredGameSession['detail'],
+        detailVersion: 1,
+      },
+      {
+        id: 's2',
+        sessionNumber: 2,
+        gameId: 'rotatory',
+        levelId: 'uppercase',
+        deviceTier: 'tablet',
+        recordedAt: '2026-11-10T14:00:00.000Z',
+        durationSec: 40,
+        correct: 9,
+        wrongTaps: 1,
+        misses: 0,
+        timeouts: 0,
+        accuracy: 90,
+        avgReactionSec: 0.4,
+        medianReactionSec: 0.4,
+        efficiencyIndex: 225,
+        reactionMs: [380, 420],
+        stimuliCount: 10,
+        gameName: 'Rotatory Wheel',
+        metricsVersion: 1,
+        detail: { version: 1, gameId: 'rotatory', levelId: 'uppercase' } as StoredGameSession['detail'],
+        detailVersion: 1,
+      },
+    ];
+    const withoutDetail = withDetail.map((row) => ({
+      ...row,
+      detail: null,
+      detailVersion: null,
+    }));
+
+    expect(availableAnalyticsMetrics('rotatory', withoutDetail)).toEqual(
+      availableAnalyticsMetrics('rotatory', withDetail),
+    );
+    const analyticsFull = buildGameSessionAnalytics(withDetail, { timeZone: 'Asia/Kolkata' });
+    const analyticsLite = buildGameSessionAnalytics(withoutDetail, { timeZone: 'Asia/Kolkata' });
+    expect(analyticsLite.daily).toEqual(analyticsFull.daily);
+    expect(analyticsLite.totals).toEqual(analyticsFull.totals);
+    expect(analyticsLite.preliminary).toBe(analyticsFull.preliminary);
+
+    const levelFull = buildLevelAnalytics({
+      gameId: 'rotatory',
+      levelId: 'uppercase',
+      timeZone: 'Asia/Kolkata',
+      rows: withDetail,
+    });
+    const levelLite = buildLevelAnalytics({
+      gameId: 'rotatory',
+      levelId: 'uppercase',
+      timeZone: 'Asia/Kolkata',
+      rows: withoutDetail,
+    });
+    expect(levelFull.status).toBe('ok');
+    expect(levelLite.status).toBe('ok');
+    if (levelFull.status === 'ok' && levelLite.status === 'ok') {
+      expect(levelLite.sessionCount).toBe(levelFull.sessionCount);
+      expect(levelLite.performanceValue).toBe(levelFull.performanceValue);
+      expect(levelLite.reactionMeanSec).toBe(levelFull.reactionMeanSec);
+      expect(levelLite.daily).toEqual(levelFull.daily);
+    }
   });
 });

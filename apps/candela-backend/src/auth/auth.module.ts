@@ -25,6 +25,7 @@ import { ProfilesModule } from '../profiles/profiles.module';
 import { PrescriptionAnalyticsService } from '../prescriptions/prescription-analytics.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { DoctorAnalyticsService } from './doctor-analytics.service';
 import { DoctorDashboardService } from './doctor-dashboard.service';
 import { GoogleAuthService } from './google-auth.service';
 import { AdminController, DoctorController, MeController } from './role.controllers';
@@ -61,6 +62,7 @@ import { AdminController, DoctorController, MeController } from './role.controll
   controllers: [AuthController, AdminController, DoctorController, MeController],
   providers: [
     AuthService,
+    DoctorAnalyticsService,
     DoctorDashboardService,
     PrescriptionAnalyticsService,
     GoogleAuthService,

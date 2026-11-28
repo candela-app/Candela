@@ -15,6 +15,7 @@ import type {
   PatientSummary,
 } from '@candela/shared';
 import { DoctorDashboardSkeleton } from '@/components/common/Skeleton';
+import { DoctorCaseloadAnalytics } from '@/components/doctor/DoctorCaseloadAnalytics';
 import { DoctorHeader } from '@/components/doctor/DoctorHeader';
 import { DoctorOverview } from '@/components/doctor/DoctorOverview';
 import { DoctorSidebar, type DoctorSection } from '@/components/doctor/DoctorSidebar';
@@ -663,19 +664,12 @@ function DoctorDashboard() {
             )}
 
             {section === 'analytics' && (
-              <div className="space-y-5">
-                <h1 className="text-[21px] font-semibold text-[var(--doc-text)]">Analytics</h1>
-                <PatientShortcutList
-                  title="Patient analytics"
-                  empty="No patients yet."
-                  patients={patients}
-                  loading={patientsLoading}
-                  error={patientsError}
-                  onRetry={() => void loadPatients()}
-                  hrefFor={(patient) => `/doctor/patients/${patient.id}?view=analytics`}
-                  actionLabel="Open"
-                />
-              </div>
+              <DoctorCaseloadAnalytics
+                patients={patients}
+                patientsLoading={patientsLoading}
+                patientsError={patientsError}
+                onRetryPatients={() => void loadPatients()}
+              />
             )}
 
             {section === 'account' && (
